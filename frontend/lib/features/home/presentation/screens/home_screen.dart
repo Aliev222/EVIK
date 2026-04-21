@@ -172,7 +172,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               .setDriverStage(DriverHomeStage.newOrder);
         }
       });
-      _driverPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _driverPollTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
         unawaited(_pollDriverOrder());
       });
       unawaited(_pollDriverOrder());

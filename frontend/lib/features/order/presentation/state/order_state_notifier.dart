@@ -138,7 +138,8 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       },
     );
 
-    _orderStatusPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _orderStatusPollTimer =
+        Timer.periodic(const Duration(milliseconds: 700), (_) {
       unawaited(_pollOrderStatus(orderId));
     });
     unawaited(_pollOrderStatus(orderId));
