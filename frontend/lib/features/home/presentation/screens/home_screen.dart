@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -54,33 +56,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _addressSearch = TextEditingController();
   final _comment = TextEditingController();
 
-  String _fromAddress = 'Моё местоположение';
+  String _fromAddress = 'Р В РЎС™Р В РЎвЂўР РЋРІР‚В Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ';
   String? _toAddress;
   bool _pickFrom = false;
-  String _vehicleType = 'Седан';
+  String _vehicleType = 'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦';
   int _lockedWheels = 0;
   bool _running = true;
-  String _tariff = 'Стандарт';
+  String _tariff = 'Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™';
 
   static const _suggestions = <String>[
-    'Лесная улица, 15',
-    'Кирова, 78А',
-    'ТЦ «Сокол», Летняя, 14',
-    'Аэропорт, терминал B',
-    'Южный вокзал',
+    'Р В РІР‚С”Р В Р’ВµР РЋР С“Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р РЋРЎвЂњР В Р’В»Р В РЎвЂР РЋРІР‚В Р В Р’В°, 15',
+    'Р В РЎв„ўР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°, 78Р В РЎвЂ™',
+    'Р В РЎС›Р В Р’В¦ Р вЂ™Р’В«Р В Р Р‹Р В РЎвЂўР В РЎвЂќР В РЎвЂўР В Р’В»Р вЂ™Р’В», Р В РІР‚С”Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋР РЏР РЋР РЏ, 14',
+    'Р В РЎвЂ™Р РЋР РЉР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р В РЎвЂўР РЋР вЂљР РЋРІР‚С™, Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р’В» B',
+    'Р В Р’В®Р В Р’В¶Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р вЂ Р В РЎвЂўР В РЎвЂќР В Р’В·Р В Р’В°Р В Р’В»',
   ];
 
   static const _vehicleTypes = <String>[
-    'Седан',
-    'Кроссовер',
-    'Минивэн',
-    'Фургон'
+    'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦',
+    'Р В РЎв„ўР РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР С“Р В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљ',
+    'Р В РЎС™Р В РЎвЂР В Р вЂ¦Р В РЎвЂР В Р вЂ Р РЋР РЉР В Р вЂ¦',
+    'Р В Р’В¤Р РЋРЎвЂњР РЋР вЂљР В РЎвЂ“Р В РЎвЂўР В Р вЂ¦'
   ];
 
   static const _tariffs = <_Tariff>[
-    _Tariff('Стандарт', 3900, '12 мин'),
-    _Tariff('Комфорт', 4900, '10 мин'),
-    _Tariff('Экспресс', 6200, '7 мин'),
+    _Tariff('Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™', 3900, '12 Р В РЎВР В РЎвЂР В Р вЂ¦'),
+    _Tariff('Р В РЎв„ўР В РЎвЂўР В РЎВР РЋРІР‚С›Р В РЎвЂўР РЋР вЂљР РЋРІР‚С™', 4900, '10 Р В РЎВР В РЎвЂР В Р вЂ¦'),
+    _Tariff('Р В Р’В­Р В РЎвЂќР РЋР С“Р В РЎвЂ”Р РЋР вЂљР В Р’ВµР РЋР С“Р РЋР С“', 6200, '7 Р В РЎВР В РЎвЂР В Р вЂ¦'),
   ];
 
   _Tariff get _activeTariff => _tariffs.firstWhere((t) => t.name == _tariff,
@@ -97,13 +99,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _resetClient() {
     setState(() {
-      _fromAddress = 'Моё местоположение';
+      _fromAddress = 'Р В РЎС™Р В РЎвЂўР РЋРІР‚В Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ';
       _toAddress = null;
       _pickFrom = false;
-      _vehicleType = 'Седан';
+      _vehicleType = 'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦';
       _lockedWheels = 0;
       _running = true;
-      _tariff = 'Стандарт';
+      _tariff = 'Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™';
       _comment.clear();
     });
     ref.read(appFlowProvider.notifier).setClientStage(ClientHomeStage.idle);
@@ -234,7 +236,17 @@ class _MainShellState extends ConsumerState<_MainShell> {
     final notifier = ref.read(appFlowProvider.notifier);
 
     final home = flow.isDriver
-        ? _DriverHome(stage: flow.driverStage)
+        ? _DriverHome(
+            stage: flow.driverStage,
+            fromAddress: widget.fromAddress,
+            toAddress: widget.toAddress,
+            vehicleType: widget.vehicleType,
+            lockedWheels: widget.lockedWheels,
+            running: widget.running,
+            selectedTariff: widget.selectedTariff,
+            tariffPrice: widget.activeTariff.price,
+            comment: widget.comment.text,
+          )
         : _ClientHome(
             stage: flow.clientStage,
             fromAddress: widget.fromAddress,
@@ -263,12 +275,6 @@ class _MainShellState extends ConsumerState<_MainShell> {
             onSubmitOrder: widget.onSubmitOrder,
             onRetry: notifier.retrySearch,
             onReset: widget.onReset,
-            onNext: () =>
-                notifier.setClientStage(ClientHomeStage.driverEnRoute),
-            onArrived: () =>
-                notifier.setClientStage(ClientHomeStage.driverArrived),
-            onComplete: () =>
-                notifier.setClientStage(ClientHomeStage.completed),
           );
 
     final body = switch (flow.currentTab) {
@@ -284,12 +290,11 @@ class _MainShellState extends ConsumerState<_MainShell> {
           Positioned(
             top: 8,
             left: 8,
-            child: Container(
-              decoration: BoxDecoration(
-                color: EvikColors.darkBackground.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EvikColors.borderDark),
-              ),
+            child: _GlassSurface(
+              padding: EdgeInsets.zero,
+              borderRadius: BorderRadius.circular(12),
+              blurSigma: 12,
+              tint: Colors.white.withValues(alpha: 0.56),
               child: IconButton(
                 onPressed: _toggleMenu,
                 icon: const Icon(Icons.menu, color: EvikColors.textPrimaryDark),
@@ -306,14 +311,15 @@ class _MainShellState extends ConsumerState<_MainShell> {
             ),
             Align(
               alignment: Alignment.centerLeft,
-              child: Container(
+              child: _GlassSurface(
                 width: MediaQuery.of(context).size.width * 0.5,
                 height: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 28, 12, 16),
-                decoration: const BoxDecoration(
-                  color: EvikColors.darkBackground,
-                  border:
-                      Border(right: BorderSide(color: EvikColors.borderDark)),
+                blurSigma: 16,
+                tint: Colors.white.withValues(alpha: 0.58),
+                borderRadius: BorderRadius.circular(0),
+                border: const Border(
+                  right: BorderSide(color: EvikColors.borderDark),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,7 +767,7 @@ class _SuccessScreen extends ConsumerWidget {
           const Icon(Icons.check_circle_outline,
               color: EvikColors.textPrimaryDark, size: 88),
           const SizedBox(height: 12),
-          const Text('Вход выполнен',
+          const Text('Р В РІР‚в„ўР РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦',
               style: TextStyle(
                 color: EvikColors.textPrimaryDark,
                 fontSize: 34,
@@ -769,7 +775,7 @@ class _SuccessScreen extends ConsumerWidget {
               )),
           const Spacer(),
           _ActionButton.primary(
-            text: 'Перейти к карте',
+            text: 'Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ Р В РЎвЂќ Р В РЎвЂќР В Р’В°Р РЋР вЂљР РЋРІР‚С™Р В Р’Вµ',
             onTap: () => ref.read(appFlowProvider.notifier).finishAuth(),
           ),
         ],
@@ -806,9 +812,6 @@ class _ClientHome extends StatelessWidget {
     required this.onSubmitOrder,
     required this.onRetry,
     required this.onReset,
-    required this.onNext,
-    required this.onArrived,
-    required this.onComplete,
   });
 
   final ClientHomeStage stage;
@@ -837,16 +840,13 @@ class _ClientHome extends StatelessWidget {
   final VoidCallback onSubmitOrder;
   final VoidCallback onRetry;
   final VoidCallback onReset;
-  final VoidCallback onNext;
-  final VoidCallback onArrived;
-  final VoidCallback onComplete;
 
   @override
   Widget build(BuildContext context) {
     final overlay = switch (stage) {
       ClientHomeStage.idle => _Panel(
           child: _ActionButton.primary(
-              text: 'Вызвать эвакуатор', onTap: onStartAddress),
+              text: 'Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В·Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ', onTap: onStartAddress),
         ),
       ClientHomeStage.addressSelection => _AddressPanel(
           fromAddress: fromAddress,
@@ -874,7 +874,7 @@ class _ClientHome extends StatelessWidget {
         ),
       ClientHomeStage.orderReview => _ReviewPanel(
           fromAddress: fromAddress,
-          toAddress: toAddress ?? 'Не выбран адрес',
+          toAddress: toAddress ?? 'Р В РЎСљР В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“',
           vehicleType: vehicleType,
           lockedWheels: lockedWheels,
           running: running,
@@ -886,40 +886,25 @@ class _ClientHome extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Нет доступных водителей',
+              const Text('Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р В Р’ВµР В РІвЂћвЂ“',
                   style: TextStyle(
                       color: EvikColors.textPrimaryDark,
                       fontSize: 22,
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 10),
-              _ActionButton.primary(text: 'Повторить поиск', onTap: onRetry),
+              _ActionButton.primary(text: 'Р В РЎСџР В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ', onTap: onRetry),
               const SizedBox(height: 8),
-              _ActionButton.cancel(text: 'Отмена', onTap: onReset),
+              _ActionButton.cancel(text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В°', onTap: onReset),
             ],
           ),
         ),
-      ClientHomeStage.driverFound =>
-        _DriverFoundPanel(onCancel: onReset, onNext: onNext),
-      ClientHomeStage.driverEnRoute => _StatusPanel(
-          title: 'Эвакуатор в пути',
-          subtitle: 'Водитель едет к вам.',
-          primaryText: 'Водитель прибыл',
-          onPrimary: onArrived,
-          secondaryText: 'Отменить',
-          onSecondary: onReset,
-        ),
-      ClientHomeStage.driverArrived => _StatusPanel(
-          title: 'Водитель прибыл',
-          subtitle: 'Можно передавать автомобиль.',
-          primaryText: 'Завершить заказ',
-          onPrimary: onComplete,
-          secondaryText: 'Отменить',
-          onSecondary: onReset,
-        ),
+      ClientHomeStage.driverFound => _DriverFoundPanel(onCancel: onReset),
+      ClientHomeStage.driverEnRoute => _DriverFoundPanel(onCancel: onReset),
+      ClientHomeStage.driverArrived => _DriverFoundPanel(onCancel: onReset),
       ClientHomeStage.completed => _StatusPanel(
-          title: 'Заказ завершён',
-          subtitle: 'Спасибо, что выбрали EVIK.',
-          primaryText: 'Новый заказ',
+          title: 'Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В· Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦',
+          subtitle: 'Р В Р Р‹Р В РЎвЂ”Р В Р’В°Р РЋР С“Р В РЎвЂР В Р’В±Р В РЎвЂў, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р’В»Р В РЎвЂ EVIK.',
+          primaryText: 'Р В РЎСљР В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
           onPrimary: onReset,
         ),
     };
@@ -961,7 +946,7 @@ class _AddressPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Выбор адреса',
+          const Text('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“Р В Р’В°',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
@@ -970,18 +955,18 @@ class _AddressPanel extends StatelessWidget {
           TextField(
               controller: addressSearch,
               style: const TextStyle(color: EvikColors.textPrimaryDark),
-              decoration: const InputDecoration(hintText: 'Поиск адреса')),
+              decoration: const InputDecoration(hintText: 'Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“Р В Р’В°')),
           const SizedBox(height: 12),
           _AddressItem(
-              title: 'Откуда',
+              title: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°',
               value: fromAddress,
               selected: pickFrom,
               priority: false,
               onTap: () => onPickField(true)),
           const SizedBox(height: 8),
           _AddressItem(
-              title: 'Куда',
-              value: toAddress ?? 'Укажите адрес назначения',
+              title: 'Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°',
+              value: toAddress ?? 'Р В Р в‚¬Р В РЎвЂќР В Р’В°Р В Р’В¶Р В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“ Р В Р вЂ¦Р В Р’В°Р В Р’В·Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ',
               selected: !pickFrom,
               priority: true,
               onTap: () => onPickField(false)),
@@ -1009,7 +994,7 @@ class _AddressPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionButton.primary(
-            text: 'Подтвердить адрес',
+            text: 'Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В РўвЂР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“',
             enabled: toAddress != null && toAddress!.trim().isNotEmpty,
             onTap: onConfirmAddress,
           ),
@@ -1055,21 +1040,25 @@ class _OrderParamsPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Параметры заказа',
+          const Text('Р В РЎСџР В Р’В°Р РЋР вЂљР В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р РЋР вЂљР РЋРІР‚в„– Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 14),
           Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: vehicleTypes
-                  .map((t) => ChoiceChip(
-                      label: Text(t),
-                      selected: t == vehicleType,
-                      onSelected: (_) => onVehicleType(t)))
-                  .toList()),
+            spacing: 8,
+            runSpacing: 8,
+            children: vehicleTypes
+                .map(
+                  (t) => _VehicleTypeChip(
+                    label: t,
+                    selected: t == vehicleType,
+                    onTap: () => onVehicleType(t),
+                  ),
+                )
+                .toList(),
+          ),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
@@ -1082,7 +1071,7 @@ class _OrderParamsPanel extends StatelessWidget {
                 Row(
                   children: [
                     const Expanded(
-                        child: Text('Заблокированные колёса',
+                        child: Text('Р В РІР‚вЂќР В Р’В°Р В Р’В±Р В Р’В»Р В РЎвЂўР В РЎвЂќР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В РЎвЂќР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°',
                             style:
                                 TextStyle(color: EvikColors.textPrimaryDark))),
                     IconButton(
@@ -1102,7 +1091,7 @@ class _OrderParamsPanel extends StatelessWidget {
                 Row(
                   children: [
                     const Expanded(
-                        child: Text('Автомобиль на ходу',
+                        child: Text('Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР В РЎВР В РЎвЂўР В Р’В±Р В РЎвЂР В Р’В»Р РЋР Р‰ Р В Р вЂ¦Р В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ',
                             style:
                                 TextStyle(color: EvikColors.textPrimaryDark))),
                     Switch(value: running, onChanged: onRunning),
@@ -1118,7 +1107,7 @@ class _OrderParamsPanel extends StatelessWidget {
               maxLines: 3,
               style: const TextStyle(color: EvikColors.textPrimaryDark),
               decoration: const InputDecoration(
-                  hintText: 'Комментарий к заказу (необязательно)')),
+                  hintText: 'Р В РЎв„ўР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРЎвЂњ (Р В Р вЂ¦Р В Р’ВµР В РЎвЂўР В Р’В±Р РЋР РЏР В Р’В·Р В Р’В°Р РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰Р В Р вЂ¦Р В РЎвЂў)')),
           const SizedBox(height: 10),
           ...tariffs.map((t) => GestureDetector(
                 onTap: () => onTariff(t.name),
@@ -1145,7 +1134,7 @@ class _OrderParamsPanel extends StatelessWidget {
                                       ? EvikColors.textPrimaryLight
                                       : EvikColors.textPrimaryDark,
                                   fontWeight: FontWeight.w700))),
-                      Text('${t.price} ₽ • ${t.eta}',
+                      Text('${t.price} Р Р†РІР‚С™Р вЂ¦ Р Р†Р вЂљРЎС› ${t.eta}',
                           style: TextStyle(
                               color: selectedTariff == t.name
                                   ? EvikColors.textPrimaryLight
@@ -1154,7 +1143,7 @@ class _OrderParamsPanel extends StatelessWidget {
                   ),
                 ),
               )),
-          _ActionButton.primary(text: 'Продолжить', onTap: onReview),
+          _ActionButton.primary(text: 'Р В РЎСџР РЋР вЂљР В РЎвЂўР В РўвЂР В РЎвЂўР В Р’В»Р В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰', onTap: onReview),
         ],
       ),
     );
@@ -1182,6 +1171,14 @@ class _ReviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final estimate = _estimateOrderPrice(
+      tariffName: tariff.name,
+      basePrice: tariff.price,
+      vehicleType: vehicleType,
+      lockedWheels: lockedWheels,
+      running: running,
+    );
+
     Widget pair(String left, String right) => Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(children: [
@@ -1203,20 +1200,30 @@ class _ReviewPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Подтверждение заказа',
+          const Text('Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р’В¶Р В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
-          pair('Откуда', fromAddress),
-          pair('Куда', toAddress),
-          pair('Авто', vehicleType),
-          pair('Колёса', '$lockedWheels'),
-          pair('На ходу', running ? 'Да' : 'Нет'),
-          pair('Тариф', '${tariff.name}, ${tariff.price} ₽'),
+          pair('Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°', fromAddress),
+          pair('Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°', toAddress),
+          pair('Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂў', vehicleType),
+          pair('Р В РЎв„ўР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°', '$lockedWheels'),
+          pair('Р В РЎСљР В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ', running ? 'Р В РІР‚СњР В Р’В°' : 'Р В РЎСљР В Р’ВµР РЋРІР‚С™'),
+          pair('\u0422\u0430\u0440\u0438\u0444', '${tariff.name}, ${tariff.price} \u20bd'),
+          pair('\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c', '${estimate.totalPrice} \u20bd'),
+          const SizedBox(height: 4),
+          Text(
+            '\u041f\u0440\u0435\u0434\u0432\u0430\u0440\u0438\u0442\u0435\u043b\u044c\u043d\u0430\u044f \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c: ${estimate.summary}',
+            style: const TextStyle(
+              color: EvikColors.textSecondaryDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 10),
-          _ActionButton.primary(text: 'Вызвать эвакуатор', onTap: onSubmit),
+          _ActionButton.primary(text: 'Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В·Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ', onTap: onSubmit),
         ],
       ),
     );
@@ -1239,7 +1246,7 @@ class _SearchingPanel extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(
                       EvikColors.textPrimaryDark))),
           SizedBox(height: 12),
-          Text('Ищем эвакуатор...',
+          Text('Р В Р’ВР РЋРІР‚В°Р В Р’ВµР В РЎВ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ...',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 24,
@@ -1251,9 +1258,8 @@ class _SearchingPanel extends StatelessWidget {
 }
 
 class _DriverFoundPanel extends StatelessWidget {
-  const _DriverFoundPanel({required this.onCancel, required this.onNext});
+  const _DriverFoundPanel({required this.onCancel});
   final VoidCallback onCancel;
-  final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -1262,24 +1268,282 @@ class _DriverFoundPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Водитель найден',
-              style: TextStyle(
-                  color: EvikColors.textPrimaryDark,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          const Text('Рейтинг: 4.9',
-              style: TextStyle(color: EvikColors.textSecondaryDark)),
-          const Text('ETA: 12 мин',
-              style: TextStyle(color: EvikColors.textSecondaryDark)),
-          const Text('Расстояние: 3.4 км',
-              style: TextStyle(color: EvikColors.textSecondaryDark)),
-          const Text('Номер машины: РЗЗ6С8 799',
-              style: TextStyle(color: EvikColors.textSecondaryDark)),
+          const Text(
+            'Р В РІР‚в„ўР В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р В РІвЂћвЂ“Р В РўвЂР В Р’ВµР В Р вЂ¦',
+            style: TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 12),
-          _ActionButton.primary(text: 'Продолжить', onTap: onNext),
-          const SizedBox(height: 8),
-          _ActionButton.cancel(text: 'Отменить', onTap: onCancel),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.52)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[Color(0xFF4F4F4F), Color(0xFF1C1C1C)],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.72),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Р В РЎвЂ™Р В Р’В»Р В Р’ВµР В РЎвЂќР РЋР С“Р В Р’ВµР В РІвЂћвЂ“ Р В Р Р‹Р В РЎВР В РЎвЂР РЋР вЂљР В Р вЂ¦Р В РЎвЂўР В Р вЂ ',
+                        style: TextStyle(
+                          color: EvikColors.textPrimaryDark,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Р В Р’В­Р В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ Hyundai HD78',
+                        style: TextStyle(
+                          color: EvikColors.textSecondaryDark,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 6,
+                        children: [
+                          _MiniInfo(
+                            icon: Icons.star_rounded,
+                            text: '4.9 Р РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂР В Р вЂ¦Р В РЎвЂ“',
+                          ),
+                          _MiniInfo(
+                            icon: Icons.route_rounded,
+                            text: '3.4 Р В РЎвЂќР В РЎВ Р В РўвЂР В РЎвЂў Р В Р вЂ Р В Р’В°Р РЋР С“',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Expanded(
+                child: _KeyInfoCard(
+                  label: 'Р В РЎСџР РЋР вЂљР В РЎвЂР В Р’ВµР В РўвЂР В Р’ВµР РЋРІР‚С™ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В·',
+                  value: '12 Р В РЎВР В РЎвЂР В Р вЂ¦',
+                  accent: Color(0xFF19E5E5),
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _KeyInfoCard(
+                  label: 'Р В РЎСљР В РЎвЂўР В РЎВР В Р’ВµР РЋР вЂљ Р В РЎВР В Р’В°Р РЋРІвЂљВ¬Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„–',
+                  value: 'Р В Р’В 336Р В Р Р‹Р В РІР‚в„ў 799',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.52)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Р В Р’В§Р РЋРІР‚С™Р В РЎвЂў Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂР РЋР С“Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™ Р РЋР С“Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“',
+                  style: TextStyle(
+                    color: EvikColors.textPrimaryDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Р В РІР‚в„ўР В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В Р’ВµР В РўвЂР В Р’ВµР РЋРІР‚С™ Р В РЎвЂќ Р В Р вЂ Р В Р’В°Р В РЎВ. Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р’В·Р В Р’В° Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В РЎВ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В±Р РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ Р В РЎвЂ Р В Р вЂ¦Р В РЎвЂўР В РЎВР В Р’ВµР РЋР вЂљР В РЎвЂўР В РЎВ Р В РЎВР В Р’В°Р РЋРІвЂљВ¬Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„–, Р В РўвЂР В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂўР РЋРІР‚С™ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В° Р РЋР С“Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“ Р В Р вЂ¦Р В Р’Вµ Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В±Р РЋРЎвЂњР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ.',
+                  style: TextStyle(
+                    color: EvikColors.textSecondaryDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _ActionButton.cancel(
+            text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+            onTap: () => _showCancelWarning(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCancelWarning(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white.withValues(alpha: 0.96),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
+          ),
+          title: const Text(
+            'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·?',
+            style: TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: const Text(
+            'Р В РІР‚СћР РЋР С“Р В Р’В»Р В РЎвЂ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р’ВµР РЋРІР‚В¦Р В Р’В°Р В Р’В» Р В Р’В±Р В РЎвЂўР В Р’В»Р РЋР Р‰Р РЋРІвЂљВ¬Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р вЂ Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„– Р В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚С™Р В РЎвЂ Р В РЎвЂќ Р В Р вЂ Р В Р’В°Р В РЎВ, Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В° Р В РЎВР В РЎвЂўР В Р’В¶Р В Р’ВµР РЋРІР‚С™ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ¦Р В РЎвЂР В Р’В·Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂР В Р вЂ¦Р В РЎвЂ“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°.',
+            style: TextStyle(
+              color: EvikColors.textSecondaryDark,
+              height: 1.4,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Р В РЎвЂєР РЋР С“Р РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: EvikColors.danger,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Р В РІР‚СњР В Р’В°, Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      onCancel();
+    }
+  }
+}
+
+class _MiniInfo extends StatelessWidget {
+  const _MiniInfo({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: EvikColors.textSecondaryDark),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(
+            color: EvikColors.textSecondaryDark,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KeyInfoCard extends StatelessWidget {
+  const _KeyInfoCard({
+    required this.label,
+    required this.value,
+    this.accent,
+  });
+
+  final String label;
+  final String value;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = accent != null
+        ? accent!.withValues(alpha: 0.18)
+        : Colors.white.withValues(alpha: 0.72);
+    final borderColor = accent != null
+        ? accent!.withValues(alpha: 0.42)
+        : Colors.white.withValues(alpha: 0.52);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: EvikColors.textSecondaryDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
         ],
       ),
     );
@@ -1292,16 +1556,12 @@ class _StatusPanel extends StatelessWidget {
     required this.subtitle,
     required this.primaryText,
     required this.onPrimary,
-    this.secondaryText,
-    this.onSecondary,
   });
 
   final String title;
   final String subtitle;
   final String primaryText;
   final VoidCallback onPrimary;
-  final String? secondaryText;
-  final VoidCallback? onSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -1320,10 +1580,6 @@ class _StatusPanel extends StatelessWidget {
               style: const TextStyle(color: EvikColors.textSecondaryDark)),
           const SizedBox(height: 12),
           _ActionButton.primary(text: primaryText, onTap: onPrimary),
-          if (secondaryText != null && onSecondary != null) ...[
-            const SizedBox(height: 8),
-            _ActionButton.cancel(text: secondaryText!, onTap: onSecondary),
-          ],
         ],
       ),
     );
@@ -1331,8 +1587,27 @@ class _StatusPanel extends StatelessWidget {
 }
 
 class _DriverHome extends ConsumerWidget {
-  const _DriverHome({required this.stage});
+  const _DriverHome({
+    required this.stage,
+    required this.fromAddress,
+    required this.toAddress,
+    required this.vehicleType,
+    required this.lockedWheels,
+    required this.running,
+    required this.selectedTariff,
+    required this.tariffPrice,
+    required this.comment,
+  });
+
   final DriverHomeStage stage;
+  final String fromAddress;
+  final String? toAddress;
+  final String vehicleType;
+  final int lockedWheels;
+  final bool running;
+  final String selectedTariff;
+  final int tariffPrice;
+  final String comment;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1350,46 +1625,108 @@ class _DriverHome extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.46),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: online
+                          ? const Color(0xFF11D8CC).withValues(alpha: 0.38)
+                          : Colors.white.withValues(alpha: 0.58),
+                    ),
+                  ),
+                  child: Row(children: [
                   const Expanded(
-                      child: Text('Статус водителя',
+                      child: Text('Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋРЎвЂњР РЋР С“ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР РЏ',
                           style: TextStyle(
                               color: EvikColors.textPrimaryDark,
                               fontWeight: FontWeight.w700))),
-                  Switch(value: online, onChanged: notifier.toggleDriverOnline),
-                ]),
-                const SizedBox(height: 8),
+                  _DriverShiftInlineToggle(
+                    online: online,
+                    onChanged: notifier.toggleDriverOnline,
+                  ),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _DriverShiftBadge(online: online),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  online
+                      ? 'Р В РІР‚в„ўР РЋРІР‚в„– Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р вЂ¦Р В РЎвЂР В РЎВР В Р’В°Р В Р’ВµР РЋРІР‚С™Р В Р’Вµ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„– Р В РЎвЂ Р В Р вЂ Р В РЎвЂР В РўвЂР В Р вЂ¦Р РЋРІР‚в„– Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р В РЎВ Р В РЎвЂ”Р В РЎвЂўР В Р’В±Р В Р’В»Р В РЎвЂР В Р’В·Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂ.'
+                      : 'Р В РІР‚в„ўР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋРЎвЂњ, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋРЎвЂњР РЋРІР‚РЋР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–.',
+                  style: const TextStyle(
+                    color: EvikColors.textSecondaryDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (stage == DriverHomeStage.online)
                   _ActionButton.secondary(
-                      text: 'Симулировать новый заказ',
+                      text: 'Р В Р Р‹Р В РЎвЂР В РЎВР РЋРЎвЂњР В Р’В»Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
                       onTap: () =>
                           notifier.setDriverStage(DriverHomeStage.newOrder)),
                 if (stage == DriverHomeStage.newOrder) ...[
+                  _DriverOrderCard(
+                    title: 'Р В РЎСљР В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    subtitle:
+                        'Р В РЎСџР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР РЋР Р‰Р РЋРІР‚С™Р В Р’Вµ Р В РЎВР В Р’В°Р РЋР вЂљР РЋРІвЂљВ¬Р РЋР вЂљР РЋРЎвЂњР РЋРІР‚С™ Р В РЎвЂ Р В Р вЂ Р РЋР С“Р В Р’Вµ Р В РЎвЂ”Р В Р’В°Р РЋР вЂљР В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р РЋР вЂљР РЋРІР‚в„–, Р В РЎвЂќР В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР РЋРІР‚в„–Р В Р’Вµ Р РЋРЎвЂњР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р’В» Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™.',
+                    fromAddress: fromAddress,
+                    toAddress: toAddress,
+                    vehicleType: vehicleType,
+                    lockedWheels: lockedWheels,
+                    running: running,
+                    selectedTariff: selectedTariff,
+                    tariffPrice: tariffPrice,
+                    comment: comment,
+                  ),
+                  const SizedBox(height: 12),
                   _ActionButton.primary(
-                      text: 'Принять заказ',
+                      text: 'Р В РЎСџР РЋР вЂљР В РЎвЂР В Р вЂ¦Р РЋР РЏР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
                       onTap: () =>
                           notifier.setDriverStage(DriverHomeStage.accepted)),
                   const SizedBox(height: 8),
                   _ActionButton.cancel(
-                      text: 'Отклонить',
+                      text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р В РЎвЂўР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰',
                       onTap: () =>
                           notifier.setDriverStage(DriverHomeStage.online)),
                 ],
-                if (stage == DriverHomeStage.accepted)
+                if (stage == DriverHomeStage.accepted ||
+                    stage == DriverHomeStage.enRoute ||
+                    stage == DriverHomeStage.arrived) ...[
+                  _DriverOrderCard(
+                    title: 'Р В РЎвЂ™Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    subtitle:
+                        'Р В РЎС™Р В Р’В°Р РЋР вЂљР РЋРІвЂљВ¬Р РЋР вЂљР РЋРЎвЂњР РЋРІР‚С™ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦. Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР В РІвЂћвЂ“Р РЋРІР‚С™Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂў Р В РЎвЂќР В Р’В°Р РЋР вЂљР РЋРІР‚С™Р В Р’Вµ Р В РўвЂР В РЎвЂў Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°.',
+                    fromAddress: fromAddress,
+                    toAddress: toAddress,
+                    vehicleType: vehicleType,
+                    lockedWheels: lockedWheels,
+                    running: running,
+                    selectedTariff: selectedTariff,
+                    tariffPrice: tariffPrice,
+                    comment: comment,
+                  ),
+                  const SizedBox(height: 12),
+                  _ActionButton.cancel(
+                    text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    onTap: () =>
+                        notifier.setDriverStage(DriverHomeStage.online),
+                  ),
+                  const SizedBox(height: 8),
                   _ActionButton.primary(
-                      text: 'Выехал к клиенту',
-                      onTap: () =>
-                          notifier.setDriverStage(DriverHomeStage.enRoute)),
-                if (stage == DriverHomeStage.enRoute)
-                  _ActionButton.primary(
-                      text: 'Прибыл',
-                      onTap: () =>
-                          notifier.setDriverStage(DriverHomeStage.arrived)),
-                if (stage == DriverHomeStage.arrived)
-                  _ActionButton.primary(
-                      text: 'Завершить заказ',
-                      onTap: () =>
-                          notifier.setDriverStage(DriverHomeStage.completed)),
+                    text: 'Р В РІР‚вЂќР В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    onTap: () =>
+                        notifier.setDriverStage(DriverHomeStage.completed),
+                  ),
+                ],
+                if (stage == DriverHomeStage.completed)
+                  const _DriverDoneCard(),
               ],
             ),
           ),
@@ -1399,11 +1736,398 @@ class _DriverHome extends ConsumerWidget {
   }
 }
 
+class _DriverOrderCard extends StatelessWidget {
+  const _DriverOrderCard({
+    required this.title,
+    required this.subtitle,
+    required this.fromAddress,
+    required this.toAddress,
+    required this.vehicleType,
+    required this.lockedWheels,
+    required this.running,
+    required this.selectedTariff,
+    required this.tariffPrice,
+    required this.comment,
+  });
+
+  final String title;
+  final String subtitle;
+  final String fromAddress;
+  final String? toAddress;
+  final String vehicleType;
+  final int lockedWheels;
+  final bool running;
+  final String selectedTariff;
+  final int tariffPrice;
+  final String comment;
+
+  @override
+  Widget build(BuildContext context) {
+    final destination = (toAddress == null || toAddress!.isEmpty)
+        ? 'Р В РЎвЂ™Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В° Р РЋРЎвЂњР РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋР РЏР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ'
+        : toAddress!;
+    final note = comment.trim().isEmpty ? 'Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР РЋР РЏ' : comment.trim();
+    final estimate = _estimateOrderPrice(
+      tariffName: selectedTariff,
+      basePrice: tariffPrice,
+      vehicleType: vehicleType,
+      lockedWheels: lockedWheels,
+      running: running,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.54),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.58)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: EvikColors.textSecondaryDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _DriverRouteRow(
+            icon: Icons.trip_origin_rounded,
+            label: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°',
+            value: fromAddress,
+          ),
+          const SizedBox(height: 10),
+          _DriverRouteRow(
+            icon: Icons.flag_rounded,
+            label: 'Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°',
+            value: destination,
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _DriverInfoChip(label: 'Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂў', value: vehicleType),
+              _DriverInfoChip(
+                label: 'Р В РЎв„ўР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°',
+                value: lockedWheels == 0 ? 'Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В Р’В±Р В Р’В»Р В РЎвЂўР В РЎвЂќР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В РЎвЂ' : '$lockedWheels',
+              ),
+              _DriverInfoChip(
+                label: 'Р В Р Р‹Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР РЏР В Р вЂ¦Р В РЎвЂР В Р’Вµ',
+                value: running ? 'Р В РЎСљР В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ' : 'Р В РЎСљР В Р’Вµ Р В Р вЂ¦Р В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ',
+              ),
+              _DriverInfoChip(label: 'Р В РЎС›Р В Р’В°Р РЋР вЂљР В РЎвЂР РЋРІР‚С›', value: selectedTariff),
+              _DriverInfoChip(
+                label: '\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c',
+                value: '${estimate.totalPrice} \u20bd',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.66),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Р В РЎв„ўР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°',
+                  style: TextStyle(
+                    color: EvikColors.textSecondaryDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  note,
+                  style: const TextStyle(
+                    color: EvikColors.textPrimaryDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverRouteRow extends StatelessWidget {
+  const _DriverRouteRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 18, color: EvikColors.textPrimaryDark),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: EvikColors.textSecondaryDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: EvikColors.textPrimaryDark,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DriverInfoChip extends StatelessWidget {
+  const _DriverInfoChip({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.74)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(
+            color: EvikColors.textPrimaryDark,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(color: EvikColors.textSecondaryDark),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverDoneCard extends StatelessWidget {
+  const _DriverDoneCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.54),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.58)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В· Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦',
+            style: TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Р В РЎСџР В РЎвЂўР В Р’ВµР В Р’В·Р В РўвЂР В РЎвЂќР В Р’В° Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р’В°. Р В РЎС™Р В РЎвЂўР В Р’В¶Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ Р В Р вЂ  Р В РЎвЂўР В Р вЂ¦Р В Р’В»Р В Р’В°Р В РІвЂћвЂ“Р В Р вЂ¦ Р В РЎвЂ Р В Р’В¶Р В РўвЂР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР С“Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР РЋР вЂ№Р РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·.',
+            style: TextStyle(
+              color: EvikColors.textSecondaryDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverShiftInlineToggle extends StatelessWidget {
+  const _DriverShiftInlineToggle({
+    required this.online,
+    required this.onChanged,
+  });
+
+  final bool online;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = online
+        ? const Color(0xFF11D8CC)
+        : EvikColors.textSecondaryDark;
+
+    return GestureDetector(
+      onTap: () => onChanged(!online),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        width: 62,
+        height: 34,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: online ? accent : Colors.black.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: online
+                ? accent.withValues(alpha: 0.24)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: online ? 0.12 : 0.06),
+              blurRadius: 14,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment:
+                  online ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  online ? Icons.check_rounded : Icons.close_rounded,
+                  size: 16,
+                  color: online
+                      ? const Color(0xFF11D8CC)
+                      : EvikColors.textSecondaryDark,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DriverShiftBadge extends StatelessWidget {
+  const _DriverShiftBadge({required this.online});
+
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = online
+        ? const Color(0xFF11D8CC)
+        : EvikColors.textSecondaryDark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            online ? 'Р В РЎСљР В Р’В° Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’Вµ' : 'Р В РЎвЂєР РЋРІР‚С›Р РЋРІР‚С›Р В Р’В»Р В Р’В°Р В РІвЂћвЂ“Р В Р вЂ¦',
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HistoryScreen extends StatelessWidget {
   const _HistoryScreen();
   @override
   Widget build(BuildContext context) => const Center(
-      child: Text('История заказов',
+      child: Text('Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В РЎвЂўР В Р вЂ ',
           style: TextStyle(color: EvikColors.textPrimaryDark)));
 }
 
@@ -1507,10 +2231,10 @@ class _DocRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (status) {
-      DocumentStatus.missing => 'Не загружено',
-      DocumentStatus.pending => 'На проверке',
-      DocumentStatus.approved => 'Подтверждено',
-      DocumentStatus.rejected => 'Отклонено',
+      DocumentStatus.missing => 'Р В РЎСљР В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂў',
+      DocumentStatus.pending => 'Р В РЎСљР В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР В РЎвЂќР В Р’Вµ',
+      DocumentStatus.approved => 'Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р’В¶Р В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂў',
+      DocumentStatus.rejected => 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р В РЎвЂўР В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў',
     };
     return GestureDetector(
       onTap: onTap,
@@ -1539,15 +2263,70 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return _GlassSurface(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: EvikColors.darkBackground.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.borderDark),
-      ),
+      blurSigma: 16,
+      tint: Colors.white.withValues(alpha: 0.68),
+      borderRadius: BorderRadius.circular(16),
       child: child,
+    );
+  }
+}
+
+class _GlassSurface extends StatelessWidget {
+  const _GlassSurface({
+    required this.child,
+    this.padding,
+    this.margin,
+    this.width,
+    this.height,
+    this.borderRadius,
+    this.tint,
+    this.border,
+    this.blurSigma = 14,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final double? width;
+  final double? height;
+  final BorderRadius? borderRadius;
+  final Color? tint;
+  final BoxBorder? border;
+  final double blurSigma;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = borderRadius ?? BorderRadius.circular(18);
+
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: tint ?? Colors.white.withValues(alpha: 0.62),
+              borderRadius: radius,
+              border: border ?? Border.all(color: Colors.white.withValues(alpha: 0.42)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1650,6 +2429,60 @@ class _RoleCard extends StatelessWidget {
                           ? EvikColors.textSecondaryLight
                           : EvikColors.textSecondaryDark)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VehicleTypeChip extends StatelessWidget {
+  const _VehicleTypeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFF19E5E5)
+                : Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF10C9C9)
+                  : Colors.white.withValues(alpha: 0.52),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF19E5E5).withValues(alpha: 0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: EvikColors.textPrimaryDark,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
@@ -1785,6 +2618,45 @@ class _MapLayerState extends ConsumerState<_MapLayer> {
     return const YandexMapView(
         initialLat: 55.751244, initialLng: 37.618423, initialZoom: 13);
   }
+}
+
+
+class _OrderPriceEstimate {
+  const _OrderPriceEstimate({
+    required this.totalPrice,
+    required this.summary,
+  });
+
+  final int totalPrice;
+  final String summary;
+}
+
+_OrderPriceEstimate _estimateOrderPrice({
+  required String tariffName,
+  required int basePrice,
+  required String vehicleType,
+  required int lockedWheels,
+  required bool running,
+}) {
+  final vehicleSurcharge = switch (vehicleType) {
+    '\u041a\u0440\u043e\u0441\u0441\u043e\u0432\u0435\u0440' => 600,
+    '\u041c\u0438\u043d\u0438\u0432\u044d\u043d' => 900,
+    '\u0424\u0443\u0440\u0433\u043e\u043d' => 1200,
+    _ => 0,
+  };
+  final wheelsSurcharge = lockedWheels * 350;
+  final runningSurcharge = running ? 0 : 800;
+  final total = basePrice + vehicleSurcharge + wheelsSurcharge + runningSurcharge;
+  final parts = <String>[
+    '$basePrice \u20bd \u0431\u0430\u0437\u043e\u0432\u044b\u0439 \u0442\u0430\u0440\u0438\u0444 $tariffName',
+    if (vehicleSurcharge > 0) '$vehicleSurcharge \u20bd \u0437\u0430 \u0442\u0438\u043f \u0430\u0432\u0442\u043e',
+    if (wheelsSurcharge > 0) '$wheelsSurcharge \u20bd \u0437\u0430 \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u043a\u043e\u043b\u0451\u0441\u0430',
+    if (runningSurcharge > 0) '$runningSurcharge \u20bd \u0435\u0441\u043b\u0438 \u0430\u0432\u0442\u043e \u043d\u0435 \u043d\u0430 \u0445\u043e\u0434\u0443',
+  ];
+  return _OrderPriceEstimate(
+    totalPrice: total,
+    summary: parts.join(' + '),
+  );
 }
 
 class _Tariff {
