@@ -17,6 +17,8 @@ func NewRouter(orderHandler *OrderHandler, wsHandler *ws.OrderWSHandler) nethttp
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/orders", orderHandler.CreateOrder)
+		api.Get("/orders", orderHandler.ListOrders)
+		api.Get("/orders/{orderID}", orderHandler.GetOrder)
 		api.Post("/orders/{orderID}/accept", orderHandler.AcceptOrder)
 		api.Post("/orders/{orderID}/status", orderHandler.UpdateOrderStatus)
 		api.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)

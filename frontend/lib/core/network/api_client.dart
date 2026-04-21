@@ -1,4 +1,5 @@
 abstract class ApiClient {
+  Future<Map<String, dynamic>> get(String path);
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body);
 }
 
@@ -11,7 +12,28 @@ class NoOpApiClient implements ApiClient {
   const NoOpApiClient();
 
   @override
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> get(String path) async {
+    if (path.startsWith('/api/v1/orders/local-')) {
+      final id = path.split('/').last;
+      return <String, dynamic>{
+        'order': <String, dynamic>{
+          'id': id,
+          'user_id': 'local-user',
+          'pickup_lat': 0.0,
+          'pickup_lng': 0.0,
+          'dropoff_lat': 0.0,
+          'dropoff_lng': 0.0,
+          'status': 'searching',
+          'driver_id': null,
+        },
+      };
+    }
+    return <String, dynamic>{'orders': <Map<String, dynamic>>[]};
+  }
+
+  @override
+  Future<Map<String, dynamic>> post(
+      String path, Map<String, dynamic> body) async {
     // TODO: Replace with real HTTP client implementation.
     if (path == '/api/v1/orders') {
       final now = DateTime.now().millisecondsSinceEpoch.toString();

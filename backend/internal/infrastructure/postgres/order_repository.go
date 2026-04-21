@@ -79,3 +79,51 @@ WHERE id = $1`
 	ord.Status = orderdomain.Status(status)
 	return &ord, nil
 }
+
+func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.Status, limit int) ([]*orderdomain.Order, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	const query = `
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status, created_at, updated_at, cancelled_at
+FROM orders
+WHERE status = $1
+ORDER BY created_at ASC
+LIMIT $2`
+
+	rows, err := r.db.QueryContext(ctx, query, string(status), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]*orderdomain.Order, 0, limit)
+	for rows.Next() {
+		var (
+			ord       orderdomain.Order
+			rowStatus string
+		)
+		if err := rows.Scan(
+			&ord.ID,
+			&ord.UserID,
+			&ord.DriverID,
+			&ord.Pickup.Lat,
+			&ord.Pickup.Lng,
+			&ord.Dropoff.Lat,
+			&ord.Dropoff.Lng,
+			&rowStatus,
+			&ord.CreatedAt,
+			&ord.UpdatedAt,
+			&ord.CancelledAt,
+		); err != nil {
+			return nil, err
+		}
+		ord.Status = orderdomain.Status(rowStatus)
+		orders = append(orders, &ord)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}

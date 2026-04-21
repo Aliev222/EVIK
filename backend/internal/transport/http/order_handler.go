@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	orderdomain "evik/backend/internal/domain/order"
 	orderuc "evik/backend/internal/usecase/order"
@@ -11,10 +12,11 @@ import (
 )
 
 type OrderHandler struct {
-	createUC *orderuc.CreateOrderUseCase
-	acceptUC *orderuc.AcceptOrderUseCase
-	updateUC *orderuc.UpdateStatusUseCase
-	cancelUC *orderuc.CancelOrderUseCase
+	createUC  *orderuc.CreateOrderUseCase
+	acceptUC  *orderuc.AcceptOrderUseCase
+	updateUC  *orderuc.UpdateStatusUseCase
+	cancelUC  *orderuc.CancelOrderUseCase
+	orderRepo orderdomain.Repository
 }
 
 func NewOrderHandler(
@@ -22,12 +24,14 @@ func NewOrderHandler(
 	acceptUC *orderuc.AcceptOrderUseCase,
 	updateUC *orderuc.UpdateStatusUseCase,
 	cancelUC *orderuc.CancelOrderUseCase,
+	orderRepo orderdomain.Repository,
 ) *OrderHandler {
 	return &OrderHandler{
-		createUC: createUC,
-		acceptUC: acceptUC,
-		updateUC: updateUC,
-		cancelUC: cancelUC,
+		createUC:  createUC,
+		acceptUC:  acceptUC,
+		updateUC:  updateUC,
+		cancelUC:  cancelUC,
+		orderRepo: orderRepo,
 	}
 }
 
@@ -95,6 +99,46 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusCreated, map[string]any{"order": newOrderResponse(ord)})
+}
+
+func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
+	status := orderdomain.Status(r.URL.Query().Get("status"))
+	if status == "" {
+		status = orderdomain.StatusSearching
+	}
+
+	limit := 20
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed < 1 || parsed > 100 {
+			h.writeError(w, http.StatusBadRequest, errors.New("invalid limit"))
+			return
+		}
+		limit = parsed
+	}
+
+	orders, err := h.orderRepo.ListByStatus(r.Context(), status, limit)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	payload := make([]orderResponse, 0, len(orders))
+	for _, ord := range orders {
+		payload = append(payload, newOrderResponse(ord))
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"orders": payload})
+}
+
+func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	ord, err := h.orderRepo.GetByID(r.Context(), orderID)
+	if err != nil {
+		h.writeOrderError(w, err)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 
 func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {

@@ -55,7 +55,8 @@ final eventDispatcherProvider = Provider<EventDispatcher>((ref) {
   );
 });
 
-final orderStateNotifierProvider = StateNotifierProvider<OrderStateNotifier, OrderUiState>((ref) {
+final orderStateNotifierProvider =
+    StateNotifierProvider<OrderStateNotifier, OrderUiState>((ref) {
   return OrderStateNotifier(
     createOrderUseCase: ref.watch(createOrderUseCaseProvider),
     repository: ref.watch(orderRepositoryProvider),
@@ -78,6 +79,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
   final EventDispatcher _eventDispatcher;
   StreamSubscription<OrderState>? _orderStateSub;
   StreamSubscription<Event>? _orderEventsSub;
+  Timer? _orderStatusPollTimer;
   bool _dispatcherStarted = false;
 
   Future<void> submitOrder(CreateOrderCommand command) async {
@@ -112,6 +114,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
 
     await _orderStateSub?.cancel();
     await _orderEventsSub?.cancel();
+    _orderStatusPollTimer?.cancel();
 
     _orderStateSub = _repository.watchOrderState(orderId).listen(
       (nextState) => state = state.copyWith(status: nextState),
@@ -125,12 +128,37 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
         final next = _fromBackendEvent(event.type);
         if (next != null) {
           state = state.copyWith(status: next);
+          if (_isTerminal(next)) {
+            _orderStatusPollTimer?.cancel();
+          }
         }
       },
       onError: (Object e, StackTrace _) {
         state = state.copyWith(error: e.toString());
       },
     );
+
+    _orderStatusPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      unawaited(_pollOrderStatus(orderId));
+    });
+    unawaited(_pollOrderStatus(orderId));
+  }
+
+  Future<void> _pollOrderStatus(String orderId) async {
+    if (!mounted) return;
+
+    try {
+      final order = await _repository.getOrder(orderId);
+      if (!mounted) return;
+      state = state.copyWith(status: order.state, order: order);
+      if (_isTerminal(order.state)) {
+        _orderStatusPollTimer?.cancel();
+      }
+    } catch (e) {
+      if (mounted) {
+        state = state.copyWith(error: e.toString());
+      }
+    }
   }
 
   OrderState? _fromBackendEvent(String type) {
@@ -147,10 +175,21 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     };
   }
 
+  bool _isTerminal(OrderState status) {
+    return switch (status) {
+      OrderState.completed ||
+      OrderState.cancelled ||
+      OrderState.noDriverFound =>
+        true,
+      _ => false,
+    };
+  }
+
   @override
   void dispose() {
     _orderStateSub?.cancel();
     _orderEventsSub?.cancel();
+    _orderStatusPollTimer?.cancel();
     if (_dispatcherStarted) {
       _eventDispatcher.stop();
     }

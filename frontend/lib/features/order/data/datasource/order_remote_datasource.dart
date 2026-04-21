@@ -8,4 +8,6 @@ abstract class OrderRemoteDataSource {
     required double dropoffLat,
     required double dropoffLng,
   });
+
+  Future<OrderDto> getOrder(String orderId);
 }

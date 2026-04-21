@@ -89,7 +89,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, eventPublisher, clock)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, eventPublisher, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, logger)

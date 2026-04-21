@@ -67,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _tariff = 'Стандарт';
   String? _driverOrderId;
   StreamSubscription<Event>? _driverEventsSub;
+  Timer? _driverPollTimer;
   bool _driverEventsStarting = false;
 
   static const _suggestions = <String>[
@@ -96,6 +97,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     _driverEventsSub?.cancel();
+    _driverPollTimer?.cancel();
     _phone.dispose();
     _otp.dispose();
     _addressSearch.dispose();
@@ -130,7 +132,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _acceptDriverOrder() async {
     final orderId = _driverOrderId;
     if (orderId == null) {
-      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+      ref
+          .read(appFlowProvider.notifier)
+          .setDriverStage(DriverHomeStage.accepted);
       return;
     }
 
@@ -138,9 +142,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       await ref.read(apiClientProvider).post('/api/v1/orders/$orderId/accept', {
         'driver_id': 'demo-driver',
       });
-      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+      ref
+          .read(appFlowProvider.notifier)
+          .setDriverStage(DriverHomeStage.accepted);
     } catch (_) {
-      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+      ref
+          .read(appFlowProvider.notifier)
+          .setDriverStage(DriverHomeStage.accepted);
     }
   }
 
@@ -159,11 +167,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
         if (event.type == 'order_created' || event.type == 'searching') {
           setState(() => _driverOrderId = event.orderId);
-          ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.newOrder);
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.newOrder);
         }
       });
+      _driverPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        unawaited(_pollDriverOrder());
+      });
+      unawaited(_pollDriverOrder());
     } finally {
       _driverEventsStarting = false;
+    }
+  }
+
+  Future<void> _pollDriverOrder() async {
+    if (!mounted) return;
+    final flow = ref.read(appFlowProvider);
+    if (!flow.isDriver || flow.driverStage != DriverHomeStage.online) {
+      return;
+    }
+
+    try {
+      final json = await ref
+          .read(apiClientProvider)
+          .get('/api/v1/orders?status=searching&limit=1');
+      final orders = json['orders'];
+      if (orders is List && orders.isNotEmpty) {
+        final first = orders.first;
+        if (first is Map<String, dynamic>) {
+          setState(() => _driverOrderId = first['id']?.toString());
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.newOrder);
+        }
+      }
+    } catch (_) {
+      // WebSocket remains the primary path; polling is only a local-test fallback.
     }
   }
 
@@ -1291,8 +1331,10 @@ class _ReviewPanel extends StatelessWidget {
           pair('Авто', vehicleType),
           pair('Колёса', '$lockedWheels'),
           pair('На ходу', running ? 'Да' : 'Нет'),
-          pair('\u0422\u0430\u0440\u0438\u0444', '${tariff.name}, ${tariff.price} \u20bd'),
-          pair('\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c', '${estimate.totalPrice} \u20bd'),
+          pair('\u0422\u0430\u0440\u0438\u0444',
+              '${tariff.name}, ${tariff.price} \u20bd'),
+          pair('\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c',
+              '${estimate.totalPrice} \u20bd'),
           const SizedBox(height: 4),
           Text(
             '\u041f\u0440\u0435\u0434\u0432\u0430\u0440\u0438\u0442\u0435\u043b\u044c\u043d\u0430\u044f \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c: ${estimate.summary}',
@@ -1719,15 +1761,15 @@ class _DriverHome extends ConsumerWidget {
                     ),
                   ),
                   child: Row(children: [
-                  const Expanded(
-                      child: Text('Статус водителя',
-                          style: TextStyle(
-                              color: EvikColors.textPrimaryDark,
-                              fontWeight: FontWeight.w700))),
-                  _DriverShiftInlineToggle(
-                    online: online,
-                    onChanged: notifier.toggleDriverOnline,
-                  ),
+                    const Expanded(
+                        child: Text('Статус водителя',
+                            style: TextStyle(
+                                color: EvikColors.textPrimaryDark,
+                                fontWeight: FontWeight.w700))),
+                    _DriverShiftInlineToggle(
+                      online: online,
+                      onChanged: notifier.toggleDriverOnline,
+                    ),
                   ]),
                 ),
                 const SizedBox(height: 10),
@@ -1769,8 +1811,7 @@ class _DriverHome extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   _ActionButton.primary(
-                      text: 'Принять заказ',
-                      onTap: onAcceptOrder),
+                      text: 'Принять заказ', onTap: onAcceptOrder),
                   const SizedBox(height: 8),
                   _ActionButton.cancel(
                       text: 'Отклонить',
@@ -1806,8 +1847,7 @@ class _DriverHome extends ConsumerWidget {
                         notifier.setDriverStage(DriverHomeStage.completed),
                   ),
                 ],
-                if (stage == DriverHomeStage.completed)
-                  const _DriverDoneCard(),
+                if (stage == DriverHomeStage.completed) const _DriverDoneCard(),
               ],
             ),
           ),
@@ -2102,9 +2142,8 @@ class _DriverShiftInlineToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = online
-        ? const Color(0xFF11D8CC)
-        : EvikColors.textSecondaryDark;
+    final accent =
+        online ? const Color(0xFF11D8CC) : EvikColors.textSecondaryDark;
 
     return GestureDetector(
       onTap: () => onChanged(!online),
@@ -2135,8 +2174,7 @@ class _DriverShiftInlineToggle extends StatelessWidget {
             AnimatedAlign(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              alignment:
-                  online ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: online ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 width: 26,
                 height: 26,
@@ -2167,9 +2205,8 @@ class _DriverShiftBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = online
-        ? const Color(0xFF11D8CC)
-        : EvikColors.textSecondaryDark;
+    final accent =
+        online ? const Color(0xFF11D8CC) : EvikColors.textSecondaryDark;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2395,7 +2432,8 @@ class _GlassSurface extends StatelessWidget {
             decoration: BoxDecoration(
               color: tint ?? Colors.white.withValues(alpha: 0.62),
               borderRadius: radius,
-              border: border ?? Border.all(color: Colors.white.withValues(alpha: 0.42)),
+              border: border ??
+                  Border.all(color: Colors.white.withValues(alpha: 0.42)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -2701,7 +2739,6 @@ class _MapLayerState extends ConsumerState<_MapLayer> {
   }
 }
 
-
 class _OrderPriceEstimate {
   const _OrderPriceEstimate({
     required this.totalPrice,
@@ -2727,12 +2764,16 @@ _OrderPriceEstimate _estimateOrderPrice({
   };
   final wheelsSurcharge = lockedWheels * 350;
   final runningSurcharge = running ? 0 : 800;
-  final total = basePrice + vehicleSurcharge + wheelsSurcharge + runningSurcharge;
+  final total =
+      basePrice + vehicleSurcharge + wheelsSurcharge + runningSurcharge;
   final parts = <String>[
     '$basePrice \u20bd \u0431\u0430\u0437\u043e\u0432\u044b\u0439 \u0442\u0430\u0440\u0438\u0444 $tariffName',
-    if (vehicleSurcharge > 0) '$vehicleSurcharge \u20bd \u0437\u0430 \u0442\u0438\u043f \u0430\u0432\u0442\u043e',
-    if (wheelsSurcharge > 0) '$wheelsSurcharge \u20bd \u0437\u0430 \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u043a\u043e\u043b\u0451\u0441\u0430',
-    if (runningSurcharge > 0) '$runningSurcharge \u20bd \u0435\u0441\u043b\u0438 \u0430\u0432\u0442\u043e \u043d\u0435 \u043d\u0430 \u0445\u043e\u0434\u0443',
+    if (vehicleSurcharge > 0)
+      '$vehicleSurcharge \u20bd \u0437\u0430 \u0442\u0438\u043f \u0430\u0432\u0442\u043e',
+    if (wheelsSurcharge > 0)
+      '$wheelsSurcharge \u20bd \u0437\u0430 \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435 \u043a\u043e\u043b\u0451\u0441\u0430',
+    if (runningSurcharge > 0)
+      '$runningSurcharge \u20bd \u0435\u0441\u043b\u0438 \u0430\u0432\u0442\u043e \u043d\u0435 \u043d\u0430 \u0445\u043e\u0434\u0443',
   ];
   return _OrderPriceEstimate(
     totalPrice: total,
