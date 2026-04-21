@@ -106,6 +106,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _resetClient() {
+    unawaited(
+        ref.read(orderStateNotifierProvider.notifier).cancelCurrentOrder());
     setState(() {
       _fromAddress = 'Моё местоположение';
       _toAddress = null;
@@ -1013,7 +1015,7 @@ class _ClientHome extends StatelessWidget {
           tariff: activeTariff,
           onSubmit: onSubmitOrder,
         ),
-      ClientHomeStage.searching => const _SearchingPanel(),
+      ClientHomeStage.searching => _SearchingPanel(onCancel: onReset),
       ClientHomeStage.noDrivers => _Panel(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1375,26 +1377,36 @@ class _ReviewPanel extends StatelessWidget {
 }
 
 class _SearchingPanel extends StatelessWidget {
-  const _SearchingPanel();
+  const _SearchingPanel({required this.onCancel});
+
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
+          const SizedBox(
               width: 36,
               height: 36,
               child: CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(
                       EvikColors.textPrimaryDark))),
-          SizedBox(height: 12),
-          Text('Ищем эвакуатор...',
+          const SizedBox(height: 12),
+          const Text('Ищем эвакуатор...',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 24,
                   fontWeight: FontWeight.w700)),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: 220,
+            child: _ActionButton.cancel(
+              text: 'Отменить заказ',
+              onTap: onCancel,
+            ),
+          ),
         ],
       ),
     );

@@ -34,6 +34,21 @@ class NoOpApiClient implements ApiClient {
   @override
   Future<Map<String, dynamic>> post(
       String path, Map<String, dynamic> body) async {
+    if (path.startsWith('/api/v1/orders/') && path.endsWith('/cancel')) {
+      final id = path.split('/')[3];
+      return {
+        'order': {
+          'id': id,
+          'user_id': 'local-user',
+          'pickup_lat': 0.0,
+          'pickup_lng': 0.0,
+          'dropoff_lat': 0.0,
+          'dropoff_lng': 0.0,
+          'status': 'cancelled',
+          'driver_id': null,
+        }
+      };
+    }
     // TODO: Replace with real HTTP client implementation.
     if (path == '/api/v1/orders') {
       final now = DateTime.now().millisecondsSinceEpoch.toString();

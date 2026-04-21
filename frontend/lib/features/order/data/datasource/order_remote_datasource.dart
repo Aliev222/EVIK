@@ -10,4 +10,6 @@ abstract class OrderRemoteDataSource {
   });
 
   Future<OrderDto> getOrder(String orderId);
+
+  Future<OrderDto> cancelOrder(String orderId);
 }

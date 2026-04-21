@@ -81,22 +81,31 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
   StreamSubscription<Event>? _orderEventsSub;
   Timer? _orderStatusPollTimer;
   bool _dispatcherStarted = false;
+  int _requestVersion = 0;
 
   Future<void> submitOrder(CreateOrderCommand command) async {
+    final requestVersion = ++_requestVersion;
     state = state.copyWith(status: OrderState.searching, error: null);
     try {
       final order = await _createOrderUseCase.execute(command);
+      if (requestVersion != _requestVersion) return;
       state = state.copyWith(status: order.state, order: order);
       await _bindBackendState(order.id);
     } catch (e) {
+      if (requestVersion != _requestVersion) return;
       // Keep optimistic searching state as safe fallback when backend is unavailable.
       state = state.copyWith(error: e.toString());
     }
   }
 
   Future<void> cancelCurrentOrder() async {
+    _requestVersion++;
+    _orderStatusPollTimer?.cancel();
     final orderId = state.order?.id;
-    if (orderId == null) return;
+    if (orderId == null) {
+      state = state.copyWith(status: OrderState.cancelled, error: null);
+      return;
+    }
 
     try {
       final order = await _repository.cancelOrder(orderId);

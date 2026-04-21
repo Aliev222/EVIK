@@ -40,22 +40,9 @@ class OrderRepositoryImpl implements OrderRepository {
 
   @override
   Future<Order> cancelOrder(String orderId) async {
-    final current = _orders[orderId];
-    if (current == null) {
-      // TODO: Replace with real cancel API request and domain error mapping.
-      final fallback = Order(
-        id: orderId,
-        userId: 'unknown',
-        pickup: const Coordinate(lat: 0, lng: 0),
-        dropoff: const Coordinate(lat: 0, lng: 0),
-        state: OrderState.cancelled,
-      );
-      _orders[orderId] = fallback;
-      _controllerFor(orderId).add(fallback.state);
-      return fallback;
-    }
-    final cancelled = current.copyWith(state: OrderState.cancelled);
-    _orders[orderId] = cancelled;
+    final dto = await remote.cancelOrder(orderId);
+    final cancelled = dto.toDomain();
+    _orders[cancelled.id] = cancelled;
     _controllerFor(orderId).add(cancelled.state);
     return cancelled;
   }
@@ -100,6 +87,12 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
   @override
   Future<OrderDto> getOrder(String orderId) async {
     final json = await apiClient.get('/api/v1/orders/$orderId');
+    return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<OrderDto> cancelOrder(String orderId) async {
+    final json = await apiClient.post('/api/v1/orders/$orderId/cancel', {});
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }
 }
