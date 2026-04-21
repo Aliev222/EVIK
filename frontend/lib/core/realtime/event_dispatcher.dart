@@ -17,6 +17,7 @@ class Event {
 
 abstract class EventDispatcher {
   Future<void> start();
+  Stream<Event> events();
   Stream<Event> orderEvents(String orderId);
   void handleEvent(Event event);
   Future<void> stop();
@@ -33,10 +34,13 @@ class WsEventDispatcher implements EventDispatcher {
   final String _wsUrl;
   final StreamController<Event> _orderEvents = StreamController<Event>.broadcast();
   StreamSubscription<String>? _subscription;
+  bool _started = false;
 
   @override
   Future<void> start() async {
+    if (_started) return;
     await _client.connect(_wsUrl);
+    _started = true;
     _subscription = _client.messages().listen((raw) {
       try {
         final dynamic decoded = jsonDecode(raw);
@@ -57,6 +61,11 @@ class WsEventDispatcher implements EventDispatcher {
         // Ignore malformed payloads.
       }
     });
+  }
+
+  @override
+  Stream<Event> events() {
+    return _orderEvents.stream;
   }
 
   @override
@@ -86,7 +95,8 @@ class WsEventDispatcher implements EventDispatcher {
   @override
   Future<void> stop() async {
     await _subscription?.cancel();
+    _subscription = null;
     await _client.disconnect();
-    await _orderEvents.close();
+    _started = false;
   }
 }

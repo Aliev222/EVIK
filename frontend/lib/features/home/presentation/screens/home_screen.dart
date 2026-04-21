@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/bootstrap/app_bootstrap.dart';
+import '../../../../core/realtime/event_dispatcher.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../map/data/yandex_map_provider.dart';
 import '../../../map/presentation/widgets/yandex_map_view.dart';
@@ -56,33 +58,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _addressSearch = TextEditingController();
   final _comment = TextEditingController();
 
-  String _fromAddress = 'Р В РЎС™Р В РЎвЂўР РЋРІР‚В Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ';
+  String _fromAddress = 'Моё местоположение';
   String? _toAddress;
   bool _pickFrom = false;
-  String _vehicleType = 'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦';
+  String _vehicleType = 'Седан';
   int _lockedWheels = 0;
   bool _running = true;
-  String _tariff = 'Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™';
+  String _tariff = 'Стандарт';
+  String? _driverOrderId;
+  StreamSubscription<Event>? _driverEventsSub;
+  bool _driverEventsStarting = false;
 
   static const _suggestions = <String>[
-    'Р В РІР‚С”Р В Р’ВµР РЋР С“Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р РЋРЎвЂњР В Р’В»Р В РЎвЂР РЋРІР‚В Р В Р’В°, 15',
-    'Р В РЎв„ўР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°, 78Р В РЎвЂ™',
-    'Р В РЎС›Р В Р’В¦ Р вЂ™Р’В«Р В Р Р‹Р В РЎвЂўР В РЎвЂќР В РЎвЂўР В Р’В»Р вЂ™Р’В», Р В РІР‚С”Р В Р’ВµР РЋРІР‚С™Р В Р вЂ¦Р РЋР РЏР РЋР РЏ, 14',
-    'Р В РЎвЂ™Р РЋР РЉР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р В РЎвЂўР РЋР вЂљР РЋРІР‚С™, Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р’В» B',
-    'Р В Р’В®Р В Р’В¶Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р вЂ Р В РЎвЂўР В РЎвЂќР В Р’В·Р В Р’В°Р В Р’В»',
+    'Лесная улица, 15',
+    'Кирова, 78А',
+    'ТЦ «Сокол», Летняя, 14',
+    'Аэропорт, терминал B',
+    'Южный вокзал',
   ];
 
   static const _vehicleTypes = <String>[
-    'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦',
-    'Р В РЎв„ўР РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР С“Р В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљ',
-    'Р В РЎС™Р В РЎвЂР В Р вЂ¦Р В РЎвЂР В Р вЂ Р РЋР РЉР В Р вЂ¦',
-    'Р В Р’В¤Р РЋРЎвЂњР РЋР вЂљР В РЎвЂ“Р В РЎвЂўР В Р вЂ¦'
+    'Седан',
+    'Кроссовер',
+    'Минивэн',
+    'Фургон'
   ];
 
   static const _tariffs = <_Tariff>[
-    _Tariff('Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™', 3900, '12 Р В РЎВР В РЎвЂР В Р вЂ¦'),
-    _Tariff('Р В РЎв„ўР В РЎвЂўР В РЎВР РЋРІР‚С›Р В РЎвЂўР РЋР вЂљР РЋРІР‚С™', 4900, '10 Р В РЎВР В РЎвЂР В Р вЂ¦'),
-    _Tariff('Р В Р’В­Р В РЎвЂќР РЋР С“Р В РЎвЂ”Р РЋР вЂљР В Р’ВµР РЋР С“Р РЋР С“', 6200, '7 Р В РЎВР В РЎвЂР В Р вЂ¦'),
+    _Tariff('Стандарт', 3900, '12 мин'),
+    _Tariff('Комфорт', 4900, '10 мин'),
+    _Tariff('Экспресс', 6200, '7 мин'),
   ];
 
   _Tariff get _activeTariff => _tariffs.firstWhere((t) => t.name == _tariff,
@@ -90,6 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    _driverEventsSub?.cancel();
     _phone.dispose();
     _otp.dispose();
     _addressSearch.dispose();
@@ -99,13 +105,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _resetClient() {
     setState(() {
-      _fromAddress = 'Р В РЎС™Р В РЎвЂўР РЋРІР‚В Р В РЎВР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ';
+      _fromAddress = 'Моё местоположение';
       _toAddress = null;
       _pickFrom = false;
-      _vehicleType = 'Р В Р Р‹Р В Р’ВµР В РўвЂР В Р’В°Р В Р вЂ¦';
+      _vehicleType = 'Седан';
       _lockedWheels = 0;
       _running = true;
-      _tariff = 'Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋРІР‚С™';
+      _tariff = 'Стандарт';
       _comment.clear();
     });
     ref.read(appFlowProvider.notifier).setClientStage(ClientHomeStage.idle);
@@ -119,12 +125,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             dropoff: Coordinate(lat: 55.761244, lng: 37.628423),
           ),
         );
-    ref.read(appFlowProvider.notifier).startSearch();
+  }
+
+  Future<void> _acceptDriverOrder() async {
+    final orderId = _driverOrderId;
+    if (orderId == null) {
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+      return;
+    }
+
+    try {
+      await ref.read(apiClientProvider).post('/api/v1/orders/$orderId/accept', {
+        'driver_id': 'demo-driver',
+      });
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+    } catch (_) {
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.accepted);
+    }
+  }
+
+  Future<void> _ensureDriverEvents() async {
+    if (_driverEventsSub != null || _driverEventsStarting) return;
+    _driverEventsStarting = true;
+    final dispatcher = ref.read(eventDispatcherProvider);
+
+    try {
+      await dispatcher.start();
+      _driverEventsSub = dispatcher.events().listen((event) {
+        if (!mounted) return;
+        final flow = ref.read(appFlowProvider);
+        if (!flow.isDriver || flow.driverStage != DriverHomeStage.online) {
+          return;
+        }
+        if (event.type == 'order_created' || event.type == 'searching') {
+          setState(() => _driverOrderId = event.orderId);
+          ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.newOrder);
+        }
+      });
+    } finally {
+      _driverEventsStarting = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final flow = ref.watch(appFlowProvider);
+    ref.listen<OrderUiState>(orderStateNotifierProvider, (previous, next) {
+      final notifier = ref.read(appFlowProvider.notifier);
+      switch (next.status) {
+        case OrderState.searching:
+          notifier.setClientStage(ClientHomeStage.searching);
+          break;
+        case OrderState.accepted:
+          notifier.setClientStage(ClientHomeStage.driverFound);
+          break;
+        case OrderState.arrived:
+          notifier.setClientStage(ClientHomeStage.driverArrived);
+          break;
+        case OrderState.inProgress:
+          notifier.setClientStage(ClientHomeStage.driverEnRoute);
+          break;
+        case OrderState.completed:
+          notifier.setClientStage(ClientHomeStage.completed);
+          break;
+        case OrderState.cancelled:
+          notifier.setClientStage(ClientHomeStage.idle);
+          break;
+        case OrderState.noDriverFound:
+          notifier.setClientStage(ClientHomeStage.noDrivers);
+          break;
+        case OrderState.idle:
+          break;
+      }
+    });
+    if (flow.isDriver) {
+      unawaited(_ensureDriverEvents());
+    }
     return Scaffold(
       backgroundColor: EvikColors.darkBackground,
       body: switch (flow.authStep) {
@@ -161,6 +237,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onTariff: (value) => setState(() => _tariff = value),
             onReset: _resetClient,
             onSubmitOrder: _submitOrder,
+            onAcceptDriverOrder: _acceptDriverOrder,
           ),
       },
     );
@@ -190,6 +267,7 @@ class _MainShell extends ConsumerStatefulWidget {
     required this.onTariff,
     required this.onReset,
     required this.onSubmitOrder,
+    required this.onAcceptDriverOrder,
   });
 
   final String fromAddress;
@@ -213,6 +291,7 @@ class _MainShell extends ConsumerStatefulWidget {
   final ValueChanged<String> onTariff;
   final VoidCallback onReset;
   final VoidCallback onSubmitOrder;
+  final VoidCallback onAcceptDriverOrder;
 
   @override
   ConsumerState<_MainShell> createState() => _MainShellState();
@@ -246,6 +325,7 @@ class _MainShellState extends ConsumerState<_MainShell> {
             selectedTariff: widget.selectedTariff,
             tariffPrice: widget.activeTariff.price,
             comment: widget.comment.text,
+            onAcceptOrder: widget.onAcceptDriverOrder,
           )
         : _ClientHome(
             stage: flow.clientStage,
@@ -767,7 +847,7 @@ class _SuccessScreen extends ConsumerWidget {
           const Icon(Icons.check_circle_outline,
               color: EvikColors.textPrimaryDark, size: 88),
           const SizedBox(height: 12),
-          const Text('Р В РІР‚в„ўР РЋРІР‚В¦Р В РЎвЂўР В РўвЂ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦',
+          const Text('Вход выполнен',
               style: TextStyle(
                 color: EvikColors.textPrimaryDark,
                 fontSize: 34,
@@ -775,7 +855,7 @@ class _SuccessScreen extends ConsumerWidget {
               )),
           const Spacer(),
           _ActionButton.primary(
-            text: 'Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ Р В РЎвЂќ Р В РЎвЂќР В Р’В°Р РЋР вЂљР РЋРІР‚С™Р В Р’Вµ',
+            text: 'Перейти к карте',
             onTap: () => ref.read(appFlowProvider.notifier).finishAuth(),
           ),
         ],
@@ -846,7 +926,7 @@ class _ClientHome extends StatelessWidget {
     final overlay = switch (stage) {
       ClientHomeStage.idle => _Panel(
           child: _ActionButton.primary(
-              text: 'Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В·Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ', onTap: onStartAddress),
+              text: 'Вызвать эвакуатор', onTap: onStartAddress),
         ),
       ClientHomeStage.addressSelection => _AddressPanel(
           fromAddress: fromAddress,
@@ -874,7 +954,7 @@ class _ClientHome extends StatelessWidget {
         ),
       ClientHomeStage.orderReview => _ReviewPanel(
           fromAddress: fromAddress,
-          toAddress: toAddress ?? 'Р В РЎСљР В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“',
+          toAddress: toAddress ?? 'Не выбран адрес',
           vehicleType: vehicleType,
           lockedWheels: lockedWheels,
           running: running,
@@ -886,15 +966,15 @@ class _ClientHome extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р В Р’ВµР В РІвЂћвЂ“',
+              const Text('Нет доступных водителей',
                   style: TextStyle(
                       color: EvikColors.textPrimaryDark,
                       fontSize: 22,
                       fontWeight: FontWeight.w700)),
               const SizedBox(height: 10),
-              _ActionButton.primary(text: 'Р В РЎСџР В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ', onTap: onRetry),
+              _ActionButton.primary(text: 'Повторить поиск', onTap: onRetry),
               const SizedBox(height: 8),
-              _ActionButton.cancel(text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В°', onTap: onReset),
+              _ActionButton.cancel(text: 'Отмена', onTap: onReset),
             ],
           ),
         ),
@@ -902,9 +982,9 @@ class _ClientHome extends StatelessWidget {
       ClientHomeStage.driverEnRoute => _DriverFoundPanel(onCancel: onReset),
       ClientHomeStage.driverArrived => _DriverFoundPanel(onCancel: onReset),
       ClientHomeStage.completed => _StatusPanel(
-          title: 'Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В· Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦',
-          subtitle: 'Р В Р Р‹Р В РЎвЂ”Р В Р’В°Р РЋР С“Р В РЎвЂР В Р’В±Р В РЎвЂў, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р’В»Р В РЎвЂ EVIK.',
-          primaryText: 'Р В РЎСљР В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+          title: 'Заказ завершён',
+          subtitle: 'Спасибо, что выбрали EVIK.',
+          primaryText: 'Новый заказ',
           onPrimary: onReset,
         ),
     };
@@ -946,7 +1026,7 @@ class _AddressPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“Р В Р’В°',
+          const Text('Выбор адреса',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
@@ -955,18 +1035,18 @@ class _AddressPanel extends StatelessWidget {
           TextField(
               controller: addressSearch,
               style: const TextStyle(color: EvikColors.textPrimaryDark),
-              decoration: const InputDecoration(hintText: 'Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“Р В Р’В°')),
+              decoration: const InputDecoration(hintText: 'Поиск адреса')),
           const SizedBox(height: 12),
           _AddressItem(
-              title: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°',
+              title: 'Откуда',
               value: fromAddress,
               selected: pickFrom,
               priority: false,
               onTap: () => onPickField(true)),
           const SizedBox(height: 8),
           _AddressItem(
-              title: 'Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°',
-              value: toAddress ?? 'Р В Р в‚¬Р В РЎвЂќР В Р’В°Р В Р’В¶Р В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“ Р В Р вЂ¦Р В Р’В°Р В Р’В·Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ',
+              title: 'Куда',
+              value: toAddress ?? 'Укажите адрес назначения',
               selected: !pickFrom,
               priority: true,
               onTap: () => onPickField(false)),
@@ -994,7 +1074,7 @@ class _AddressPanel extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ActionButton.primary(
-            text: 'Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В РўвЂР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В°Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“',
+            text: 'Подтвердить адрес',
             enabled: toAddress != null && toAddress!.trim().isNotEmpty,
             onTap: onConfirmAddress,
           ),
@@ -1040,7 +1120,7 @@ class _OrderParamsPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Р В РЎСџР В Р’В°Р РЋР вЂљР В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р РЋР вЂљР РЋРІР‚в„– Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°',
+          const Text('Параметры заказа',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
@@ -1071,7 +1151,7 @@ class _OrderParamsPanel extends StatelessWidget {
                 Row(
                   children: [
                     const Expanded(
-                        child: Text('Р В РІР‚вЂќР В Р’В°Р В Р’В±Р В Р’В»Р В РЎвЂўР В РЎвЂќР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В РЎвЂќР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°',
+                        child: Text('Заблокированные колёса',
                             style:
                                 TextStyle(color: EvikColors.textPrimaryDark))),
                     IconButton(
@@ -1091,7 +1171,7 @@ class _OrderParamsPanel extends StatelessWidget {
                 Row(
                   children: [
                     const Expanded(
-                        child: Text('Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР В РЎВР В РЎвЂўР В Р’В±Р В РЎвЂР В Р’В»Р РЋР Р‰ Р В Р вЂ¦Р В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ',
+                        child: Text('Автомобиль на ходу',
                             style:
                                 TextStyle(color: EvikColors.textPrimaryDark))),
                     Switch(value: running, onChanged: onRunning),
@@ -1107,7 +1187,7 @@ class _OrderParamsPanel extends StatelessWidget {
               maxLines: 3,
               style: const TextStyle(color: EvikColors.textPrimaryDark),
               decoration: const InputDecoration(
-                  hintText: 'Р В РЎв„ўР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРЎвЂњ (Р В Р вЂ¦Р В Р’ВµР В РЎвЂўР В Р’В±Р РЋР РЏР В Р’В·Р В Р’В°Р РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰Р В Р вЂ¦Р В РЎвЂў)')),
+                  hintText: 'Комментарий к заказу (необязательно)')),
           const SizedBox(height: 10),
           ...tariffs.map((t) => GestureDetector(
                 onTap: () => onTariff(t.name),
@@ -1134,7 +1214,7 @@ class _OrderParamsPanel extends StatelessWidget {
                                       ? EvikColors.textPrimaryLight
                                       : EvikColors.textPrimaryDark,
                                   fontWeight: FontWeight.w700))),
-                      Text('${t.price} Р Р†РІР‚С™Р вЂ¦ Р Р†Р вЂљРЎС› ${t.eta}',
+                      Text('${t.price} ₽ • ${t.eta}',
                           style: TextStyle(
                               color: selectedTariff == t.name
                                   ? EvikColors.textPrimaryLight
@@ -1143,7 +1223,7 @@ class _OrderParamsPanel extends StatelessWidget {
                   ),
                 ),
               )),
-          _ActionButton.primary(text: 'Р В РЎСџР РЋР вЂљР В РЎвЂўР В РўвЂР В РЎвЂўР В Р’В»Р В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰', onTap: onReview),
+          _ActionButton.primary(text: 'Продолжить', onTap: onReview),
         ],
       ),
     );
@@ -1200,17 +1280,17 @@ class _ReviewPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р’В¶Р В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°',
+          const Text('Подтверждение заказа',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 20,
                   fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
-          pair('Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°', fromAddress),
-          pair('Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°', toAddress),
-          pair('Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂў', vehicleType),
-          pair('Р В РЎв„ўР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°', '$lockedWheels'),
-          pair('Р В РЎСљР В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ', running ? 'Р В РІР‚СњР В Р’В°' : 'Р В РЎСљР В Р’ВµР РЋРІР‚С™'),
+          pair('Откуда', fromAddress),
+          pair('Куда', toAddress),
+          pair('Авто', vehicleType),
+          pair('Колёса', '$lockedWheels'),
+          pair('На ходу', running ? 'Да' : 'Нет'),
           pair('\u0422\u0430\u0440\u0438\u0444', '${tariff.name}, ${tariff.price} \u20bd'),
           pair('\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c', '${estimate.totalPrice} \u20bd'),
           const SizedBox(height: 4),
@@ -1223,7 +1303,7 @@ class _ReviewPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          _ActionButton.primary(text: 'Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В·Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ', onTap: onSubmit),
+          _ActionButton.primary(text: 'Вызвать эвакуатор', onTap: onSubmit),
         ],
       ),
     );
@@ -1246,7 +1326,7 @@ class _SearchingPanel extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(
                       EvikColors.textPrimaryDark))),
           SizedBox(height: 12),
-          Text('Р В Р’ВР РЋРІР‚В°Р В Р’ВµР В РЎВ Р РЋР РЉР В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ...',
+          Text('Ищем эвакуатор...',
               style: TextStyle(
                   color: EvikColors.textPrimaryDark,
                   fontSize: 24,
@@ -1269,7 +1349,7 @@ class _DriverFoundPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Р В РІР‚в„ўР В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р В РІвЂћвЂ“Р В РўвЂР В Р’ВµР В Р вЂ¦',
+            'Водитель найден',
             style: TextStyle(
               color: EvikColors.textPrimaryDark,
               fontSize: 22,
@@ -1320,7 +1400,7 @@ class _DriverFoundPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Р В РЎвЂ™Р В Р’В»Р В Р’ВµР В РЎвЂќР РЋР С“Р В Р’ВµР В РІвЂћвЂ“ Р В Р Р‹Р В РЎВР В РЎвЂР РЋР вЂљР В Р вЂ¦Р В РЎвЂўР В Р вЂ ',
+                        'Алексей Смирнов',
                         style: TextStyle(
                           color: EvikColors.textPrimaryDark,
                           fontSize: 17,
@@ -1329,7 +1409,7 @@ class _DriverFoundPanel extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Р В Р’В­Р В Р вЂ Р В Р’В°Р В РЎвЂќР РЋРЎвЂњР В Р’В°Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ Hyundai HD78',
+                        'Эвакуатор Hyundai HD78',
                         style: TextStyle(
                           color: EvikColors.textSecondaryDark,
                           fontSize: 13,
@@ -1343,11 +1423,11 @@ class _DriverFoundPanel extends StatelessWidget {
                         children: [
                           _MiniInfo(
                             icon: Icons.star_rounded,
-                            text: '4.9 Р РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂР В Р вЂ¦Р В РЎвЂ“',
+                            text: '4.9 рейтинг',
                           ),
                           _MiniInfo(
                             icon: Icons.route_rounded,
-                            text: '3.4 Р В РЎвЂќР В РЎВ Р В РўвЂР В РЎвЂў Р В Р вЂ Р В Р’В°Р РЋР С“',
+                            text: '3.4 км до вас',
                           ),
                         ],
                       ),
@@ -1362,16 +1442,16 @@ class _DriverFoundPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: _KeyInfoCard(
-                  label: 'Р В РЎСџР РЋР вЂљР В РЎвЂР В Р’ВµР В РўвЂР В Р’ВµР РЋРІР‚С™ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В·',
-                  value: '12 Р В РЎВР В РЎвЂР В Р вЂ¦',
+                  label: 'Приедет через',
+                  value: '12 мин',
                   accent: Color(0xFF19E5E5),
                 ),
               ),
               SizedBox(width: 10),
               Expanded(
                 child: _KeyInfoCard(
-                  label: 'Р В РЎСљР В РЎвЂўР В РЎВР В Р’ВµР РЋР вЂљ Р В РЎВР В Р’В°Р РЋРІвЂљВ¬Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„–',
-                  value: 'Р В Р’В 336Р В Р Р‹Р В РІР‚в„ў 799',
+                  label: 'Номер машины',
+                  value: 'Р336СВ 799',
                 ),
               ),
             ],
@@ -1389,7 +1469,7 @@ class _DriverFoundPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Р В Р’В§Р РЋРІР‚С™Р В РЎвЂў Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂР РЋР С“Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™ Р РЋР С“Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“',
+                  'Что происходит сейчас',
                   style: TextStyle(
                     color: EvikColors.textPrimaryDark,
                     fontSize: 14,
@@ -1398,7 +1478,7 @@ class _DriverFoundPanel extends StatelessWidget {
                 ),
                 SizedBox(height: 6),
                 Text(
-                  'Р В РІР‚в„ўР В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В Р’ВµР В РўвЂР В Р’ВµР РЋРІР‚С™ Р В РЎвЂќ Р В Р вЂ Р В Р’В°Р В РЎВ. Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р’В·Р В Р’В° Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В РЎВ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В±Р РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ Р В РЎвЂ Р В Р вЂ¦Р В РЎвЂўР В РЎВР В Р’ВµР РЋР вЂљР В РЎвЂўР В РЎВ Р В РЎВР В Р’В°Р РЋРІвЂљВ¬Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„–, Р В РўвЂР В РЎвЂўР В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂўР РЋРІР‚С™ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В° Р РЋР С“Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“ Р В Р вЂ¦Р В Р’Вµ Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В±Р РЋРЎвЂњР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ.',
+                  'Водитель уже едет к вам. Следите за временем прибытия и номером машины, дополнительных действий от клиента сейчас не требуется.',
                   style: TextStyle(
                     color: EvikColors.textSecondaryDark,
                     fontSize: 13,
@@ -1411,7 +1491,7 @@ class _DriverFoundPanel extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _ActionButton.cancel(
-            text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+            text: 'Отменить заказ',
             onTap: () => _showCancelWarning(context),
           ),
         ],
@@ -1430,14 +1510,14 @@ class _DriverFoundPanel extends StatelessWidget {
             side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
           ),
           title: const Text(
-            'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·?',
+            'Отменить заказ?',
             style: TextStyle(
               color: EvikColors.textPrimaryDark,
               fontWeight: FontWeight.w700,
             ),
           ),
           content: const Text(
-            'Р В РІР‚СћР РЋР С“Р В Р’В»Р В РЎвЂ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР Р‰ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р’ВµР РЋРІР‚В¦Р В Р’В°Р В Р’В» Р В Р’В±Р В РЎвЂўР В Р’В»Р РЋР Р‰Р РЋРІвЂљВ¬Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В РЎвЂўР В Р вЂ Р В РЎвЂР В Р вЂ¦Р РЋРІР‚в„– Р В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚С™Р В РЎвЂ Р В РЎвЂќ Р В Р вЂ Р В Р’В°Р В РЎВ, Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В° Р В РЎВР В РЎвЂўР В Р’В¶Р В Р’ВµР РЋРІР‚С™ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ¦Р В РЎвЂР В Р’В·Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋР вЂљР В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂР В Р вЂ¦Р В РЎвЂ“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°.',
+            'Если водитель уже проехал больше половины пути к вам, отмена может понизить рейтинг клиента.',
             style: TextStyle(
               color: EvikColors.textSecondaryDark,
               height: 1.4,
@@ -1446,7 +1526,7 @@ class _DriverFoundPanel extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Р В РЎвЂєР РЋР С“Р РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ'),
+              child: const Text('Остаться'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -1454,7 +1534,7 @@ class _DriverFoundPanel extends StatelessWidget {
                 foregroundColor: Colors.white,
               ),
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Р В РІР‚СњР В Р’В°, Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰'),
+              child: const Text('Да, отменить'),
             ),
           ],
         );
@@ -1597,6 +1677,7 @@ class _DriverHome extends ConsumerWidget {
     required this.selectedTariff,
     required this.tariffPrice,
     required this.comment,
+    required this.onAcceptOrder,
   });
 
   final DriverHomeStage stage;
@@ -1608,6 +1689,7 @@ class _DriverHome extends ConsumerWidget {
   final String selectedTariff;
   final int tariffPrice;
   final String comment;
+  final VoidCallback onAcceptOrder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1638,7 +1720,7 @@ class _DriverHome extends ConsumerWidget {
                   ),
                   child: Row(children: [
                   const Expanded(
-                      child: Text('Р В Р Р‹Р РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋРЎвЂњР РЋР С“ Р В Р вЂ Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™Р В Р’ВµР В Р’В»Р РЋР РЏ',
+                      child: Text('Статус водителя',
                           style: TextStyle(
                               color: EvikColors.textPrimaryDark,
                               fontWeight: FontWeight.w700))),
@@ -1656,8 +1738,8 @@ class _DriverHome extends ConsumerWidget {
                 const SizedBox(height: 10),
                 Text(
                   online
-                      ? 'Р В РІР‚в„ўР РЋРІР‚в„– Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р вЂ¦Р В РЎвЂР В РЎВР В Р’В°Р В Р’ВµР РЋРІР‚С™Р В Р’Вµ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„– Р В РЎвЂ Р В Р вЂ Р В РЎвЂР В РўвЂР В Р вЂ¦Р РЋРІР‚в„– Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р В РЎВ Р В РЎвЂ”Р В РЎвЂўР В Р’В±Р В Р’В»Р В РЎвЂР В Р’В·Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂ.'
-                      : 'Р В РІР‚в„ўР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋРЎвЂњ, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋРЎвЂњР РЋРІР‚РЋР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–.',
+                      ? 'Вы принимаете новые заказы и видны клиентам поблизости.'
+                      : 'Включите смену, чтобы начать получать новые заказы.',
                   style: const TextStyle(
                     color: EvikColors.textSecondaryDark,
                     fontSize: 13,
@@ -1668,14 +1750,14 @@ class _DriverHome extends ConsumerWidget {
                 const SizedBox(height: 12),
                 if (stage == DriverHomeStage.online)
                   _ActionButton.secondary(
-                      text: 'Р В Р Р‹Р В РЎвЂР В РЎВР РЋРЎвЂњР В Р’В»Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                      text: 'Симулировать новый заказ',
                       onTap: () =>
                           notifier.setDriverStage(DriverHomeStage.newOrder)),
                 if (stage == DriverHomeStage.newOrder) ...[
                   _DriverOrderCard(
-                    title: 'Р В РЎСљР В РЎвЂўР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    title: 'Новый заказ',
                     subtitle:
-                        'Р В РЎСџР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР РЋР Р‰Р РЋРІР‚С™Р В Р’Вµ Р В РЎВР В Р’В°Р РЋР вЂљР РЋРІвЂљВ¬Р РЋР вЂљР РЋРЎвЂњР РЋРІР‚С™ Р В РЎвЂ Р В Р вЂ Р РЋР С“Р В Р’Вµ Р В РЎвЂ”Р В Р’В°Р РЋР вЂљР В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р РЋР вЂљР РЋРІР‚в„–, Р В РЎвЂќР В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР РЋРІР‚в„–Р В Р’Вµ Р РЋРЎвЂњР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р’В» Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™.',
+                        'Проверьте маршрут и все параметры, которые указал клиент.',
                     fromAddress: fromAddress,
                     toAddress: toAddress,
                     vehicleType: vehicleType,
@@ -1687,12 +1769,11 @@ class _DriverHome extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   _ActionButton.primary(
-                      text: 'Р В РЎСџР РЋР вЂљР В РЎвЂР В Р вЂ¦Р РЋР РЏР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
-                      onTap: () =>
-                          notifier.setDriverStage(DriverHomeStage.accepted)),
+                      text: 'Принять заказ',
+                      onTap: onAcceptOrder),
                   const SizedBox(height: 8),
                   _ActionButton.cancel(
-                      text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р В РЎвЂўР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰',
+                      text: 'Отклонить',
                       onTap: () =>
                           notifier.setDriverStage(DriverHomeStage.online)),
                 ],
@@ -1700,9 +1781,9 @@ class _DriverHome extends ConsumerWidget {
                     stage == DriverHomeStage.enRoute ||
                     stage == DriverHomeStage.arrived) ...[
                   _DriverOrderCard(
-                    title: 'Р В РЎвЂ™Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    title: 'Активный заказ',
                     subtitle:
-                        'Р В РЎС™Р В Р’В°Р РЋР вЂљР РЋРІвЂљВ¬Р РЋР вЂљР РЋРЎвЂњР РЋРІР‚С™ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦. Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР В РІвЂћвЂ“Р РЋРІР‚С™Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂў Р В РЎвЂќР В Р’В°Р РЋР вЂљР РЋРІР‚С™Р В Р’Вµ Р В РўвЂР В РЎвЂў Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°.',
+                        'Маршрут уже построен. Следуйте по карте до клиента.',
                     fromAddress: fromAddress,
                     toAddress: toAddress,
                     vehicleType: vehicleType,
@@ -1714,13 +1795,13 @@ class _DriverHome extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   _ActionButton.cancel(
-                    text: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    text: 'Отменить заказ',
                     onTap: () =>
                         notifier.setDriverStage(DriverHomeStage.online),
                   ),
                   const SizedBox(height: 8),
                   _ActionButton.primary(
-                    text: 'Р В РІР‚вЂќР В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·',
+                    text: 'Завершить заказ',
                     onTap: () =>
                         notifier.setDriverStage(DriverHomeStage.completed),
                   ),
@@ -1764,9 +1845,9 @@ class _DriverOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final destination = (toAddress == null || toAddress!.isEmpty)
-        ? 'Р В РЎвЂ™Р В РўвЂР РЋР вЂљР В Р’ВµР РЋР С“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В° Р РЋРЎвЂњР РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋР РЏР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ'
+        ? 'Адрес клиента уточняется'
         : toAddress!;
-    final note = comment.trim().isEmpty ? 'Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂќР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР РЋР РЏ' : comment.trim();
+    final note = comment.trim().isEmpty ? 'Без комментария' : comment.trim();
     final estimate = _estimateOrderPrice(
       tariffName: selectedTariff,
       basePrice: tariffPrice,
@@ -1807,13 +1888,13 @@ class _DriverOrderCard extends StatelessWidget {
           const SizedBox(height: 14),
           _DriverRouteRow(
             icon: Icons.trip_origin_rounded,
-            label: 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР В РўвЂР В Р’В°',
+            label: 'Откуда',
             value: fromAddress,
           ),
           const SizedBox(height: 10),
           _DriverRouteRow(
             icon: Icons.flag_rounded,
-            label: 'Р В РЎв„ўР РЋРЎвЂњР В РўвЂР В Р’В°',
+            label: 'Куда',
             value: destination,
           ),
           const SizedBox(height: 14),
@@ -1821,16 +1902,16 @@ class _DriverOrderCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _DriverInfoChip(label: 'Р В РЎвЂ™Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂў', value: vehicleType),
+              _DriverInfoChip(label: 'Авто', value: vehicleType),
               _DriverInfoChip(
-                label: 'Р В РЎв„ўР В РЎвЂўР В Р’В»Р РЋРІР‚ВР РЋР С“Р В Р’В°',
-                value: lockedWheels == 0 ? 'Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В Р’В±Р В Р’В»Р В РЎвЂўР В РЎвЂќР В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В РЎвЂ' : '$lockedWheels',
+                label: 'Колёса',
+                value: lockedWheels == 0 ? 'Нет блокировки' : '$lockedWheels',
               ),
               _DriverInfoChip(
-                label: 'Р В Р Р‹Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР РЏР В Р вЂ¦Р В РЎвЂР В Р’Вµ',
-                value: running ? 'Р В РЎСљР В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ' : 'Р В РЎСљР В Р’Вµ Р В Р вЂ¦Р В Р’В° Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋРЎвЂњ',
+                label: 'Состояние',
+                value: running ? 'На ходу' : 'Не на ходу',
               ),
-              _DriverInfoChip(label: 'Р В РЎС›Р В Р’В°Р РЋР вЂљР В РЎвЂР РЋРІР‚С›', value: selectedTariff),
+              _DriverInfoChip(label: 'Тариф', value: selectedTariff),
               _DriverInfoChip(
                 label: '\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c',
                 value: '${estimate.totalPrice} \u20bd',
@@ -1850,7 +1931,7 @@ class _DriverOrderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Р В РЎв„ўР В РЎвЂўР В РЎВР В РЎВР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂќР В Р’В»Р В РЎвЂР В Р’ВµР В Р вЂ¦Р РЋРІР‚С™Р В Р’В°',
+                  'Комментарий клиента',
                   style: TextStyle(
                     color: EvikColors.textSecondaryDark,
                     fontSize: 12,
@@ -1987,7 +2068,7 @@ class _DriverDoneCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В· Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р РЋРІР‚ВР В Р вЂ¦',
+            'Заказ завершён',
             style: TextStyle(
               color: EvikColors.textPrimaryDark,
               fontSize: 18,
@@ -1996,7 +2077,7 @@ class _DriverDoneCard extends StatelessWidget {
           ),
           SizedBox(height: 6),
           Text(
-            'Р В РЎСџР В РЎвЂўР В Р’ВµР В Р’В·Р В РўвЂР В РЎвЂќР В Р’В° Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р’В°. Р В РЎС™Р В РЎвЂўР В Р’В¶Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ Р В Р вЂ  Р В РЎвЂўР В Р вЂ¦Р В Р’В»Р В Р’В°Р В РІвЂћвЂ“Р В Р вЂ¦ Р В РЎвЂ Р В Р’В¶Р В РўвЂР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР С“Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР РЋР вЂ№Р РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·.',
+            'Поездка завершена. Можно вернуться в онлайн и ждать следующий заказ.',
             style: TextStyle(
               color: EvikColors.textSecondaryDark,
               fontSize: 13,
@@ -2110,7 +2191,7 @@ class _DriverShiftBadge extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            online ? 'Р В РЎСљР В Р’В° Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’Вµ' : 'Р В РЎвЂєР РЋРІР‚С›Р РЋРІР‚С›Р В Р’В»Р В Р’В°Р В РІвЂћвЂ“Р В Р вЂ¦',
+            online ? 'На смене' : 'Оффлайн',
             style: TextStyle(
               color: accent,
               fontSize: 12,
@@ -2127,7 +2208,7 @@ class _HistoryScreen extends StatelessWidget {
   const _HistoryScreen();
   @override
   Widget build(BuildContext context) => const Center(
-      child: Text('Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РЎвЂќР В Р’В°Р В Р’В·Р В РЎвЂўР В Р вЂ ',
+      child: Text('История заказов',
           style: TextStyle(color: EvikColors.textPrimaryDark)));
 }
 
@@ -2231,10 +2312,10 @@ class _DocRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = switch (status) {
-      DocumentStatus.missing => 'Р В РЎСљР В Р’Вµ Р В Р’В·Р В Р’В°Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂў',
-      DocumentStatus.pending => 'Р В РЎСљР В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР В РЎвЂќР В Р’Вµ',
-      DocumentStatus.approved => 'Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚С™Р В Р вЂ Р В Р’ВµР РЋР вЂљР В Р’В¶Р В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂў',
-      DocumentStatus.rejected => 'Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р В РЎвЂўР В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў',
+      DocumentStatus.missing => 'Не загружено',
+      DocumentStatus.pending => 'На проверке',
+      DocumentStatus.approved => 'Подтверждено',
+      DocumentStatus.rejected => 'Отклонено',
     };
     return GestureDetector(
       onTap: onTap,

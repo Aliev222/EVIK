@@ -2,6 +2,11 @@ abstract class ApiClient {
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body);
 }
 
+const defaultApiBaseUrl = String.fromEnvironment(
+  'EVIK_API_BASE_URL',
+  defaultValue: 'http://10.0.2.2:8080',
+);
+
 class NoOpApiClient implements ApiClient {
   const NoOpApiClient();
 

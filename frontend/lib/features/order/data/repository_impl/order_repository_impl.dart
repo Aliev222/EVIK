@@ -82,7 +82,7 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
       'pickup_lng': pickupLng,
       'dropoff_lat': dropoffLat,
       'dropoff_lng': dropoffLng,
-      'auto_dispatch': true,
+      'auto_dispatch': false,
     });
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }

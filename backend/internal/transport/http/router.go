@@ -17,6 +17,13 @@ func NewRouter(orderHandler *OrderHandler, wsHandler *ws.OrderWSHandler) nethttp
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/orders", orderHandler.CreateOrder)
+		api.Post("/orders/{orderID}/accept", orderHandler.AcceptOrder)
+		api.Post("/orders/{orderID}/status", orderHandler.UpdateOrderStatus)
+		api.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)
+	})
+	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		w.WriteHeader(nethttp.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	})
 	r.Get("/ws/orders", wsHandler.Handle)
 	return r

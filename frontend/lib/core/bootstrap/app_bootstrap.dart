@@ -8,11 +8,17 @@ import '../../features/order/domain/repositories/order_repository.dart';
 import '../../features/order/presentation/state/order_state_notifier.dart';
 import '../map/map_provider.dart';
 import '../network/api_client.dart';
+import '../network/api_client_stub.dart'
+    if (dart.library.io) '../network/api_client_io.dart';
 import '../realtime/event_dispatcher.dart';
 import '../realtime/websocket_client.dart';
+import '../realtime/websocket_client_stub.dart'
+    if (dart.library.io) '../realtime/websocket_client_io.dart';
 import '../storage/key_value_storage.dart';
 
-final apiClientProvider = Provider<ApiClient>((ref) => const NoOpApiClient());
+final apiClientProvider = Provider<ApiClient>((ref) {
+  return createPlatformApiClient();
+});
 
 final keyValueStorageProvider = Provider<KeyValueStorage>((ref) {
   return InMemoryKeyValueStorage();
@@ -29,13 +35,12 @@ final mapProviderProvider = Provider<MapProvider>((ref) {
 });
 
 final webSocketClientProvider = Provider<WebSocketClient>((ref) {
-  // TODO: Replace with real WebSocket client.
-  return InMemoryWebSocketClient();
+  return createPlatformWebSocketClient();
 });
 
 final appEventDispatcherProvider = Provider<EventDispatcher>((ref) {
   final client = ref.watch(webSocketClientProvider);
-  return WsEventDispatcher(client: client, wsUrl: 'ws://localhost:8080/ws/orders');
+  return WsEventDispatcher(client: client, wsUrl: defaultWsUrl);
 });
 
 final orderRemoteDataSourceProvider = Provider<OrderRemoteDataSource>((ref) {

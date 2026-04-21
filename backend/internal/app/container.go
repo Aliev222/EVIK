@@ -54,11 +54,22 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+	if err := ensureSchema(db); err != nil {
+		return nil, err
+	}
 
-	rdb := redis.NewClient(&redis.Options{
+	redisOptions := &redis.Options{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
-	})
+	}
+	if cfg.RedisURL != "" {
+		parsedOptions, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			return nil, err
+		}
+		redisOptions = parsedOptions
+	}
+	rdb := redis.NewClient(redisOptions)
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		return nil, err
 	}
@@ -74,9 +85,11 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	matcher := matchinguc.NewFinder(orderRepo, matchingService, eventPublisher, clock)
 	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, eventPublisher, clock, idGen, appLogger)
+	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, eventPublisher, clock, appLogger)
+	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, eventPublisher, clock)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, eventPublisher, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, cancelUC)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, logger)
@@ -85,6 +98,30 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	router := httptransport.NewRouter(orderHandler, wsHandler)
 	return &Container{Router: router, db: db, rdb: rdb}, nil
+}
+
+func ensureSchema(db *sql.DB) error {
+	const schema = `
+CREATE TABLE IF NOT EXISTS orders (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	driver_id TEXT,
+	pickup_lat DOUBLE PRECISION NOT NULL,
+	pickup_lng DOUBLE PRECISION NOT NULL,
+	dropoff_lat DOUBLE PRECISION NOT NULL,
+	dropoff_lng DOUBLE PRECISION NOT NULL,
+	status TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	cancelled_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_status_updated_at ON orders (status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_user_id_updated_at ON orders (user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_driver_id_updated_at ON orders (driver_id, updated_at DESC);
+`
+	_, err := db.Exec(schema)
+	return err
 }
 
 func (c *Container) Close() {

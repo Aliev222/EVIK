@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: evik-backend
+    runtime: go
+    rootDir: backend
+    buildCommand: go build -tags netgo -ldflags "-s -w" -o app ./cmd/app
+    startCommand: ./app
+    healthCheckPath: /healthz
+    envVars:
+      - key: POSTGRES_DSN
+        fromDatabase:
+          name: evik-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: evik-redis
+          property: connectionString
+
+  - type: keyvalue
+    name: evik-redis
+    ipAllowList: []
+
+databases:
+  - name: evik-postgres
+    databaseName: evik
+    user: evik
