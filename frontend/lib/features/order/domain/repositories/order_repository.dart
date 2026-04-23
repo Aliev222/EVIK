@@ -15,6 +15,6 @@ class CreateOrderCommand {
 abstract class OrderRepository {
   Future<Order> createOrder(CreateOrderCommand command);
   Future<Order> getOrder(String orderId);
-  Future<Order> cancelOrder(String orderId);
+  Future<Order> cancelOrder(String orderId, {String? reason});
   Stream<OrderState> watchOrderState(String orderId);
 }

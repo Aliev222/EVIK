@@ -1,0 +1,177 @@
+Launching lib/main.dart on sdk gphone16k x86 64 in debug mode...
+Running Gradle task 'assembleDebug'...                          
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "Windows_NT" == "Windows_NT" setlocal
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set DEFAULT_JVM_OPTS= 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set DIRNAME=C:\Users\Minec\Desktop\EVIK\frontend\android\ 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "C:\Users\Minec\Desktop\EVIK\frontend\android\" == "" set DIRNAME=. 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set APP_BASE_NAME=gradlew 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set APP_HOME=C:\Users\Minec\Desktop\EVIK\frontend\android\ 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set JAVA_EXE=C:\Program Files\Android\Android Studio\jbr/bin/java.exe 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if exist "C:\Program Files\Android\Android Studio\jbr/bin/java.exe" goto init 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CMD_LINE_ARGS= 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set _SKIP=2 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "x-q" == "x" goto execute 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CMD_LINE_ARGS=-q -Ptarget-platform=android-x64 -Ptarget=C:\Users\Minec\Desktop\EVIK\frontend\lib/main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pfilesystem-scheme=org-dartlang-root assembleDebug 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>goto execute 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CLASSPATH=C:\Users\Minec\Desktop\EVIK\frontend\android\\gradle\wrapper\gradle-wrapper.jar 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>"C:\Program Files\Android\Android Studio\jbr/bin/java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "C:\Users\Minec\Desktop\EVIK\frontend\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain -q -Ptarget-platform=android-x64 -Ptarget=C:\Users\Minec\Desktop\EVIK\frontend\lib/main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pfilesystem-scheme=org-dartlang-root assembleDebug 
+D/FlutterJNI(14905): Beginning load of flutter...
+D/FlutterJNI(14905): flutter (null) was loaded normally!
+I/flutter (14905): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(14905): Attaching Geolocator to activity
+D/FlutterRenderer(14905): Width is zero. 0,0
+D/FlutterGeolocator(14905): Creating service.
+D/FlutterGeolocator(14905): Binding to location service.
+D/FlutterRenderer(14905): Width is zero. 0,0
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+D/FlutterGeolocator(14905): Geolocator foreground service connected
+D/FlutterGeolocator(14905): Initializing Geolocator services
+D/FlutterGeolocator(14905): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "0" == "0" goto mainEnd 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "Windows_NT" == "Windows_NT" endlocal
+Running Gradle task 'assembleDebug'...                             32,5s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+Installing build\app\outputs\flutter-apk\app-debug.apk...        2 996ms
+D/FlutterJNI(15204): Beginning load of flutter...
+D/FlutterJNI(15204): flutter (null) was loaded normally!
+I/flutter (15204): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(15204): Attaching Geolocator to activity
+D/FlutterRenderer(15204): Width is zero. 0,0
+Syncing files to device sdk gphone16k x86 64...                    318ms
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on sdk gphone16k x86 64 is available at: http://127.0.0.1:56889/9BGaZEudI0I=/
+The Flutter DevTools debugger and profiler on sdk gphone16k x86 64 is available at: http://127.0.0.1:56889/9BGaZEudI0I=/devtools/?uri=ws://127.0.0.1:56889/9BGaZEudI0I=/ws
+W/yandex.maps(15204): S1iTHOptjG0w9PoCKh8G: Network reinitialization
+D/FlutterGeolocator(15204): Creating service.
+D/FlutterGeolocator(15204): Binding to location service.
+I/Choreographer(15204): Skipped 64 frames!  The application may be doing too much work on its main thread.
+D/WindowOnBackDispatcher(15204): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@bce85fb
+I/e.evik_frontend(15204): Compiler allocated 5247KB to compile void android.view.ViewRootImpl.performTraversals(long)
+I/WindowExtensionsImpl(15204): Initializing Window Extensions, vendor API level=10, activity embedding enabled=true
+W/UiContextUtils(15204): Requested context is a non-UI Context. Creating a UI-Context with display: 0. Context: Context=com.example.evik_frontend.MainApplication@bf11972, of which baseContext=android.app.ContextImpl@12d74bf
+D/VRI[MainActivity](15204): WindowInsets changed: 1080x2400 statusBars:[0,128,0,0] navigationBars:[0,0,0,63] mandatorySystemGestures:[0,160,0,84] 
+D/FlutterRenderer(15204): Width is zero. 0,0
+I/Surface (15204): Creating surface for consumer unnamed-15204-0 with slotExpansion=1 for 64 slots
+I/Surface (15204): Creating surface for consumer VRI[MainActivity]#0(BLAST Consumer)0 with slotExpansion=1 for 64 slots
+D/FlutterJNI(15204): Sending viewport metrics to the engine.
+I/Surface (15204): Creating surface for consumer unnamed-15204-1 with slotExpansion=1 for 64 slots
+I/Surface (15204): Creating surface for consumer b269351 SurfaceView[com.example.evik_frontend/com.example.evik_frontend.MainActivity]#1(BLAST Consumer)1 with slotExpansion=1 for 64 slots
+D/FlutterGeolocator(15204): Geolocator foreground service connected
+D/FlutterGeolocator(15204): Initializing Geolocator services
+D/FlutterGeolocator(15204): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(15204): Sending viewport metrics to the engine.
+D/WindowLayoutComponentImpl(15204): Register WindowLayoutInfoListener on Context=com.example.evik_frontend.MainActivity@c06cc24, of which baseContext=android.app.ContextImpl@61f2c1
+D/FlutterJNI(15204): Sending viewport metrics to the engine.
+E/FlutterGeolocator(15204): Geolocator position updates started
+D/ProfileInstaller(15204): Installing profile for com.example.evik_frontend
+I/e.evik_frontend(15204): Background concurrent mark compact GC freed 3786KB AllocSpace bytes, 6(192KB) LOS objects, 49% free, 2975KB/5951KB, paused 753us,9.053ms total 22.164ms
+Lost connection to device.
+ com.yandex.runtime.sensors.internal.LocationSubscription.access$300(LocationSubscription.java:21)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.yandex.runtime.sensors.internal.LocationSubscription$2.run(LocationSubscription.java:102)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.handleCallback(Handler.java:1095)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.dispatchMessageImpl(Handler.java:135)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.dispatchMessage(Handler.java:125)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Looper.loopOnce(Looper.java:292)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Looper.loop(Looper.java:393)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.app.ActivityThread.main(ActivityThread.java:9486)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at java.lang.reflect.Method.invoke(Native Method)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:939)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): Caused by: android.os.RemoteException: Remote stack trace:
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.server.pm.UserManagerService$$ExternalSyntheticBUOutline0.m(R8$$SyntheticClass:0)
+Syncing files to device sdk gphone16k x86 64...                  2 596ms
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.server.location.LocationPermissions.enforceLocationPermission(LocationPermissions.java:121)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.server.location.LocationManagerService.registerLocationListener(LocationManagerService.java:877)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.ILocationManager$Stub.onTransact(ILocationManager.java:597)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Binder.execTransactInternal(Binder.java:1466)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): SecurityException of calling startProvider
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): java.lang.SecurityException: uid 10235 does not have android.permission.ACCESS_COARSE_LOCATION or android.permission.ACCESS_FINE_LOCATION.
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3383)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Parcel.createException(Parcel.java:3367)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Parcel.readException(Parcel.java:3350)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Parcel.readException(Parcel.java:3292)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.ILocationManager$Stub$Proxy.registerLocationListener(ILocationManager.java:1295)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1598)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1281)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1246)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1217)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.yandex.runtime.sensors.internal.LocationSubscription.startImpl(LocationSubscription.java:77)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.yandex.runtime.sensors.internal.LocationSubscription.access$300(LocationSubscription.java:21)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.yandex.runtime.sensors.internal.LocationSubscription$2.run(LocationSubscription.java:102)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.handleCallback(Handler.java:1095)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.dispatchMessageImpl(Handler.java:135)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Handler.dispatchMessage(Handler.java:125)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Looper.loopOnce(Looper.java:292)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.os.Looper.loop(Looper.java:393)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at android.app.ActivityThread.main(ActivityThread.java:9486)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at java.lang.reflect.Method.invoke(Native Method)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(14905): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:939)
+I/Choreographer(14905): Skipped 68 frames!  The application may be doing too much work on its main thread.
+
+Flutter run key commands.
+r Hot reload. 
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on sdk gphone16k x86 64 is available at: http://127.0.0.1:49391/Hqea4d4R194=/
+The Flutter DevTools debugger and profiler on sdk gphone16k x86 64 is available at: http://127.0.0.1:49391/Hqea4d4R194=/devtools/?uri=ws://127.0.0.1:49391/Hqea4d4R194=/ws
+D/WindowOnBackDispatcher(14905): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@3575b89
+I/e.evik_frontend(14905): Compiler allocated 5247KB to compile void android.view.ViewRootImpl.performTraversals(long)
+W/e.evik_frontend(14905): Verification of androidx.window.layout.adapter.WindowBackend androidx.window.layout.WindowInfoTracker$Companion$extensionBackend$2.invoke() took 269.913ms (248.23 bytecodes/s) (0B arena alloc)
+I/WindowExtensionsImpl(14905): Initializing Window Extensions, vendor API level=10, activity embedding enabled=true
+W/UiContextUtils(14905): Requested context is a non-UI Context. Creating a UI-Context with display: 0. Context: Context=com.example.evik_frontend.MainApplication@bf11972, of which baseContext=android.app.ContextImpl@9025c6d
+D/VRI[MainActivity](14905): WindowInsets changed: 1080x2400 statusBars:[0,128,0,0] navigationBars:[0,0,0,63] mandatorySystemGestures:[0,160,0,84] 
+D/FlutterRenderer(14905): Width is zero. 0,0
+I/Surface (14905): Creating surface for consumer unnamed-14905-0 with slotExpansion=1 for 64 slots
+I/Surface (14905): Creating surface for consumer VRI[MainActivity]#0(BLAST Consumer)0 with slotExpansion=1 for 64 slots
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+I/Surface (14905): Creating surface for consumer unnamed-14905-1 with slotExpansion=1 for 64 slots
+I/Surface (14905): Creating surface for consumer 207ac25 SurfaceView[com.example.evik_frontend/com.example.evik_frontend.MainActivity]#1(BLAST Consumer)1 with slotExpansion=1 for 64 slots
+D/FlutterGeolocator(14905): Geolocator foreground service connected
+D/FlutterGeolocator(14905): Initializing Geolocator services
+D/FlutterGeolocator(14905): Flutter engine connected. Connected engine count 1
+I/Choreographer(14905): Skipped 44 frames!  The application may be doing too much work on its main thread.
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+D/WindowLayoutComponentImpl(14905): Register WindowLayoutInfoListener on Context=com.example.evik_frontend.MainActivity@ff9f3ab, of which baseContext=android.app.ContextImpl@4cbeb4
+D/FlutterJNI(14905): Sending viewport metrics to the engine.
+Lost connection to device.

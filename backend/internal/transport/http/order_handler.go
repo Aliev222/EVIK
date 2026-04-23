@@ -3,9 +3,11 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
+	driverdomain "evik/backend/internal/domain/driver"
 	orderdomain "evik/backend/internal/domain/order"
 	orderuc "evik/backend/internal/usecase/order"
 	"github.com/go-chi/chi/v5"
@@ -50,6 +52,10 @@ type acceptOrderRequest struct {
 
 type updateOrderStatusRequest struct {
 	Status string `json:"status"`
+}
+
+type cancelOrderRequest struct {
+	Reason string `json:"reason"`
 }
 
 type coordinateResponse struct {
@@ -177,7 +183,15 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 
 func (h *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
-	ord, err := h.cancelUC.Execute(r.Context(), orderID)
+	var req cancelOrderRequest
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			h.writeError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	ord, err := h.cancelUC.Execute(r.Context(), orderID, req.Reason)
 	if err != nil {
 		h.writeOrderError(w, err)
 		return
@@ -200,6 +214,8 @@ func (h *OrderHandler) writeOrderError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, orderdomain.ErrValidationFailed):
 		h.writeError(w, http.StatusBadRequest, err)
+	case errors.Is(err, driverdomain.ErrDriverUnavailable):
+		h.writeError(w, http.StatusConflict, err)
 	case errors.Is(err, orderdomain.ErrOrderNotFound):
 		h.writeError(w, http.StatusNotFound, err)
 	case errors.Is(err, orderdomain.ErrInvalidTransition):

@@ -39,8 +39,8 @@ class OrderRepositoryImpl implements OrderRepository {
   }
 
   @override
-  Future<Order> cancelOrder(String orderId) async {
-    final dto = await remote.cancelOrder(orderId);
+  Future<Order> cancelOrder(String orderId, {String? reason}) async {
+    final dto = await remote.cancelOrder(orderId, reason: reason);
     final cancelled = dto.toDomain();
     _orders[cancelled.id] = cancelled;
     _controllerFor(orderId).add(cancelled.state);
@@ -91,8 +91,13 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
   }
 
   @override
-  Future<OrderDto> cancelOrder(String orderId) async {
-    final json = await apiClient.post('/api/v1/orders/$orderId/cancel', {});
+  Future<OrderDto> cancelOrder(String orderId, {String? reason}) async {
+    final payload = <String, dynamic>{};
+    if (reason != null && reason.isNotEmpty) {
+      payload['reason'] = reason;
+    }
+    final json =
+        await apiClient.post('/api/v1/orders/$orderId/cancel', payload);
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }
 }

@@ -1,0 +1,211 @@
+Launching lib/main.dart on sdk gphone16k x86 64 in debug mode...
+Running Gradle task 'assembleDebug'...                          
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "Windows_NT" == "Windows_NT" setlocal
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set DEFAULT_JVM_OPTS= 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set DIRNAME=C:\Users\Minec\Desktop\EVIK\frontend\android\ 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "C:\Users\Minec\Desktop\EVIK\frontend\android\" == "" set DIRNAME=. 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set APP_BASE_NAME=gradlew 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set APP_HOME=C:\Users\Minec\Desktop\EVIK\frontend\android\ 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set JAVA_EXE=C:\Program Files\Android\Android Studio\jbr/bin/java.exe 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if exist "C:\Program Files\Android\Android Studio\jbr/bin/java.exe" goto init 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CMD_LINE_ARGS= 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set _SKIP=2 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>if "x-q" == "x" goto execute 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CMD_LINE_ARGS=-q -Ptarget-platform=android-x64 -Ptarget=C:\Users\Minec\Desktop\EVIK\frontend\lib/main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pfilesystem-scheme=org-dartlang-root assembleDebug 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>goto execute 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>set CLASSPATH=C:\Users\Minec\Desktop\EVIK\frontend\android\\gradle\wrapper\gradle-wrapper.jar 
+
+C:\Users\Minec\Desktop\EVIK\frontend\android>"C:\Program Files\Android\Android Studio\jbr/bin/java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "C:\Users\Minec\Desktop\EVIK\frontend\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain -q -Ptarget-platform=android-x64 -Ptarget=C:\Users\Minec\Desktop\EVIK\frontend\lib/main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pfilesystem-scheme=org-dartlang-root assembleDebug 
+D/FlutterJNI(19583): Beginning load of flutter...
+D/FlutterJNI(19583): flutter (null) was loaded normally!
+I/flutter (19583): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(19583): Attaching Geolocator to activity
+D/FlutterRenderer(19583): Width is zero. 0,0
+D/FlutterGeolocator(19583): Creating service.
+D/FlutterGeolocator(19583): Binding to location service.
+D/FlutterRenderer(19583): Width is zero. 0,0
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+D/FlutterGeolocator(19583): Geolocator foreground service connected
+D/FlutterGeolocator(19583): Initializing Geolocator services
+D/FlutterGeolocator(19583): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+D/FlutterJNI(19813): Beginning load of flutter...
+D/FlutterJNI(19813): flutter (null) was loaded normally!
+I/flutter (19813): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(19813): Attaching Geolocator to activity
+D/FlutterRenderer(19813): Width is zero. 0,0
+D/FlutterGeolocator(19813): Creating service.
+D/FlutterGeolocator(19813): Binding to location service.
+D/FlutterRenderer(19813): Width is zero. 0,0
+D/FlutterJNI(19813): Sending viewport metrics to the engine.
+D/FlutterGeolocator(19813): Geolocator foreground service connected
+D/FlutterGeolocator(19813): Initializing Geolocator services
+D/FlutterGeolocator(19813): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(19813): Sending viewport metrics to the engine.
+D/FlutterJNI(19813): Sending viewport metrics to the engine.
+E/FlutterGeolocator(19813): Geolocator position updates started
+D/FlutterJNI(20061): Beginning load of flutter...
+D/FlutterJNI(20061): flutter (null) was loaded normally!
+I/flutter (20061): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(20061): Attaching Geolocator to activity
+D/FlutterRenderer(20061): Width is zero. 0,0
+D/FlutterGeolocator(20061): Creating service.
+D/FlutterGeolocator(20061): Binding to location service.
+D/FlutterRenderer(20061): Width is zero. 0,0
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterGeolocator(20061): Geolocator foreground service connected
+D/FlutterGeolocator(20061): Initializing Geolocator services
+D/FlutterGeolocator(20061): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+E/FlutterGeolocator(20061): Geolocator position updates started
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+E/flutter (20061): [ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled Exception: HttpException: Connection reset by peer, uri = http://10.0.2.2:8080/ws/orders
+E/flutter (20061): 
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+D/FlutterJNI(20061): Sending viewport metrics to the engine.
+I/flutter (20061): YandexMapProvider clearMarkers failed: MissingPluginException(No implementation found for method clearMarkers on channel evik/yandex_map_0)
+I/flutter (20061): YandexMapProvider clearRoute failed: MissingPluginException(No implementation found for method clearRoute on channel evik/yandex_map_0)
+D/FlutterJNI(20395): Beginning load of flutter...
+D/FlutterJNI(20395): flutter (null) was loaded normally!
+I/flutter (20395): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterGeolocator(20395): Attaching Geolocator to activity
+D/FlutterRenderer(20395): Width is zero. 0,0
+D/FlutterGeolocator(20395): Creating service.
+D/FlutterGeolocator(20395): Binding to location service.
+D/FlutterRenderer(20395): Width is zero. 0,0
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterGeolocator(20395): Geolocator foreground service connected
+D/FlutterGeolocator(20395): Initializing Geolocator services
+D/FlutterGeolocator(20395): Flutter engine connected. Connected engine count 1
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+E/FlutterGeolocator(20395): Geolocator position updates started
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+D/FlutterJNI(20395): Sending viewport metrics to the engine.
+I/flutter (20395): YandexMapProvider clearMarkers failed: MissingPluginException(No implementation found for method clearMarkers on channel evik/yandex_map_0)
+I/flutter (20395): YandexMapProvider clearRoute failed: MissingPluginException(No implementation found for method clearRoute on channel evik/yandex_map_0)
+OCATION.
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Parcel.createExceptionOrNull(Parcel.java:3383)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Parcel.createException(Parcel.java:3367)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Parcel.readException(Parcel.java:3350)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Parcel.readException(Parcel.java:3292)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.location.ILocationManager$Stub$Proxy.registerLocationListener(ILocationManager.java:1295)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1598)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1281)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1246)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.location.LocationManager.requestLocationUpdates(LocationManager.java:1217)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at com.yandex.runtime.sensors.internal.LocationSubscription.startImpl(LocationSubscription.java:77)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at com.yandex.runtime.sensors.internal.LocationSubscription.access$300(LocationSubscription.java:21)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at com.yandex.runtime.sensors.internal.LocationSubscription$2.run(LocationSubscription.java:102)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Handler.handleCallback(Handler.java:1095)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Handler.dispatchMessageImpl(Handler.java:135)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Handler.dispatchMessage(Handler.java:125)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Looper.loopOnce(Looper.java:292)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.os.Looper.loop(Looper.java:393)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at android.app.ActivityThread.main(ActivityThread.java:9486)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at java.lang.reflect.Method.invoke(Native Method)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+E/com.yandex.runtime.sensors.internal.LocationSubscription(19583): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:939)
+I/Choreographer(19583): Skipped 65 frames!  The application may be doing too much work on its main thread.
+D/WindowOnBackDispatcher(19583): setTopOnBackInvokedCallback (unwrapped): android.app.Activity$$ExternalSyntheticLambda0@5dfb7e9
+I/WindowExtensionsImpl(19583): Initializing Window Extensions, vendor API level=10, activity embedding enabled=true
+I/e.evik_frontend(19583): Compiler allocated 5247KB to compile void android.view.ViewRootImpl.performTraversals(long)
+W/UiContextUtils(19583): Requested context is a non-UI Context. Creating a UI-Context with display: 0. Context: Context=com.example.evik_frontend.MainApplication@6e4ff26, of which baseContext=android.app.ContextImpl@28662cd
+D/VRI[MainActivity](19583): WindowInsets changed: 1080x2400 statusBars:[0,128,0,0] navigationBars:[0,0,0,63] mandatorySystemGestures:[0,160,0,84] 
+D/FlutterRenderer(19583): Width is zero. 0,0
+I/Surface (19583): Creating surface for consumer unnamed-19583-0 with slotExpansion=1 for 64 slots
+I/Surface (19583): Creating surface for consumer VRI[MainActivity]#0(BLAST Consumer)0 with slotExpansion=1 for 64 slots
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+I/Surface (19583): Creating surface for consumer unnamed-19583-1 with slotExpansion=1 for 64 slots
+I/Surface (19583): Creating surface for consumer 194e0ef SurfaceView[com.example.evik_frontend/com.example.evik_frontend.MainActivity]#1(BLAST Consumer)1 with slotExpansion=1 for 64 slots
+D/FlutterGeolocator(19583): Geolocator foreground service connected
+D/FlutterGeolocator(19583): Initializing Geolocator services
+D/FlutterGeolocator(19583): Flutter engine connected. Connected engine count 1
+W/yandex.maps(19583): Pnun684FZZTpCqO6+Sd6: In DnsSocket object 0x7e59f224b900: async_read_some error happened asio.system:125
+W/yandex.maps(19583): S1iTHOptjG0w9PoCKh8G: Network reinitialization
+I/Choreographer(19583): Skipped 43 frames!  The application may be doing too much work on its main thread.
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+D/WindowLayoutComponentImpl(19583): Register WindowLayoutInfoListener on Context=com.example.evik_frontend.MainActivity@e7a1e85, of which baseContext=android.app.ContextImpl@8f5a283
+D/FlutterJNI(19583): Sending viewport metrics to the engine.
+I/HWUI    (19583): Davey! duration=821ms; Flags=1, FrameTimelineVsyncId=708980, IntendedVsync=18163527699010, Vsync=18164244365648, InputEventId=0, HandleInputStart=18164250067300, AnimationStart=18164250213000, PerformTraversalsStart=18164250246000, DrawStart=18164263078300, FrameDeadline=18163544365676, FrameStartTime=18164249440200, FrameInterval=16666666, WorkloadTarget=16666666, SyncQueued=18164274088400, SyncStart=18164275717500, IssueDrawCommandsStart=18164276000100, SwapBuffers=18164316678800, FrameCompleted=18164351303000, DequeueBufferDuration=32644400, QueueBufferDuration=197200, GpuCompleted=18164328640000, SwapBuffersCompleted=18164351303000, DisplayPresentTime=138918821372517, CommandSubmissionCompleted=18164316678800, 
+Lost connection to device.

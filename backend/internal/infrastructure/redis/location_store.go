@@ -2,7 +2,6 @@ package redis
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -31,12 +30,12 @@ func (s *LocationStore) SaveLocation(ctx context.Context, driverID string, loc l
 
 func (s *LocationStore) GetNearbyDrivers(ctx context.Context, pickup location.Location, radiusKM float64, limit int) ([]location.DriverLocation, error) {
 	res, err := s.client.GeoRadius(ctx, "drivers:geo", pickup.Lng, pickup.Lat, &redis.GeoRadiusQuery{
-		Radius:      radiusKM,
-		Unit:        "km",
-		WithCoord:   true,
-		WithDist:    true,
-		Count:       limit,
-		Sort:        "ASC",
+		Radius:    radiusKM,
+		Unit:      "km",
+		WithCoord: true,
+		WithDist:  true,
+		Count:     limit,
+		Sort:      "ASC",
 	}).Result()
 	if err != nil {
 		return nil, err
@@ -71,7 +70,7 @@ func (s *LocationStore) GetLastLocation(ctx context.Context, driverID string) (*
 		return nil, err
 	}
 	if len(coords) == 0 || coords[0] == nil {
-		return nil, fmt.Errorf("driver location not found")
+		return nil, location.ErrLocationNotFound
 	}
 
 	updatedAt := time.Now().UTC()
@@ -87,4 +86,11 @@ func (s *LocationStore) GetLastLocation(ctx context.Context, driverID string) (*
 		Lng:       coords[0].Longitude,
 		UpdatedAt: updatedAt,
 	}, nil
+}
+
+func (s *LocationStore) RemoveDriver(ctx context.Context, driverID string) error {
+	if err := s.client.ZRem(ctx, "drivers:geo", driverID).Err(); err != nil {
+		return err
+	}
+	return s.client.Del(ctx, "drivers:location:updated_at:"+driverID).Err()
 }

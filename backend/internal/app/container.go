@@ -18,6 +18,7 @@ import (
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 	httptransport "evik/backend/internal/transport/http"
 	wstransport "evik/backend/internal/transport/ws"
+	driveruc "evik/backend/internal/usecase/driver"
 	matchinguc "evik/backend/internal/usecase/matching"
 	orderuc "evik/backend/internal/usecase/order"
 )
@@ -75,28 +76,31 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	orderRepo := postgres.NewOrderRepository(db)
+	driverRepo := postgres.NewDriverRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
-	matchingService := domainmatching.NewNearestMatchingService(locationRepo)
+	matchingService := domainmatching.NewNearestMatchingService(locationRepo, driverRepo)
 	eventPublisher := redisinfra.NewOrderEventPublisher(rdb, "orders:status")
 
 	clock := stdClock{}
 	idGen := uuidGenerator{}
 	appLogger := stdLogger{logger: logger}
 
-	matcher := matchinguc.NewFinder(orderRepo, matchingService, eventPublisher, clock)
+	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
 	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, eventPublisher, clock, idGen, appLogger)
-	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, eventPublisher, clock, appLogger)
-	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, eventPublisher, clock)
-	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, eventPublisher, clock, appLogger)
+	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
+	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, clock)
+	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
+	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, clock, appLogger)
 
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, logger)
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher)
 	go eventRelay.Run(context.Background())
 
-	router := httptransport.NewRouter(orderHandler, wsHandler)
+	router := httptransport.NewRouter(orderHandler, driverHandler, wsHandler)
 	return &Container{Router: router, db: db, rdb: rdb}, nil
 }
 
@@ -119,6 +123,18 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_status_updated_at ON orders (status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_user_id_updated_at ON orders (user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_driver_id_updated_at ON orders (driver_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS drivers (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	status TEXT NOT NULL,
+	current_order_id TEXT,
+	last_seen_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_drivers_status_updated_at ON drivers (status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_drivers_current_order_id ON drivers (current_order_id);
 `
 	_, err := db.Exec(schema)
 	return err

@@ -1,5 +1,7 @@
 package com.example.evik_frontend
 
+import android.content.Intent
+import android.net.Uri
 import com.yandex.mapkit.MapKitFactory
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,6 +23,25 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isAvailable" -> result.success(MainApplication.isMapKitInitialized)
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "evik/system")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "dial" -> {
+                        val phone = call.argument<String>("phone").orEmpty()
+                        if (phone.isBlank()) {
+                            result.error("invalid_args", "phone is required", null)
+                            return@setMethodCallHandler
+                        }
+                        val intent = Intent(Intent.ACTION_DIAL).apply {
+                            data = Uri.parse("tel:$phone")
+                        }
+                        startActivity(intent)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

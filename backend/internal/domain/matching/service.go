@@ -17,26 +17,32 @@ type NearbyDriverRepository interface {
 	GetNearbyDrivers(ctx context.Context, pickup location.Location, radiusKM float64, limit int) ([]location.DriverLocation, error)
 }
 
+type DriverAvailabilityRepository interface {
+	IsAvailable(ctx context.Context, id string) (bool, error)
+}
+
 type MatchingService interface {
 	FindNearestDriver(ctx context.Context, order *order.Order) (*driver.Driver, error)
 }
 
 type nearestMatchingService struct {
-	mu         sync.Mutex
-	repo       NearbyDriverRepository
-	maxRadius  float64
-	stepRadius float64
-	stepDelay  time.Duration
-	limit      int
+	mu               sync.Mutex
+	repo             NearbyDriverRepository
+	driverRepository DriverAvailabilityRepository
+	maxRadius        float64
+	stepRadius       float64
+	stepDelay        time.Duration
+	limit            int
 }
 
-func NewNearestMatchingService(repo NearbyDriverRepository) MatchingService {
+func NewNearestMatchingService(repo NearbyDriverRepository, driverRepository DriverAvailabilityRepository) MatchingService {
 	return &nearestMatchingService{
-		repo:       repo,
-		maxRadius:  15,
-		stepRadius: 2,
-		stepDelay:  3 * time.Second,
-		limit:      5,
+		repo:             repo,
+		driverRepository: driverRepository,
+		maxRadius:        15,
+		stepRadius:       2,
+		stepDelay:        3 * time.Second,
+		limit:            5,
 	}
 }
 
@@ -60,13 +66,18 @@ func (s *nearestMatchingService) FindNearestDriver(ctx context.Context, ord *ord
 			return nil, err
 		}
 		if len(drivers) > 0 {
-			best := drivers[0]
-			for i := 1; i < len(drivers); i++ {
-				if drivers[i].DistanceKM < best.DistanceKM {
-					best = drivers[i]
+			for _, candidate := range drivers {
+				available, err := s.driverRepository.IsAvailable(ctx, candidate.DriverID)
+				if err != nil {
+					return nil, err
+				}
+				if available {
+					return &driver.Driver{
+						ID:     candidate.DriverID,
+						Status: driver.StatusOnline,
+					}, nil
 				}
 			}
-			return &driver.Driver{ID: best.DriverID, IsReady: true}, nil
 		}
 
 		select {

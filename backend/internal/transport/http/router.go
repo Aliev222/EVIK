@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(orderHandler *OrderHandler, wsHandler *ws.OrderWSHandler) nethttp.Handler {
+func NewRouter(orderHandler *OrderHandler, driverHandler *DriverHandler, wsHandler *ws.OrderWSHandler) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -22,6 +22,9 @@ func NewRouter(orderHandler *OrderHandler, wsHandler *ws.OrderWSHandler) nethttp
 		api.Post("/orders/{orderID}/accept", orderHandler.AcceptOrder)
 		api.Post("/orders/{orderID}/status", orderHandler.UpdateOrderStatus)
 		api.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)
+		api.Get("/drivers/{driverID}", driverHandler.GetDriver)
+		api.Get("/drivers/{driverID}/location", driverHandler.GetLocation)
+		api.Post("/drivers/{driverID}/status", driverHandler.SetStatus)
 	})
 	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		w.WriteHeader(nethttp.StatusOK)

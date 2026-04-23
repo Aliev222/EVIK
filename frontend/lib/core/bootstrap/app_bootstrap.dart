@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/map/data/yandex_map_provider.dart';
+import '../../features/driver/data/driver_remote_datasource.dart';
 import '../../features/order/data/datasource/order_remote_datasource.dart';
 import '../../features/order/data/repository_impl/order_repository_impl.dart';
 import '../../features/order/domain/repositories/order_repository.dart';
@@ -48,6 +49,11 @@ final orderRemoteDataSourceProvider = Provider<OrderRemoteDataSource>((ref) {
   return HttpOrderRemoteDataSource(apiClient: apiClient);
 });
 
+final driverRemoteDataSourceProvider = Provider<DriverRemoteDataSource>((ref) {
+  final apiClient = ref.watch(apiClientProvider);
+  return HttpDriverRemoteDataSource(apiClient: apiClient);
+});
+
 final appOrderRepositoryProvider = Provider<OrderRepository>((ref) {
   final remote = ref.watch(orderRemoteDataSourceProvider);
   return OrderRepositoryImpl(remote: remote);
@@ -55,7 +61,9 @@ final appOrderRepositoryProvider = Provider<OrderRepository>((ref) {
 
 List<Override> buildAppOverrides() {
   return <Override>[
-    orderRepositoryProvider.overrideWith((ref) => ref.watch(appOrderRepositoryProvider)),
-    eventDispatcherProvider.overrideWith((ref) => ref.watch(appEventDispatcherProvider)),
+    orderRepositoryProvider
+        .overrideWith((ref) => ref.watch(appOrderRepositoryProvider)),
+    eventDispatcherProvider
+        .overrideWith((ref) => ref.watch(appEventDispatcherProvider)),
   ];
 }

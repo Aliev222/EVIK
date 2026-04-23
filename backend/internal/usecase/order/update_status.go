@@ -8,12 +8,13 @@ import (
 
 type UpdateStatusUseCase struct {
 	orderRepo      orderdomain.Repository
+	driverRepo     DriverOrderRepository
 	eventPublisher EventPublisher
 	clock          Clock
 }
 
-func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, eventPublisher EventPublisher, clock Clock) *UpdateStatusUseCase {
-	return &UpdateStatusUseCase{orderRepo: orderRepo, eventPublisher: eventPublisher, clock: clock}
+func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverOrderRepository, eventPublisher EventPublisher, clock Clock) *UpdateStatusUseCase {
+	return &UpdateStatusUseCase{orderRepo: orderRepo, driverRepo: driverRepo, eventPublisher: eventPublisher, clock: clock}
 }
 
 func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next orderdomain.Status) (*orderdomain.Order, error) {
@@ -21,11 +22,22 @@ func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next
 	if err != nil {
 		return nil, err
 	}
-	if err := ord.TransitionTo(next, uc.clock.Now()); err != nil {
+	if ord.Status == next {
+		return ord, nil
+	}
+
+	now := uc.clock.Now()
+	previousDriverID := ord.DriverID
+	if err := ord.TransitionTo(next, now); err != nil {
 		return nil, err
 	}
 	if err := uc.orderRepo.Update(ctx, ord); err != nil {
 		return nil, err
+	}
+	if previousDriverID != nil && releasesDriver(next) {
+		if err := uc.driverRepo.ReleaseOrder(ctx, *previousDriverID, ord.ID, now); err != nil {
+			return nil, err
+		}
 	}
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventTypeFromStatus(ord.Status),
@@ -35,4 +47,13 @@ func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next
 		return nil, err
 	}
 	return ord, nil
+}
+
+func releasesDriver(status orderdomain.Status) bool {
+	switch status {
+	case orderdomain.StatusCompleted, orderdomain.StatusCancelled, orderdomain.StatusNoDriverFound:
+		return true
+	default:
+		return false
+	}
 }

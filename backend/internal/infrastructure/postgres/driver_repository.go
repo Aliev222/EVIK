@@ -2,16 +2,128 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
 	orderdomain "evik/backend/internal/domain/order"
 )
 
-// DriverRepository is intentionally stubbed; production impl can combine PostGIS + Redis geo-index.
-type DriverRepository struct{}
+type DriverRepository struct {
+	db *sql.DB
+}
 
-func NewDriverRepository() *DriverRepository {
-	return &DriverRepository{}
+func NewDriverRepository(db *sql.DB) *DriverRepository {
+	return &DriverRepository{db: db}
+}
+
+func (r *DriverRepository) Upsert(ctx context.Context, driver *driverdomain.Driver) error {
+	const query = `
+INSERT INTO drivers (id, user_id, status, current_order_id, last_seen_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (id) DO UPDATE
+SET user_id = EXCLUDED.user_id,
+	status = EXCLUDED.status,
+	current_order_id = EXCLUDED.current_order_id,
+	last_seen_at = EXCLUDED.last_seen_at,
+	updated_at = EXCLUDED.updated_at`
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		driver.ID,
+		driver.UserID,
+		string(driver.Status),
+		driver.CurrentOrderID,
+		driver.LastSeenAt,
+		driver.UpdatedAt,
+	)
+	return err
+}
+
+func (r *DriverRepository) GetByID(ctx context.Context, id string) (*driverdomain.Driver, error) {
+	const query = `
+SELECT id, user_id, status, current_order_id, last_seen_at, updated_at
+FROM drivers
+WHERE id = $1`
+
+	var (
+		drv    driverdomain.Driver
+		status string
+	)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&drv.ID,
+		&drv.UserID,
+		&status,
+		&drv.CurrentOrderID,
+		&drv.LastSeenAt,
+		&drv.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, driverdomain.ErrDriverNotFound
+		}
+		return nil, err
+	}
+	drv.Status = driverdomain.Status(status)
+	return &drv, nil
+}
+
+func (r *DriverRepository) IsAvailable(ctx context.Context, id string) (bool, error) {
+	drv, err := r.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, driverdomain.ErrDriverNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return drv.IsAvailable(), nil
+}
+
+func (r *DriverRepository) AssignOrder(ctx context.Context, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error) {
+	const query = `
+UPDATE drivers
+SET status = $3, current_order_id = $2, last_seen_at = $4, updated_at = $4
+WHERE id = $1 AND status = $5 AND current_order_id IS NULL
+RETURNING id, user_id, status, current_order_id, last_seen_at, updated_at`
+
+	var (
+		drv    driverdomain.Driver
+		status string
+	)
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
+		driverID,
+		orderID,
+		string(driverdomain.StatusBusy),
+		now,
+		string(driverdomain.StatusOnline),
+	).Scan(
+		&drv.ID,
+		&drv.UserID,
+		&status,
+		&drv.CurrentOrderID,
+		&drv.LastSeenAt,
+		&drv.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, driverdomain.ErrDriverUnavailable
+		}
+		return nil, err
+	}
+	drv.Status = driverdomain.Status(status)
+	return &drv, nil
+}
+
+func (r *DriverRepository) ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error {
+	const query = `
+UPDATE drivers
+SET status = $3, current_order_id = NULL, updated_at = $4
+WHERE id = $1 AND current_order_id = $2`
+	_, err := r.db.ExecContext(ctx, query, driverID, orderID, string(driverdomain.StatusOnline), now)
+	return err
 }
 
 func (r *DriverRepository) FindNearestAvailable(ctx context.Context, pickup orderdomain.Coordinate, radiusKM float64, limit int) ([]driverdomain.Driver, error) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/bootstrap/app_bootstrap.dart';
+import '../../../../core/map/map_provider.dart';
 import '../../../../core/realtime/event_dispatcher.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../map/data/yandex_map_provider.dart';
@@ -14,6 +16,24 @@ import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/repositories/order_repository.dart';
 import '../../../order/presentation/state/order_state_notifier.dart';
 import '../state/app_flow_notifier.dart';
+
+const _demoClientId = 'demo-user';
+const _demoDriverId = 'demo-driver';
+const _demoClientPhone = '+7 999 123-45-67';
+const _defaultDriverLocation = Location(lat: 55.751244, lng: 37.618423);
+
+class DriverRouteSnapshot {
+  const DriverRouteSnapshot({
+    required this.distanceKm,
+    required this.etaMinutes,
+  });
+
+  final double distanceKm;
+  final int etaMinutes;
+}
+
+final driverRouteSnapshotProvider =
+    StateProvider<DriverRouteSnapshot?>((ref) => null);
 
 class _UiText {
   static const h1 = TextStyle(
@@ -66,9 +86,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _running = true;
   String _tariff = 'Стандарт';
   String? _driverOrderId;
+  Coordinate? _fromCoordinate;
+  Coordinate? _toCoordinate;
+  Location? _deviceLocation;
   StreamSubscription<Event>? _driverEventsSub;
+  StreamSubscription<Location>? _deviceLocationSub;
   Timer? _driverPollTimer;
+  DateTime? _lastDriverLocationPushAt;
   bool _driverEventsStarting = false;
+  bool _clientCancelInFlight = false;
+  bool _driverAcceptInFlight = false;
+  bool _driverCancelInFlight = false;
+  bool _driverCompleteInFlight = false;
+  static const _driverOfferMaxAge = Duration(minutes: 5);
+  String? _clientTerminalNotice;
+  String? _driverTerminalNotice;
 
   static const _suggestions = <String>[
     'Лесная улица, 15',
@@ -95,8 +127,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       orElse: () => _tariffs.first);
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final mapProvider = ref.read(mapProviderProvider);
+      await mapProvider.init();
+      _deviceLocationSub = mapProvider.onLocationChanged().listen((location) {
+        _deviceLocation = location;
+        unawaited(_pushDriverLocation(location));
+      });
+    });
+  }
+
+  @override
   void dispose() {
     _driverEventsSub?.cancel();
+    _deviceLocationSub?.cancel();
     _driverPollTimer?.cancel();
     _phone.dispose();
     _otp.dispose();
@@ -106,51 +152,303 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _resetClient() {
-    unawaited(
-        ref.read(orderStateNotifierProvider.notifier).cancelCurrentOrder());
     setState(() {
       _fromAddress = 'Моё местоположение';
       _toAddress = null;
+      _fromCoordinate = null;
+      _toCoordinate = null;
       _pickFrom = false;
       _vehicleType = 'Седан';
       _lockedWheels = 0;
       _running = true;
       _tariff = 'Стандарт';
       _comment.clear();
+      _clientTerminalNotice = null;
     });
     ref.read(appFlowProvider.notifier).setClientStage(ClientHomeStage.idle);
   }
 
-  void _submitOrder() {
+  Future<void> _cancelClientOrder() async {
+    if (_clientCancelInFlight) return;
+    final status = ref.read(orderStateNotifierProvider).status;
+    if (status == OrderState.searching ||
+        status == OrderState.accepted ||
+        status == OrderState.arrived ||
+        status == OrderState.inProgress) {
+      _clientCancelInFlight = true;
+      try {
+        await ref
+            .read(orderStateNotifierProvider.notifier)
+            .cancelCurrentOrder(reason: 'client_cancelled');
+      } finally {
+        _clientCancelInFlight = false;
+      }
+      return;
+    }
+    _resetClient();
+  }
+
+  Future<void> _submitOrder() async {
+    if (_clientTerminalNotice != null) {
+      setState(() => _clientTerminalNotice = null);
+    }
+    final pickup = await _resolvePickupCoordinate();
+    final dropoff = _resolveDropoffCoordinate(pickup);
     ref.read(orderStateNotifierProvider.notifier).submitOrder(
-          const CreateOrderCommand(
-            userId: 'demo-user',
-            pickup: Coordinate(lat: 55.751244, lng: 37.618423),
-            dropoff: Coordinate(lat: 55.761244, lng: 37.628423),
+          CreateOrderCommand(
+            userId: _demoClientId,
+            pickup: pickup,
+            dropoff: dropoff,
           ),
         );
   }
 
+  Future<void> _setDriverOnline(bool value) async {
+    try {
+      await ref.read(driverRemoteDataSourceProvider).setStatus(
+            driverId: _demoDriverId,
+            userId: _demoDriverId,
+            status: value ? 'online' : 'offline',
+            lat: value
+                ? (_deviceLocation?.lat ?? _defaultDriverLocation.lat)
+                : null,
+            lng: value
+                ? (_deviceLocation?.lng ?? _defaultDriverLocation.lng)
+                : null,
+          );
+      if (!mounted) return;
+      if (!value) {
+        _driverOrderId = null;
+      }
+      ref.read(appFlowProvider.notifier).toggleDriverOnline(value);
+      if (value) {
+        unawaited(_ensureDriverEvents());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showActionError(e);
+    }
+  }
+
   Future<void> _acceptDriverOrder() async {
-    final orderId = _driverOrderId;
+    if (_driverAcceptInFlight) return;
+    final orderId = await _resolveDriverOrderId(includeSearchingFallback: true);
     if (orderId == null) {
+      return;
+    }
+    setState(() => _driverAcceptInFlight = true);
+
+    final apiClient = ref.read(apiClientProvider);
+    final driverDataSource = ref.read(driverRemoteDataSourceProvider);
+
+    try {
+      await driverDataSource.setStatus(
+        driverId: _demoDriverId,
+        userId: _demoDriverId,
+        status: 'online',
+        lat: _deviceLocation?.lat ?? _defaultDriverLocation.lat,
+        lng: _deviceLocation?.lng ?? _defaultDriverLocation.lng,
+      );
+      await apiClient.post('/api/v1/orders/$orderId/accept', {
+        'driver_id': _demoDriverId,
+      });
+      if (!mounted) return;
       ref
           .read(appFlowProvider.notifier)
           .setDriverStage(DriverHomeStage.accepted);
+      if (_driverTerminalNotice != null) {
+        setState(() => _driverTerminalNotice = null);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      final acceptedByCurrentDriver =
+          await _isOrderAcceptedByCurrentDriver(orderId);
+      if (!mounted) return;
+      if (acceptedByCurrentDriver) {
+        ref
+            .read(appFlowProvider.notifier)
+            .setDriverStage(DriverHomeStage.accepted);
+        return;
+      }
+
+      if (_isDriverUnavailableConflict(e)) {
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 180));
+          await apiClient.post('/api/v1/orders/$orderId/accept', {
+            'driver_id': _demoDriverId,
+          });
+          if (!mounted) return;
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.accepted);
+          return;
+        } catch (_) {
+          // Fall through to error feedback.
+        }
+      }
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.online);
+      _showActionError(e);
+    } finally {
+      if (mounted) {
+        setState(() => _driverAcceptInFlight = false);
+      }
+    }
+  }
+
+  void _rejectDriverOrder() {
+    setState(() => _driverOrderId = null);
+    ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.online);
+  }
+
+  Future<void> _cancelDriverOrder() async {
+    if (_driverCancelInFlight) return;
+    final orderId = await _resolveDriverOrderId();
+    if (orderId == null) {
+      if (mounted) {
+        setState(() => _driverOrderId = null);
+      }
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.online);
+      return;
+    }
+    setState(() => _driverCancelInFlight = true);
+
+    try {
+      await ref.read(apiClientProvider).post('/api/v1/orders/$orderId/cancel', {
+        'reason': 'driver_cancelled',
+      });
+      if (!mounted) return;
+      _setDriverTerminalState(_driverCancellationMessage('driver_cancelled'));
+    } catch (e) {
+      if (!mounted) return;
+      final status = await _fetchOrderStatus(orderId);
+      if (!mounted) return;
+      if (status == 'cancelled') {
+        _setDriverTerminalState(_driverCancellationMessage('client_cancelled'));
+        return;
+      }
+      if (status == 'completed') {
+        _setDriverTerminalState(_driverCompletedMessage());
+        return;
+      }
+      _showActionError(e);
+    } finally {
+      if (mounted) {
+        setState(() => _driverCancelInFlight = false);
+      }
+    }
+  }
+
+  Future<void> _completeDriverOrder() async {
+    if (_driverCompleteInFlight) return;
+    final orderId = await _resolveDriverOrderId();
+    if (orderId == null) {
+      if (mounted) {
+        setState(() => _driverOrderId = null);
+      }
+      ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.online);
+      return;
+    }
+    setState(() => _driverCompleteInFlight = true);
+
+    try {
+      final status = await _fetchOrderStatus(orderId);
+      if (status == 'cancelled') {
+        if (!mounted) return;
+        _setDriverTerminalState(_driverCancellationMessage('client_cancelled'));
+        return;
+      }
+      if (status == 'completed') {
+        if (!mounted) return;
+        _setDriverTerminalState(_driverCompletedMessage());
+        return;
+      }
+      await _transitionOrderToCompleted(
+        orderId: orderId,
+        currentStatus: status,
+      );
+      if (!mounted) return;
+      _setDriverTerminalState(_driverCompletedMessage());
+    } catch (e) {
+      if (!mounted) return;
+      final status = await _fetchOrderStatus(orderId);
+      if (!mounted) return;
+      if (status == 'cancelled') {
+        _setDriverTerminalState(_driverCancellationMessage('client_cancelled'));
+        return;
+      }
+      if (status == 'completed') {
+        _setDriverTerminalState(_driverCompletedMessage());
+        return;
+      }
+      _showActionError(e);
+    } finally {
+      if (mounted) {
+        setState(() => _driverCompleteInFlight = false);
+      }
+    }
+  }
+
+  void _showActionError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error.toString())),
+    );
+  }
+
+  Future<void> _pushDriverLocation(Location location) async {
+    final flow = ref.read(appFlowProvider);
+    if (!flow.isDriver || flow.driverStage == DriverHomeStage.offline) {
       return;
     }
 
+    final now = DateTime.now();
+    if (_lastDriverLocationPushAt != null &&
+        now.difference(_lastDriverLocationPushAt!) <
+            const Duration(seconds: 2)) {
+      return;
+    }
+    _lastDriverLocationPushAt = now;
+
     try {
-      await ref.read(apiClientProvider).post('/api/v1/orders/$orderId/accept', {
-        'driver_id': 'demo-driver',
-      });
-      ref
-          .read(appFlowProvider.notifier)
-          .setDriverStage(DriverHomeStage.accepted);
+      await ref.read(driverRemoteDataSourceProvider).setStatus(
+            driverId: _demoDriverId,
+            userId: _demoDriverId,
+            status: 'online',
+            lat: location.lat,
+            lng: location.lng,
+          );
     } catch (_) {
-      ref
-          .read(appFlowProvider.notifier)
-          .setDriverStage(DriverHomeStage.accepted);
+      // Live location is best-effort and should not interrupt UI flow.
+    }
+  }
+
+  Future<Coordinate> _resolvePickupCoordinate() async {
+    if (_fromCoordinate != null) return _fromCoordinate!;
+    if (_deviceLocation != null) {
+      return Coordinate(lat: _deviceLocation!.lat, lng: _deviceLocation!.lng);
+    }
+    return const Coordinate(lat: 55.751244, lng: 37.618423);
+  }
+
+  Coordinate _resolveDropoffCoordinate(Coordinate pickup) {
+    if (_toCoordinate != null) return _toCoordinate!;
+    return Coordinate(lat: pickup.lat + 0.01, lng: pickup.lng + 0.01);
+  }
+
+  Coordinate? _coordinateForSuggestion(String value) {
+    final index = _suggestions.indexOf(value);
+    switch (index) {
+      case 0:
+        return const Coordinate(lat: 55.7972, lng: 37.5885);
+      case 1:
+        return const Coordinate(lat: 55.8041, lng: 37.6409);
+      case 2:
+        return const Coordinate(lat: 55.8157, lng: 37.4971);
+      case 3:
+        return const Coordinate(lat: 55.9726, lng: 37.4146);
+      case 4:
+        return const Coordinate(lat: 55.7313, lng: 37.6533);
+      default:
+        return null;
     }
   }
 
@@ -164,17 +462,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _driverEventsSub = dispatcher.events().listen((event) {
         if (!mounted) return;
         final flow = ref.read(appFlowProvider);
-        if (!flow.isDriver || flow.driverStage != DriverHomeStage.online) {
+        if (!flow.isDriver) {
           return;
         }
-        if (event.type == 'order_created' || event.type == 'searching') {
-          setState(() => _driverOrderId = event.orderId);
-          ref
-              .read(appFlowProvider.notifier)
-              .setDriverStage(DriverHomeStage.newOrder);
+        if (event.type == 'cancelled') {
+          if (_driverOrderId != null && _driverOrderId == event.orderId) {
+            _setDriverTerminalState(
+              _driverCancellationMessage(_eventReason(event)),
+            );
+          }
+          return;
+        }
+        if (event.type == 'completed') {
+          if (_driverOrderId != null && _driverOrderId == event.orderId) {
+            _setDriverTerminalState(_driverCompletedMessage());
+          }
+          return;
         }
       });
-      _driverPollTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
+      _driverPollTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
         unawaited(_pollDriverOrder());
       });
       unawaited(_pollDriverOrder());
@@ -186,27 +492,318 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _pollDriverOrder() async {
     if (!mounted) return;
     final flow = ref.read(appFlowProvider);
-    if (!flow.isDriver || flow.driverStage != DriverHomeStage.online) {
+    if (!flow.isDriver) {
       return;
     }
 
-    try {
-      final json = await ref
-          .read(apiClientProvider)
-          .get('/api/v1/orders?status=searching&limit=1');
-      final orders = json['orders'];
-      if (orders is List && orders.isNotEmpty) {
-        final first = orders.first;
-        if (first is Map<String, dynamic>) {
-          setState(() => _driverOrderId = first['id']?.toString());
+    if (flow.driverStage == DriverHomeStage.online ||
+        flow.driverStage == DriverHomeStage.newOrder) {
+      try {
+        final json = await ref
+            .read(apiClientProvider)
+            .get('/api/v1/orders?status=searching&limit=20');
+        final candidate = _pickFreshDriverOffer(json['orders']);
+        if (candidate != null) {
+          final candidateId = candidate['id']?.toString();
+          if (candidateId != null && candidateId.isNotEmpty) {
+            setState(() {
+              _driverOrderId = candidateId;
+              _driverTerminalNotice = null;
+            });
+            ref
+                .read(appFlowProvider.notifier)
+                .setDriverStage(DriverHomeStage.newOrder);
+            return;
+          }
+        }
+
+        if (_driverOrderId != null) {
+          setState(() => _driverOrderId = null);
+        }
+        if (flow.driverStage == DriverHomeStage.newOrder) {
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.online);
+        }
+      } catch (_) {
+        // WebSocket remains the primary path; polling is only a local-test fallback.
+      }
+      return;
+    }
+
+    if (_isDriverOrderFlowStage(flow.driverStage)) {
+      final orderId = _driverOrderId ?? await _resolveDriverOrderId();
+      if (orderId == null) {
+        if (mounted && _driverOrderId != null) {
+          setState(() => _driverOrderId = null);
+        }
+        ref
+            .read(appFlowProvider.notifier)
+            .setDriverStage(DriverHomeStage.online);
+        return;
+      }
+
+      try {
+        final json =
+            await ref.read(apiClientProvider).get('/api/v1/orders/$orderId');
+        final order = json['order'];
+        if (order is! Map<String, dynamic>) return;
+        final status = order['status']?.toString();
+
+        if (status == 'cancelled') {
+          _setDriverTerminalState(
+              _driverCancellationMessage('client_cancelled'));
+        } else if (status == 'completed') {
+          _setDriverTerminalState(_driverCompletedMessage());
+        } else if (status == 'accepted' &&
+            flow.driverStage != DriverHomeStage.accepted) {
+          if (mounted && _driverTerminalNotice != null) {
+            setState(() => _driverTerminalNotice = null);
+          }
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.accepted);
+        } else if (status == 'arrived' &&
+            flow.driverStage != DriverHomeStage.arrived) {
+          if (mounted && _driverTerminalNotice != null) {
+            setState(() => _driverTerminalNotice = null);
+          }
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.arrived);
+        } else if (status == 'in_progress' &&
+            flow.driverStage != DriverHomeStage.enRoute) {
+          if (mounted && _driverTerminalNotice != null) {
+            setState(() => _driverTerminalNotice = null);
+          }
+          ref
+              .read(appFlowProvider.notifier)
+              .setDriverStage(DriverHomeStage.enRoute);
+        } else if (status == 'searching' &&
+            flow.driverStage != DriverHomeStage.newOrder) {
+          if (mounted && _driverTerminalNotice != null) {
+            setState(() => _driverTerminalNotice = null);
+          }
           ref
               .read(appFlowProvider.notifier)
               .setDriverStage(DriverHomeStage.newOrder);
         }
+      } catch (_) {
+        // Keep current stage if backend is temporarily unavailable.
+      }
+    }
+  }
+
+  Map<String, dynamic>? _pickFreshDriverOffer(Object? rawOrders) {
+    if (rawOrders is! List) return null;
+    final now = DateTime.now();
+    final candidates = rawOrders.whereType<Map<String, dynamic>>().toList()
+      ..sort((a, b) {
+        final aAt = _parseBackendDateTime(a['created_at']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final bAt = _parseBackendDateTime(b['created_at']) ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return bAt.compareTo(aAt);
+      });
+
+    for (final order in candidates) {
+      final createdAt = _parseBackendDateTime(order['created_at']);
+      if (createdAt == null) {
+        return order;
+      }
+      if (now.difference(createdAt) <= _driverOfferMaxAge) {
+        return order;
+      }
+    }
+    return null;
+  }
+
+  DateTime? _parseBackendDateTime(Object? raw) {
+    final text = raw?.toString();
+    if (text == null || text.isEmpty) return null;
+    return DateTime.tryParse(text);
+  }
+
+  bool _isDriverOrderFlowStage(DriverHomeStage stage) {
+    return stage == DriverHomeStage.newOrder ||
+        stage == DriverHomeStage.accepted ||
+        stage == DriverHomeStage.enRoute ||
+        stage == DriverHomeStage.arrived;
+  }
+
+  bool _isDriverUnavailableConflict(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('409') && message.contains('driver unavailable');
+  }
+
+  Future<bool> _isOrderAcceptedByCurrentDriver(String orderId) async {
+    try {
+      final json =
+          await ref.read(apiClientProvider).get('/api/v1/orders/$orderId');
+      final order = json['order'];
+      if (order is! Map<String, dynamic>) return false;
+      final status = order['status']?.toString();
+      final driverId = order['driver_id']?.toString();
+      return status == 'accepted' && driverId == _demoDriverId;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _driverCompletedMessage() {
+    return '\u0417\u0430\u043a\u0430\u0437 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d. '
+        '\u041c\u043e\u0436\u043d\u043e \u043f\u0435\u0440\u0435\u0439\u0442\u0438 '
+        '\u043a \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u043c '
+        '\u0437\u0430\u043a\u0430\u0437\u0430\u043c.';
+  }
+
+  void _setDriverTerminalState(String notice) {
+    if (!mounted) return;
+    setState(() {
+      _driverOrderId = null;
+      _driverTerminalNotice = notice;
+    });
+    ref
+        .read(appFlowProvider.notifier)
+        .setDriverStage(DriverHomeStage.completed);
+  }
+
+  Future<String?> _resolveDriverOrderId({
+    bool includeSearchingFallback = false,
+  }) async {
+    final local = _driverOrderId;
+    if (local != null && local.isNotEmpty) {
+      return local;
+    }
+
+    try {
+      final driver = await ref
+          .read(driverRemoteDataSourceProvider)
+          .getDriver(_demoDriverId);
+      final currentOrderId = driver.currentOrderId;
+      if (currentOrderId != null && currentOrderId.isNotEmpty) {
+        if (mounted && _driverOrderId != currentOrderId) {
+          setState(() => _driverOrderId = currentOrderId);
+        }
+        return currentOrderId;
       }
     } catch (_) {
-      // WebSocket remains the primary path; polling is only a local-test fallback.
+      // Ignore transient sync errors and use fallback.
     }
+
+    if (!includeSearchingFallback) return null;
+
+    try {
+      final json = await ref
+          .read(apiClientProvider)
+          .get('/api/v1/orders?status=searching&limit=20');
+      final candidate = _pickFreshDriverOffer(json['orders']);
+      final candidateId = candidate?['id']?.toString();
+      if (candidateId != null && candidateId.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _driverOrderId = candidateId;
+            _driverTerminalNotice = null;
+          });
+        }
+        return candidateId;
+      }
+    } catch (_) {
+      // Polling loop retries.
+    }
+
+    return null;
+  }
+
+  Future<String?> _fetchOrderStatus(String orderId) async {
+    try {
+      final json =
+          await ref.read(apiClientProvider).get('/api/v1/orders/$orderId');
+      final order = json['order'];
+      if (order is! Map<String, dynamic>) return null;
+      return order['status']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _transitionOrderToCompleted({
+    required String orderId,
+    required String? currentStatus,
+  }) async {
+    final apiClient = ref.read(apiClientProvider);
+
+    Future<void> setStatus(String status) async {
+      await apiClient.post('/api/v1/orders/$orderId/status', {
+        'status': status,
+      });
+    }
+
+    switch (currentStatus) {
+      case 'completed':
+        return;
+      case 'in_progress':
+        await setStatus('completed');
+        return;
+      case 'arrived':
+        await setStatus('in_progress');
+        await setStatus('completed');
+        return;
+      case 'accepted':
+        await setStatus('arrived');
+        await setStatus('in_progress');
+        await setStatus('completed');
+        return;
+      default:
+        await setStatus('completed');
+    }
+  }
+
+  String? _eventReason(Event event) {
+    final payload = event.payload;
+    if (payload is Map<String, dynamic>) {
+      final reason = payload['reason']?.toString();
+      if (reason != null && reason.isNotEmpty) return reason;
+    } else if (payload is Map) {
+      final reason = payload['reason']?.toString();
+      if (reason != null && reason.isNotEmpty) return reason;
+    }
+    return null;
+  }
+
+  String _clientCancellationMessage(String? reason) {
+    switch (reason) {
+      case 'driver_cancelled':
+        return 'Водитель отменил заказ.';
+      case 'driver_offline':
+        return 'Водитель ушёл офлайн. Заказ отменён.';
+      case 'client_cancelled':
+        return 'Вы отменили заказ.';
+      default:
+        return 'Заказ отменён.';
+    }
+  }
+
+  String _driverCancellationMessage(String? reason) {
+    switch (reason) {
+      case 'client_cancelled':
+      case 'order_cancelled':
+        return 'Клиент отменил заказ.';
+      case 'driver_cancelled':
+        return 'Вы отменили заказ.';
+      case 'driver_offline':
+        return 'Заказ отменён: водитель вне сети.';
+      default:
+        return 'Заказ отменён.';
+    }
+  }
+
+  void _acknowledgeDriverTerminalState() {
+    setState(() {
+      _driverOrderId = null;
+      _driverTerminalNotice = null;
+    });
+    ref.read(appFlowProvider.notifier).setDriverStage(DriverHomeStage.online);
   }
 
   @override
@@ -216,9 +813,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final notifier = ref.read(appFlowProvider.notifier);
       switch (next.status) {
         case OrderState.searching:
+          if (_clientTerminalNotice != null && mounted) {
+            setState(() => _clientTerminalNotice = null);
+          }
           notifier.setClientStage(ClientHomeStage.searching);
           break;
         case OrderState.accepted:
+          if (_clientTerminalNotice != null && mounted) {
+            setState(() => _clientTerminalNotice = null);
+          }
           notifier.setClientStage(ClientHomeStage.driverFound);
           break;
         case OrderState.arrived:
@@ -228,10 +831,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           notifier.setClientStage(ClientHomeStage.driverEnRoute);
           break;
         case OrderState.completed:
+          if (_clientTerminalNotice != null && mounted) {
+            setState(() => _clientTerminalNotice = null);
+          }
           notifier.setClientStage(ClientHomeStage.completed);
           break;
         case OrderState.cancelled:
-          notifier.setClientStage(ClientHomeStage.idle);
+          final message = _clientCancellationMessage(next.cancellationReason);
+          if (_clientTerminalNotice != message && mounted) {
+            setState(() => _clientTerminalNotice = message);
+          }
+          notifier.setClientStage(ClientHomeStage.completed);
           break;
         case OrderState.noDriverFound:
           notifier.setClientStage(ClientHomeStage.noDrivers);
@@ -266,10 +876,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             activeTariff: _activeTariff,
             onPickField: (value) => setState(() => _pickFrom = value),
             onPickSuggestion: (value) => setState(() {
+              final coordinate = _coordinateForSuggestion(value);
               if (_pickFrom) {
                 _fromAddress = value;
+                _fromCoordinate = coordinate;
               } else {
                 _toAddress = value;
+                _toCoordinate = coordinate;
               }
             }),
             onVehicleType: (value) => setState(() => _vehicleType = value),
@@ -278,8 +891,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onRunning: (value) => setState(() => _running = value),
             onTariff: (value) => setState(() => _tariff = value),
             onReset: _resetClient,
-            onSubmitOrder: _submitOrder,
-            onAcceptDriverOrder: _acceptDriverOrder,
+            onCancelClientOrder: () => unawaited(_cancelClientOrder()),
+            onSubmitOrder: () => unawaited(_submitOrder()),
+            onDriverOnlineChanged: (value) =>
+                unawaited(_setDriverOnline(value)),
+            onAcceptDriverOrder: () => unawaited(_acceptDriverOrder()),
+            onRejectDriverOrder: _rejectDriverOrder,
+            onCancelDriverOrder: () => unawaited(_cancelDriverOrder()),
+            onCompleteDriverOrder: () => unawaited(_completeDriverOrder()),
+            isAcceptingDriverOrder: _driverAcceptInFlight,
+            isCancellingDriverOrder: _driverCancelInFlight,
+            isCompletingDriverOrder: _driverCompleteInFlight,
+            clientTerminalNotice: _clientTerminalNotice,
+            driverTerminalNotice: _driverTerminalNotice,
+            onAcknowledgeDriverTerminal: _acknowledgeDriverTerminalState,
           ),
       },
     );
@@ -308,8 +933,19 @@ class _MainShell extends ConsumerStatefulWidget {
     required this.onRunning,
     required this.onTariff,
     required this.onReset,
+    required this.onCancelClientOrder,
     required this.onSubmitOrder,
+    required this.onDriverOnlineChanged,
     required this.onAcceptDriverOrder,
+    required this.onRejectDriverOrder,
+    required this.onCancelDriverOrder,
+    required this.onCompleteDriverOrder,
+    required this.isAcceptingDriverOrder,
+    required this.isCancellingDriverOrder,
+    required this.isCompletingDriverOrder,
+    required this.clientTerminalNotice,
+    required this.driverTerminalNotice,
+    required this.onAcknowledgeDriverTerminal,
   });
 
   final String fromAddress;
@@ -332,8 +968,19 @@ class _MainShell extends ConsumerStatefulWidget {
   final ValueChanged<bool> onRunning;
   final ValueChanged<String> onTariff;
   final VoidCallback onReset;
+  final VoidCallback onCancelClientOrder;
   final VoidCallback onSubmitOrder;
+  final ValueChanged<bool> onDriverOnlineChanged;
   final VoidCallback onAcceptDriverOrder;
+  final VoidCallback onRejectDriverOrder;
+  final VoidCallback onCancelDriverOrder;
+  final VoidCallback onCompleteDriverOrder;
+  final bool isAcceptingDriverOrder;
+  final bool isCancellingDriverOrder;
+  final bool isCompletingDriverOrder;
+  final String? clientTerminalNotice;
+  final String? driverTerminalNotice;
+  final VoidCallback onAcknowledgeDriverTerminal;
 
   @override
   ConsumerState<_MainShell> createState() => _MainShellState();
@@ -370,7 +1017,19 @@ class _MainShellState extends ConsumerState<_MainShell> {
             selectedTariff: widget.selectedTariff,
             tariffPrice: widget.activeTariff.price,
             comment: widget.comment.text,
-            onAcceptOrder: widget.onAcceptDriverOrder,
+            onDriverOnlineChanged: widget.onDriverOnlineChanged,
+            onAcceptOrder: () {
+              setState(() => _driverInfoCollapsed = true);
+              widget.onAcceptDriverOrder();
+            },
+            onRejectOrder: widget.onRejectDriverOrder,
+            onCancelActiveOrder: widget.onCancelDriverOrder,
+            onCompleteActiveOrder: widget.onCompleteDriverOrder,
+            isAcceptingOrder: widget.isAcceptingDriverOrder,
+            isCancellingOrder: widget.isCancellingDriverOrder,
+            isCompletingOrder: widget.isCompletingDriverOrder,
+            terminalNotice: widget.driverTerminalNotice,
+            onAcknowledgeTerminal: widget.onAcknowledgeDriverTerminal,
             onToggleInfo: () =>
                 setState(() => _driverInfoCollapsed = !_driverInfoCollapsed),
           )
@@ -402,7 +1061,9 @@ class _MainShellState extends ConsumerState<_MainShell> {
                 notifier.setClientStage(ClientHomeStage.orderReview),
             onSubmitOrder: widget.onSubmitOrder,
             onRetry: notifier.retrySearch,
+            onCancelOrder: widget.onCancelClientOrder,
             onReset: widget.onReset,
+            terminalNotice: widget.clientTerminalNotice,
             onToggleInfo: () =>
                 setState(() => _clientInfoCollapsed = !_clientInfoCollapsed),
           );
@@ -942,7 +1603,9 @@ class _ClientHome extends StatelessWidget {
     required this.onReview,
     required this.onSubmitOrder,
     required this.onRetry,
+    required this.onCancelOrder,
     required this.onReset,
+    required this.terminalNotice,
     required this.onToggleInfo,
   });
 
@@ -972,11 +1635,30 @@ class _ClientHome extends StatelessWidget {
   final VoidCallback onReview;
   final VoidCallback onSubmitOrder;
   final VoidCallback onRetry;
+  final VoidCallback onCancelOrder;
   final VoidCallback onReset;
+  final String? terminalNotice;
   final VoidCallback onToggleInfo;
 
   @override
   Widget build(BuildContext context) {
+    final compactOverlay = infoCollapsed &&
+        (stage == ClientHomeStage.driverFound ||
+            stage == ClientHomeStage.driverEnRoute ||
+            stage == ClientHomeStage.driverArrived);
+    final maxHeightFactor = switch (stage) {
+      ClientHomeStage.idle => 0.36,
+      ClientHomeStage.searching => 0.42,
+      ClientHomeStage.noDrivers => 0.46,
+      ClientHomeStage.addressSelection => 0.88,
+      ClientHomeStage.orderParameters => 0.86,
+      ClientHomeStage.orderReview => 0.84,
+      ClientHomeStage.driverFound ||
+      ClientHomeStage.driverEnRoute ||
+      ClientHomeStage.driverArrived =>
+        compactOverlay ? 0.24 : 0.72,
+      ClientHomeStage.completed => 0.44,
+    };
     final overlay = switch (stage) {
       ClientHomeStage.idle => _Panel(
           child: _ActionButton.primary(
@@ -1015,7 +1697,7 @@ class _ClientHome extends StatelessWidget {
           tariff: activeTariff,
           onSubmit: onSubmitOrder,
         ),
-      ClientHomeStage.searching => _SearchingPanel(onCancel: onReset),
+      ClientHomeStage.searching => _SearchingPanel(onCancel: onCancelOrder),
       ClientHomeStage.noDrivers => _Panel(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1028,7 +1710,7 @@ class _ClientHome extends StatelessWidget {
               const SizedBox(height: 10),
               _ActionButton.primary(text: 'Повторить поиск', onTap: onRetry),
               const SizedBox(height: 8),
-              _ActionButton.cancel(text: 'Отмена', onTap: onReset),
+              _ActionButton.cancel(text: 'Отмена', onTap: onCancelOrder),
             ],
           ),
         ),
@@ -1042,12 +1724,12 @@ class _ClientHome extends StatelessWidget {
                 onTap: onToggleInfo,
               )
             : _DriverFoundPanel(
-                onCancel: onReset,
+                onCancel: onCancelOrder,
                 onCollapse: onToggleInfo,
               ),
       ClientHomeStage.completed => _StatusPanel(
-          title: 'Заказ завершён',
-          subtitle: 'Спасибо, что выбрали EVIK.',
+          title: terminalNotice == null ? 'Заказ завершён' : 'Заказ отменён',
+          subtitle: terminalNotice ?? 'Спасибо, что выбрали EVIK.',
           primaryText: 'Новый заказ',
           onPrimary: onReset,
         ),
@@ -1056,7 +1738,13 @@ class _ClientHome extends StatelessWidget {
     return Stack(
       children: [
         const Positioned.fill(child: _MapLayer()),
-        Positioned(left: 16, right: 16, bottom: 22, child: overlay),
+        Positioned.fill(
+          child: _BottomOverlaySlot(
+            compact: compactOverlay,
+            maxHeightFactor: maxHeightFactor,
+            child: overlay,
+          ),
+        ),
       ],
     );
   }
@@ -1749,6 +2437,8 @@ class _StatusPanel extends StatelessWidget {
 }
 
 class _DriverHome extends ConsumerWidget {
+  static const MethodChannel _systemChannel = MethodChannel('evik/system');
+
   const _DriverHome({
     required this.stage,
     required this.infoCollapsed,
@@ -1760,7 +2450,16 @@ class _DriverHome extends ConsumerWidget {
     required this.selectedTariff,
     required this.tariffPrice,
     required this.comment,
+    required this.onDriverOnlineChanged,
     required this.onAcceptOrder,
+    required this.onRejectOrder,
+    required this.onCancelActiveOrder,
+    required this.onCompleteActiveOrder,
+    required this.isAcceptingOrder,
+    required this.isCancellingOrder,
+    required this.isCompletingOrder,
+    required this.terminalNotice,
+    required this.onAcknowledgeTerminal,
     required this.onToggleInfo,
   });
 
@@ -1774,142 +2473,204 @@ class _DriverHome extends ConsumerWidget {
   final String selectedTariff;
   final int tariffPrice;
   final String comment;
+  final ValueChanged<bool> onDriverOnlineChanged;
   final VoidCallback onAcceptOrder;
+  final VoidCallback onRejectOrder;
+  final VoidCallback onCancelActiveOrder;
+  final VoidCallback onCompleteActiveOrder;
+  final bool isAcceptingOrder;
+  final bool isCancellingOrder;
+  final bool isCompletingOrder;
+  final String? terminalNotice;
+  final VoidCallback onAcknowledgeTerminal;
   final VoidCallback onToggleInfo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(appFlowProvider.notifier);
+    final routeSnapshot = ref.watch(driverRouteSnapshotProvider);
     final online = stage != DriverHomeStage.offline;
     final hasActiveOrder = stage == DriverHomeStage.accepted ||
         stage == DriverHomeStage.enRoute ||
         stage == DriverHomeStage.arrived;
+    final compactOverlay = hasActiveOrder && infoCollapsed;
+    final maxHeightFactor = switch (stage) {
+      DriverHomeStage.offline => 0.42,
+      DriverHomeStage.online => 0.56,
+      DriverHomeStage.newOrder => 0.86,
+      DriverHomeStage.accepted ||
+      DriverHomeStage.enRoute ||
+      DriverHomeStage.arrived =>
+        compactOverlay ? 0.26 : 0.84,
+      DriverHomeStage.completed => 0.5,
+    };
 
     return Stack(
       children: [
         const Positioned.fill(child: _MapLayer()),
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 18,
-          child: hasActiveOrder && infoCollapsed
-              ? _MapInfoButton(
-                  text: 'Показать заказ',
-                  icon: Icons.keyboard_arrow_up_rounded,
-                  onTap: onToggleInfo,
-                )
-              : _Panel(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.46),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: online
-                                ? const Color(0xFF11D8CC)
-                                    .withValues(alpha: 0.38)
-                                : Colors.white.withValues(alpha: 0.58),
+        Positioned.fill(
+          child: _BottomOverlaySlot(
+            compact: compactOverlay,
+            maxHeightFactor: maxHeightFactor,
+            child: compactOverlay
+                ? _DriverCompactOrderBar(
+                    text: 'Показать заказ',
+                    routeSnapshot: routeSnapshot,
+                    onExpand: onToggleInfo,
+                    onCall: () =>
+                        unawaited(_callClient(context, _demoClientPhone)),
+                  )
+                : _Panel(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.46),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: online
+                                  ? const Color(0xFF11D8CC)
+                                      .withValues(alpha: 0.38)
+                                  : Colors.white.withValues(alpha: 0.58),
+                            ),
                           ),
+                          child: Row(children: [
+                            const Expanded(
+                                child: Text('Статус водителя',
+                                    style: TextStyle(
+                                        color: EvikColors.textPrimaryDark,
+                                        fontWeight: FontWeight.w700))),
+                            _DriverShiftInlineToggle(
+                              online: online,
+                              onChanged: onDriverOnlineChanged,
+                            ),
+                          ]),
                         ),
-                        child: Row(children: [
-                          const Expanded(
-                              child: Text('Статус водителя',
-                                  style: TextStyle(
-                                      color: EvikColors.textPrimaryDark,
-                                      fontWeight: FontWeight.w700))),
-                          _DriverShiftInlineToggle(
-                            online: online,
-                            onChanged: notifier.toggleDriverOnline,
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _DriverShiftBadge(online: online),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          online
+                              ? 'Вы принимаете новые заказы и видны клиентам поблизости.'
+                              : 'Включите смену, чтобы начать получать новые заказы.',
+                          style: const TextStyle(
+                            color: EvikColors.textSecondaryDark,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            height: 1.35,
                           ),
-                        ]),
-                      ),
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _DriverShiftBadge(online: online),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        online
-                            ? 'Вы принимаете новые заказы и видны клиентам поблизости.'
-                            : 'Включите смену, чтобы начать получать новые заказы.',
-                        style: const TextStyle(
-                          color: EvikColors.textSecondaryDark,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (stage == DriverHomeStage.online)
-                        _ActionButton.secondary(
-                            text: 'Симулировать новый заказ',
-                            onTap: () => notifier
-                                .setDriverStage(DriverHomeStage.newOrder)),
-                      if (stage == DriverHomeStage.newOrder) ...[
-                        _DriverOrderCard(
-                          title: 'Новый заказ',
-                          subtitle:
-                              'Проверьте маршрут и все параметры, которые указал клиент.',
-                          fromAddress: fromAddress,
-                          toAddress: toAddress,
-                          vehicleType: vehicleType,
-                          lockedWheels: lockedWheels,
-                          running: running,
-                          selectedTariff: selectedTariff,
-                          tariffPrice: tariffPrice,
-                          comment: comment,
                         ),
                         const SizedBox(height: 12),
-                        _ActionButton.primary(
-                            text: 'Принять заказ', onTap: onAcceptOrder),
-                        const SizedBox(height: 8),
-                        _ActionButton.cancel(
+                        if (stage == DriverHomeStage.newOrder) ...[
+                          _DriverOrderCard(
+                            title: 'Новый заказ',
+                            subtitle:
+                                'Проверьте маршрут и все параметры, которые указал клиент.',
+                            fromAddress: fromAddress,
+                            toAddress: toAddress,
+                            vehicleType: vehicleType,
+                            lockedWheels: lockedWheels,
+                            running: running,
+                            selectedTariff: selectedTariff,
+                            tariffPrice: tariffPrice,
+                            comment: comment,
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionButton.primary(
+                            text: isAcceptingOrder
+                                ? 'Принимаем...'
+                                : 'Принять заказ',
+                            onTap: onAcceptOrder,
+                            enabled: !(isAcceptingOrder ||
+                                isCancellingOrder ||
+                                isCompletingOrder),
+                          ),
+                          const SizedBox(height: 8),
+                          _ActionButton.cancel(
                             text: 'Отклонить',
-                            onTap: () => notifier
-                                .setDriverStage(DriverHomeStage.online)),
+                            onTap: onRejectOrder,
+                            enabled: !(isAcceptingOrder ||
+                                isCancellingOrder ||
+                                isCompletingOrder),
+                          ),
+                        ],
+                        if (stage == DriverHomeStage.accepted ||
+                            stage == DriverHomeStage.enRoute ||
+                            stage == DriverHomeStage.arrived) ...[
+                          _DriverOrderCard(
+                            title: 'Активный заказ',
+                            subtitle:
+                                'Маршрут уже построен. Следуйте по карте до клиента.',
+                            onCollapse: onToggleInfo,
+                            fromAddress: fromAddress,
+                            toAddress: toAddress,
+                            vehicleType: vehicleType,
+                            lockedWheels: lockedWheels,
+                            running: running,
+                            selectedTariff: selectedTariff,
+                            tariffPrice: tariffPrice,
+                            comment: comment,
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionButton.cancel(
+                            text: isCancellingOrder
+                                ? 'Отменяем...'
+                                : 'Отменить заказ',
+                            onTap: onCancelActiveOrder,
+                            enabled: !(isAcceptingOrder ||
+                                isCancellingOrder ||
+                                isCompletingOrder),
+                          ),
+                          const SizedBox(height: 8),
+                          _ActionButton.primary(
+                            text: isCompletingOrder
+                                ? 'Завершаем...'
+                                : 'Завершить заказ',
+                            onTap: onCompleteActiveOrder,
+                            enabled: !(isAcceptingOrder ||
+                                isCancellingOrder ||
+                                isCompletingOrder),
+                          ),
+                        ],
+                        if (stage == DriverHomeStage.completed) ...[
+                          _DriverDoneCard(
+                            title: terminalNotice == null
+                                ? 'Заказ завершён'
+                                : 'Заказ отменён',
+                            subtitle: terminalNotice ??
+                                'Поездка завершена. Можно вернуться в онлайн и ждать следующий заказ.',
+                          ),
+                          const SizedBox(height: 12),
+                          _ActionButton.primary(
+                            text: 'К новым заказам',
+                            onTap: onAcknowledgeTerminal,
+                          ),
+                        ],
                       ],
-                      if (stage == DriverHomeStage.accepted ||
-                          stage == DriverHomeStage.enRoute ||
-                          stage == DriverHomeStage.arrived) ...[
-                        _DriverOrderCard(
-                          title: 'Активный заказ',
-                          subtitle:
-                              'Маршрут уже построен. Следуйте по карте до клиента.',
-                          onCollapse: onToggleInfo,
-                          fromAddress: fromAddress,
-                          toAddress: toAddress,
-                          vehicleType: vehicleType,
-                          lockedWheels: lockedWheels,
-                          running: running,
-                          selectedTariff: selectedTariff,
-                          tariffPrice: tariffPrice,
-                          comment: comment,
-                        ),
-                        const SizedBox(height: 12),
-                        _ActionButton.cancel(
-                          text: 'Отменить заказ',
-                          onTap: () =>
-                              notifier.setDriverStage(DriverHomeStage.online),
-                        ),
-                        const SizedBox(height: 8),
-                        _ActionButton.primary(
-                          text: 'Завершить заказ',
-                          onTap: () => notifier
-                              .setDriverStage(DriverHomeStage.completed),
-                        ),
-                      ],
-                      if (stage == DriverHomeStage.completed)
-                        const _DriverDoneCard(),
-                    ],
+                    ),
                   ),
-                ),
+          ),
         ),
       ],
     );
+  }
+
+  Future<void> _callClient(BuildContext context, String phone) async {
+    try {
+      await _systemChannel.invokeMethod<void>(
+        'dial',
+        <String, dynamic>{'phone': phone},
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть звонок')),
+      );
+    }
   }
 }
 
@@ -2162,7 +2923,13 @@ class _DriverInfoChip extends StatelessWidget {
 }
 
 class _DriverDoneCard extends StatelessWidget {
-  const _DriverDoneCard();
+  const _DriverDoneCard({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -2174,21 +2941,21 @@ class _DriverDoneCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.58)),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Заказ завершён',
-            style: TextStyle(
+            title,
+            style: const TextStyle(
               color: EvikColors.textPrimaryDark,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            'Поездка завершена. Можно вернуться в онлайн и ждать следующий заказ.',
-            style: TextStyle(
+            subtitle,
+            style: const TextStyle(
               color: EvikColors.textSecondaryDark,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -2458,6 +3225,77 @@ class _Panel extends StatelessWidget {
       tint: Colors.white.withValues(alpha: 0.68),
       borderRadius: BorderRadius.circular(16),
       child: child,
+    );
+  }
+}
+
+class _BottomOverlaySlot extends StatelessWidget {
+  const _BottomOverlaySlot({
+    required this.child,
+    required this.maxHeightFactor,
+    this.compact = false,
+  });
+
+  final Widget child;
+  final double maxHeightFactor;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * maxHeightFactor;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, compact ? 12 : 8),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            width: double.infinity,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight),
+              child: compact
+                  ? child
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const _BottomSheetGrabber(),
+                        Flexible(
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: child,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomSheetGrabber extends StatelessWidget {
+  const _BottomSheetGrabber();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Center(
+          child: Container(
+            width: 38,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.92)),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2854,189 +3692,73 @@ class _MapInfoButton extends StatelessWidget {
   }
 }
 
-enum _RouteMapMode { clientWatchingDriver, driverToClient }
-
-class _RouteMapOverlay extends StatelessWidget {
-  const _RouteMapOverlay({required this.mode});
-
-  final _RouteMapMode mode;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = Size(constraints.maxWidth, constraints.maxHeight);
-        final client = Offset(size.width * 0.58, size.height * 0.52);
-        final driver = mode == _RouteMapMode.driverToClient
-            ? Offset(size.width * 0.28, size.height * 0.72)
-            : Offset(size.width * 0.34, size.height * 0.66);
-        final mid = Offset(size.width * 0.44, size.height * 0.59);
-
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _RoutePainter(
-                  driver: driver,
-                  client: client,
-                  control: mid,
-                ),
-              ),
-            ),
-            Positioned(
-              left: driver.dx - 24,
-              top: driver.dy - 24,
-              child: const _MapMarker(
-                icon: Icons.local_shipping_rounded,
-                label: 'Водитель',
-                color: Color(0xFF11D8CC),
-              ),
-            ),
-            Positioned(
-              left: client.dx - 24,
-              top: client.dy - 24,
-              child: const _MapMarker(
-                icon: Icons.person_pin_circle_rounded,
-                label: 'Клиент',
-                color: Color(0xFF1B1B1B),
-              ),
-            ),
-            Positioned(
-              left: 16,
-              right: 16,
-              top: 62,
-              child: _RouteStatusPill(
-                text: mode == _RouteMapMode.driverToClient
-                    ? 'Маршрут к клиенту'
-                    : 'Водитель едет к вам',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _RoutePainter extends CustomPainter {
-  const _RoutePainter({
-    required this.driver,
-    required this.client,
-    required this.control,
+class _DriverCompactOrderBar extends StatelessWidget {
+  const _DriverCompactOrderBar({
+    required this.text,
+    required this.routeSnapshot,
+    required this.onExpand,
+    required this.onCall,
   });
-
-  final Offset driver;
-  final Offset client;
-  final Offset control;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(driver.dx, driver.dy)
-      ..quadraticBezierTo(control.dx, control.dy, client.dx, client.dy);
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.18)
-      ..strokeWidth = 10
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final routePaint = Paint()
-      ..color = const Color(0xFF11D8CC)
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawPath(path, shadowPaint);
-    canvas.drawPath(path, routePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RoutePainter oldDelegate) {
-    return oldDelegate.driver != driver ||
-        oldDelegate.client != client ||
-        oldDelegate.control != control;
-  }
-}
-
-class _MapMarker extends StatelessWidget {
-  const _MapMarker({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 14,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Icon(icon, color: Colors.white, size: 25),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.88),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: EvikColors.textPrimaryDark,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RouteStatusPill extends StatelessWidget {
-  const _RouteStatusPill({required this.text});
 
   final String text;
+  final DriverRouteSnapshot? routeSnapshot;
+  final VoidCallback onExpand;
+  final VoidCallback onCall;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.88)),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: EvikColors.textPrimaryDark,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+    final routeText = routeSnapshot == null
+        ? text
+        : '${routeSnapshot!.distanceKm.toStringAsFixed(1)} км · ~${routeSnapshot!.etaMinutes} мин до клиента';
+
+    return _GlassSurface(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      borderRadius: BorderRadius.circular(16),
+      blurSigma: 12,
+      tint: Colors.white.withValues(alpha: 0.72),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  _demoClientPhone,
+                  style: TextStyle(
+                    color: EvikColors.textPrimaryDark,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  routeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: EvikColors.textSecondaryDark,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          _IconGlassButton(
+            icon: Icons.call_rounded,
+            tooltip: 'Позвонить клиенту',
+            onTap: onCall,
+          ),
+          const SizedBox(width: 6),
+          _IconGlassButton(
+            icon: Icons.keyboard_arrow_up_rounded,
+            tooltip: 'Развернуть заказ',
+            onTap: onExpand,
+          ),
+        ],
       ),
     );
   }
@@ -3050,52 +3772,278 @@ class _MapLayer extends ConsumerStatefulWidget {
 
 class _MapLayerState extends ConsumerState<_MapLayer> {
   bool _initialized = false;
+  String _lastOverlaySignature = '';
+  int _overlayRequestId = 0;
+  StreamSubscription<Location>? _deviceLocationSub;
+  StreamSubscription<RouteSummary?>? _routeSummarySub;
+  Timer? _driverLocationPollTimer;
+  Location? _deviceLocation;
+  Location? _remoteDriverLocation;
+  Coordinate? _driverOrderPickup;
+  RouteSummary? _sdkRouteSummary;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
-    Future.microtask(() => ref.read(mapProviderProvider).init());
+    Future.microtask(() async {
+      final mapProvider = ref.read(mapProviderProvider);
+      await mapProvider.init();
+      _deviceLocationSub = mapProvider.onLocationChanged().listen((location) {
+        _deviceLocation = location;
+        if (mounted) {
+          setState(() {});
+        }
+      });
+      _routeSummarySub = mapProvider.onRouteSummaryChanged().listen((summary) {
+        _sdkRouteSummary = summary;
+        if (!mounted) return;
+        final provider = ref.read(mapProviderProvider);
+        final flow = ref.read(appFlowProvider);
+        final orderUi = ref.read(orderStateNotifierProvider);
+        unawaited(_syncMapOverlay(provider, flow, orderUi));
+      });
+      _driverLocationPollTimer =
+          Timer.periodic(const Duration(seconds: 1), (_) {
+        unawaited(_refreshMapData());
+      });
+      await _refreshMapData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _deviceLocationSub?.cancel();
+    _routeSummarySub?.cancel();
+    _driverLocationPollTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = ref.watch(mapProviderProvider);
     final flow = ref.watch(appFlowProvider);
-    final showClientRoute = !flow.isDriver &&
-        (flow.clientStage == ClientHomeStage.driverFound ||
-            flow.clientStage == ClientHomeStage.driverEnRoute ||
-            flow.clientStage == ClientHomeStage.driverArrived);
-    final showDriverRoute = flow.isDriver &&
-        (flow.driverStage == DriverHomeStage.accepted ||
-            flow.driverStage == DriverHomeStage.enRoute ||
-            flow.driverStage == DriverHomeStage.arrived);
+    final orderUi = ref.watch(orderStateNotifierProvider);
+    unawaited(_syncMapOverlay(provider, flow, orderUi));
 
     final map = provider is YandexMapProvider && provider.isAvailable
         ? YandexMapView(
             initialLat: 55.751244,
             initialLng: 37.618423,
             initialZoom: 13,
-            onMapCreated: provider.attachMap)
+            onMapCreated: (mapId) {
+              provider.attachMap(mapId);
+              final currentFlow = ref.read(appFlowProvider);
+              final currentOrderUi = ref.read(orderStateNotifierProvider);
+              unawaited(_syncMapOverlay(provider, currentFlow, currentOrderUi));
+            })
         : const YandexMapView(
             initialLat: 55.751244, initialLng: 37.618423, initialZoom: 13);
 
-    return Stack(
-      children: [
-        Positioned.fill(child: map),
-        if (showClientRoute || showDriverRoute)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: _RouteMapOverlay(
-                mode: showDriverRoute
-                    ? _RouteMapMode.driverToClient
-                    : _RouteMapMode.clientWatchingDriver,
-              ),
-            ),
-          ),
-      ],
+    return map;
+  }
+
+  Future<void> _refreshMapData() async {
+    if (!mounted) return;
+
+    final flow = ref.read(appFlowProvider);
+    final orderUi = ref.read(orderStateNotifierProvider);
+    final clientHasActiveDriver = !flow.isDriver &&
+        _isClientRouteStage(flow.clientStage) &&
+        orderUi.order?.driverId != null &&
+        !_isTerminalOrderState(orderUi.status);
+    final driverShouldTrack =
+        flow.isDriver && flow.driverStage != DriverHomeStage.offline;
+
+    if (!clientHasActiveDriver && !driverShouldTrack) {
+      if (_remoteDriverLocation != null || _driverOrderPickup != null) {
+        _remoteDriverLocation = null;
+        _driverOrderPickup = null;
+        _sdkRouteSummary = null;
+        ref.read(driverRouteSnapshotProvider.notifier).state = null;
+        if (mounted) {
+          setState(() {});
+        }
+      }
+      return;
+    }
+
+    final driverDataSource = ref.read(driverRemoteDataSourceProvider);
+    String? driverId;
+    if (flow.isDriver) {
+      driverId = _demoDriverId;
+      try {
+        final driver = await driverDataSource.getDriver(_demoDriverId);
+        final orderId = driver.currentOrderId;
+        if (orderId != null && orderId.isNotEmpty) {
+          final json =
+              await ref.read(apiClientProvider).get('/api/v1/orders/$orderId');
+          final order = json['order'];
+          if (order is Map<String, dynamic>) {
+            _driverOrderPickup = Coordinate(
+              lat: (order['pickup_lat'] as num).toDouble(),
+              lng: (order['pickup_lng'] as num).toDouble(),
+            );
+          }
+        } else {
+          _driverOrderPickup = null;
+        }
+      } catch (_) {
+        // Keep previous value as fallback when backend is temporarily unavailable.
+      }
+    } else {
+      driverId = orderUi.order?.driverId;
+    }
+
+    if (driverId != null && driverId.isNotEmpty) {
+      try {
+        final location = await driverDataSource.getLocation(driverId);
+        _remoteDriverLocation = Location(lat: location.lat, lng: location.lng);
+      } catch (_) {
+        // Keep previous value to avoid flickering on transient failures.
+      }
+    }
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _syncMapOverlay(
+    MapProvider provider,
+    AppFlowState flow,
+    OrderUiState orderUi,
+  ) async {
+    final showClientRoute = !flow.isDriver &&
+        _isClientRouteStage(flow.clientStage) &&
+        orderUi.order?.driverId != null &&
+        !_isTerminalOrderState(orderUi.status);
+    final showDriverRoute =
+        flow.isDriver && _driverOrderPickup != null && _driverIsActive(flow);
+
+    final driverPoint = flow.isDriver
+        ? (_deviceLocation ?? _remoteDriverLocation)
+        : _remoteDriverLocation;
+    final clientPickup =
+        flow.isDriver ? _driverOrderPickup : orderUi.order?.pickup;
+    final clientPoint = clientPickup == null
+        ? null
+        : Location(lat: clientPickup.lat, lng: clientPickup.lng);
+    final hasRoute = (showClientRoute || showDriverRoute) &&
+        driverPoint != null &&
+        clientPoint != null;
+    final markers = hasRoute
+        ? <MapMarker>[
+            MapMarker(id: 'driver', location: driverPoint, title: 'Водитель'),
+            MapMarker(id: 'client', location: clientPoint, title: 'Клиент'),
+          ]
+        : const <MapMarker>[];
+    final route = hasRoute
+        ? <Location>[
+            driverPoint,
+            clientPoint,
+          ]
+        : const <Location>[];
+
+    final signature = _buildOverlaySignature(flow, markers, route);
+    if (!hasRoute) {
+      _sdkRouteSummary = null;
+    } else if (signature != _lastOverlaySignature) {
+      _sdkRouteSummary = null;
+    }
+    final routeSnapshot = hasRoute
+        ? _buildPreferredRouteSnapshot(driverPoint, clientPoint)
+        : null;
+    ref.read(driverRouteSnapshotProvider.notifier).state = routeSnapshot;
+    if (signature == _lastOverlaySignature) return;
+    _lastOverlaySignature = signature;
+    final requestId = ++_overlayRequestId;
+
+    if (markers.isEmpty) {
+      await provider.clearMarkers();
+    } else {
+      await provider.setMarkers(markers);
+    }
+    if (!mounted || requestId != _overlayRequestId) return;
+    if (route.isEmpty) {
+      await provider.clearRoute();
+    } else {
+      await provider.setRoute(route);
+    }
+  }
+
+  String _buildOverlaySignature(
+      AppFlowState flow, List<MapMarker> markers, List<Location> route) {
+    final markerSignature = markers
+        .map((m) => '${m.id}:${m.location.lat},${m.location.lng}')
+        .join('|');
+    final routeSignature = route.map((p) => '${p.lat},${p.lng}').join('|');
+    return '${flow.isDriver}:${flow.clientStage.name}:${flow.driverStage.name}:$markerSignature:$routeSignature';
+  }
+
+  bool _isTerminalOrderState(OrderState state) {
+    return state == OrderState.completed ||
+        state == OrderState.cancelled ||
+        state == OrderState.noDriverFound;
+  }
+
+  bool _driverIsActive(AppFlowState flow) {
+    return flow.driverStage == DriverHomeStage.accepted ||
+        flow.driverStage == DriverHomeStage.enRoute ||
+        flow.driverStage == DriverHomeStage.arrived;
+  }
+
+  bool _isClientRouteStage(ClientHomeStage stage) {
+    return stage == ClientHomeStage.driverFound ||
+        stage == ClientHomeStage.driverEnRoute ||
+        stage == ClientHomeStage.driverArrived;
+  }
+
+  DriverRouteSnapshot _buildRouteSnapshot(Location from, Location to) {
+    final distanceKm = _haversineDistanceKm(from, to);
+    const averageCitySpeedKmh = 32.0;
+    final etaMinutes = math.max(
+      1,
+      (distanceKm / averageCitySpeedKmh * 60).round(),
     );
+    return DriverRouteSnapshot(
+      distanceKm: distanceKm,
+      etaMinutes: etaMinutes,
+    );
+  }
+
+  double _haversineDistanceKm(Location from, Location to) {
+    const earthRadiusKm = 6371.0;
+    final lat1 = _toRadians(from.lat);
+    final lat2 = _toRadians(to.lat);
+    final dLat = _toRadians(to.lat - from.lat);
+    final dLng = _toRadians(to.lng - from.lng);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  double _toRadians(double degrees) => degrees * math.pi / 180.0;
+
+  DriverRouteSnapshot? _tryBuildRouteSnapshot(Location? from, Location? to) {
+    if (from == null || to == null) return null;
+    return _buildRouteSnapshot(from, to);
+  }
+
+  DriverRouteSnapshot? _buildPreferredRouteSnapshot(
+      Location? from, Location? to) {
+    if (_sdkRouteSummary != null) {
+      return DriverRouteSnapshot(
+        distanceKm: _sdkRouteSummary!.distanceKm,
+        etaMinutes: _sdkRouteSummary!.etaMinutes,
+      );
+    }
+    return _tryBuildRouteSnapshot(from, to);
   }
 }
 

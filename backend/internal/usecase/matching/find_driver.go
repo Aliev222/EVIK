@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	driverdomain "evik/backend/internal/domain/driver"
 	domainmatching "evik/backend/internal/domain/matching"
 	orderdomain "evik/backend/internal/domain/order"
 )
@@ -17,8 +18,14 @@ type EventPublisher interface {
 	Publish(ctx context.Context, event orderdomain.Event) error
 }
 
+type DriverOrderRepository interface {
+	AssignOrder(ctx context.Context, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error)
+	ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error
+}
+
 type FindDriverUseCase struct {
 	orderRepo      orderdomain.Repository
+	driverRepo     DriverOrderRepository
 	matchingSvc    domainmatching.MatchingService
 	eventPublisher EventPublisher
 	clock          Clock
@@ -30,12 +37,14 @@ type radiusExpander interface {
 
 func NewFinder(
 	orderRepo orderdomain.Repository,
+	driverRepo DriverOrderRepository,
 	matchingSvc domainmatching.MatchingService,
 	eventPublisher EventPublisher,
 	clock Clock,
 ) *FindDriverUseCase {
 	return &FindDriverUseCase{
 		orderRepo:      orderRepo,
+		driverRepo:     driverRepo,
 		matchingSvc:    matchingSvc,
 		eventPublisher: eventPublisher,
 		clock:          clock,
@@ -59,13 +68,24 @@ func (uc *FindDriverUseCase) Execute(ctx context.Context, orderID string) (*orde
 		drv, err := uc.matchingSvc.FindNearestDriver(matchCtx, ord)
 		if err == nil {
 			now := uc.clock.Now()
+			if _, err := uc.driverRepo.AssignOrder(ctx, drv.ID, ord.ID, now); err != nil {
+				if errors.Is(err, driverdomain.ErrDriverUnavailable) {
+					if attempt < retries-1 {
+						continue
+					}
+					break
+				}
+				return nil, err
+			}
 			if err := ord.AssignDriver(drv.ID, now); err != nil {
 				return nil, err
 			}
 			if err := ord.TransitionTo(orderdomain.StatusAccepted, now); err != nil {
+				_ = uc.driverRepo.ReleaseOrder(ctx, drv.ID, ord.ID, now)
 				return nil, err
 			}
 			if err := uc.orderRepo.Update(ctx, ord); err != nil {
+				_ = uc.driverRepo.ReleaseOrder(ctx, drv.ID, ord.ID, now)
 				return nil, err
 			}
 			if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{

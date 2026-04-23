@@ -1,0 +1,295 @@
+package order
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	driverdomain "evik/backend/internal/domain/driver"
+	orderdomain "evik/backend/internal/domain/order"
+)
+
+func TestAcceptOrderRejectsUnavailableDriver(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	orderRepo := &fakeOrderRepository{
+		order: &orderdomain.Order{
+			ID:        "order-1",
+			UserID:    "client-1",
+			Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+			Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+			Status:    orderdomain.StatusSearching,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+	driverRepo := &fakeDriverOrderRepository{assignErr: driverdomain.ErrDriverUnavailable}
+	publisher := &fakeEventPublisher{}
+	uc := NewAcceptOrderUseCase(orderRepo, driverRepo, publisher, fakeClock{now: now}, fakeLogger{})
+
+	_, err := uc.Execute(context.Background(), "order-1", "driver-1")
+	if !errors.Is(err, driverdomain.ErrDriverUnavailable) {
+		t.Fatalf("error = %v, want ErrDriverUnavailable", err)
+	}
+	if orderRepo.updated {
+		t.Fatal("order was updated for unavailable driver")
+	}
+	if len(publisher.events) != 0 {
+		t.Fatalf("events = %+v, want none", publisher.events)
+	}
+}
+
+func TestAcceptOrderAssignsDriverAndPublishesEvent(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	orderRepo := &fakeOrderRepository{
+		order: &orderdomain.Order{
+			ID:        "order-1",
+			UserID:    "client-1",
+			Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+			Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+			Status:    orderdomain.StatusSearching,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+	driverRepo := &fakeDriverOrderRepository{}
+	publisher := &fakeEventPublisher{}
+	uc := NewAcceptOrderUseCase(orderRepo, driverRepo, publisher, fakeClock{now: now}, fakeLogger{})
+
+	ord, err := uc.Execute(context.Background(), "order-1", "driver-1")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if ord.Status != orderdomain.StatusAccepted {
+		t.Fatalf("status = %q, want %q", ord.Status, orderdomain.StatusAccepted)
+	}
+	if ord.DriverID == nil || *ord.DriverID != "driver-1" {
+		t.Fatalf("driver id = %v, want driver-1", ord.DriverID)
+	}
+	if !driverRepo.assigned {
+		t.Fatal("driver was not assigned")
+	}
+	if len(publisher.events) != 1 || publisher.events[0].Type != orderdomain.EventAccepted {
+		t.Fatalf("events = %+v, want one accepted event", publisher.events)
+	}
+}
+
+func TestAcceptOrderRecoversStaleTerminalDriverOrderAndRetries(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	staleID := "order-stale"
+	targetID := "order-1"
+	orderRepo := &fakeOrderRepository{
+		orders: map[string]*orderdomain.Order{
+			targetID: {
+				ID:        targetID,
+				UserID:    "client-1",
+				Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+				Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+				Status:    orderdomain.StatusSearching,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			staleID: {
+				ID:        staleID,
+				UserID:    "client-2",
+				Pickup:    orderdomain.Coordinate{Lat: 55.70, Lng: 37.60},
+				Dropoff:   orderdomain.Coordinate{Lat: 55.71, Lng: 37.61},
+				Status:    orderdomain.StatusCancelled,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+	driverRepo := &fakeDriverOrderRepository{
+		assignErrSequence: []error{driverdomain.ErrDriverUnavailable, nil},
+		driver: &driverdomain.Driver{
+			ID:             "driver-1",
+			Status:         driverdomain.StatusBusy,
+			CurrentOrderID: &staleID,
+			LastSeenAt:     now,
+			UpdatedAt:      now,
+		},
+	}
+	publisher := &fakeEventPublisher{}
+	uc := NewAcceptOrderUseCase(orderRepo, driverRepo, publisher, fakeClock{now: now}, fakeLogger{})
+
+	ord, err := uc.Execute(context.Background(), targetID, "driver-1")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if ord.Status != orderdomain.StatusAccepted {
+		t.Fatalf("status = %q, want %q", ord.Status, orderdomain.StatusAccepted)
+	}
+	if driverRepo.assignCalls != 2 {
+		t.Fatalf("assign calls = %d, want 2", driverRepo.assignCalls)
+	}
+	if len(driverRepo.releasedOrders) != 1 || driverRepo.releasedOrders[0] != staleID {
+		t.Fatalf("released orders = %+v, want [%s]", driverRepo.releasedOrders, staleID)
+	}
+}
+
+func TestAcceptOrderReusesSameDriverCurrentOrderOnUnavailable(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	targetID := "order-1"
+	orderRepo := &fakeOrderRepository{
+		orders: map[string]*orderdomain.Order{
+			targetID: {
+				ID:        targetID,
+				UserID:    "client-1",
+				Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+				Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+				Status:    orderdomain.StatusSearching,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+	driverRepo := &fakeDriverOrderRepository{
+		assignErr: driverdomain.ErrDriverUnavailable,
+		driver: &driverdomain.Driver{
+			ID:             "driver-1",
+			Status:         driverdomain.StatusBusy,
+			CurrentOrderID: &targetID,
+			LastSeenAt:     now,
+			UpdatedAt:      now,
+		},
+	}
+	publisher := &fakeEventPublisher{}
+	uc := NewAcceptOrderUseCase(orderRepo, driverRepo, publisher, fakeClock{now: now}, fakeLogger{})
+
+	ord, err := uc.Execute(context.Background(), targetID, "driver-1")
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if ord.DriverID == nil || *ord.DriverID != "driver-1" {
+		t.Fatalf("driver id = %v, want driver-1", ord.DriverID)
+	}
+	if driverRepo.assignCalls != 1 {
+		t.Fatalf("assign calls = %d, want 1", driverRepo.assignCalls)
+	}
+	if len(driverRepo.releasedOrders) != 0 {
+		t.Fatalf("released orders = %+v, want none", driverRepo.releasedOrders)
+	}
+}
+
+type fakeOrderRepository struct {
+	order   *orderdomain.Order
+	orders  map[string]*orderdomain.Order
+	updated bool
+}
+
+func (r *fakeOrderRepository) Create(context.Context, *orderdomain.Order) error {
+	return nil
+}
+
+func (r *fakeOrderRepository) Update(_ context.Context, ord *orderdomain.Order) error {
+	copied := *ord
+	r.order = &copied
+	if r.orders != nil {
+		r.orders[ord.ID] = &copied
+	}
+	r.updated = true
+	return nil
+}
+
+func (r *fakeOrderRepository) GetByID(_ context.Context, id string) (*orderdomain.Order, error) {
+	if r.orders != nil {
+		if ord, ok := r.orders[id]; ok {
+			copied := *ord
+			return &copied, nil
+		}
+		return nil, orderdomain.ErrOrderNotFound
+	}
+	if r.order == nil || r.order.ID != id {
+		return nil, orderdomain.ErrOrderNotFound
+	}
+	copied := *r.order
+	return &copied, nil
+}
+
+func (r *fakeOrderRepository) ListByStatus(context.Context, orderdomain.Status, int) ([]*orderdomain.Order, error) {
+	return nil, nil
+}
+
+type fakeDriverOrderRepository struct {
+	assignErr         error
+	assignErrSequence []error
+	assigned          bool
+	released          bool
+	assignCalls       int
+	releasedOrders    []string
+	driver            *driverdomain.Driver
+	getByIDErr        error
+}
+
+func (r *fakeDriverOrderRepository) AssignOrder(_ context.Context, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error) {
+	r.assignCalls++
+	if len(r.assignErrSequence) > 0 {
+		idx := r.assignCalls - 1
+		if idx >= 0 && idx < len(r.assignErrSequence) && r.assignErrSequence[idx] != nil {
+			return nil, r.assignErrSequence[idx]
+		}
+	}
+	if r.assignErr != nil {
+		return nil, r.assignErr
+	}
+	r.assigned = true
+	r.driver = &driverdomain.Driver{
+		ID:             driverID,
+		Status:         driverdomain.StatusBusy,
+		CurrentOrderID: &orderID,
+		LastSeenAt:     now,
+		UpdatedAt:      now,
+	}
+	return &driverdomain.Driver{
+		ID:             driverID,
+		Status:         driverdomain.StatusBusy,
+		CurrentOrderID: &orderID,
+		LastSeenAt:     now,
+		UpdatedAt:      now,
+	}, nil
+}
+
+func (r *fakeDriverOrderRepository) ReleaseOrder(_ context.Context, driverID string, orderID string, now time.Time) error {
+	r.released = true
+	r.releasedOrders = append(r.releasedOrders, orderID)
+	if r.driver != nil && r.driver.ID == driverID && r.driver.CurrentOrderID != nil && *r.driver.CurrentOrderID == orderID {
+		r.driver.CurrentOrderID = nil
+		r.driver.Status = driverdomain.StatusOnline
+		r.driver.UpdatedAt = now
+	}
+	return nil
+}
+
+func (r *fakeDriverOrderRepository) GetByID(context.Context, string) (*driverdomain.Driver, error) {
+	if r.getByIDErr != nil {
+		return nil, r.getByIDErr
+	}
+	if r.driver == nil {
+		return nil, driverdomain.ErrDriverNotFound
+	}
+	copied := *r.driver
+	return &copied, nil
+}
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (c fakeClock) Now() time.Time {
+	return c.now
+}
+
+type fakeLogger struct{}
+
+func (fakeLogger) Info(string, ...any)         {}
+func (fakeLogger) Error(string, error, ...any) {}
+
+type fakeEventPublisher struct {
+	events []orderdomain.Event
+}
+
+func (p *fakeEventPublisher) Publish(_ context.Context, event orderdomain.Event) error {
+	p.events = append(p.events, event)
+	return nil
+}

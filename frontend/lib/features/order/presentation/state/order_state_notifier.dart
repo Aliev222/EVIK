@@ -14,11 +14,13 @@ class OrderUiState {
   const OrderUiState({
     required this.status,
     this.order,
+    this.cancellationReason,
     this.error,
   });
 
   final OrderState status;
   final Order? order;
+  final String? cancellationReason;
   final String? error;
 
   factory OrderUiState.initial() => const OrderUiState(status: OrderState.idle);
@@ -26,11 +28,16 @@ class OrderUiState {
   OrderUiState copyWith({
     OrderState? status,
     Order? order,
+    String? cancellationReason,
+    bool clearCancellationReason = false,
     String? error,
   }) {
     return OrderUiState(
       status: status ?? this.status,
       order: order ?? this.order,
+      cancellationReason: clearCancellationReason
+          ? null
+          : cancellationReason ?? this.cancellationReason,
       error: error,
     );
   }
@@ -85,11 +92,19 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
 
   Future<void> submitOrder(CreateOrderCommand command) async {
     final requestVersion = ++_requestVersion;
-    state = state.copyWith(status: OrderState.searching, error: null);
+    state = state.copyWith(
+      status: OrderState.searching,
+      clearCancellationReason: true,
+      error: null,
+    );
     try {
       final order = await _createOrderUseCase.execute(command);
       if (requestVersion != _requestVersion) return;
-      state = state.copyWith(status: order.state, order: order);
+      state = state.copyWith(
+        status: order.state,
+        order: order,
+        clearCancellationReason: true,
+      );
       await _bindBackendState(order.id);
     } catch (e) {
       if (requestVersion != _requestVersion) return;
@@ -98,17 +113,43 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     }
   }
 
-  Future<void> cancelCurrentOrder() async {
+  Future<void> cancelCurrentOrder({String reason = 'client_cancelled'}) async {
     _requestVersion++;
+    await _orderStateSub?.cancel();
+    _orderStateSub = null;
+    await _orderEventsSub?.cancel();
+    _orderEventsSub = null;
     _orderStatusPollTimer?.cancel();
+    _orderStatusPollTimer = null;
+
     final orderId = state.order?.id;
+    final currentOrder = state.order;
     if (orderId == null) {
-      state = state.copyWith(status: OrderState.cancelled, error: null);
+      state = state.copyWith(
+        status: OrderState.cancelled,
+        cancellationReason: reason,
+        error: null,
+      );
       return;
     }
 
+    if (currentOrder != null) {
+      state = state.copyWith(
+        status: OrderState.cancelled,
+        order: currentOrder.copyWith(state: OrderState.cancelled),
+        cancellationReason: reason,
+        error: null,
+      );
+    } else {
+      state = state.copyWith(
+        status: OrderState.cancelled,
+        cancellationReason: reason,
+        error: null,
+      );
+    }
+
     try {
-      final order = await _repository.cancelOrder(orderId);
+      final order = await _repository.cancelOrder(orderId, reason: reason);
       state = state.copyWith(status: order.state, order: order);
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -136,7 +177,15 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       (event) {
         final next = _fromBackendEvent(event.type);
         if (next != null) {
-          state = state.copyWith(status: next);
+          if (next == OrderState.cancelled) {
+            state = state.copyWith(
+              status: next,
+              cancellationReason:
+                  _extractCancellationReason(event) ?? state.cancellationReason,
+            );
+          } else {
+            state = state.copyWith(status: next, clearCancellationReason: true);
+          }
           if (_isTerminal(next)) {
             _orderStatusPollTimer?.cancel();
           }
@@ -148,7 +197,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     );
 
     _orderStatusPollTimer =
-        Timer.periodic(const Duration(milliseconds: 700), (_) {
+        Timer.periodic(const Duration(milliseconds: 400), (_) {
       unawaited(_pollOrderStatus(orderId));
     });
     unawaited(_pollOrderStatus(orderId));
@@ -160,7 +209,11 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     try {
       final order = await _repository.getOrder(orderId);
       if (!mounted) return;
-      state = state.copyWith(status: order.state, order: order);
+      state = state.copyWith(
+        status: order.state,
+        order: order,
+        clearCancellationReason: order.state != OrderState.cancelled,
+      );
       if (_isTerminal(order.state)) {
         _orderStatusPollTimer?.cancel();
       }
@@ -183,6 +236,18 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       'no_driver_found' => OrderState.noDriverFound,
       _ => null,
     };
+  }
+
+  String? _extractCancellationReason(Event event) {
+    if (event.type != 'cancelled') return null;
+    final payload = event.payload;
+    if (payload is Map<String, dynamic>) {
+      final reason = payload['reason']?.toString();
+      if (reason != null && reason.isNotEmpty) {
+        return reason;
+      }
+    }
+    return null;
   }
 
   bool _isTerminal(OrderState status) {
