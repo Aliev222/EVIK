@@ -32,7 +32,8 @@ class WsEventDispatcher implements EventDispatcher {
 
   final WebSocketClient _client;
   final String _wsUrl;
-  final StreamController<Event> _orderEvents = StreamController<Event>.broadcast();
+  final StreamController<Event> _orderEvents =
+      StreamController<Event>.broadcast();
   StreamSubscription<String>? _subscription;
   bool _started = false;
 

@@ -9,11 +9,12 @@ abstract class WebSocketClient {
 
 const defaultWsUrl = String.fromEnvironment(
   'EVIK_WS_URL',
-  defaultValue: 'ws://10.0.2.2:8080/ws/orders',
+  defaultValue: 'ws://localhost:8080/ws/orders',
 );
 
 class InMemoryWebSocketClient implements WebSocketClient {
-  final StreamController<String> _messages = StreamController<String>.broadcast();
+  final StreamController<String> _messages =
+      StreamController<String>.broadcast();
   bool _connected = false;
 
   @override

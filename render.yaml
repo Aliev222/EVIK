@@ -1,27 +1,54 @@
 services:
+  # Go Backend API
   - type: web
     name: evik-backend
-    runtime: go
+    env: go
+    region: frankfurt
+    plan: starter
     rootDir: backend
     buildCommand: go build -tags netgo -ldflags "-s -w" -o app ./cmd/app
     startCommand: ./app
     healthCheckPath: /healthz
     envVars:
+      - key: PORT
+        value: 8080
       - key: POSTGRES_DSN
         fromDatabase:
           name: evik-postgres
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: keyvalue
+          type: redis
           name: evik-redis
           property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
 
-  - type: keyvalue
+  # Redis Cache
+  - type: redis
     name: evik-redis
+    region: frankfurt
+    plan: starter
     ipAllowList: []
+
+  # Flutter Web Frontend (опционально)
+  - type: web
+    name: evik-web
+    env: static
+    region: frankfurt
+    plan: starter
+    buildCommand: cd frontend && flutter build web --release --dart-define=EVIK_API_BASE_URL=https://evik-backend.onrender.com
+    staticPublishPath: ./frontend/build/web
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: evik-postgres
+    region: frankfurt
+    plan: starter
     databaseName: evik
     user: evik

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -13,6 +15,9 @@ type Config struct {
 	RedisAddr     string
 	RedisPassword string
 	RedisURL      string
+	JWTSecret     string
+	AccessTTL     time.Duration
+	RefreshTTL    time.Duration
 }
 
 func MustLoad() Config {
@@ -27,6 +32,9 @@ func MustLoad() Config {
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisURL:      getEnv("REDIS_URL", ""),
+		JWTSecret:     getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
+		AccessTTL:     getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
+		RefreshTTL:    getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
 	}
 }
 
@@ -50,4 +58,28 @@ func normalizePostgresDSN(dsn string) string {
 		separator = "&"
 	}
 	return fmt.Sprintf("%s%ssslmode=require", dsn, separator)
+}
+
+func getEnvDurationMinutes(key string, fallbackMinutes int) time.Duration {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return time.Duration(fallbackMinutes) * time.Minute
+	}
+	minutes, err := strconv.Atoi(raw)
+	if err != nil || minutes <= 0 {
+		return time.Duration(fallbackMinutes) * time.Minute
+	}
+	return time.Duration(minutes) * time.Minute
+}
+
+func getEnvDurationHours(key string, fallbackHours int) time.Duration {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return time.Duration(fallbackHours) * time.Hour
+	}
+	hours, err := strconv.Atoi(raw)
+	if err != nil || hours <= 0 {
+		return time.Duration(fallbackHours) * time.Hour
+	}
+	return time.Duration(hours) * time.Hour
 }

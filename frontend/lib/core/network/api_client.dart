@@ -1,18 +1,59 @@
+import 'package:flutter/foundation.dart';
+
 abstract class ApiClient {
-  Future<Map<String, dynamic>> get(String path);
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body);
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? headers,
+  });
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  });
 }
 
 const defaultApiBaseUrl = String.fromEnvironment(
   'EVIK_API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:8080',
+  defaultValue: kDebugMode
+    ? 'http://localhost:8080'  // Development
+    : 'https://evik-backend.onrender.com',   // Production на Render
 );
+
+class ApiClientException implements Exception {
+  const ApiClientException({
+    required this.method,
+    required this.path,
+    required this.statusCode,
+    required this.message,
+    required this.uri,
+  });
+
+  final String method;
+  final String path;
+  final int statusCode;
+  final String message;
+  final Uri uri;
+
+  @override
+  String toString() => '$method $path failed with $statusCode: $message';
+}
 
 class NoOpApiClient implements ApiClient {
   const NoOpApiClient();
 
   @override
-  Future<Map<String, dynamic>> get(String path) async {
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? headers,
+  }) async {
+    if (path == '/api/v1/auth/me') {
+      return <String, dynamic>{
+        'user': <String, dynamic>{
+          'id': 'local-user',
+          'role': 'client',
+        }
+      };
+    }
     if (path.startsWith('/api/v1/orders/local-')) {
       final id = path.split('/').last;
       return <String, dynamic>{
@@ -33,7 +74,23 @@ class NoOpApiClient implements ApiClient {
 
   @override
   Future<Map<String, dynamic>> post(
-      String path, Map<String, dynamic> body) async {
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) async {
+    if (path == '/api/v1/auth/login' || path == '/api/v1/auth/refresh') {
+      return <String, dynamic>{
+        'tokens': <String, dynamic>{
+          'access_token': 'local-access-token',
+          'refresh_token': 'local-refresh-token',
+          'token_type': 'Bearer',
+        },
+        'user': <String, dynamic>{
+          'id': body['user_id']?.toString() ?? 'local-user',
+          'role': body['role']?.toString() ?? 'client',
+        },
+      };
+    }
     if (path.startsWith('/api/v1/orders/') && path.endsWith('/cancel')) {
       final id = path.split('/')[3];
       return {

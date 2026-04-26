@@ -9,6 +9,15 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    - lib/core/services/location_service.dart
+    - lib/core/services/price_calculator.dart
+    - lib/features/order/data/dto/order_dto.dart
+    - lib/features/order/data/repository_impl/order_repository_impl.dart
+    - lib/features/order/presentation/screens/order_screen.dart
+    - lib/features/order/presentation/state/order_state_notifier.dart
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

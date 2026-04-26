@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Для показа вашего местоположения на карте и поиска ближайших заказов</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Фоновая геолокация нужна, чтобы клиент видел движение водителя во время активного заказа</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Уведомления нужны для новых заказов, статусов и критичных событий</string>
 </dict>
 </plist>

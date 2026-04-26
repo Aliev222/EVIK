@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"evik/backend/internal/auth"
 	"evik/backend/internal/config"
 	domainmatching "evik/backend/internal/domain/matching"
 	"evik/backend/internal/infrastructure/postgres"
@@ -94,13 +95,15 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo)
+	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
+	authHandler := httptransport.NewAuthHandler(tokenManager)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, logger)
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher)
 	go eventRelay.Run(context.Background())
 
-	router := httptransport.NewRouter(orderHandler, driverHandler, wsHandler)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, wsHandler, tokenManager)
 	return &Container{Router: router, db: db, rdb: rdb}, nil
 }
 

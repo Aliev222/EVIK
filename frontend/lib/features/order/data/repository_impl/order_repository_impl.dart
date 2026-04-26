@@ -61,9 +61,21 @@ class OrderRepositoryImpl implements OrderRepository {
 }
 
 class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
-  const HttpOrderRemoteDataSource({required this.apiClient});
+  const HttpOrderRemoteDataSource({
+    required this.apiClient,
+    this.accessToken,
+  });
 
   final ApiClient apiClient;
+  final String? accessToken;
+
+  Map<String, String>? get _authHeaders {
+    final token = accessToken;
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
 
   @override
   Future<OrderDto> createOrder({
@@ -73,20 +85,27 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
     required double dropoffLat,
     required double dropoffLng,
   }) async {
-    final json = await apiClient.post('/api/v1/orders', {
-      'user_id': userId,
-      'pickup_lat': pickupLat,
-      'pickup_lng': pickupLng,
-      'dropoff_lat': dropoffLat,
-      'dropoff_lng': dropoffLng,
-      'auto_dispatch': false,
-    });
+    final json = await apiClient.post(
+      '/api/v1/orders',
+      {
+        'user_id': userId,
+        'pickup_lat': pickupLat,
+        'pickup_lng': pickupLng,
+        'dropoff_lat': dropoffLat,
+        'dropoff_lng': dropoffLng,
+        'auto_dispatch': true,
+      },
+      headers: _authHeaders,
+    );
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }
 
   @override
   Future<OrderDto> getOrder(String orderId) async {
-    final json = await apiClient.get('/api/v1/orders/$orderId');
+    final json = await apiClient.get(
+      '/api/v1/orders/$orderId',
+      headers: _authHeaders,
+    );
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }
 
@@ -96,8 +115,11 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
     if (reason != null && reason.isNotEmpty) {
       payload['reason'] = reason;
     }
-    final json =
-        await apiClient.post('/api/v1/orders/$orderId/cancel', payload);
+    final json = await apiClient.post(
+      '/api/v1/orders/$orderId/cancel',
+      payload,
+      headers: _authHeaders,
+    );
     return OrderDto.fromJson(json['order'] as Map<String, dynamic>);
   }
 }

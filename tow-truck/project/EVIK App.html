@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EVIK — Сервис эвакуаторов</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: 'Manrope', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulseRing { 0% { transform: translate(-50%,-50%) scale(0.7); opacity: 0.6; } 100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; } }
+  @keyframes dotPulse { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  ::-webkit-scrollbar { width: 0; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+
+// ═══════════════════════════════════════════════════════
+// DESIGN TOKENS
+// ═══════════════════════════════════════════════════════
+const C = {
+  black: '#1A1A1A', white: '#FFFFFF', orange: '#FF6B35', green: '#10B981',
+  amber: '#F59E0B', red: '#EF4444', blue: '#3B82F6',
+  gray50: '#F9FAFB', gray100: '#F3F4F6', gray200: '#E5E7EB',
+  gray500: '#6B7280', gray800: '#374151'
+};
+
+// ═══════════════════════════════════════════════════════
+// ICONS
+// ═══════════════════════════════════════════════════════
+const Icon = ({ name, size = 20, color = C.black, style = {} }) => {
+  const s = { width: size, height: size, display: 'inline-block', flexShrink: 0, ...style };
+  const p = { car: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h12l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2" /><circle cx="7.5" cy="17.5" r="2.5" /><circle cx="16.5" cy="17.5" r="2.5" /></svg>,
+    truck: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v4h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>,
+    phone: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>,
+    chat: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>,
+    star: <svg viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+    starE: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" style={s}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>,
+    location: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>,
+    navigate: <svg viewBox="0 0 24 24" fill={color} style={s}><polygon points="3 11 22 2 13 21 11 13 3 11" /></svg>,
+    check: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={s}><polyline points="20 6 9 17 4 12" /></svg>,
+    arrow: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><polyline points="9 18 15 12 9 6" /></svg>,
+    search: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
+    wallet: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M20 12V22H4a2 2 0 01-2-2V6a2 2 0 012-2h16v4" /><path d="M22 12a2 2 0 00-2-2h-4a2 2 0 000 4h4a2 2 0 002-2z" /></svg>,
+    history: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4.45" /></svg>,
+    user: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>,
+    upload: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3" /></svg>,
+    power: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M18.36 6.64A9 9 0 0121 12a9 9 0 01-9 9 9 9 0 01-9-9 9 9 0 012.64-6.36" /><line x1="12" y1="2" x2="12" y2="12" /></svg>,
+    money: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>,
+    time: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+    edit: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>,
+    cash: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>,
+    shield: <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+  };
+  return p[name] || <svg viewBox="0 0 24 24" style={s}><circle cx="12" cy="12" r="8" fill={color} opacity="0.2" /></svg>;
+};
+
+// ═══════════════════════════════════════════════════════
+// BASE COMPONENTS
+// ═══════════════════════════════════════════════════════
+const Btn = ({ children, variant = 'primary', onPress, disabled, style = {}, small }) => {
+  const base = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, fontFamily: 'Manrope,sans-serif', fontWeight: 700, fontSize: small ? 14 : 16, cursor: disabled ? 'not-allowed' : 'pointer', border: 'none', transition: 'all 0.18s', userSelect: 'none', padding: small ? '10px 18px' : '16px 24px', opacity: disabled ? 0.45 : 1, letterSpacing: '0.01em', ...style };
+  const variants = { primary: { background: C.orange, color: C.white }, secondary: { background: 'transparent', color: C.orange, border: `2px solid ${C.orange}` }, ghost: { background: C.gray100, color: C.black }, danger: { background: C.red, color: C.white }, green: { background: C.green, color: C.white }, dark: { background: C.black, color: C.white } };
+  return <button style={{ ...base, ...variants[variant] }} onClick={disabled ? null : onPress} onMouseEnter={(e) => {if (!disabled) e.currentTarget.style.opacity = '0.85';}} onMouseLeave={(e) => {e.currentTarget.style.opacity = disabled ? '0.45' : '1';}}>{children}</button>;
+};
+
+const Avatar = ({ name = '', size = 44, color = C.orange }) =>
+<div style={{ width: size, height: size, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: size * 0.35, fontFamily: 'Manrope,sans-serif', flexShrink: 0 }}>
+    {name ? name[0].toUpperCase() : '?'}
+  </div>;
+
+
+const StatusPill = ({ label, color = C.amber }) =>
+<span style={{ background: color + '18', color, fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 20, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{label}</span>;
+
+
+const Divider = ({ style = {} }) => <div style={{ height: 1, background: C.gray100, margin: '4px 0', ...style }} />;
+const SectionLabel = ({ children }) => <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>{children}</div>;
+
+const Stars = ({ rating = 5, size = 16, interactive, onChange }) =>
+<div style={{ display: 'flex', gap: 2 }}>
+    {[1, 2, 3, 4, 5].map((i) =>
+  <span key={i} onClick={() => interactive && onChange && onChange(i)} style={{ cursor: interactive ? 'pointer' : 'default' }}>
+        <Icon name={i <= rating ? 'star' : 'starE'} size={size} color={i <= rating ? C.amber : C.gray200} />
+      </span>
+  )}
+  </div>;
+
+
+const MapBg = ({ children, style = {}, dark }) =>
+<div style={{ position: 'relative', background: dark ? '#1a2332' : '#e8f0e4', overflow: 'hidden', ...style }}>
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: dark ? 0.15 : 0.25 }}>
+      <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke={dark ? '#fff' : '#8aad7a'} strokeWidth="0.8" /></pattern></defs>
+      <rect width="100%" height="100%" fill="url(#grid)" />
+    </svg>
+    <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+      <path d="M 0 60 Q 80 55 160 70 T 320 65 T 480 60" stroke={dark ? '#2d3f55' : '#ccd9c5'} strokeWidth="18" fill="none" />
+      <path d="M 0 60 Q 80 55 160 70 T 320 65 T 480 60" stroke="#fff" strokeWidth="2" fill="none" strokeDasharray="20 15" opacity="0.4" />
+      <path d="M 40 0 Q 50 80 60 160 T 55 320" stroke={dark ? '#2d3f55' : '#ccd9c5'} strokeWidth="14" fill="none" />
+      <path d="M 160 0 Q 170 80 165 160 T 168 320" stroke={dark ? '#2d3f55' : '#ccd9c5'} strokeWidth="10" fill="none" />
+      <path d="M 0 150 Q 120 145 240 155 T 480 150" stroke={dark ? '#2d3f55' : '#ccd9c5'} strokeWidth="10" fill="none" />
+      <path d="M 0 250 Q 100 245 200 258 T 480 252" stroke={dark ? '#2d3f55' : '#ccd9c5'} strokeWidth="14" fill="none" />
+    </svg>
+    {children}
+  </div>;
+
+
+const Marker = ({ type, x = '50%', y = '50%', pulse }) => {
+  const colors = { client: C.orange, driver: C.green, dest: C.black };
+  const col = colors[type] || C.orange;
+  return (
+    <div style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%,-100%)', zIndex: 10 }}>
+      {pulse && <div style={{ position: 'absolute', width: 40, height: 40, borderRadius: '50%', border: `2px solid ${col}`, top: -6, left: -8, animation: 'pulseRing 1.5s ease-out infinite', opacity: 0.5 }} />}
+      {pulse && <div style={{ position: 'absolute', width: 60, height: 60, borderRadius: '50%', border: `2px solid ${col}`, top: -16, left: -18, animation: 'pulseRing 1.5s ease-out infinite 0.5s', opacity: 0.3 }} />}
+      <div style={{ width: 28, height: 28, borderRadius: '50% 50% 50% 0', background: col, border: '3px solid #fff', transform: 'rotate(-45deg)', boxShadow: '0 3px 10px rgba(0,0,0,0.25)' }} />
+    </div>);
+
+};
+
+const RouteLine = ({ dark }) =>
+<svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+    <path d="M 60 200 Q 120 160 180 140 Q 220 125 260 100" stroke={dark ? '#60a5fa' : C.orange} strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.9" />
+  </svg>;
+
+
+// ═══════════════════════════════════════════════════════
+// TWEAKS PANEL (inline)
+// ═══════════════════════════════════════════════════════
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:9999;width:260px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:rgba(250,249,247,.9);color:#29261b;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:.5px solid rgba(255,255,255,.6);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.3);font:11.5px/1.4 ui-sans-serif,system-ui,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:13px}
+  .twk-x:hover{background:rgba(0,0,0,.08)}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:rgba(41,38,27,.45);padding:8px 0 0}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between}
+  .twk-lbl{font-weight:500;color:rgba(41,38,27,.72)}
+  .twk-field{width:100%;height:26px;padding:0 8px;border:.5px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.7);font:inherit;outline:none}
+  select.twk-field{padding-right:20px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path fill='rgba(0,0,0,.4)' d='M0 0h10L5 6z'/></svg>");background-repeat:no-repeat;background-position:right 8px center}
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;background:rgba(0,0,0,.15);transition:background .15s;cursor:pointer;padding:0;flex-shrink:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+`;
+
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  const setTweak = React.useCallback((key, val) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [key]: val } }, '*');
+  }, []);
+  return { tweaks: values, setTweak,
+    TweaksPanel: ({ children }) => {
+      const [open, setOpen] = React.useState(false);
+      const ref = React.useRef(null);
+      React.useEffect(() => {
+        const onMsg = (e) => {
+          if (e?.data?.type === '__activate_edit_mode') setOpen(true);
+          if (e?.data?.type === '__deactivate_edit_mode') setOpen(false);
+        };
+        window.addEventListener('message', onMsg);
+        window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+        return () => window.removeEventListener('message', onMsg);
+      }, []);
+      if (!open) return null;
+      return <>
+        <style>{__TWEAKS_STYLE}</style>
+        <div ref={ref} className="twk-panel">
+          <div className="twk-hd"><b>Tweaks</b>
+            <button className="twk-x" onClick={() => {setOpen(false);window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');}}>✕</button>
+          </div>
+          <div className="twk-body">{children}</div>
+        </div>
+      </>;
+    },
+    TweakSection: ({ title, children }) => <><div className="twk-sect">{title}</div>{children}</>,
+    TweakToggle: ({ id, label }) =>
+    <div className="twk-row twk-row-h">
+        <span className="twk-lbl">{label}</span>
+        <button className="twk-toggle" data-on={values[id] ? '1' : '0'} onClick={() => setTweak(id, !values[id])}><i /></button>
+      </div>,
+
+    TweakSelect: ({ id, label, options }) =>
+    <div className="twk-row">
+        <span className="twk-lbl">{label}</span>
+        <select className="twk-field" value={values[id]} onChange={(e) => setTweak(id, e.target.value)}>
+          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// ONBOARDING SCREENS
+// ═══════════════════════════════════════════════════════
+const SplashScreen = ({ onDone }) => {
+  const [phase, setPhase] = React.useState(0);
+  React.useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 350);
+    const t2 = setTimeout(() => setPhase(2), 950);
+    const t3 = setTimeout(onDone, 2600);
+    return () => [t1,t2,t3].forEach(clearTimeout);
+  }, []);
+  return (
+    <div style={{flex:1, background:'#FAFAFA', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', position:'relative', overflow:'hidden'}}>
+      {/* subtle dot grid */}
+      <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',opacity:0.06}} xmlns="http://www.w3.org/2000/svg">
+        <defs><pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#000"/></pattern></defs>
+        <rect width="100%" height="100%" fill="url(#dots)"/>
+      </svg>
+      {/* warm glow top-right */}
+      <div style={{position:'absolute',right:-80,top:-80,width:320,height:320,borderRadius:'50%',background:'radial-gradient(circle, rgba(255,107,53,0.10) 0%, transparent 70%)',pointerEvents:'none',transform:phase>=1?'scale(1)':'scale(0.3)',transition:'transform 1.4s cubic-bezier(0.16,1,0.3,1)'}}/>
+      {/* Logo */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,opacity:phase>=1?1:0,transform:phase>=1?'translateY(0)':'translateY(18px)',transition:'all 0.7s cubic-bezier(0.16,1,0.3,1)'}}>
+        <div style={{width:72,height:72,borderRadius:22,background:C.black,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 12px 40px rgba(0,0,0,0.14)'}}>
+          <Icon name="truck" size={34} color="#fff"/>
+        </div>
+        <div style={{fontSize:48,fontWeight:800,color:C.black,letterSpacing:'-0.05em',lineHeight:1,fontFamily:'Manrope,sans-serif'}}>EVIK</div>
+      </div>
+      {/* tagline */}
+      <div style={{position:'absolute',bottom:88,fontSize:11,fontWeight:700,color:C.gray500,letterSpacing:'0.2em',textTransform:'uppercase',opacity:phase>=2?1:0,transform:phase>=2?'translateY(0)':'translateY(6px)',transition:'all 0.5s ease 0.1s'}}>
+        Сервис эвакуаторов
+      </div>
+      {/* progress bar */}
+      <div style={{position:'absolute',bottom:68,width:44,height:2,background:C.gray200,borderRadius:1,overflow:'hidden'}}>
+        <div style={{height:'100%',background:C.orange,borderRadius:1,width:phase>=2?'100%':'0%',transition:'width 1.4s ease'}}/>
+      </div>
+    </div>
+  );
+};
+
+const RoleScreen = ({ onSelect }) => {
+  const [idx, setIdx] = React.useState(0);
+  const [animDir, setAnimDir] = React.useState(0);
+  const startX = React.useRef(0);
+  const isDragging = React.useRef(false);
+
+  const roles = [
+    {
+      id:'client', bg:'#FFFFFF', textColor:C.black, subColor:C.gray500,
+      tag:'Для владельцев авто', icon:'🚗',
+      title:'Нужен\nэвакуатор?',
+      sub:'Вызовите за 30 секунд.\nВодитель приедет\nв течение 15 минут.',
+      cta:'Вызвать эвакуатор',
+      switchLabel:'Я водитель →',
+      stats:[{v:'< 15 мин',l:'среднее время'},{v:'4.9 ★',l:'рейтинг'},{v:'24/7',l:'работаем'}],
+      dotInactive: C.gray200,
+    },
+    {
+      id:'driver', bg:C.black, textColor:'#ffffff', subColor:'rgba(255,255,255,0.45)',
+      tag:'Для водителей', icon:'🚛',
+      title:'Зарабатывай\nна эвакуации',
+      sub:'Принимай заказы рядом.\nСвободный график,\nстабильный доход.',
+      cta:'Начать работать',
+      switchLabel:'← Я клиент',
+      stats:[{v:'6 200 ₽',l:'в среднем/день'},{v:'148',l:'заказов/мес'},{v:'Свой',l:'график'}],
+      dotInactive: 'rgba(255,255,255,0.18)',
+    },
+  ];
+  const r = roles[idx];
+
+  const next = () => { setAnimDir(1); setIdx(i=>(i+1)%roles.length); };
+  const prev = () => { setAnimDir(-1); setIdx(i=>(i-1+roles.length)%roles.length); };
+
+  const onTouchStart = e => { startX.current = e.touches[0].clientX; isDragging.current = true; };
+  const onTouchEnd = e => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const dx = e.changedTouches[0].clientX - startX.current;
+    if (dx < -50) next(); else if (dx > 50) prev();
+  };
+  const onMouseDown = e => { startX.current = e.clientX; isDragging.current = true; };
+  const onMouseUp = e => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const dx = e.clientX - startX.current;
+    if (dx < -50) next(); else if (dx > 50) prev();
+  };
+
+  return (
+    <div key={idx} style={{flex:1,display:'flex',flexDirection:'column',background:r.bg,position:'relative',overflow:'hidden',userSelect:'none',animation:'fadeIn 0.35s ease'}}
+      onMouseDown={onMouseDown} onMouseUp={onMouseUp}
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+
+      {/* Decorative circle */}
+      <div style={{position:'absolute',right:-60,top:-60,width:260,height:260,borderRadius:'50%',background:idx===0?'rgba(255,107,53,0.07)':'rgba(255,107,53,0.13)',pointerEvents:'none'}}/>
+      <div style={{position:'absolute',left:-90,bottom:-50,width:220,height:220,borderRadius:'50%',background:idx===0?'rgba(255,107,53,0.04)':'rgba(255,107,53,0.08)',pointerEvents:'none'}}/>
+
+      {/* Header */}
+      <div style={{padding:'18px 24px 0',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{fontSize:20,fontWeight:800,color:r.textColor,letterSpacing:'-0.03em'}}>EVIK</div>
+        <div style={{display:'flex',gap:5}}>
+          {roles.map((_,i)=><div key={i} style={{width:i===idx?22:6,height:6,borderRadius:3,background:i===idx?C.orange:r.dotInactive,transition:'all 0.35s'}}/>)}
+        </div>
+      </div>
+
+      {/* Tag pill */}
+      <div style={{padding:'22px 24px 0'}}>
+        <div style={{display:'inline-flex',alignItems:'center',gap:7,background:idx===0?C.gray100:'rgba(255,255,255,0.08)',borderRadius:10,padding:'6px 12px',marginBottom:20}}>
+          <span style={{fontSize:14}}>{r.icon}</span>
+          <span style={{fontSize:11,fontWeight:700,color:idx===0?C.gray500:'rgba(255,255,255,0.45)',letterSpacing:'0.06em',textTransform:'uppercase'}}>{r.tag}</span>
+        </div>
+
+        {/* Big title */}
+        <div style={{fontSize:40,fontWeight:800,color:r.textColor,lineHeight:1.08,letterSpacing:'-0.03em',whiteSpace:'pre-line',marginBottom:18,fontFamily:'Manrope,sans-serif'}}>
+          {r.title}
+        </div>
+        <div style={{fontSize:15,color:r.subColor,lineHeight:1.65,fontWeight:500,whiteSpace:'pre-line'}}>
+          {r.sub}
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{padding:'28px 24px 0',display:'flex',gap:0}}>
+        {r.stats.map((s,i)=>(
+          <div key={i} style={{flex:1,paddingRight:i<r.stats.length-1?14:0,borderRight:i<r.stats.length-1?'1px solid '+(idx===0?C.gray200:'rgba(255,255,255,0.1)'):'none',marginRight:i<r.stats.length-1?14:0}}>
+            <div style={{fontSize:15,fontWeight:800,color:r.textColor,marginBottom:3}}>{s.v}</div>
+            <div style={{fontSize:10,color:idx===0?C.gray500:'rgba(255,255,255,0.35)',fontWeight:600,letterSpacing:'0.02em'}}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:'flex-end',padding:'24px 24px 24px'}}>
+        <button onClick={()=>onSelect(r.id)} style={{width:'100%',padding:'18px',borderRadius:18,background:C.orange,color:'#fff',fontFamily:'Manrope,sans-serif',fontWeight:700,fontSize:16,border:'none',cursor:'pointer',boxShadow:'0 8px 28px rgba(255,107,53,0.38)',marginBottom:16,letterSpacing:'0.01em'}}>
+          {r.cta}
+        </button>
+        <div onClick={idx===0?next:prev} style={{textAlign:'center',fontSize:13,fontWeight:600,color:idx===0?C.gray500:'rgba(255,255,255,0.38)',cursor:'pointer',padding:'4px'}}>
+          {r.switchLabel}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PhoneScreen = ({ onNext }) => {
+  const [phone, setPhone] = React.useState('');
+  const fmt = (v) => {const d = v.replace(/\D/g, '').slice(0, 11);if (!d.length) return '';let r = '+7';if (d.length > 1) r += ' (' + d.slice(1, 4);if (d.length > 4) r += ') ' + d.slice(4, 7);if (d.length > 7) r += '-' + d.slice(7, 9);if (d.length > 9) r += '-' + d.slice(9, 11);return r;};
+  const digits = phone.replace(/\D/g, '');
+  return (
+    <div style={{ flex: 1, background: C.white, display: 'flex', flexDirection: 'column', padding: '32px 24px' }}>
+      <div style={{ marginBottom: 36 }}>
+        <div style={{ fontSize: 26, fontWeight: 800, color: C.black, lineHeight: 1.2 }}>Вход<br />в приложение</div>
+        <div style={{ fontSize: 14, color: C.gray500, marginTop: 10 }}>Введите номер телефона для входа или регистрации</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.gray50, borderRadius: 14, padding: '0 16px', border: `2px solid ${digits.length >= 11 ? C.orange : C.gray200}`, transition: 'border-color 0.2s', marginBottom: 14 }}>
+        <span style={{ fontSize: 22 }}>🇷🇺</span>
+        <input value={phone} onChange={(e) => setPhone(fmt(e.target.value))} placeholder="+7 (999) 000-00-00" style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 18, fontWeight: 600, fontFamily: 'Manrope,sans-serif', padding: '17px 0', outline: 'none', color: C.black, letterSpacing: '0.04em' }} />
+      </div>
+      <div style={{ fontSize: 13, color: C.gray500, flex: 1 }}>Мы отправим SMS с кодом подтверждения на этот номер</div>
+      <Btn style={{ width: '100%' }} disabled={digits.length < 11} onPress={onNext}>Получить код</Btn>
+    </div>);
+
+};
+
+const SmsScreen = ({ onNext }) => {
+  const [code, setCode] = React.useState(['', '', '', '', '', '']);
+  const [timer, setTimer] = React.useState(75);
+  const refs = [React.useRef(), React.useRef(), React.useRef(), React.useRef(), React.useRef(), React.useRef()];
+  React.useEffect(() => {const t = setInterval(() => setTimer((p) => Math.max(0, p - 1)), 1000);return () => clearInterval(t);}, []);
+  const filled = code.every((c) => c !== '');
+  const handleChange = (i, v) => {const d = v.replace(/\D/g, '');if (!d) return;const nc = [...code];nc[i] = d[0];setCode(nc);if (i < 5) refs[i + 1].current && refs[i + 1].current.focus();if (nc.every((c) => c !== '')) onNext();};
+  const handleKey = (i, e) => {if (e.key === 'Backspace' && !code[i] && i > 0) {const nc = [...code];nc[i - 1] = '';setCode(nc);refs[i - 1].current && refs[i - 1].current.focus();}};
+  const mins = String(Math.floor(timer / 60)).padStart(2, '0'),secs = String(timer % 60).padStart(2, '0');
+  return (
+    <div style={{ flex: 1, background: C.white, display: 'flex', flexDirection: 'column', padding: '32px 24px' }}>
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ fontSize: 26, fontWeight: 800, color: C.black, lineHeight: 1.2 }}>Введите код<br />из SMS</div>
+        <div style={{ fontSize: 14, color: C.gray500, marginTop: 10 }}>Отправлен на +7 (999) 000-00-00</div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 28 }}>
+        {code.map((c, i) => <input key={i} ref={refs[i]} value={c} maxLength={1} inputMode="numeric" onChange={(e) => handleChange(i, e.target.value)} onKeyDown={(e) => handleKey(i, e)} style={{ width: 44, height: 52, textAlign: 'center', fontSize: 20, fontWeight: 700, border: `2.5px solid ${c ? C.orange : C.gray200}`, borderRadius: 12, background: c ? C.orange + '10' : C.gray50, fontFamily: 'Manrope,sans-serif', color: C.black, outline: 'none', transition: 'all 0.15s' }} />)}
+      </div>
+      <div style={{ textAlign: 'center', flex: 1 }}>
+        {timer > 0 ? <span style={{ fontSize: 14, color: C.gray500 }}>Повторить через <span style={{ fontWeight: 700, color: C.black }}>{mins}:{secs}</span></span> :
+        <span onClick={() => setTimer(75)} style={{ fontSize: 14, color: C.orange, fontWeight: 700, cursor: 'pointer' }}>Отправить повторно</span>}
+      </div>
+      <Btn style={{ width: '100%' }} disabled={!filled} onPress={onNext}>Войти</Btn>
+    </div>);
+
+};
+
+// Driver Onboarding
+const DocUploadScreen = ({ onNext }) => {
+  const [uploads, setUploads] = React.useState({});
+  const docs = [{ id: 'passport', label: 'Паспорт', sub: 'Разворот с фото', e: '🪪' }, { id: 'license', label: 'Водительское удостоверение', sub: 'Обе стороны', e: '📋' }, { id: 'pts', label: 'ПТС / СТС автомобиля', sub: 'Свидетельство о регистрации', e: '🚛' }, { id: 'photo', label: 'Фото эвакуатора', sub: 'Вид спереди и сбоку', e: '📷' }, { id: 'selfie', label: 'Селфи с документами', sub: 'Лицо и паспорт в руках', e: '🤳' }];
+  const allDone = docs.every((d) => uploads[d.id]);
+  return (
+    <div style={{ flex: 1, background: C.white, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '16px 24px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600, color: C.gray500 }}>Шаг 1 из 3</span><span style={{ fontSize: 12, fontWeight: 700, color: C.orange }}>33%</span></div>
+        <div style={{ height: 4, background: C.gray100, borderRadius: 2 }}><div style={{ width: '33%', height: '100%', background: C.orange, borderRadius: 2 }} /></div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.black, marginTop: 20 }}>Загрузите документы</div>
+        <div style={{ fontSize: 13, color: C.gray500, marginTop: 5 }}>Для верификации вашего аккаунта</div>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+        {docs.map((d) =>
+        <div key={d.id} onClick={() => setUploads((u) => ({ ...u, [d.id]: !u[d.id] }))} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, border: `1.5px solid ${uploads[d.id] ? C.green : C.gray200}`, background: uploads[d.id] ? C.green + '08' : C.white, marginBottom: 10, cursor: 'pointer', transition: 'all 0.2s' }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: uploads[d.id] ? C.green + '18' : C.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+              {uploads[d.id] ? <Icon name="check" size={18} color={C.green} /> : d.e}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.black }}>{d.label}</div>
+              <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>{d.sub}</div>
+            </div>
+            {uploads[d.id] ? <StatusPill label="Загружено" color={C.green} /> : <div style={{ fontSize: 11, fontWeight: 600, color: C.orange, padding: '5px 10px', border: `1.5px solid ${C.orange}`, borderRadius: 8 }}>Загрузить</div>}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: '0 24px 24px' }}><Btn style={{ width: '100%' }} disabled={!allDone} onPress={onNext}>Продолжить</Btn></div>
+    </div>);
+
+};
+
+const DriverProfileScreen = ({ onNext }) => {
+  const [form, setForm] = React.useState({ name: '', truck: '', plate: '', type: '' });
+  const valid = Object.values(form).every((v) => v.length > 0);
+  return (
+    <div style={{ flex: 1, background: C.white, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '16px 24px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600, color: C.gray500 }}>Шаг 2 из 3</span><span style={{ fontSize: 12, fontWeight: 700, color: C.orange }}>66%</span></div>
+        <div style={{ height: 4, background: C.gray100, borderRadius: 2 }}><div style={{ width: '66%', height: '100%', background: C.orange, borderRadius: 2 }} /></div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.black, marginTop: 20 }}>Заполните профиль</div>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {[{ k: 'name', ph: 'Иванов Иван Иванович', lbl: 'Полное имя' }, { k: 'truck', ph: 'КАМАЗ, ГАЗель...', lbl: 'Марка эвакуатора' }, { k: 'plate', ph: 'А 123 ВС 77', lbl: 'Гос. номер' }].map((f) =>
+        <div key={f.k}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{f.lbl}</div>
+            <div style={{ display: 'flex', alignItems: 'center', background: C.gray50, borderRadius: 12, padding: '13px 14px', border: `1.5px solid ${C.gray200}` }}>
+              <input value={form[f.k]} onChange={(e) => setForm((p) => ({ ...p, [f.k]: e.target.value }))} placeholder={f.ph} style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'Manrope,sans-serif', fontSize: 15, color: C.black, outline: 'none' }} />
+            </div>
+          </div>
+        )}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Тип эвакуатора</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {['Частичная погрузка', 'Полная погрузка'].map((t) => <div key={t} onClick={() => setForm((f) => ({ ...f, type: t }))} style={{ flex: 1, padding: '12px 8px', borderRadius: 12, border: `2px solid ${form.type === t ? C.orange : C.gray200}`, background: form.type === t ? C.orange + '10' : C.white, cursor: 'pointer', textAlign: 'center', fontSize: 12, fontWeight: 600, color: form.type === t ? C.orange : C.gray800, transition: 'all 0.15s' }}>{t}</div>)}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '0 24px 24px' }}><Btn style={{ width: '100%' }} disabled={!valid} onPress={onNext}>Отправить на модерацию</Btn></div>
+    </div>);
+
+};
+
+const ModerationScreen = ({ status = 'pending', onApproved }) => {
+  const st = {
+    pending: { icon: '⏳', title: 'Документы на проверке', sub: 'Проверка занимает до 24 часов. Мы уведомим вас о результате по SMS.', color: C.amber, pill: 'Ожидание' },
+    rejected: { icon: '❌', title: 'Документы отклонены', sub: 'Причина: фото паспорта нечёткое. Исправьте замечания и подайте документы заново.', color: C.red, pill: 'Отклонено' },
+    approved: { icon: '✅', title: 'Добро пожаловать в EVIK!', sub: 'Ваши документы проверены. Теперь вы можете принимать заказы.', color: C.green, pill: 'Одобрено' }
+  }[status];
+  return (
+    <div style={{ flex: 1, background: C.white, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '16px 24px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600, color: C.gray500 }}>Шаг 3 из 3</span><span style={{ fontSize: 12, fontWeight: 700, color: C.orange }}>100%</span></div>
+        <div style={{ height: 4, background: C.gray100, borderRadius: 2 }}><div style={{ width: '100%', height: '100%', background: status === 'rejected' ? C.red : C.orange, borderRadius: 2 }} /></div>
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 28px', textAlign: 'center', gap: 16 }}>
+        <div style={{ fontSize: 60, lineHeight: 1 }}>{st.icon}</div>
+        <StatusPill label={st.pill} color={st.color} />
+        <div style={{ fontSize: 20, fontWeight: 800, color: C.black, lineHeight: 1.3 }}>{st.title}</div>
+        <div style={{ fontSize: 14, color: C.gray500, lineHeight: 1.6 }}>{st.sub}</div>
+        {status === 'pending' && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: C.amber + '12', borderRadius: 12 }}><Icon name="time" size={15} color={C.amber} /><span style={{ fontSize: 13, fontWeight: 600, color: C.amber }}>Ожидание: 4 часа 23 минуты</span></div>}
+      </div>
+      <div style={{ padding: '0 24px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {status === 'approved' && <Btn style={{ width: '100%' }} variant="green" onPress={onApproved}>Начать работу</Btn>}
+        {status === 'rejected' && <><Btn style={{ width: '100%' }} onPress={() => {}}>Исправить документы</Btn><Btn style={{ width: '100%' }} variant="ghost" onPress={() => {}}>Обратиться в поддержку</Btn></>}
+        {status === 'pending' && <Btn style={{ width: '100%' }} variant="ghost" onPress={() => {}}>Обратиться в поддержку</Btn>}
+      </div>
+    </div>);
+
+};
+
+// ═══════════════════════════════════════════════════════
+// CLIENT SCREENS
+// ═══════════════════════════════════════════════════════
+const ClientBottomNav = ({ active, onNav }) =>
+<div style={{ display: 'flex', borderTop: `1px solid ${C.gray100}`, background: C.white, padding: '8px 0 4px' }}>
+    {[{ id: 'home', icon: 'navigate', label: 'Главная' }, { id: 'history', icon: 'history', label: 'Заказы' }, { id: 'wallet', icon: 'wallet', label: 'Оплата' }, { id: 'profile', icon: 'user', label: 'Профиль' }].map((it) =>
+  <div key={it.id} onClick={() => onNav(it.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer', padding: '4px 0' }}>
+        <Icon name={it.icon} size={20} color={active === it.id ? C.orange : C.gray500} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: active === it.id ? C.orange : C.gray500 }}>{it.label}</span>
+      </div>
+  )}
+  </div>;
+
+
+const ClientIdle = ({ onOrder, darkMap }) =>
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: C.white, borderRadius: 14, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 7, boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.orange }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.black }}>Москва, ЦАО</span>
+      </div>
+      <Avatar name="А" size={38} color={C.black} />
+    </div>
+    <MapBg dark={darkMap} style={{ flex: 1 }}>
+      <Marker type="client" x="50%" y="52%" />
+      <div style={{ position: 'absolute', right: 14, bottom: 90, width: 42, height: 42, borderRadius: 12, background: C.white, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <Icon name="navigate" size={19} color={C.orange} />
+      </div>
+    </MapBg>
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '14px 18px 18px', background: 'linear-gradient(to top,rgba(255,255,255,1) 65%,transparent)' }}>
+      <Btn style={{ width: '100%', fontSize: 16, padding: '17px 24px', borderRadius: 16, boxShadow: `0 4px 20px ${C.orange}50` }} onPress={onOrder}>🚛 Вызвать эвакуатор</Btn>
+    </div>
+  </div>;
+
+
+const ClientSelecting = ({ onConfirm, onBack }) =>
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, padding: '10px 14px', background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(8px)', borderBottom: `1px solid ${C.gray100}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div onClick={onBack} style={{ width: 34, height: 34, borderRadius: 10, background: C.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="arrow" size={15} color={C.black} style={{ transform: 'rotate(180deg)' }} /></div>
+        <span style={{ fontSize: 15, fontWeight: 700, color: C.black }}>Выберите место</span>
+      </div>
+      <div style={{ background: C.orange + '10', borderRadius: 12, padding: '10px 12px', border: `1.5px solid ${C.orange}30`, display: 'flex', alignItems: 'center', gap: 9 }}>
+        <Icon name="location" size={15} color={C.orange} /><span style={{ fontSize: 13, fontWeight: 600, color: C.gray800 }}>Где стоит ваш автомобиль?</span>
+      </div>
+    </div>
+    <MapBg style={{ flex: 1, marginTop: 96 }}>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 10 }}>
+        <div style={{ width: 2, height: 22, background: C.orange, position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)' }} />
+        <div style={{ width: 2, height: 22, background: C.orange, position: 'absolute', bottom: -22, left: '50%', transform: 'translateX(-50%)' }} />
+        <div style={{ height: 2, width: 22, background: C.orange, position: 'absolute', left: -22, top: '50%', transform: 'translateY(-50%)' }} />
+        <div style={{ height: 2, width: 22, background: C.orange, position: 'absolute', right: -22, top: '50%', transform: 'translateY(-50%)' }} />
+        <div style={{ width: 12, height: 12, borderRadius: '50%', background: C.orange, border: '3px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }} />
+      </div>
+    </MapBg>
+    <div style={{ padding: '14px 18px 18px', background: C.white }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', background: C.gray50, borderRadius: 14, border: `1.5px solid ${C.gray200}`, marginBottom: 12 }}>
+        <Icon name="location" size={16} color={C.orange} />
+        <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: C.black }}>ул. Тверская, 15</span>
+        <Icon name="edit" size={15} color={C.gray500} />
+      </div>
+      <Btn style={{ width: '100%' }} onPress={onConfirm}>Подтвердить место</Btn>
+    </div>
+  </div>;
+
+
+const ClientOrderForm = ({ onSubmit, onBack }) => {
+  const [to, setTo] = React.useState('');
+  const [carType, setCarType] = React.useState('');
+  const [problem, setProblem] = React.useState('');
+  const [payment, setPayment] = React.useState('card');
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.white }}>
+      <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${C.gray100}` }}>
+        <div onClick={onBack} style={{ width: 34, height: 34, borderRadius: 10, background: C.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name="arrow" size={15} color={C.black} style={{ transform: 'rotate(180deg)' }} /></div>
+        <span style={{ fontSize: 16, fontWeight: 800, color: C.black }}>Оформить заказ</span>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Route */}
+        <div style={{ background: C.gray50, borderRadius: 16, padding: '14px' }}>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
+              <div style={{ width: 9, height: 9, borderRadius: '50%', background: C.orange, boxShadow: `0 0 0 2px ${C.orange}40` }} />
+              <div style={{ width: 1.5, height: 28, background: C.gray200, margin: '3px 0' }} />
+              <div style={{ width: 9, height: 9, borderRadius: '50%', background: C.black, boxShadow: `0 0 0 2px ${C.black}30` }} />
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div><div style={{ fontSize: 10, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Откуда</div><div style={{ fontSize: 13, fontWeight: 600, color: C.black }}>ул. Тверская, 15</div></div>
+              <div><div style={{ fontSize: 10, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>Куда</div><input value={to} onChange={(e) => setTo(e.target.value)} placeholder="Введите адрес СТО или стоянки" style={{ fontSize: 13, fontWeight: 600, color: C.black, border: 'none', background: 'transparent', outline: 'none', width: '100%', fontFamily: 'Manrope,sans-serif' }} /></div>
+            </div>
+          </div>
+        </div>
+        {/* Car */}
+        <div><SectionLabel>Тип автомобиля</SectionLabel>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ id: 'sedan', l: 'Легковой', e: '🚗' }, { id: 'suv', l: 'Внедорожник', e: '🚙' }, { id: 'truck', l: 'Грузовой', e: '🚚' }].map((t) =>
+            <div key={t.id} onClick={() => setCarType(t.id)} style={{ flex: 1, padding: '9px 4px', borderRadius: 12, border: `2px solid ${carType === t.id ? C.orange : C.gray200}`, background: carType === t.id ? C.orange + '10' : C.white, cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s' }}>
+                <div style={{ fontSize: 18 }}>{t.e}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: carType === t.id ? C.orange : C.gray800, marginTop: 3 }}>{t.l}</div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Problem */}
+        <div><SectionLabel>Причина вызова</SectionLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {[{ id: 'nostart', l: 'Не заводится' }, { id: 'accident', l: 'ДТП' }, { id: 'flat', l: 'Прокол колеса' }, { id: 'other', l: 'Другое' }].map((p) =>
+            <div key={p.id} onClick={() => setProblem(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 12, border: `2px solid ${problem === p.id ? C.orange : C.gray200}`, background: problem === p.id ? C.orange + '08' : C.white, cursor: 'pointer', transition: 'all 0.15s' }}>
+                <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${problem === p.id ? C.orange : C.gray300}`, background: problem === p.id ? C.orange : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {problem === p.id && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.black }}>{p.l}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Payment */}
+        <div><SectionLabel>Оплата</SectionLabel>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[{ id: 'card', l: 'Карта', icon: 'cash' }, { id: 'cash', l: 'Наличные', icon: 'money' }].map((p) =>
+            <div key={p.id} onClick={() => setPayment(p.id)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 7, padding: '11px 12px', borderRadius: 12, border: `2px solid ${payment === p.id ? C.orange : C.gray200}`, background: payment === p.id ? C.orange + '08' : C.white, cursor: 'pointer', transition: 'all 0.15s' }}>
+                <Icon name={p.icon} size={15} color={payment === p.id ? C.orange : C.gray500} /><span style={{ fontSize: 12, fontWeight: 600, color: payment === p.id ? C.orange : C.gray800 }}>{p.l}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Price */}
+        <div style={{ background: C.gray50, borderRadius: 14, padding: '13px 14px', border: `1.5px solid ${C.gray200}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: C.gray500 }}>Стоимость</span>
+          <span style={{ fontSize: 19, fontWeight: 800, color: C.black }}>2 500 – 3 000 ₽</span>
+        </div>
+      </div>
+      <div style={{ padding: '10px 18px 18px' }}>
+        <Btn style={{ width: '100%', fontSize: 16, boxShadow: `0 4px 20px ${C.orange}40` }} onPress={onSubmit}>Заказать эвакуатор</Btn>
+      </div>
+    </div>);
+
+};
+
+const ClientSearching = ({ onCancel }) => {
+  const [secs, setSecs] = React.useState(0);
+  React.useEffect(() => {const t = setInterval(() => setSecs((s) => s + 1), 1000);return () => clearInterval(t);}, []);
+  const m = String(Math.floor(secs / 60)).padStart(2, '0'),s = String(secs % 60).padStart(2, '0');
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <MapBg style={{ flex: 1 }}>
+        <div style={{ position: 'absolute', top: '42%', left: '50%' }}>
+          {[0, 1, 2].map((i) => <div key={i} style={{ position: 'absolute', width: 60 + i * 50, height: 60 + i * 50, borderRadius: '50%', border: `2px solid ${C.orange}`, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', animation: `pulseRing 2s ease-out ${i * 0.5}s infinite`, opacity: 0.5 - i * 0.1 }} />)}
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.orange, border: '3px solid #fff', boxShadow: `0 0 0 4px ${C.orange}40`, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)' }} />
+        </div>
+      </MapBg>
+      <div style={{ padding: '14px 18px 20px', background: C.white }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 14, background: C.amber + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="search" size={21} color={C.amber} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.black }}>Ищем водителя...</div>
+            <div style={{ fontSize: 13, color: C.gray500, marginTop: 2 }}>Поиск: <span style={{ fontWeight: 700, color: C.amber }}>{m}:{s}</span></div>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>{[0, 1, 2].map((i) => <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: C.amber, animation: `dotPulse 1s ease ${i * 0.2}s infinite` }} />)}</div>
+        </div>
+        <Btn variant="ghost" style={{ width: '100%', color: C.red }} onPress={onCancel}>Отменить поиск</Btn>
+      </div>
+    </div>);
+
+};
+
+const ClientDriverAssigned = ({ onNext }) =>
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <MapBg style={{ flex: 1 }}>
+      <RouteLine /><Marker type="driver" x="35%" y="40%" /><Marker type="client" x="62%" y="60%" />
+    </MapBg>
+    <div style={{ padding: '18px 18px 20px', background: C.white }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 14 }}>
+        <Avatar name="М" size={50} color={C.black} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.black }}>Михаил Соколов</div>
+          <Stars rating={5} size={13} />
+          <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>КАМАЗ 65117 · А 234 КО 77</div>
+        </div>
+        <div style={{ background: C.green + '15', borderRadius: 12, padding: '8px 11px', textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: C.gray500, fontWeight: 600 }}>Прибудет</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.green }}>15 мин</div>
+        </div>
+      </div>
+      <Divider style={{ margin: '0 0 14px' }} />
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Btn variant="ghost" style={{ flex: 1, gap: 6 }} onPress={() => {}}><Icon name="phone" size={16} color={C.black} />Позвонить</Btn>
+        <Btn variant="ghost" style={{ flex: 1, gap: 6 }} onPress={onNext}><Icon name="chat" size={16} color={C.black} />Написать</Btn>
+      </div>
+    </div>
+  </div>;
+
+
+const ClientEvacuating = ({ onNext }) =>
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <MapBg style={{ flex: 1 }}>
+      <RouteLine /><Marker type="driver" x="42%" y="50%" /><Marker type="dest" x="65%" y="30%" />
+    </MapBg>
+    <div style={{ padding: '16px 18px 20px', background: C.white }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 14 }}>
+        <div style={{ width: 46, height: 46, borderRadius: 14, background: C.orange + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="truck" size={20} color={C.orange} /></div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C.black }}>Везёт ваш автомобиль</div>
+          <div style={{ fontSize: 13, color: C.gray500 }}>Доставка через <span style={{ fontWeight: 700, color: C.orange }}>25 мин</span></div>
+        </div>
+        <StatusPill label="В пути" color={C.orange} />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ height: 5, background: C.gray100, borderRadius: 3, overflow: 'hidden' }}><div style={{ width: '55%', height: '100%', background: `linear-gradient(90deg,${C.orange},${C.amber})`, borderRadius: 3 }} /></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}><span style={{ fontSize: 11, color: C.gray500, fontWeight: 600 }}>Забрал авто</span><span style={{ fontSize: 11, color: C.gray500, fontWeight: 600 }}>Доставка</span></div>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <Btn variant="ghost" style={{ flex: 1 }} onPress={() => {}}><Icon name="phone" size={16} color={C.black} /></Btn>
+        <Btn variant="ghost" style={{ flex: 1 }} onPress={() => {}}><Icon name="chat" size={16} color={C.black} /></Btn>
+        <Btn variant="ghost" style={{ flex: 3 }} onPress={onNext}>Отследить</Btn>
+      </div>
+    </div>
+  </div>;
+
+
+const ClientCompleted = ({ onReset }) => {
+  const [rating, setRating] = React.useState(5);
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.white, padding: '28px 22px 24px', alignItems: 'center', overflow: 'auto' }}>
+      <div style={{ width: 68, height: 68, borderRadius: 20, background: C.green + '15', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}><Icon name="check" size={32} color={C.green} /></div>
+      <StatusPill label="Заказ завершён" color={C.green} />
+      <div style={{ fontSize: 20, fontWeight: 800, color: C.black, marginTop: 10, textAlign: 'center', lineHeight: 1.3 }}>Автомобиль доставлен!</div>
+      <div style={{ fontSize: 13, color: C.gray500, marginTop: 6, textAlign: 'center' }}>ул. Академика Королёва, 12</div>
+      <div style={{ width: '100%', background: C.gray50, borderRadius: 16, padding: '16px', margin: '18px 0', border: `1px solid ${C.gray200}` }}>
+        {[{ l: 'Подача', v: '500 ₽' }, { l: 'Транспортировка', v: '1 800 ₽' }, { l: 'Расстояние', v: '12 км' }].map((r) =>
+        <div key={r.l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${C.gray200}` }}>
+            <span style={{ fontSize: 13, color: C.gray500 }}>{r.l}</span><span style={{ fontSize: 13, fontWeight: 600, color: C.black }}>{r.v}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10 }}><span style={{ fontSize: 15, fontWeight: 700, color: C.black }}>Итого</span><span style={{ fontSize: 17, fontWeight: 800, color: C.orange }}>2 300 ₽</span></div>
+      </div>
+      <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.black, marginBottom: 10 }}>Оцените водителя</div>
+        <Stars rating={rating} size={34} interactive onChange={setRating} />
+        <div style={{ fontSize: 12, color: C.gray500, marginTop: 6 }}>Михаил Соколов</div>
+      </div>
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <Btn variant="green" style={{ width: '100%' }} onPress={onReset}>Оставить отзыв</Btn>
+        <Btn variant="ghost" style={{ width: '100%' }} onPress={onReset}>Заказать ещё раз</Btn>
+      </div>
+    </div>);
+
+};
+
+// ═══════════════════════════════════════════════════════
+// DRIVER SCREENS
+// ═══════════════════════════════════════════════════════
+const DriverBottomNav = ({ active, onNav }) =>
+<div style={{ display: 'flex', borderTop: `1px solid ${C.gray100}`, background: C.white, padding: '8px 0 4px' }}>
+    {[{ id: 'home', icon: 'navigate', label: 'Главная' }, { id: 'orders', icon: 'history', label: 'Заказы' }, { id: 'earnings', icon: 'money', label: 'Доходы' }, { id: 'profile', icon: 'user', label: 'Профиль' }].map((it) =>
+  <div key={it.id} onClick={() => onNav(it.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer', padding: '4px 0' }}>
+        <Icon name={it.icon} size={20} color={active === it.id ? C.orange : C.gray500} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: active === it.id ? C.orange : C.gray500 }}>{it.label}</span>
+      </div>
+  )}
+  </div>;
+
+
+const DriverOffline = ({ onGoOnline }) =>
+<div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.white, padding: '24px 22px 28px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div><div style={{ fontSize: 20, fontWeight: 800, color: C.black }}>Добрый день,</div><div style={{ fontSize: 20, fontWeight: 800, color: C.black }}>Михаил 👋</div></div>
+      <Avatar name="М" size={46} color={C.black} />
+    </div>
+    <div style={{ background: C.gray50, borderRadius: 20, padding: '24px 20px', textAlign: 'center', marginBottom: 20, border: `1.5px solid ${C.gray200}` }}>
+      <div style={{ width: 60, height: 60, borderRadius: 18, background: C.gray200, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}><Icon name="power" size={26} color={C.gray500} /></div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: C.gray800, marginBottom: 5 }}>Вы не в сети</div>
+      <div style={{ fontSize: 13, color: C.gray500 }}>Включите режим работы, чтобы получать заказы</div>
+    </div>
+    <div style={{ background: C.gray50, borderRadius: 16, padding: '14px 18px', marginBottom: 20, border: `1px solid ${C.gray200}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Вчера</div>
+      <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+        {[{ v: '4', l: 'Заказа' }, { v: '6 200 ₽', l: 'Заработано' }, { v: '4.9 ⭐', l: 'Рейтинг' }].map((s) =>
+      <div key={s.l} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: C.black }}>{s.v}</div>
+            <div style={{ fontSize: 11, color: C.gray500, marginTop: 2 }}>{s.l}</div>
+          </div>
+      )}
+      </div>
+    </div>
+    <div style={{ marginTop: 'auto' }}><Btn variant="green" style={{ width: '100%', fontSize: 16, padding: '16px' }} onPress={onGoOnline}>Начать работу</Btn></div>
+  </div>;
+
+
+const DriverOnline = ({ onOrderPress, onGoOffline }) => {
+  const orders = [
+  { id: 1, car: 'Toyota Camry', type: '🚗 Легковой', from: 'ул. Тверская, 15', to: 'СТО на Ленинском', price: '2 300 ₽', dist: '3.2 км', time: '8 мин', prob: 'Не заводится' },
+  { id: 2, car: 'BMW X5', type: '🚙 Внедорожник', from: 'Садовое кольцо, 28', to: 'Дилерский центр BMW', price: '3 100 ₽', dist: '5.8 км', time: '12 мин', prob: 'ДТП' }];
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.gray50 }}>
+      <div style={{ padding: '12px 18px', background: C.white, borderBottom: `1px solid ${C.gray100}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div><div style={{ fontSize: 11, color: C.gray500 }}>Сегодня</div><div style={{ fontSize: 14, fontWeight: 800, color: C.black }}>2 заказа · 3 200 ₽</div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: C.green, boxShadow: `0 0 0 3px ${C.green}30` }} /><span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>В сети</span></div>
+          <div onClick={onGoOffline} style={{ width: 44, height: 26, borderRadius: 13, background: C.green, position: 'relative', cursor: 'pointer' }}>
+            <div style={{ width: 20, height: 20, borderRadius: '50%', background: C.white, position: 'absolute', top: 3, right: 3, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+          </div>
+        </div>
+      </div>
+      <MapBg style={{ height: 150 }}><Marker type="driver" x="50%" y="55%" /></MapBg>
+      <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
+        <SectionLabel>Доступные заказы ({orders.length})</SectionLabel>
+        {orders.map((o) =>
+        <div key={o.id} style={{ background: C.white, borderRadius: 16, padding: '14px', marginBottom: 10, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: `1px solid ${C.gray100}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: C.black }}>{o.type} · {o.car}</span>
+              <StatusPill label={o.prob} color={o.prob === 'ДТП' ? C.red : C.amber} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 9 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.orange }} /><div style={{ width: 1.5, height: 18, background: C.gray200 }} /><div style={{ width: 6, height: 6, borderRadius: '50%', background: C.black }} />
+              </div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 11, color: C.gray800, fontWeight: 600, marginBottom: 7 }}>{o.from}</div><div style={{ fontSize: 11, color: C.gray800, fontWeight: 600 }}>{o.to}</div></div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: 12 }}><span style={{ fontSize: 12, color: C.gray500 }}>📍 {o.dist}</span><span style={{ fontSize: 12, color: C.gray500 }}>⏱ {o.time}</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}><span style={{ fontSize: 16, fontWeight: 800, color: C.black }}>{o.price}</span><Btn small onPress={onOrderPress}>Принять</Btn></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>);
+
+};
+
+const DriverNewOrder = ({ onAccept, onDecline }) => {
+  const [count, setCount] = React.useState(30);
+  React.useEffect(() => {if (count <= 0) {onDecline();return;}const t = setTimeout(() => setCount((c) => c - 1), 1000);return () => clearTimeout(t);}, [count]);
+  const pct = count / 30 * 100;
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.white }}>
+      <div style={{ padding: '18px 18px 0', textAlign: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.gray500, marginBottom: 7 }}>Новый заказ!</div>
+        <div style={{ position: 'relative', width: 70, height: 70, margin: '0 auto 14px' }}>
+          <svg viewBox="0 0 70 70" style={{ width: 70, height: 70, transform: 'rotate(-90deg)' }}>
+            <circle cx="35" cy="35" r="28" fill="none" stroke={C.gray100} strokeWidth="6" />
+            <circle cx="35" cy="35" r="28" fill="none" stroke={count > 10 ? C.orange : C.red} strokeWidth="6"
+            strokeDasharray={`${2 * Math.PI * 28}`} strokeDashoffset={`${2 * Math.PI * 28 * (1 - pct / 100)}`}
+            strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.9s linear,stroke 0.3s' }} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: count > 10 ? C.black : C.red }}>{count}</div>
+        </div>
+      </div>
+      <MapBg style={{ height: 130 }}><RouteLine /><Marker type="client" x="35%" y="55%" /><Marker type="dest" x="65%" y="35%" /></MapBg>
+      <div style={{ flex: 1, padding: '14px 18px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div><div style={{ fontSize: 20, fontWeight: 800, color: C.black }}>2 300 ₽</div><div style={{ fontSize: 11, color: C.gray500 }}>Оплата картой</div></div>
+          <div style={{ textAlign: 'right' }}><StatusPill label="Не заводится" color={C.amber} /><div style={{ fontSize: 11, color: C.gray500, marginTop: 3 }}>🚗 Toyota Camry</div></div>
+        </div>
+        <div style={{ background: C.gray50, borderRadius: 14, padding: '12px' }}>
+          {[{ icon: 'location', color: C.orange, text: 'ул. Тверская, 15', label: 'Забрать' }, { icon: 'location', color: C.black, text: 'СТО Автодром, Ленинский пр., 42', label: 'Доставить' }].map((r) =>
+          <div key={r.label} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: r.label === 'Забрать' ? 9 : 0 }}>
+              <Icon name={r.icon} size={14} color={r.color} style={{ marginTop: 2 }} />
+              <div><div style={{ fontSize: 9, fontWeight: 700, color: C.gray500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{r.label}</div><div style={{ fontSize: 12, fontWeight: 600, color: C.black }}>{r.text}</div></div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[{ v: '3.2 км', l: 'до клиента' }, { v: '8 мин', l: 'подача' }, { v: '12 км', l: 'маршрут' }].map((s) =>
+          <div key={s.l} style={{ flex: 1, textAlign: 'center', padding: '9px 4px', background: C.gray50, borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.black }}>{s.v}</div>
+              <div style={{ fontSize: 10, color: C.gray500 }}>{s.l}</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ padding: '10px 18px 20px', display: 'flex', gap: 10 }}>
+        <Btn variant="ghost" style={{ flex: 1, color: C.red }} onPress={onDecline}>Отклонить</Btn>
+        <Btn variant="green" style={{ flex: 2, fontSize: 15 }} onPress={onAccept}>✓ Принять заказ</Btn>
+      </div>
+    </div>);
+
+};
+
+const DriverActiveOrder = ({ onComplete }) => {
+  const steps = ['Еду к клиенту', 'Я на месте', 'Начать эвакуацию', 'Завершить'];
+  const [step, setStep] = React.useState(0);
+  const advance = () => {if (step < steps.length - 1) setStep((s) => s + 1);else onComplete();};
+  const colors = [C.amber, C.blue, C.orange, C.green];
+  const cc = colors[step];
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.gray50 }}>
+      <div style={{ padding: '12px 18px', background: C.white, borderBottom: `1px solid ${C.gray100}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <StatusPill label={steps[step]} color={cc} /><span style={{ fontSize: 14, fontWeight: 800, color: C.black }}>2 300 ₽</span>
+        </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {steps.map((_, i) => <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? cc : C.gray200, transition: 'background 0.3s' }} />)}
+        </div>
+      </div>
+      <MapBg style={{ flex: 1 }}><RouteLine /><Marker type="driver" x="40%" y="55%" /><Marker type="client" x="62%" y="38%" /></MapBg>
+      <div style={{ padding: '14px 18px 18px', background: C.white }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 12 }}>
+          <Avatar name="А" size={42} color={C.orange} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.black }}>Алексей Иванов</div>
+            <div style={{ fontSize: 11, color: C.gray500 }}>🚗 Toyota Camry · Не заводится</div>
+          </div>
+          <div style={{ display: 'flex', gap: 7 }}>
+            {['phone', 'chat'].map((ic) => <div key={ic} style={{ width: 36, height: 36, borderRadius: 10, background: C.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Icon name={ic} size={15} color={C.black} /></div>)}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 9 }}>
+          <Btn variant="ghost" style={{ flex: 1, fontSize: 12, gap: 5 }} onPress={() => {}}><Icon name="navigate" size={14} color={C.black} />Навигатор</Btn>
+          <Btn style={{ flex: 2, fontSize: 13 }} variant={step === steps.length - 1 ? 'green' : 'primary'} onPress={advance}>
+            {step < steps.length - 1 ? steps[step + 1] : '✓ Завершить заказ'}
+          </Btn>
+        </div>
+      </div>
+    </div>);
+
+};
+
+// ═══════════════════════════════════════════════════════
+// PHONE SHELL
+// ═══════════════════════════════════════════════════════
+const PhoneShell = ({ children, statusLight }) => {
+  const [time, setTime] = React.useState('');
+  React.useEffect(() => {
+    const upd = () => {const n = new Date();setTime(n.getHours().toString().padStart(2, '0') + ':' + n.getMinutes().toString().padStart(2, '0'));};
+    upd();const t = setInterval(upd, 10000);return () => clearInterval(t);
+  }, []);
+  const tc = statusLight ? '#fff' : '#1A1A1A';
+  return (
+    <div style={{ width: 390, height: 844, borderRadius: 50, overflow: 'hidden', background: '#fff', position: 'relative', display: 'flex', flexDirection: 'column', boxShadow: '0 0 0 10px #222,0 0 0 12px #333,0 40px 80px rgba(0,0,0,0.7)' }}>
+      {/* Status bar */}
+      <div style={{ height: 50, display: 'flex', alignItems: 'flex-end', paddingBottom: 8, paddingLeft: 28, paddingRight: 24, justifyContent: 'space-between', position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, pointerEvents: 'none' }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: tc, letterSpacing: '-0.02em' }}>{time}</span>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill={tc}><rect x="0" y="6" width="3" height="5" rx="0.5" /><rect x="4.5" y="4" width="3" height="7" rx="0.5" /><rect x="9" y="1.5" width="3" height="9.5" rx="0.5" /><rect x="13.5" y="0" width="2.5" height="11" rx="0.5" opacity="0.4" /></svg>
+          <svg width="15" height="11" viewBox="0 0 15 11" fill="none" stroke={tc} strokeWidth="1.5" strokeLinecap="round"><path d="M0.5 4C2.8 1.8 5.5 0.8 7.5 0.8s4.7.9 7 3.2" /><path d="M2.5 6.5C4 5 5.8 4.2 7.5 4.2s3.5.8 5 2.3" /><circle cx="7.5" cy="10" r="1" fill={tc} /></svg>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <div style={{ width: 22, height: 11, border: `1.5px solid ${tc}`, borderRadius: 3, display: 'flex', alignItems: 'center', padding: '1.5px' }}><div style={{ width: '75%', height: '100%', background: tc, borderRadius: 1.5 }} /></div>
+            <div style={{ width: 2, height: 5, background: tc, borderRadius: '0 1px 1px 0', opacity: 0.5 }} />
+          </div>
+        </div>
+      </div>
+      {/* Dynamic island */}
+      <div style={{ position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)', width: 118, height: 34, background: '#000', borderRadius: 20, zIndex: 101 }} />
+      {/* Content */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginTop: 50, overflow: 'hidden' }}>{children}</div>
+      {/* Home bar */}
+      <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', flexShrink: 0 }}>
+        <div style={{ width: 128, height: 4, background: '#1A1A1A', borderRadius: 2, opacity: 0.16 }} />
+      </div>
+    </div>);
+
+};
+
+// ═══════════════════════════════════════════════════════
+// QUICK NAV SIDEBAR
+// ═══════════════════════════════════════════════════════
+const QuickNav = ({ current, onJump }) => {
+  const sections = [
+  { label: 'Онбординг', items: [{ id: 'splash', l: 'Сплэш' }, { id: 'role', l: 'Выбор роли' }, { id: 'phone', l: 'Телефон' }, { id: 'sms', l: 'SMS-код' }] },
+  { label: 'Водитель: Онбординг', items: [{ id: 'doc_upload', l: 'Документы' }, { id: 'driver_profile', l: 'Профиль' }, { id: 'moderation', l: 'Модерация' }] },
+  { label: 'Водитель: Приложение', items: [{ id: 'driver_offline', l: 'Оффлайн' }, { id: 'driver_online', l: 'Онлайн / Заказы' }, { id: 'driver_new_order', l: 'Новый заказ' }, { id: 'driver_active', l: 'Активный заказ' }, { id: 'driver_orders', l: 'Мои заказы' }, { id: 'driver_earnings', l: 'Доходы' }, { id: 'driver_profile_tab', l: 'Профиль' }] },
+  { label: 'Клиент: Приложение', items: [{ id: 'client_idle', l: 'Главная' }, { id: 'client_select', l: 'Выбор места' }, { id: 'client_form', l: 'Форма заказа' }, { id: 'client_searching', l: 'Поиск водителя' }, { id: 'client_assigned', l: 'Водитель назначен' }, { id: 'client_evacuating', l: 'Эвакуация' }, { id: 'client_done', l: 'Завершено' }, { id: 'client_orders', l: 'История заказов' }, { id: 'client_payment', l: 'Оплата' }, { id: 'client_profile', l: 'Профиль' }] }];
+
+  return (
+    <div style={{ position: 'fixed', left: 14, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 18, zIndex: 200, maxHeight: '95vh', overflowY: 'auto' }}>
+      {sections.map((sec) =>
+      <div key={sec.label}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5, paddingLeft: 2 }}>{sec.label}</div>
+          {sec.items.map((s) =>
+        <div key={s.id} onClick={() => onJump(s.id)} style={{ fontSize: 11, fontWeight: 600, color: current === s.id ? '#FF6B35' : 'rgba(255,255,255,0.45)', cursor: 'pointer', padding: '3px 8px', borderRadius: 6, background: current === s.id ? 'rgba(255,107,53,0.15)' : 'transparent', borderLeft: `2px solid ${current === s.id ? '#FF6B35' : 'transparent'}`, transition: 'all 0.15s', whiteSpace: 'nowrap', marginBottom: 2 }}>
+              {s.l}
+            </div>
+        )}
+        </div>
+      )}
+    </div>);
+
+};
+
+// ═══════════════════════════════════════════════════════
+// SCREEN WRAPPER
+// ═══════════════════════════════════════════════════════
+const Screen = ({ children, anim = 'slideUp' }) =>
+<div style={{ display: 'flex', flexDirection: 'column', flex: 1, animation: `${anim} 0.28s ease forwards`, overflow: 'hidden' }}>
+    {children}
+  </div>;
+
+
+const ScreenLabel = ({ label }) =>
+<div style={{ position: 'absolute', top: -34, left: 0, right: 0, textAlign: 'center' }}>
+    <span style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, padding: '3px 12px', borderRadius: 20, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+  </div>;
+
+
+
+// ═══════════════════════════════════════════════════════
+// CLIENT TAB SCREENS
+// ═══════════════════════════════════════════════════════
+const ClientOrders = () => {
+  const orders = [
+    {id:1,date:'23 апр, 14:32',from:'ул. Тверская, 15',to:'СТО Автодром, Ленинский пр.',price:'2 300 ₽',status:'done',driver:'Михаил С.',rating:5,car:'Toyota Camry'},
+    {id:2,date:'19 апр, 09:14',from:'Садовое кольцо, 28',to:'Паркинг Охотный Ряд',price:'1 800 ₽',status:'done',driver:'Алексей В.',rating:4,car:'BMW X5'},
+    {id:3,date:'11 апр, 18:55',from:'ш. Энтузиастов, 3',to:'Дилерский центр KIA',price:'3 100 ₽',status:'cancelled',driver:'—',rating:null,car:'KIA Sportage'},
+    {id:4,date:'2 апр, 11:20',from:'ул. Профсоюзная, 110',to:'Автосервис Митя',price:'2 700 ₽',status:'done',driver:'Сергей Р.',rating:5,car:'Lada Vesta'},
+  ];
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'16px 20px 12px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.black}}>История заказов</div>
+        <div style={{fontSize:13,color:C.gray500,marginTop:3}}>4 поездки</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:10}}>
+        {orders.map(o=>(
+          <div key={o.id} style={{background:C.white,borderRadius:16,padding:'16px',boxShadow:'0 1px 6px rgba(0,0,0,0.05)',border:`1px solid ${C.gray100}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10}}>
+              <div><div style={{fontSize:12,color:C.gray500,marginBottom:2}}>{o.date}</div><div style={{fontSize:13,fontWeight:600,color:C.gray800}}>{o.car}</div></div>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+                <span style={{fontSize:16,fontWeight:800,color:C.black}}>{o.price}</span>
+                <StatusPill label={o.status==='done'?'Завершён':'Отменён'} color={o.status==='done'?C.green:C.red}/>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:o.rating?10:0}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:3}}>
+                <div style={{width:7,height:7,borderRadius:'50%',background:C.orange}}/>
+                <div style={{width:1.5,height:18,background:C.gray200}}/>
+                <div style={{width:7,height:7,borderRadius:'50%',background:C.black}}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:500,color:C.gray800,marginBottom:7}}>{o.from}</div>
+                <div style={{fontSize:11,fontWeight:500,color:C.gray800}}>{o.to}</div>
+              </div>
+            </div>
+            {o.rating&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:10,borderTop:`1px solid ${C.gray100}`}}><span style={{fontSize:12,color:C.gray500}}>{o.driver}</span><Stars rating={o.rating} size={13}/></div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ClientPayment = () => {
+  const [activeCard, setActiveCard] = React.useState(0);
+  const cards = [{last:'4242',brand:'Visa',color:'#1A1A1A',exp:'12/27'},{last:'5678',brand:'MC',color:'#374151',exp:'08/26'}];
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'16px 20px 12px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.black}}>Оплата</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'18px 18px',display:'flex',flexDirection:'column',gap:16}}>
+        <div><SectionLabel>Сохранённые карты</SectionLabel>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {cards.map((card,i)=>(
+              <div key={i} onClick={()=>setActiveCard(i)} style={{borderRadius:16,padding:'18px 20px',background:card.color,cursor:'pointer',border:`3px solid ${activeCard===i?C.orange:'transparent'}`,transition:'border 0.2s',position:'relative',overflow:'hidden'}}>
+                <div style={{position:'absolute',right:-20,top:-20,width:120,height:120,borderRadius:'50%',background:'rgba(255,255,255,0.04)'}}/>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:22}}>
+                  <div style={{width:34,height:22,borderRadius:4,background:'rgba(255,255,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{width:22,height:14,borderRadius:2,background:'linear-gradient(135deg,#f4c430,#e8a200)'}}/></div>
+                  <span style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.7)'}}>{card.brand}</span>
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#fff',letterSpacing:'0.1em',marginBottom:10}}>•••• •••• •••• {card.last}</div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:11,color:'rgba(255,255,255,0.5)'}}>До {card.exp}</span>
+                  {activeCard===i&&<div style={{width:20,height:20,borderRadius:'50%',background:C.orange,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={11} color="#fff"/></div>}
+                </div>
+              </div>
+            ))}
+            <div style={{borderRadius:16,padding:'14px 16px',background:C.white,border:`2px dashed ${C.gray200}`,display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
+              <div style={{width:34,height:34,borderRadius:10,background:C.orange+'15',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:700,color:C.orange}}>+</div>
+              <span style={{fontSize:14,fontWeight:600,color:C.gray800}}>Добавить карту</span>
+            </div>
+          </div>
+        </div>
+        <div><SectionLabel>Промокод</SectionLabel>
+          <div style={{display:'flex',gap:10,marginBottom:10}}>
+            <div style={{flex:1,background:C.white,borderRadius:12,padding:'12px 14px',border:`1.5px solid ${C.gray200}`,fontSize:14,fontWeight:500,color:C.gray500}}>EVIK2025</div>
+            <Btn small onPress={()=>{}}>Применить</Btn>
+          </div>
+          <div style={{background:C.green+'12',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:8,border:`1px solid ${C.green}25`}}>
+            <Icon name="check" size={14} color={C.green}/><span style={{fontSize:13,fontWeight:600,color:C.green}}>Скидка 10% на следующую поездку</span>
+          </div>
+        </div>
+        <div><SectionLabel>Последние платежи</SectionLabel>
+          {[{d:'23 апр',desc:'Эвакуация · Тверская',v:'-2 300 ₽'},{d:'19 апр',desc:'Эвакуация · Садовое',v:'-1 800 ₽'},{d:'2 апр',desc:'Эвакуация · Профсоюзная',v:'-2 700 ₽'}].map(p=>(
+            <div key={p.d} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'11px 0',borderBottom:`1px solid ${C.gray100}`}}>
+              <div><div style={{fontSize:13,fontWeight:600,color:C.black}}>{p.desc}</div><div style={{fontSize:11,color:C.gray500,marginTop:2}}>{p.d}</div></div>
+              <span style={{fontSize:14,fontWeight:700,color:C.black}}>{p.v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ClientProfile = ({ onLogout }) => {
+  const items = [
+    {icon:'user',label:'Личные данные',sub:'Имя, телефон, email'},
+    {icon:'shield',label:'Безопасность',sub:'Пароль, двухфакторная'},
+    {icon:'bell',label:'Уведомления',sub:'SMS, Push-уведомления'},
+    {icon:'location',label:'Мои адреса',sub:'Домашний, рабочий'},
+    {icon:'shield',label:'Экстренная связь',sub:'112 · ГАИ · Скорая'},
+    {icon:'chat',label:'Поддержка',sub:'Чат, email, телефон'},
+  ];
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'18px 20px 14px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <Avatar name="А" size={54} color={C.orange}/>
+          <div>
+            <div style={{fontSize:17,fontWeight:800,color:C.black}}>Алексей Иванов</div>
+            <div style={{fontSize:12,color:C.gray500}}>+7 (999) 123-45-67</div>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}><Stars rating={4} size={13}/><span style={{fontSize:12,color:C.gray500}}>4.0 · 7 поездок</span></div>
+          </div>
+        </div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'12px 16px'}}>
+        {items.map((item,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:13,padding:'12px 13px',background:C.white,borderRadius:14,marginBottom:8,cursor:'pointer',border:`1px solid ${C.gray100}`}}>
+            <div style={{width:36,height:36,borderRadius:11,background:C.gray100,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={item.icon} size={17} color={C.gray800}/></div>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:C.black}}>{item.label}</div><div style={{fontSize:11,color:C.gray500,marginTop:1}}>{item.sub}</div></div>
+            <Icon name="arrow" size={15} color={C.gray500}/>
+          </div>
+        ))}
+        <div style={{marginTop:8}}><Btn variant="ghost" style={{width:'100%',color:C.red}} onPress={onLogout}>Выйти из аккаунта</Btn></div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+// DRIVER TAB SCREENS
+// ═══════════════════════════════════════════════════════
+const DriverOrders = () => {
+  const orders = [
+    {id:1,date:'24 апр, 09:10',from:'Ленинский пр., 4',to:'СТО Мотор, Вавилова',price:'2 300 ₽',car:'Toyota Camry',status:'done',time:'42 мин'},
+    {id:2,date:'23 апр, 17:44',from:'ул. Арбат, 22',to:'Дилерский центр, Варшавка',price:'3 800 ₽',car:'Porsche Cayenne',status:'done',time:'58 мин'},
+    {id:3,date:'23 апр, 13:30',from:'Рублёвское ш., 14',to:'Парковка ТЦ Крокус',price:'—',car:'Mercedes GLE',status:'cancelled',time:'—'},
+    {id:4,date:'22 апр, 11:00',from:'ул. Большая Дмитровка',to:'Кузовной цех №1',price:'1 900 ₽',car:'Lada Granta',status:'done',time:'35 мин'},
+  ];
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'16px 20px 12px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.black}}>Мои заказы</div>
+        <div style={{fontSize:13,color:C.gray500,marginTop:3}}>4 поездки за неделю</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:10}}>
+        {orders.map(o=>(
+          <div key={o.id} style={{background:C.white,borderRadius:16,padding:'14px 16px',boxShadow:'0 1px 6px rgba(0,0,0,0.05)',border:`1px solid ${C.gray100}`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:9}}>
+              <div><div style={{fontSize:11,color:C.gray500,marginBottom:1}}>{o.date}</div><div style={{fontSize:13,fontWeight:600,color:C.gray800}}>{o.car}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontSize:15,fontWeight:800,color:o.status==='done'?C.black:C.gray500,marginBottom:3}}>{o.price}</div><StatusPill label={o.status==='done'?'Завершён':'Отменён'} color={o.status==='done'?C.green:C.red}/></div>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:o.status==='done'?9:0}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:3}}><div style={{width:6,height:6,borderRadius:'50%',background:C.orange}}/><div style={{width:1.5,height:16,background:C.gray200}}/><div style={{width:6,height:6,borderRadius:'50%',background:C.black}}/></div>
+              <div style={{flex:1}}><div style={{fontSize:11,fontWeight:500,color:C.gray800,marginBottom:6}}>{o.from}</div><div style={{fontSize:11,fontWeight:500,color:C.gray800}}>{o.to}</div></div>
+            </div>
+            {o.status==='done'&&<div style={{display:'flex',gap:14,paddingTop:9,borderTop:`1px solid ${C.gray100}`}}><span style={{fontSize:11,color:C.gray500}}>⏱ {o.time}</span><span style={{fontSize:11,color:C.green,fontWeight:600}}>+{o.price}</span></div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const DriverEarnings = () => {
+  const weeks = [{day:'Пн',h:60},{day:'Вт',h:90},{day:'Ср',h:45},{day:'Чт',h:80},{day:'Пт',h:100},{day:'Сб',h:70},{day:'Вс',h:30}];
+  const max = Math.max(...weeks.map(w=>w.h));
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'16px 20px 12px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{fontSize:20,fontWeight:800,color:C.black}}>Мои доходы</div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'16px 16px',display:'flex',flexDirection:'column',gap:14}}>
+        <div style={{background:C.black,borderRadius:20,padding:'20px 20px'}}>
+          <div style={{fontSize:12,fontWeight:600,color:'rgba(255,255,255,0.5)',marginBottom:4}}>Эта неделя</div>
+          <div style={{fontSize:32,fontWeight:800,color:C.white,marginBottom:2}}>18 400 ₽</div>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:18}}>
+            <div style={{background:C.green,borderRadius:6,padding:'2px 8px',fontSize:11,fontWeight:700,color:'#fff'}}>+12%</div>
+            <span style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>чем на прошлой неделе</span>
+          </div>
+          <div style={{display:'flex',gap:6,alignItems:'flex-end',height:56}}>
+            {weeks.map(w=>(
+              <div key={w.day} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                <div style={{width:'100%',borderRadius:4,background:w.day==='Пт'?C.orange:'rgba(255,255,255,0.15)',height:`${(w.h/max)*44}px`}}/>
+                <span style={{fontSize:9,fontWeight:600,color:'rgba(255,255,255,0.4)'}}>{w.day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[{l:'Заказов',v:'12',icon:'history',c:C.orange},{l:'Средний чек',v:'1 533 ₽',icon:'money',c:C.green},{l:'Часов в работе',v:'28 ч',icon:'time',c:C.blue},{l:'Рейтинг',v:'4.9 ⭐',icon:'star',c:C.amber}].map(s=>(
+            <div key={s.l} style={{background:C.white,borderRadius:16,padding:'14px',border:`1px solid ${C.gray100}`}}>
+              <div style={{width:32,height:32,borderRadius:10,background:s.c+'15',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:10}}><Icon name={s.icon} size={15} color={s.c}/></div>
+              <div style={{fontSize:17,fontWeight:800,color:C.black}}>{s.v}</div>
+              <div style={{fontSize:11,color:C.gray500,marginTop:2,lineHeight:1.3}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:C.white,borderRadius:16,padding:'16px',border:`1px solid ${C.gray100}`}}>
+          <SectionLabel>Выплата</SectionLabel>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <div><div style={{fontSize:22,fontWeight:800,color:C.black}}>18 400 ₽</div><div style={{fontSize:12,color:C.gray500}}>Доступно для вывода</div></div>
+            <Btn small variant="green" onPress={()=>{}}>Вывести</Btn>
+          </div>
+          <div style={{background:C.gray50,borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10}}>
+            <Icon name="cash" size={15} color={C.gray800}/><span style={{fontSize:12,fontWeight:600,color:C.gray800}}>Сбербанк •••• 4242</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DriverProfileTab = ({ onLogout }) => {
+  const items = [
+    {icon:'truck',label:'Мой эвакуатор',sub:'КАМАЗ 65117 · А 234 КО 77'},
+    {icon:'upload',label:'Документы',sub:'Все документы действительны'},
+    {icon:'bell',label:'Уведомления',sub:'Новые заказы, выплаты'},
+    {icon:'cash',label:'Реквизиты',sub:'Сбербанк •••• 4242'},
+    {icon:'shield',label:'Страхование',sub:'ОСАГО до 01.2026'},
+    {icon:'chat',label:'Поддержка водителей',sub:'24/7 · Приоритетная линия'},
+  ];
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',background:C.gray50,overflow:'hidden'}}>
+      <div style={{padding:'18px 20px 14px',background:C.white,borderBottom:`1px solid ${C.gray100}`}}>
+        <div style={{display:'flex',alignItems:'center',gap:14}}>
+          <Avatar name="М" size={54} color={C.black}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:17,fontWeight:800,color:C.black}}>Михаил Соколов</div>
+            <div style={{fontSize:12,color:C.gray500}}>+7 (916) 234-56-78</div>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}><Stars rating={5} size={12}/><span style={{fontSize:11,color:C.gray500}}>4.9 · 148 заказов</span></div>
+          </div>
+          <div style={{background:C.green+'15',borderRadius:12,padding:'6px 10px',textAlign:'center'}}>
+            <div style={{fontSize:10,color:C.gray500,fontWeight:600}}>Стаж</div>
+            <div style={{fontSize:14,fontWeight:800,color:C.green}}>2 года</div>
+          </div>
+        </div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'12px 16px'}}>
+        {items.map((item,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:13,padding:'12px 13px',background:C.white,borderRadius:14,marginBottom:8,cursor:'pointer',border:`1px solid ${C.gray100}`}}>
+            <div style={{width:36,height:36,borderRadius:11,background:C.gray100,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={item.icon} size={17} color={C.gray800}/></div>
+            <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:C.black}}>{item.label}</div><div style={{fontSize:11,color:C.gray500,marginTop:1}}>{item.sub}</div></div>
+            <Icon name="arrow" size={15} color={C.gray500}/>
+          </div>
+        ))}
+        <div style={{marginTop:8}}><Btn variant="ghost" style={{width:'100%',color:C.red}} onPress={onLogout}>Выйти из аккаунта</Btn></div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "darkMap": false,
+  "driverModerationStatus": "approved",
+  "startScreen": "splash"
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const { tweaks, setTweak, TweaksPanel, TweakSection, TweakToggle, TweakSelect } = useTweaks(TWEAK_DEFAULTS);
+  const [screen, setScreen] = React.useState(tweaks.startScreen || 'splash');
+  const [role, setRole] = React.useState(null);
+  const [navTab, setNavTab] = React.useState('home');
+  const [frameKey, setFrameKey] = React.useState(0);
+
+  const go = (s) => {setFrameKey((k) => k + 1);setScreen(s);};
+
+  const labels = {
+    splash: 'Сплэш', role: 'Выбор роли', phone: 'Ввод телефона', sms: 'SMS-код',
+    doc_upload: 'Загрузка документов', driver_profile: 'Профиль водителя', moderation: 'Модерация',
+    driver_offline: 'Водитель: Оффлайн', driver_online: 'Водитель: Онлайн', driver_new_order: 'Водитель: Новый заказ', driver_active: 'Водитель: Активный заказ',
+    client_idle: 'Клиент: Главная', client_select: 'Клиент: Выбор места', client_form: 'Клиент: Форма заказа',
+    client_searching: 'Клиент: Поиск', client_assigned: 'Клиент: Водитель назначен',
+    client_evacuating: 'Клиент: Эвакуация', client_done: 'Клиент: Завершено',
+    client_orders: 'Клиент: История заказов', client_payment: 'Клиент: Оплата', client_profile: 'Клиент: Профиль',
+    driver_orders: 'Водитель: Заказы', driver_earnings: 'Водитель: Доходы', driver_profile_tab: 'Водитель: Профиль',
+  };
+
+  const mapScreens = ['client_idle', 'client_select', 'client_searching', 'client_assigned', 'client_evacuating', 'driver_online', 'driver_active', 'driver_new_order'];
+  const darkStatus = mapScreens.includes(screen) || screen === 'splash';
+
+  // Auto-advance searching → assigned
+  React.useEffect(() => {
+    if (screen === 'client_searching') {
+      const t = setTimeout(() => go('client_assigned'), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [screen]);
+
+  const renderContent = () => {
+    switch (screen) {
+      case 'splash':return <SplashScreen onDone={() => go('role')} />;
+      case 'role':return <Screen><RoleScreen onSelect={(r) => {setRole(r);go('phone');}} /></Screen>;
+      case 'phone':return <Screen><PhoneScreen onNext={() => go('sms')} /></Screen>;
+      case 'sms':return <Screen><SmsScreen onNext={() => go(role === 'driver' ? 'doc_upload' : 'client_idle')} /></Screen>;
+      case 'doc_upload':return <Screen><DocUploadScreen onNext={() => go('driver_profile')} /></Screen>;
+      case 'driver_profile':return <Screen><DriverProfileScreen onNext={() => go('moderation')} /></Screen>;
+      case 'moderation':return <Screen><ModerationScreen status={tweaks.driverModerationStatus} onApproved={() => go('driver_offline')} /></Screen>;
+      case 'driver_offline':return <Screen><DriverOffline onGoOnline={()=>go('driver_online')}/><DriverBottomNav active="home" onNav={t=>go({home:'driver_offline',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_offline')}/></Screen>;
+      case 'driver_online':return <Screen><DriverOnline onOrderPress={()=>go('driver_new_order')} onGoOffline={()=>go('driver_offline')}/><DriverBottomNav active="home" onNav={t=>go({home:'driver_online',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_online')}/></Screen>;
+      case 'driver_new_order':return <Screen><DriverNewOrder onAccept={() => go('driver_active')} onDecline={() => go('driver_online')} /></Screen>;
+      case 'driver_active':return <Screen><DriverActiveOrder onComplete={()=>go('driver_online')}/><DriverBottomNav active="home" onNav={t=>go({home:'driver_online',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_online')}/></Screen>;
+      case 'client_idle':return <Screen anim="fadeIn"><ClientIdle onOrder={()=>go('client_select')} darkMap={tweaks.darkMap}/><ClientBottomNav active="home" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'client_select':return <Screen><ClientSelecting onConfirm={() => go('client_form')} onBack={() => go('client_idle')} /></Screen>;
+      case 'client_form':return <Screen><ClientOrderForm onSubmit={() => go('client_searching')} onBack={() => go('client_select')} /></Screen>;
+      case 'client_searching':return <Screen><ClientSearching onCancel={() => go('client_idle')} /></Screen>;
+      case 'client_assigned':return <Screen><ClientDriverAssigned onNext={()=>go('client_evacuating')}/><ClientBottomNav active="home" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'client_evacuating':return <Screen><ClientEvacuating onNext={()=>go('client_done')}/><ClientBottomNav active="home" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'client_done':return <Screen><ClientCompleted onReset={()=>go('client_idle')}/><ClientBottomNav active="home" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+
+      case 'client_orders':return <Screen><ClientOrders/><ClientBottomNav active="history" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'client_payment':return <Screen><ClientPayment/><ClientBottomNav active="wallet" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'client_profile':return <Screen><ClientProfile onLogout={()=>go('role')}/><ClientBottomNav active="profile" onNav={t=>go({home:'client_idle',history:'client_orders',wallet:'client_payment',profile:'client_profile'}[t]||'client_idle')}/></Screen>;
+      case 'driver_orders':return <Screen><DriverOrders/><DriverBottomNav active="orders" onNav={t=>go({home:'driver_online',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_online')}/></Screen>;
+      case 'driver_earnings':return <Screen><DriverEarnings/><DriverBottomNav active="earnings" onNav={t=>go({home:'driver_online',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_online')}/></Screen>;
+      case 'driver_profile_tab':return <Screen><DriverProfileTab onLogout={()=>go('role')}/><DriverBottomNav active="profile" onNav={t=>go({home:'driver_online',orders:'driver_orders',earnings:'driver_earnings',profile:'driver_profile_tab'}[t]||'driver_online')}/></Screen>;
+      default:return <div style={{flex:1,background:'#fff',display:'flex',alignItems:'center',justifyContent:'center',color:'#999'}}>...</div>;
+    }
+  };
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at 30% 40%,#1a1a2e 0%,#0d0d0d 100%)' }} />
+      <QuickNav current={screen} onJump={go} />
+      <div style={{ position: 'relative', zIndex: 10 }}>
+        <ScreenLabel label={labels[screen] || screen} />
+        <PhoneShell key={frameKey} statusLight={darkStatus}>
+          {renderContent()}
+        </PhoneShell>
+        <div style={{ position: 'absolute', bottom: -30, left: 0, right: 0, textAlign: 'center' }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 500 }}>Используйте меню слева для навигации между экранами</span>
+        </div>
+      </div>
+      <TweaksPanel>
+        <TweakSection title="Карта">
+          <TweakToggle id="darkMap" label="Тёмная тема карты" />
+        </TweakSection>
+        <TweakSection title="Водитель: Модерация">
+          <TweakSelect id="driverModerationStatus" label="Статус" options={[
+          { value: 'pending', label: '⏳ Ожидание' },
+          { value: 'rejected', label: '❌ Отклонено' },
+          { value: 'approved', label: '✅ Одобрено' }]
+          } />
+        </TweakSection>
+        <TweakSection title="Стартовый экран">
+          <TweakSelect id="startScreen" label="Начать с" options={[
+          { value: 'splash', label: 'Сплэш' },
+          { value: 'role', label: 'Выбор роли' },
+          { value: 'client_idle', label: 'Клиент: Главная' },
+          { value: 'driver_offline', label: 'Водитель: Оффлайн' }]
+          } />
+        </TweakSection>
+      </TweaksPanel>
+    </div>);
+
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"evik/backend/internal/auth"
 	driverdomain "evik/backend/internal/domain/driver"
 	orderdomain "evik/backend/internal/domain/order"
 	orderuc "evik/backend/internal/usecase/order"
@@ -38,7 +39,6 @@ func NewOrderHandler(
 }
 
 type createOrderRequest struct {
-	UserID       string  `json:"user_id"`
 	PickupLat    float64 `json:"pickup_lat"`
 	PickupLng    float64 `json:"pickup_lng"`
 	DropoffLat   float64 `json:"dropoff_lat"`
@@ -85,9 +85,14 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	ord, err := h.createUC.Execute(r.Context(), orderuc.CreateOrderInput{
-		UserID:       req.UserID,
+		UserID:       userID,
 		PickupLat:    req.PickupLat,
 		PickupLng:    req.PickupLng,
 		DropoffLat:   req.DropoffLat,
@@ -150,12 +155,30 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	var req acceptOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 		h.writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	driverID := req.DriverID
+	if role != auth.RoleAdmin {
+		driverID = userID
+	}
+	if driverID == "" {
+		h.writeError(w, http.StatusBadRequest, errors.New("driver id is required"))
+		return
+	}
 
-	ord, err := h.acceptUC.Execute(r.Context(), orderID, req.DriverID)
+	ord, err := h.acceptUC.Execute(r.Context(), orderID, driverID)
 	if err != nil {
 		h.writeOrderError(w, err)
 		return

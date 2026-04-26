@@ -8,16 +8,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.yandex.mapkit.Animation
-import com.yandex.mapkit.RequestPoint
-import com.yandex.mapkit.RequestPointType
-import com.yandex.mapkit.directions.DirectionsFactory
-import com.yandex.mapkit.directions.driving.DrivingOptions
-import com.yandex.mapkit.directions.driving.DrivingRoute
-import com.yandex.mapkit.directions.driving.DrivingRouter
-import com.yandex.mapkit.directions.driving.DrivingRouterType
-import com.yandex.mapkit.directions.driving.DrivingSession
-import com.yandex.mapkit.directions.driving.VehicleOptions
 import com.yandex.mapkit.geometry.Point
+import com.yandex.mapkit.geometry.Polyline
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.PlacemarkMapObject
 import com.yandex.mapkit.map.PolylineMapObject
@@ -54,16 +46,12 @@ class YandexMapPlatformView(
     private var channel: MethodChannel? = null
     private val markerObjects = linkedMapOf<String, PlacemarkMapObject>()
     private var routeObject: PolylineMapObject? = null
-    private var drivingRouter: DrivingRouter? = null
-    private var drivingSession: DrivingSession? = null
 
     init {
         if (MainApplication.isMapKitInitialized) {
             try {
                 mapView = MapView(context)
                 mapView?.onStart()
-                drivingRouter =
-                    DirectionsFactory.getInstance().createDrivingRouter(DrivingRouterType.ONLINE)
 
                 applyInitialCamera(args)
 
@@ -89,8 +77,6 @@ class YandexMapPlatformView(
                 clearRouteInternal(mv)
                 clearMarkersInternal(mv)
             }
-            drivingSession?.cancel()
-            drivingSession = null
             mapView?.onStop()
         } catch (t: Throwable) {
             Log.e(TAG, "Error while stopping MapKit view", t)
@@ -195,51 +181,15 @@ class YandexMapPlatformView(
                 return@runOnUiThread
             }
 
-            val requestPoints = points.map { point ->
-                RequestPoint(point, RequestPointType.WAYPOINT, "", "")
-            }
-
-            drivingSession?.cancel()
-            drivingSession = drivingRouter?.requestRoutes(
-                requestPoints,
-                DrivingOptions(),
-                VehicleOptions(),
-                object : DrivingSession.DrivingRouteListener {
-                    override fun onDrivingRoutes(routes: MutableList<DrivingRoute>) {
-                        activity.runOnUiThread {
-                            val current = mapView ?: return@runOnUiThread
-                            val route = routes.firstOrNull()
-                            if (route == null) {
-                                clearRouteInternal(current)
-                                dispatchRouteSummary(null, null)
-                                return@runOnUiThread
-                            }
-                            clearRouteInternal(current)
-                            routeObject = current.mapWindow.map.mapObjects
-                                .addPolyline(route.geometry)
-                                .apply { applyRouteStyle(this) }
-                            focusRoute(current, route.geometry.points)
-                            dispatchRouteSummary(
-                                extractRouteDistanceMeters(route),
-                                extractRouteDurationSeconds(route)
-                            )
-                        }
-                    }
-
-                    override fun onDrivingRoutesError(error: Error) {
-                        Log.w(TAG, "Driving route request failed: ${error.javaClass.simpleName}: $error")
-                        activity.runOnUiThread {
-                            val current = mapView ?: return@runOnUiThread
-                            clearRouteInternal(current)
-                            dispatchRouteSummary(null, null)
-                        }
-                    }
-                }
+            clearRouteInternal(mv)
+            routeObject = mv.mapWindow.map.mapObjects
+                .addPolyline(Polyline(points))
+                .apply { applyRouteStyle(this) }
+            focusRoute(mv, points)
+            dispatchRouteSummary(
+                calculatePolylineDistanceMeters(points),
+                null
             )
-            if (drivingSession == null) {
-                clearRouteInternal(mv)
-                dispatchRouteSummary(null, null)
-            }
         }
     }
 
@@ -305,40 +255,25 @@ class YandexMapPlatformView(
         }
     }
 
-    private fun extractRouteDistanceMeters(route: DrivingRoute): Double? {
-        return extractNestedDouble(route, listOf("metadata", "weight", "distance", "value"))
+    private fun calculatePolylineDistanceMeters(points: List<Point>): Double {
+        var total = 0.0
+        for (index in 1 until points.size) {
+            total += distanceMeters(points[index - 1], points[index])
+        }
+        return total
     }
 
-    private fun extractRouteDurationSeconds(route: DrivingRoute): Double? {
-        return extractNestedDouble(route, listOf("metadata", "weight", "time", "value"))
-    }
-
-    private fun extractNestedDouble(root: Any?, path: List<String>): Double? {
-        var current: Any? = root
-        for (property in path) {
-            current = readProperty(current, property) ?: return null
-        }
-        return when (current) {
-            is Number -> current.toDouble()
-            else -> null
-        }
-    }
-
-    private fun readProperty(target: Any?, property: String): Any? {
-        if (target == null) return null
-        val capitalized = property.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        val getterNames = listOf("get$capitalized", property)
-        for (name in getterNames) {
-            val method = target.javaClass.methods.firstOrNull {
-                it.name == name && it.parameterCount == 0
-            } ?: continue
-            try {
-                return method.invoke(target)
-            } catch (_: Throwable) {
-                // Try next candidate method.
-            }
-        }
-        return null
+    private fun distanceMeters(start: Point, end: Point): Double {
+        val earthRadius = 6371000.0
+        val dLat = Math.toRadians(end.latitude - start.latitude)
+        val dLng = Math.toRadians(end.longitude - start.longitude)
+        val startLat = Math.toRadians(start.latitude)
+        val endLat = Math.toRadians(end.latitude)
+        val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+            kotlin.math.cos(startLat) * kotlin.math.cos(endLat) *
+            kotlin.math.sin(dLng / 2) * kotlin.math.sin(dLng / 2)
+        val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+        return earthRadius * c
     }
 
     private fun buildFallbackView(): View {

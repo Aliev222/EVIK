@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"evik/backend/internal/auth"
 	driverdomain "evik/backend/internal/domain/driver"
 	locationdomain "evik/backend/internal/domain/location"
 	driveruc "evik/backend/internal/usecase/driver"
@@ -39,10 +40,15 @@ func NewDriverHandler(
 }
 
 type setDriverStatusRequest struct {
-	UserID string   `json:"user_id"`
-	Status string   `json:"status"`
-	Lat    *float64 `json:"lat"`
-	Lng    *float64 `json:"lng"`
+	Status   string                    `json:"status"`
+	Lat      *float64                  `json:"lat"`
+	Lng      *float64                  `json:"lng"`
+	Location *setDriverLocationRequest `json:"location"`
+}
+
+type setDriverLocationRequest struct {
+	Lat *float64 `json:"lat"`
+	Lng *float64 `json:"lng"`
 }
 
 type driverResponse struct {
@@ -77,13 +83,32 @@ func (h *DriverHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	authUserID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if role != auth.RoleAdmin && driverID != authUserID {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	lat, lng := req.Lat, req.Lng
+	if req.Location != nil {
+		lat = req.Location.Lat
+		lng = req.Location.Lng
+	}
 
 	drv, err := h.setStatusUC.Execute(r.Context(), driveruc.SetStatusInput{
 		DriverID: driverID,
-		UserID:   req.UserID,
+		UserID:   authUserID,
 		Status:   driverdomain.Status(req.Status),
-		Lat:      req.Lat,
-		Lng:      req.Lng,
+		Lat:      lat,
+		Lng:      lng,
 	})
 	if err != nil {
 		h.writeDriverError(w, err)

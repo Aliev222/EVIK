@@ -3,8 +3,15 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/api_client_stub.dart'
+    if (dart.library.io) '../../../../core/network/api_client_io.dart'
+    as platform_api;
 import '../../../../core/realtime/event_dispatcher.dart';
 import '../../../../core/realtime/websocket_client.dart';
+import '../../../../core/realtime/websocket_client_stub.dart'
+    if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
+    as platform_ws;
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/repository_impl/order_repository_impl.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/repositories/order_repository.dart';
@@ -44,8 +51,11 @@ class OrderUiState {
 }
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
-  // TODO: Override in composition root with production implementation.
-  const dataSource = HttpOrderRemoteDataSource(apiClient: NoOpApiClient());
+  final accessToken = ref.watch(authProvider.select((state) => state.accessToken));
+  final dataSource = HttpOrderRemoteDataSource(
+    apiClient: platform_api.createPlatformApiClient(),
+    accessToken: accessToken,
+  );
   return OrderRepositoryImpl(remote: dataSource);
 });
 
@@ -55,10 +65,13 @@ final createOrderUseCaseProvider = Provider<CreateOrderUseCase>((ref) {
 });
 
 final eventDispatcherProvider = Provider<EventDispatcher>((ref) {
-  // TODO: Override in composition root with production WebSocket transport.
+  final accessToken = ref.watch(authProvider.select((state) => state.accessToken));
+  final wsUrl = accessToken == null || accessToken.isEmpty
+      ? defaultWsUrl
+      : '$defaultWsUrl?access_token=$accessToken';
   return WsEventDispatcher(
-    client: InMemoryWebSocketClient(),
-    wsUrl: 'ws://localhost:8080/ws/orders',
+    client: platform_ws.createPlatformWebSocketClient(),
+    wsUrl: wsUrl,
   );
 });
 
