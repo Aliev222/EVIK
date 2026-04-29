@@ -31,6 +31,14 @@ class IoApiClient implements ApiClient {
     return _makeRequest('POST', path, body, headers);
   }
 
+  @override
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Map<String, String>? headers,
+  }) async {
+    return _makeRequest('DELETE', path, null, headers);
+  }
+
   Future<Map<String, dynamic>> _makeRequest(
     String method,
     String path,
@@ -56,6 +64,8 @@ class IoApiClient implements ApiClient {
             if (body != null) {
               request.write(jsonEncode(body));
             }
+          } else if (method == 'DELETE') {
+            request = await client.deleteUrl(uri);
           }
 
           _applyHeaders(request, headers);
@@ -63,7 +73,8 @@ class IoApiClient implements ApiClient {
           final response = await request.close().timeout(_timeout);
           final responseText = await response.transform(utf8.decoder).join();
 
-          return _decodeResponse(method, path, uri, response.statusCode, responseText);
+          return _decodeResponse(
+              method, path, uri, response.statusCode, responseText);
         } finally {
           client.close(force: true);
         }

@@ -50,7 +50,10 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
   Widget _buildCurrentScreen() {
     switch (_activeTab) {
       case ClientTab.home:
-        return const ClientHomeScreen(key: ValueKey(ClientTab.home));
+        return ClientHomeScreen(
+          key: const ValueKey(ClientTab.home),
+          onProfilePressed: () => _switchToTab(ClientTab.profile),
+        );
       case ClientTab.history:
         return ClientHistoryScreen(
           key: const ValueKey(ClientTab.history),

@@ -90,31 +90,10 @@ class ClientProfileScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                 children: [
                   _ProfileTile(
-                    icon: Icons.person_outline,
-                    title: 'Личные данные',
-                    subtitle: 'Имя, телефон, email',
-                    onTap: () => _openPersonalData(context),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileTile(
-                    icon: Icons.shield_outlined,
-                    title: 'Безопасность',
-                    subtitle: 'Пароль, двухфакторная',
-                    onTap: () => _openSecurity(context),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileTile(
                     icon: Icons.notifications_none,
                     title: 'Уведомления',
                     subtitle: 'SMS, Push-уведомления',
                     onTap: () => _openNotifications(context),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileTile(
-                    icon: Icons.location_on_outlined,
-                    title: 'Мои адреса',
-                    subtitle: 'Домашний, рабочий',
-                    onTap: () => _openAddresses(context),
                   ),
                   const SizedBox(height: 12),
                   _ProfileTile(
@@ -161,35 +140,11 @@ class ClientProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _openPersonalData(BuildContext context) {
-    HapticFeedback.lightImpact();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const _PersonalDataBottomSheet(),
-    );
-  }
-
-  void _openSecurity(BuildContext context) => _showFeatureSheet(
-        context,
-        'Безопасность',
-        Icons.shield_outlined,
-        const ['Смена пароля', 'SMS-подтверждение', 'Активные устройства'],
-      );
-
   void _openNotifications(BuildContext context) => _showFeatureSheet(
         context,
         'Уведомления',
         Icons.notifications_none,
         const ['Push-уведомления', 'SMS о заказах', 'Новости и акции'],
-      );
-
-  void _openAddresses(BuildContext context) => _showFeatureSheet(
-        context,
-        'Мои адреса',
-        Icons.location_on_outlined,
-        const ['Домашний адрес', 'Рабочий адрес', 'Добавить избранный адрес'],
       );
 
   void _openEmergency(BuildContext context) => _showFeatureSheet(
@@ -221,137 +176,6 @@ class ClientProfileScreen extends ConsumerWidget {
         title: title,
         icon: icon,
         options: options,
-      ),
-    );
-  }
-}
-
-class _PersonalDataBottomSheet extends StatefulWidget {
-  const _PersonalDataBottomSheet();
-
-  @override
-  State<_PersonalDataBottomSheet> createState() =>
-      _PersonalDataBottomSheetState();
-}
-
-class _PersonalDataBottomSheetState extends State<_PersonalDataBottomSheet> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _phoneController;
-  late final TextEditingController _emailController;
-  bool _isSaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: 'Алексей Иванов');
-    _phoneController = TextEditingController(text: '+7 (999) 123-45-67');
-    _emailController = TextEditingController(text: 'alexey@example.com');
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (_nameController.text.trim().isEmpty ||
-        _phoneController.text.trim().isEmpty) {
-      HapticFeedback.vibrate();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Заполните имя и телефон.'),
-          backgroundColor: EvikColors.errorRed,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) return;
-    HapticFeedback.heavyImpact();
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Личные данные сохранены.'),
-        backgroundColor: EvikColors.successGreen,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-    return _SheetFrame(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Личные данные', style: EvikTypography.h3),
-            const SizedBox(height: 16),
-            _SheetTextField(
-              controller: _nameController,
-              label: 'Имя',
-              icon: Icons.person_outline,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 12),
-            _SheetTextField(
-              controller: _phoneController,
-              label: 'Телефон',
-              icon: Icons.phone_outlined,
-              keyboardType: TextInputType.phone,
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 12),
-            _SheetTextField(
-              controller: _emailController,
-              label: 'Email',
-              icon: Icons.mail_outline,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.done,
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: EvikColors.accentOrange,
-                  foregroundColor: EvikColors.primaryWhite,
-                  disabledBackgroundColor: EvikColors.gray300,
-                  disabledForegroundColor: EvikColors.gray500,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: EvikColors.primaryWhite,
-                        ),
-                      )
-                    : Text(
-                        'Сохранить',
-                        style: EvikTypography.buttonText.copyWith(
-                          color: EvikColors.primaryWhite,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -446,50 +270,6 @@ class _SheetFrame extends StatelessWidget {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: child,
-      ),
-    );
-  }
-}
-
-class _SheetTextField extends StatelessWidget {
-  const _SheetTextField({
-    required this.controller,
-    required this.label,
-    required this.icon,
-    this.keyboardType,
-    this.textInputAction,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final IconData icon;
-  final TextInputType? keyboardType;
-  final TextInputAction? textInputAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      minLines: 1,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: EvikColors.gray500),
-        filled: true,
-        fillColor: EvikColors.gray50,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: EvikColors.gray200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: EvikColors.gray200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: EvikColors.accentOrange),
-        ),
       ),
     );
   }

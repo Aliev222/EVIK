@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:evik_frontend/features/order/domain/entities/order.dart';
-import 'package:evik_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class InMemoryOrderRepository implements OrderRepository {
   final Map<String, Order> _orders = <String, Order>{};

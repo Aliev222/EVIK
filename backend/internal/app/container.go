@@ -78,6 +78,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db)
+	paymentRepo := postgres.NewPaymentRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
 	matchingService := domainmatching.NewNearestMatchingService(locationRepo, driverRepo)
 	eventPublisher := redisinfra.NewOrderEventPublisher(rdb, "orders:status")
@@ -95,6 +96,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo)
+	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, idGen, clock)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	authHandler := httptransport.NewAuthHandler(tokenManager)
 	hub := wsinfra.NewHub()
@@ -103,7 +105,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher)
 	go eventRelay.Run(context.Background())
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, wsHandler, tokenManager)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, wsHandler, tokenManager)
 	return &Container{Router: router, db: db, rdb: rdb}, nil
 }
 
@@ -138,6 +140,32 @@ CREATE TABLE IF NOT EXISTS drivers (
 
 CREATE INDEX IF NOT EXISTS idx_drivers_status_updated_at ON drivers (status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_drivers_current_order_id ON drivers (current_order_id);
+
+CREATE TABLE IF NOT EXISTS payment_methods (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	brand TEXT NOT NULL,
+	last4 TEXT NOT NULL,
+	exp_month INTEGER NOT NULL,
+	exp_year INTEGER NOT NULL,
+	holder TEXT NOT NULL,
+	is_default BOOLEAN NOT NULL DEFAULT FALSE,
+	created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods (user_id, is_default DESC, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	order_id TEXT NOT NULL,
+	title TEXT NOT NULL,
+	amount BIGINT NOT NULL,
+	status TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_user_id_created_at ON payment_transactions (user_id, created_at DESC);
 `
 	_, err := db.Exec(schema)
 	return err

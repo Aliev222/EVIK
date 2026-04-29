@@ -14,6 +14,7 @@ class AvailableOrder {
   final int estimatedMinutes;
   final double price;
   final String problemType;
+  final int blockedWheelsCount;
   final ProblemSeverity severity;
   final DateTime createdAt;
   final String clientName;
@@ -33,6 +34,7 @@ class AvailableOrder {
     required this.estimatedMinutes,
     required this.price,
     required this.problemType,
+    required this.blockedWheelsCount,
     required this.severity,
     required this.createdAt,
     required this.clientName,
@@ -67,9 +69,9 @@ class AvailableOrder {
 }
 
 enum ProblemSeverity {
-  low,    // Не заводится
+  low, // Не заводится
   medium, // Прокол колеса
-  high,   // ДТП
+  high, // ДТП
 }
 
 extension ProblemSeverityExtension on ProblemSeverity {

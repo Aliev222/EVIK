@@ -14,6 +14,7 @@ func NewRouter(
 	authHandler *AuthHandler,
 	orderHandler *OrderHandler,
 	driverHandler *DriverHandler,
+	paymentHandler *PaymentHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 ) nethttp.Handler {
@@ -50,6 +51,11 @@ func NewRouter(
 			secured.Get("/drivers/{driverID}", driverHandler.GetDriver)
 			secured.Get("/drivers/{driverID}/location", driverHandler.GetLocation)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/drivers/{driverID}/status", driverHandler.SetStatus)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/payments/wallet", paymentHandler.GetWallet)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards", paymentHandler.AddCard)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Delete("/payments/cards/{cardID}", paymentHandler.DeleteCard)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards/{cardID}/default", paymentHandler.SetDefaultCard)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/promocode/apply", paymentHandler.ApplyPromocode)
 		})
 	})
 	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {

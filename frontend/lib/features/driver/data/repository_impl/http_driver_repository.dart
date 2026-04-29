@@ -83,16 +83,12 @@ class HttpDriverRepository implements DriverRepository {
     required double lng,
   }) async {
     await _apiClient.post(
-      '/api/v1/drivers/$driverId/status',
-      <String, dynamic>{
-        'status': isOnline ? 'online' : 'offline',
-        'location': <String, dynamic>{
-          'lat': lat,
-          'lng': lng,
+        '/api/v1/drivers/$driverId/status',
+        <String, dynamic>{
+          'status': isOnline ? 'online' : 'offline',
+          'location': <String, dynamic>{'lat': lat, 'lng': lng},
         },
-      },
-      headers: _authHeaders,
-    );
+        headers: _authHeaders);
   }
 
   Future<Map<String, dynamic>> getDriverLocation(String driverId) async {
@@ -121,10 +117,11 @@ class HttpDriverRepository implements DriverRepository {
     required String status,
   }) async {
     await _apiClient.post(
-      '/api/v1/orders/$orderId/status',
-      <String, dynamic>{'status': status},
-      headers: _authHeaders,
-    );
+        '/api/v1/orders/$orderId/status',
+        <String, dynamic>{
+          'status': status,
+        },
+        headers: _authHeaders);
   }
 
   Future<Map<String, dynamic>> getActiveOrder(String driverId) async {
@@ -192,7 +189,8 @@ AvailableOrder availableOrderFromBackend(Map<String, dynamic> map) {
     distanceKm: order.distance == 0 ? 5.2 : order.distance,
     estimatedMinutes: 15,
     price: order.estimatedPrice == 0 ? 2500 : order.estimatedPrice,
-    problemType: order.notes?.isNotEmpty == true ? order.notes! : 'Эвакуация',
+    problemType: _problemTypeFromNotes(order.notes),
+    blockedWheelsCount: _blockedWheelsFromNotes(order.notes),
     severity: ProblemSeverity.medium,
     createdAt: order.createdAt,
     clientName: 'Клиент EVIK',
@@ -209,6 +207,7 @@ ActiveOrder activeOrderFromBackend(Map<String, dynamic> map) {
     clientPhone: available.clientPhone,
     vehicleModel: available.vehicleModel,
     problemType: available.problemType,
+    blockedWheelsCount: available.blockedWheelsCount,
     pickupAddress: available.pickupAddress,
     dropoffAddress: available.dropoffAddress,
     pickupLat: available.pickupLat,
@@ -227,4 +226,20 @@ ActiveOrder activeOrderFromBackend(Map<String, dynamic> map) {
       _ => ActiveOrderStatus.drivingToClient,
     },
   );
+}
+
+int _blockedWheelsFromNotes(String? notes) {
+  final match = RegExp(r'Заблокировано колес:\s*(\d+)').firstMatch(notes ?? '');
+  return int.tryParse(match?.group(1) ?? '') ?? 0;
+}
+
+String _problemTypeFromNotes(String? notes) {
+  final text = notes?.trim();
+  if (text == null || text.isEmpty) return 'Эвакуация';
+  final lines = text
+      .split('\n')
+      .where((line) => !line.startsWith('Заблокировано колес:'))
+      .where((line) => !line.startsWith('Комментарий клиента:'))
+      .toList();
+  return lines.isEmpty ? 'Эвакуация' : lines.first;
 }

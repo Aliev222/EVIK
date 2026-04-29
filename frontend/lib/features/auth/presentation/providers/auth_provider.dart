@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/bootstrap/app_bootstrap.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
@@ -170,6 +171,68 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
 
+    // В мок-режиме принимаем любой 6-значный код
+    if (AppConstants.useMockData) {
+      debugPrint('[MOCK AUTH] Accepting any 6-digit code: $sanitizedCode');
+      final userID = _deriveUserID(phoneNumber);
+      if (userID == null) {
+        state = state.copyWith(
+          errorMessage:
+              'Не удалось сформировать идентификатор пользователя.',
+        );
+        return;
+      }
+
+      state = state.copyWith(isLoading: true, clearError: true);
+
+      // Имитируем небольшую задержку
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      try {
+        final tokens = await _api.login(userID: userID, role: role);
+        final now = DateTime.now();
+        final user = User(
+          id: userID,
+          phone: phoneNumber,
+          fullName: fullName,
+          role: role,
+          avatar: null,
+          isActive: true,
+          createdAt: now,
+          lastSeen: now,
+        );
+
+        if (role == UserRole.driver) {
+          try {
+            await _api.initializeDriverProfile(
+              userID: userID,
+              accessToken: tokens.accessToken,
+            );
+          } catch (error) {
+            debugPrint('Warning: Could not initialize driver profile: $error');
+          }
+        }
+
+        await _saveSession(user, tokens);
+        state = state.copyWith(
+          user: user,
+          isLoading: false,
+          clearError: true,
+          clearPendingAuth: true,
+        );
+
+        debugPrint('[MOCK AUTH] User logged in successfully: ${user.fullName} (${role.name})');
+        return;
+      } catch (error) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: _loginErrorMessage(error),
+        );
+        return;
+      }
+    }
+
+    // Оригинальная логика для продакшена
     final userID = _deriveUserID(phoneNumber);
     if (userID == null) {
       state = state.copyWith(

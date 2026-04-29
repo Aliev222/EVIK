@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
+import 'core/constants/app_constants.dart';
 import 'core/error/global_error_handler.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/evik_tokens.dart';
@@ -13,10 +15,21 @@ import 'features/auth/presentation/screens/sms_verification_screen.dart';
 import 'features/driver/presentation/driver_screen.dart';
 import 'features/client/presentation/screens/client_app_shell.dart';
 import 'features/onboarding/presentation/screens/role_selection_screen.dart';
+import 'features/client/presentation/screens/pickup_location_screen.dart';
+import 'features/client/presentation/screens/destination_location_screen.dart';
+import 'features/client/presentation/screens/vehicle_selection_screen.dart';
+import 'features/client/presentation/screens/tow_truck_selection_screen.dart';
+import 'features/client/presentation/screens/driver_search_screen.dart';
+import 'features/client/presentation/screens/driver_info_screen.dart';
+import 'features/client/presentation/screens/tracking_screen.dart';
+import 'features/client/presentation/screens/order_completion_screen.dart';
+import 'features/client/presentation/screens/driver_rating_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized().deferFirstFrame();
   AndroidYandexMap.useAndroidViewSurface = false;
+
+  // Debug info removed for clean testing
 
   // Initialize global error handler
   GlobalErrorHandler.initialize();
@@ -32,13 +45,46 @@ void main() async {
 class EvikApp extends StatelessWidget {
   const EvikApp({super.key});
 
+  static final GoRouter _router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const _LaunchScreen()),
+      GoRoute(
+          path: '/order/pickup',
+          builder: (_, __) => const PickupLocationScreen()),
+      GoRoute(
+          path: '/order/destination',
+          builder: (_, __) => const DestinationLocationScreen()),
+      GoRoute(
+          path: '/order/vehicle',
+          builder: (_, __) => const VehicleSelectionScreen()),
+      GoRoute(
+          path: '/order/tow-truck',
+          builder: (_, __) => const TowTruckSelectionScreen()),
+      GoRoute(
+          path: '/order/search',
+          builder: (_, __) => const DriverSearchScreen()),
+      GoRoute(
+          path: '/order/driver-info',
+          builder: (_, __) => const DriverInfoScreen()),
+      GoRoute(
+          path: '/order/tracking', builder: (_, __) => const TrackingScreen()),
+      GoRoute(
+          path: '/order/completion',
+          builder: (_, __) => const OrderCompletionScreen()),
+      GoRoute(
+          path: '/order/rating',
+          builder: (_, __) => const DriverRatingScreen()),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'EVIK',
+    return MaterialApp.router(
+      title: 'Tow Truck',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
-      home: const _LaunchScreen(),
+      routerConfig: _router,
     );
   }
 }
@@ -65,7 +111,7 @@ class _LaunchScreenState extends State<_LaunchScreen> {
   Future<void> _prepareSplash() async {
     try {
       await precacheImage(
-        const AssetImage('assets/img/startevik.png'),
+        const AssetImage('assets/img/load.png'),
         context,
       );
     } finally {
@@ -112,8 +158,10 @@ class _SplashScreenState extends State<_SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _logoController;
   late AnimationController _textController;
+  late AnimationController _blinkController;
   late Animation<double> _logoScale;
   late Animation<double> _logoOpacity;
+  late Animation<double> _blinkOpacity;
   late Animation<double> _textOpacity;
   late Animation<Offset> _textSlide;
 
@@ -128,6 +176,11 @@ class _SplashScreenState extends State<_SplashScreen>
 
     _textController = AnimationController(
       duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _blinkController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
@@ -160,13 +213,24 @@ class _SplashScreenState extends State<_SplashScreen>
       curve: Curves.easeOut,
     ));
 
+    _blinkOpacity = Tween<double>(
+      begin: 0.7,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _blinkController,
+      curve: Curves.easeInOut,
+    ));
+
     // Start animations
     Future.delayed(const Duration(milliseconds: 350), () {
       if (mounted) _logoController.forward();
     });
 
     Future.delayed(const Duration(milliseconds: 950), () {
-      if (mounted) _textController.forward();
+      if (mounted) {
+        _textController.forward();
+        _blinkController.repeat(reverse: true);
+      }
     });
   }
 
@@ -174,6 +238,7 @@ class _SplashScreenState extends State<_SplashScreen>
   void dispose() {
     _logoController.dispose();
     _textController.dispose();
+    _blinkController.dispose();
     super.dispose();
   }
 
@@ -223,32 +288,41 @@ class _SplashScreenState extends State<_SplashScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo
+                // Logo with blinking effect
                 AnimatedBuilder(
-                  animation: _logoController,
+                  animation:
+                      Listenable.merge([_logoController, _blinkController]),
                   builder: (context, child) {
                     return Transform.scale(
                       scale: _logoScale.value,
                       child: Opacity(
-                        opacity: _logoOpacity.value,
+                        opacity: _logoOpacity.value * _blinkOpacity.value,
                         child: Container(
-                          width: 72,
-                          height: 72,
+                          width: 240,
+                          height: 240,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1A1A1A),
-                            borderRadius: BorderRadius.circular(22),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.14),
-                                blurRadius: 40,
-                                offset: const Offset(0, 12),
+                                color: const Color(0xFFFF6B35).withValues(
+                                    alpha: 0.4 * _blinkOpacity.value),
+                                blurRadius: 120,
+                                offset: const Offset(0, 40),
+                                spreadRadius: 20,
+                              ),
+                              BoxShadow(
+                                color: const Color(0xFFFF6B35).withValues(
+                                    alpha: 0.2 * _blinkOpacity.value),
+                                blurRadius: 240,
+                                offset: const Offset(0, 0),
+                                spreadRadius: 60,
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.local_shipping_rounded,
-                            color: Colors.white,
-                            size: 34,
+                          child: Image.asset(
+                            'assets/img/load.png',
+                            width: 240,
+                            height: 240,
+                            fit: BoxFit.contain,
                           ),
                         ),
                       ),
@@ -265,13 +339,13 @@ class _SplashScreenState extends State<_SplashScreen>
                     return Opacity(
                       opacity: _logoOpacity.value,
                       child: const Text(
-                        'EVIK',
+                        'TOW TRUCK',
                         style: TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 42,
+                          fontWeight: FontWeight.w900,
                           color: Color(0xFF1A1A1A),
-                          letterSpacing: -0.05,
-                          height: 1,
+                          letterSpacing: -0.5,
+                          height: 1.1,
                           fontFamily: 'Inter',
                         ),
                       ),
@@ -297,12 +371,12 @@ class _SplashScreenState extends State<_SplashScreen>
                     child: const Column(
                       children: [
                         Text(
-                          'СЕРВИС ЭВАКУАТОРОВ',
+                          'TOWING SERVICE',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF6B7280),
-                            letterSpacing: 0.2,
+                            letterSpacing: 1.2,
                           ),
                         ),
                         SizedBox(height: 20),
@@ -410,18 +484,30 @@ class _AppRouter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Быстрый режим тестирования - пропуск авторизации
+    if (AppConstants.skipAuth) {
+      final selectedRole = ref.watch(selectedOnboardingRoleProvider);
+
+      if (selectedRole == UserRole.driver) {
+        return const DriverScreen(); // Водительский интерфейс
+      } else if (selectedRole == UserRole.client) {
+        return const ClientAppShell(); // Клиентский интерфейс
+      }
+
+      // Показать выбор роли для тестирования
+      return const RoleSelectionScreen();
+    }
+
+    // Обычная логика авторизации
     final authState = ref.watch(authProvider);
     final currentUser = ref.watch(currentUserProvider);
     final selectedRole = ref.watch(selectedOnboardingRoleProvider);
 
     if (authState.isAuthenticated && currentUser != null) {
       if (currentUser.role == UserRole.driver) {
-        // ЗАГЛУШКА: пропускаем модерацию документов для тестирования
-        // В реальном приложении здесь была бы проверка статуса модерации
-        return const DriverScreen(); // Водительский интерфейс
+        return const DriverScreen();
       }
-
-      return const ClientAppShell(); // Клиентский интерфейс
+      return const ClientAppShell();
     }
 
     if (authState.isCodeSent) {

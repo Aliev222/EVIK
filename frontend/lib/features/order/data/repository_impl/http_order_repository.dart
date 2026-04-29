@@ -24,15 +24,22 @@ class HttpOrderRepository implements OrderRepository {
 
   @override
   Future<Order> createOrder(CreateOrderCommand command) async {
+    final body = <String, dynamic>{
+      'pickup_lat': command.pickupLocation.lat,
+      'pickup_lng': command.pickupLocation.lng,
+      'dropoff_lat': command.dropoffLocation.lat,
+      'dropoff_lng': command.dropoffLocation.lng,
+      'auto_dispatch': true,
+    };
+
+    // Add tow truck type if specified
+    if (command.towTruckType != null) {
+      body['tow_truck_type'] = command.towTruckType!.name;
+    }
+
     final response = await _apiClient.post(
       '/api/v1/orders',
-      <String, dynamic>{
-        'pickup_lat': command.pickupLocation.lat,
-        'pickup_lng': command.pickupLocation.lng,
-        'dropoff_lat': command.dropoffLocation.lat,
-        'dropoff_lng': command.dropoffLocation.lng,
-        'vehicle_type': command.vehicleType.name,
-      },
+      body,
       headers: _authHeaders,
     );
     return Order.fromMap(response['order'] as Map<String, dynamic>);

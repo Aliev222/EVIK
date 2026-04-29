@@ -1,9 +1,17 @@
 class AppConstants {
-  static const String appName = 'EVIK';
+  static const String appName = 'Tow Truck';
   static const String appVersion = '1.0.0';
 
   static const bool isProduction =
       bool.fromEnvironment('DART_DEFINE_ENV_PROD', defaultValue: false);
+
+  // Mock режим для тестирования без бэкенда
+  static const bool useMockData =
+      bool.fromEnvironment('USE_MOCK_DATA', defaultValue: false);
+
+  // Режим быстрого тестирования - пропуск авторизации
+  static const bool skipAuth =
+      bool.fromEnvironment('SKIP_AUTH', defaultValue: true);
 
   static const String yandexMapkitApiKey = String.fromEnvironment(
     'YANDEX_MAPKIT_API_KEY',
@@ -54,4 +62,14 @@ class AppConstants {
     'completed',
     'cancelled',
   ];
+}
+
+class EvikAssetPaths {
+  static const String sedan = 'assets/img/sedan.png';
+  static const String crossover = 'assets/img/cross.png';
+  static const String minibus = 'assets/img/bus.png';
+
+  static const String winchTowTruck = 'assets/img/tros.png';
+  static const String platformTowTruck = 'assets/img/forma.png';
+  static const String manipulatorTowTruck = 'assets/img/mani.png';
 }

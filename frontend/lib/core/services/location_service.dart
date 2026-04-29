@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../constants/app_constants.dart';
 import '../../features/order/domain/entities/order.dart';
 
 class LocationService {
@@ -18,7 +19,6 @@ class LocationService {
   factory LocationService() => instance;
 
   // Яндекс Геокодер API ключ (нужно получить на https://developer.tech.yandex.ru/)
-  static const String _geocoderApiKey = 'YOUR_YANDEX_GEOCODER_API_KEY';
   static const String _routerApiKey = 'YOUR_YANDEX_ROUTER_API_KEY';
 
   /// Получить текущее местоположение пользователя
@@ -86,9 +86,42 @@ class LocationService {
   /// Получить адрес по координатам (обратное геокодирование)
   Future<String?> _getAddressByCoordinates(double lat, double lng) async {
     try {
-      // В MVP версии - мок
-      // TODO: Интегрировать с Яндекс Геокодер API
-      return 'ул. Примерная, ${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}';
+      final apiKey = AppConstants.yandexGeocoderApiKey;
+      if (apiKey.isEmpty || apiKey == 'YOUR_DEV_GEOCODER_KEY_HERE') {
+        return 'Москва, ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+      }
+
+      final uri = Uri.https('geocode-maps.yandex.ru', '/1.x/', {
+        'apikey': apiKey,
+        'geocode': '$lng,$lat',
+        'format': 'json',
+        'kind': 'house',
+        'results': '1',
+        'lang': 'ru_RU',
+      });
+
+      final response = await http.get(uri).timeout(const Duration(seconds: 6));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return 'Москва, ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+      }
+
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      final collection =
+          payload['response']?['GeoObjectCollection'] as Map<String, dynamic>?;
+      final members = collection?['featureMember'] as List<dynamic>?;
+      final first = members?.isNotEmpty == true
+          ? members!.first as Map<String, dynamic>
+          : null;
+      final geoObject = first?['GeoObject'] as Map<String, dynamic>?;
+      final meta = geoObject?['metaDataProperty']?['GeocoderMetaData']
+          as Map<String, dynamic>?;
+      final address = meta?['text']?.toString().trim();
+
+      if (address == null || address.isEmpty) {
+        return 'Москва, ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+      }
+
+      return address;
     } catch (e) {
       return null;
     }

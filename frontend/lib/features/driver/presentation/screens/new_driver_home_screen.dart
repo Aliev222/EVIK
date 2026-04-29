@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -5,11 +7,10 @@ import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/animated_list_item.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../domain/entities/available_order.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
-import '../widgets/available_order_card.dart';
 
 class NewDriverHomeScreen extends ConsumerStatefulWidget {
   const NewDriverHomeScreen({super.key});
@@ -25,10 +26,20 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   String? _cachedMapSignature;
   List<MapObject>? _cachedMapObjects;
   late final _DriverLifecycleObserver _lifecycleObserver;
+  DrivingSession? _drivingSession;
+  Timer? _offerTimer;
+  double _offerProgress = 1;
+  String? _visibleOfferId;
+  List<MapObject> _routeObjects = const [];
+  int _routeVersion = 0;
+  static const Duration _offerLifetime = Duration(seconds: 10);
+  static const Duration _offerTick = Duration(milliseconds: 50);
 
   // Координаты Москвы по умолчанию
-  static const Point _moscowCenter =
-      Point(latitude: 55.7558, longitude: 37.6173);
+  static const Point _moscowCenter = Point(
+    latitude: 55.7558,
+    longitude: 37.6173,
+  );
 
   @override
   void initState() {
@@ -48,6 +59,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
 
   @override
   void dispose() {
+    _offerTimer?.cancel();
+    _drivingSession?.close();
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
@@ -55,21 +68,64 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final driverState = ref.watch(newDriverProvider);
+    ref.listen<DriverState>(newDriverProvider, (previous, next) {
+      final message = next.error;
+      if (message == null || message == previous?.error) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: EvikColors.errorRed),
+      );
+    });
 
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
-      body: SafeArea(
-        child: driverState.workState == DriverWorkState.offline
-            ? _buildOfflineView(driverState)
-            : _BackgroundOptimizer(
-                isDriverWaiting:
-                    driverState.workState == DriverWorkState.online &&
-                        driverState.activeOrder == null,
-                isAppInForeground: _isAppInForeground,
-                child: _buildOnlineView(driverState),
-              ),
-      ),
+      body: driverState.workState == DriverWorkState.offline
+          ? SafeArea(child: _buildOfflineView(driverState))
+          : _BackgroundOptimizer(
+              isDriverWaiting:
+                  driverState.workState == DriverWorkState.online &&
+                      driverState.activeOrder == null,
+              isAppInForeground: _isAppInForeground,
+              child: _buildOnlineView(driverState),
+            ),
     );
+  }
+
+  void _syncIncomingOffer(DriverState driverState) {
+    if (driverState.workState != DriverWorkState.online ||
+        driverState.availableOrders.isEmpty) {
+      _offerTimer?.cancel();
+      _visibleOfferId = null;
+      _offerProgress = 1;
+      return;
+    }
+
+    final incoming = driverState.availableOrders.first;
+    if (_visibleOfferId == incoming.id) return;
+
+    _offerTimer?.cancel();
+    _visibleOfferId = incoming.id;
+    _offerProgress = 1;
+    final expiresAt = DateTime.now().add(_offerLifetime);
+    _updateOfferRoute(incoming);
+    _offerTimer = Timer.periodic(_offerTick, (timer) {
+      if (!mounted) return;
+      final remaining = expiresAt.difference(DateTime.now());
+      if (remaining <= Duration.zero) {
+        timer.cancel();
+        ref.read(newDriverProvider.notifier).declineOrder(incoming.id);
+        setState(() {
+          _visibleOfferId = null;
+          _offerProgress = 1;
+          _routeObjects = const [];
+          _routeVersion++;
+        });
+        return;
+      }
+      setState(() {
+        _offerProgress =
+            remaining.inMilliseconds / _offerLifetime.inMilliseconds;
+      });
+    });
   }
 
   Widget _buildOfflineView(DriverState driverState) {
@@ -216,10 +272,13 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
             // Кнопка начать работу
             EvikButton(
               text: 'Начать работу',
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                ref.read(newDriverProvider.notifier).goOnline();
-              },
+              isLoading: driverState.isLoading,
+              onPressed: driverState.isLoading
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      ref.read(newDriverProvider.notifier).goOnline();
+                    },
               width: double.infinity,
               variant: EvikButtonVariant.green,
             ),
@@ -230,103 +289,14 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   }
 
   Widget _buildOnlineView(DriverState driverState) {
-    return Column(
-      children: [
-        // Header с статистикой сегодня и переключателем
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          decoration: BoxDecoration(
-            color: EvikColors.primaryWhite,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Сегодня',
-                        style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.gray500,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        driverState.stats.today.displayText,
-                        style: EvikTypography.bodyMedium.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: EvikColors.successGreen,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'В сети',
-                        style: EvikTypography.bodyMedium.copyWith(
-                          color: EvikColors.successGreen,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          ref.read(newDriverProvider.notifier).goOffline();
-                        },
-                        child: Container(
-                          width: 44,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: EvikColors.successGreen,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              margin: const EdgeInsets.only(right: 2),
-                              decoration: BoxDecoration(
-                                color: EvikColors.primaryWhite,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+    _syncIncomingOffer(driverState);
+    final incomingOrder = driverState.availableOrders.isEmpty
+        ? null
+        : driverState.availableOrders.first;
 
-        // Карта
-        Expanded(
-          flex: 2,
+    return Stack(
+      children: [
+        Positioned.fill(
           child: RepaintBoundary(
             child: YandexMap(
               onMapCreated: _onMapCreated,
@@ -335,58 +305,109 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
             ),
           ),
         ),
-
-        // Список доступных заказов
-        Expanded(
-          flex: 3,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: EvikColors.primaryWhite,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Row(
-                    children: [
-                      Text(
-                        'ДОСТУПНЫЕ ЗАКАЗЫ (${driverState.availableOrders.length})',
-                        style: EvikTypography.sectionLabel.copyWith(
-                          color: EvikColors.gray500,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    cacheExtent: 200,
-                    itemCount: driverState.availableOrders.length,
-                    itemBuilder: (context, index) {
-                      final order = driverState.availableOrders[index];
-                      return AnimatedListItem(
-                        index: index,
-                        child: AvailableOrderCard(
-                          order: order,
-                          onAccept: () {
-                            ref
-                                .read(newDriverProvider.notifier)
-                                .acceptOrder(order.id);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+        Positioned(
+          top: MediaQuery.paddingOf(context).top + 8,
+          left: 16,
+          right: 16,
+          child: _OnlineStatusBar(
+            statsText: driverState.stats.today.displayText,
+            onGoOffline: driverState.isLoading
+                ? null
+                : () {
+                    HapticFeedback.selectionClick();
+                    ref.read(newDriverProvider.notifier).goOffline();
+                  },
           ),
         ),
+        if (incomingOrder == null)
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
+            child: _WaitingForOrdersCard(isLoading: driverState.isLoading),
+          )
+        else
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: MediaQuery.paddingOf(context).bottom + 20,
+            child: _IncomingOrderSheet(
+              order: incomingOrder,
+              progress: _offerProgress,
+              isLoading: driverState.isLoading,
+              onDecline: () {
+                HapticFeedback.lightImpact();
+                _offerTimer?.cancel();
+                setState(() {
+                  _visibleOfferId = null;
+                  _offerProgress = 1;
+                  _routeObjects = const [];
+                  _routeVersion++;
+                });
+                ref
+                    .read(newDriverProvider.notifier)
+                    .declineOrder(incomingOrder.id);
+              },
+              onAccept: () {
+                HapticFeedback.heavyImpact();
+                _offerTimer?.cancel();
+                ref
+                    .read(newDriverProvider.notifier)
+                    .acceptOrder(incomingOrder.id);
+              },
+            ),
+          ),
       ],
     );
+  }
+
+  Future<void> _updateOfferRoute(AvailableOrder order) async {
+    await _drivingSession?.cancel();
+    await _drivingSession?.close();
+
+    try {
+      final resultWithSession = await YandexDriving.requestRoutes(
+        points: [
+          const RequestPoint(
+            point: _moscowCenter,
+            requestPointType: RequestPointType.wayPoint,
+          ),
+          RequestPoint(
+            point: Point(latitude: order.pickupLat, longitude: order.pickupLng),
+            requestPointType: RequestPointType.wayPoint,
+          ),
+        ],
+        drivingOptions: const DrivingOptions(
+          routesCount: 1,
+          annotationLanguage: AnnotationLanguage.russian,
+          avoidanceFlags: DrivingAvoidanceFlags(),
+        ),
+      );
+      _drivingSession = resultWithSession.$1;
+      final result = await resultWithSession.$2;
+      if (!mounted || _visibleOfferId != order.id) return;
+      final route =
+          result.routes?.isNotEmpty == true ? result.routes!.first : null;
+      setState(() {
+        _routeObjects = route == null
+            ? const []
+            : [
+                PolylineMapObject(
+                  mapId: const MapObjectId('incoming_order_route'),
+                  polyline: route.geometry,
+                  strokeColor: EvikColors.accentOrange,
+                  strokeWidth: 4,
+                ),
+              ];
+        _routeVersion++;
+      });
+    } catch (_) {
+      if (!mounted || _visibleOfferId != order.id) return;
+      setState(() {
+        _routeObjects = const [];
+        _routeVersion++;
+      });
+    }
   }
 
   Widget _buildStatColumn(String value, String label) {
@@ -413,61 +434,476 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   }
 
   Future<void> _onMapCreated(YandexMapController controller) async {
+    await controller.toggleTrafficLayer(visible: true);
     if (_mapInitialized) return;
     _mapInitialized = true;
 
     await controller.moveCamera(
       CameraUpdate.newCameraPosition(
-        const CameraPosition(target: _moscowCenter, zoom: 11),
+        const CameraPosition(target: _moscowCenter, zoom: 12.2),
       ),
       animation: const MapAnimation(type: MapAnimationType.smooth, duration: 1),
     );
   }
 
   List<MapObject> _buildMapObjects(DriverState driverState) {
-    final signature = driverState.availableOrders.map((e) => e.id).join('|');
+    final signature = [
+      driverState.availableOrders.map((e) => e.id).join('|'),
+      _routeVersion,
+    ].join(':');
     if (_cachedMapObjects != null && _cachedMapSignature == signature) {
       return _cachedMapObjects!;
     }
 
-    final objects = <MapObject>[];
+    final objects = <MapObject>[
+      ..._routeObjects,
+      PlacemarkMapObject(
+        mapId: const MapObjectId('driver_location'),
+        point: _moscowCenter,
+        icon: PlacemarkIcon.single(
+          PlacemarkIconStyle(
+            image: BitmapDescriptor.fromBytes(Uint8List.fromList([0, 180, 90])),
+            scale: 1.0,
+          ),
+        ),
+      ),
+    ];
 
-    // Маркеры доступных заказов
-    for (int i = 0; i < driverState.availableOrders.length; i++) {
-      final order = driverState.availableOrders[i];
+    final incoming = driverState.availableOrders.isEmpty
+        ? null
+        : driverState.availableOrders.first;
+    if (incoming != null) {
       objects.add(
         PlacemarkMapObject(
-          mapId: MapObjectId('order_${order.id}'),
-          point: Point(latitude: order.pickupLat, longitude: order.pickupLng),
+          mapId: MapObjectId('pickup_${incoming.id}'),
+          point: Point(
+            latitude: incoming.pickupLat,
+            longitude: incoming.pickupLng,
+          ),
           icon: PlacemarkIcon.single(
             PlacemarkIconStyle(
-              image: BitmapDescriptor.fromBytes(Uint8List.fromList(
-                  [255, 165, 0])), // Временная заглушка оранжевый маркер
-              scale: 0.8,
+              image: BitmapDescriptor.fromBytes(
+                Uint8List.fromList([255, 96, 50]),
+              ),
+              scale: 0.9,
             ),
           ),
         ),
       );
     }
 
-    // Позиция водителя (центр карты)
-    objects.add(
-      PlacemarkMapObject(
-        mapId: const MapObjectId('driver_location'),
-        point: _moscowCenter,
-        icon: PlacemarkIcon.single(
-          PlacemarkIconStyle(
-            image: BitmapDescriptor.fromBytes(Uint8List.fromList(
-                [0, 255, 0])), // Временная заглушка зеленый маркер
-            scale: 1.0,
+    _cachedMapSignature = signature;
+    _cachedMapObjects = objects;
+    return objects;
+  }
+}
+
+class _OnlineStatusBar extends StatelessWidget {
+  const _OnlineStatusBar({required this.statsText, required this.onGoOffline});
+
+  final String statsText;
+  final VoidCallback? onGoOffline;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EvikColors.primaryWhite,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 5,
+      shadowColor: Colors.black.withValues(alpha: 0.14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        child: Row(
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: const BoxDecoration(
+                color: EvikColors.successGreen,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'В сети',
+                    style: EvikTypography.bodyMedium.copyWith(
+                      color: EvikColors.successGreen,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    statsText,
+                    style: EvikTypography.bodySmall.copyWith(
+                      color: EvikColors.gray600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 52,
+              height: 40,
+              child: Switch.adaptive(
+                value: true,
+                onChanged: onGoOffline == null
+                    ? null
+                    : (value) {
+                        if (!value) onGoOffline!();
+                      },
+                activeThumbColor: EvikColors.primaryWhite,
+                activeTrackColor: EvikColors.successGreen,
+                inactiveThumbColor: EvikColors.primaryWhite,
+                inactiveTrackColor: EvikColors.gray300,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WaitingForOrdersCard extends StatelessWidget {
+  const _WaitingForOrdersCard({required this.isLoading});
+
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EvikColors.primaryWhite,
+      borderRadius: BorderRadius.circular(20),
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.14),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 34,
+              height: 34,
+              child: isLoading
+                  ? const CircularProgressIndicator(strokeWidth: 3)
+                  : const Icon(
+                      Icons.radar_rounded,
+                      color: EvikColors.accentOrange,
+                      size: 30,
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Ищем заказы рядом',
+                    style: EvikTypography.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Оставайтесь на линии, заказ появится автоматически',
+                    style: EvikTypography.bodySmall.copyWith(
+                      color: EvikColors.gray600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IncomingOrderSheet extends StatelessWidget {
+  const _IncomingOrderSheet({
+    required this.order,
+    required this.progress,
+    required this.isLoading,
+    required this.onDecline,
+    required this.onAccept,
+  });
+
+  final AvailableOrder order;
+  final double progress;
+  final bool isLoading;
+  final VoidCallback onDecline;
+  final VoidCallback onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 28 * (1 - value)),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: Material(
+        color: EvikColors.primaryWhite,
+        borderRadius: BorderRadius.circular(22),
+        elevation: 10,
+        shadowColor: Colors.black.withValues(alpha: 0.16),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Новый заказ рядом',
+                          style: EvikTypography.h3.copyWith(fontSize: 19),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${order.distanceKm.toStringAsFixed(1)} км до клиента · ${order.estimatedMinutes} мин',
+                          style: EvikTypography.bodySmall.copyWith(
+                            color: EvikColors.gray600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${order.price.toInt()} ₽',
+                    style: EvikTypography.price.copyWith(fontSize: 21),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 4,
+                  backgroundColor: EvikColors.gray200,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    EvikColors.accentOrange,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _InfoPill(
+                    icon: Icons.directions_car_rounded,
+                    label: order.vehicleDisplayName,
+                  ),
+                  _InfoPill(
+                    icon: Icons.build_rounded,
+                    label: order.problemType,
+                  ),
+                  _InfoPill(
+                    icon: Icons.motion_photos_off_rounded,
+                    label: 'Колеса: ${order.blockedWheelsCount}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: BoxDecoration(
+                  color: EvikColors.gray50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: EvikColors.gray200),
+                ),
+                child: Column(
+                  children: [
+                    _AddressLine(
+                      color: EvikColors.accentOrange,
+                      label: 'К клиенту',
+                      value: order.pickupAddress,
+                    ),
+                    const SizedBox(height: 8),
+                    _AddressLine(
+                      color: EvikColors.gray500,
+                      label: 'Доставка',
+                      value: order.dropoffAddress,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 104,
+                    child: _OrderActionButton(
+                      text: 'Отклонить',
+                      onPressed: isLoading ? null : onDecline,
+                      backgroundColor: EvikColors.gray100,
+                      foregroundColor: EvikColors.primaryBlack,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _OrderActionButton(
+                      text: 'Принять',
+                      onPressed: isLoading ? null : onAccept,
+                      isLoading: isLoading,
+                      backgroundColor: EvikColors.successGreen,
+                      foregroundColor: EvikColors.primaryWhite,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+}
 
-    _cachedMapSignature = signature;
-    _cachedMapObjects = objects;
-    return objects;
+class _OrderActionButton extends StatelessWidget {
+  const _OrderActionButton({
+    required this.text,
+    required this.onPressed,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.isLoading = false,
+  });
+
+  final String text;
+  final VoidCallback? onPressed;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: FilledButton(
+        onPressed: isLoading ? null : onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: backgroundColor,
+          disabledBackgroundColor: backgroundColor.withValues(alpha: 0.55),
+          foregroundColor: foregroundColor,
+          disabledForegroundColor: foregroundColor.withValues(alpha: 0.8),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: EvikTypography.bodyMedium.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  valueColor: AlwaysStoppedAnimation<Color>(foregroundColor),
+                ),
+              )
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(text, maxLines: 1),
+              ),
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: EvikColors.gray100,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: EvikColors.gray700),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: EvikTypography.bodySmall.copyWith(
+              color: EvikColors.gray800,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddressLine extends StatelessWidget {
+  const _AddressLine({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  final Color color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.only(top: 5),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: EvikTypography.sectionLabel),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: EvikTypography.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
@@ -7,21 +8,27 @@ import '../../../../shared/widgets/evik_button.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/skeleton_card.dart';
+import '../../domain/entities/payment_wallet.dart';
+import '../providers/payment_wallet_provider.dart';
 
-enum WalletState { loading, empty, loaded, error }
-
-class ClientWalletScreen extends StatefulWidget {
+class ClientWalletScreen extends ConsumerStatefulWidget {
   const ClientWalletScreen({super.key});
 
   @override
-  State<ClientWalletScreen> createState() => _ClientWalletScreenState();
+  ConsumerState<ClientWalletScreen> createState() => _ClientWalletScreenState();
 }
 
-class _ClientWalletScreenState extends State<ClientWalletScreen> {
-  WalletState _state = WalletState.loaded;
-
+class _ClientWalletScreenState extends ConsumerState<ClientWalletScreen> {
   @override
   Widget build(BuildContext context) {
+    ref.listen<PaymentWalletState>(paymentWalletProvider, (previous, next) {
+      final message = next.errorMessage;
+      if (message == null || message == previous?.errorMessage) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: EvikColors.errorRed),
+      );
+    });
+
     return Scaffold(
       backgroundColor: EvikColors.gray50,
       appBar: AppBar(
@@ -45,24 +52,6 @@ class _ClientWalletScreenState extends State<ClientWalletScreen> {
           splashRadius: 24,
           padding: const EdgeInsets.all(8),
         ),
-        actions: [
-          _WalletStateAction(
-            label: 'Empty',
-            onTap: () => setState(() => _state = WalletState.empty),
-          ),
-          _WalletStateAction(
-            label: 'Loading',
-            onTap: () => setState(() => _state = WalletState.loading),
-          ),
-          _WalletStateAction(
-            label: 'Error',
-            onTap: () => setState(() => _state = WalletState.error),
-          ),
-          _WalletStateAction(
-            label: 'Loaded',
-            onTap: () => setState(() => _state = WalletState.loaded),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Column(
@@ -77,33 +66,51 @@ class _ClientWalletScreenState extends State<ClientWalletScreen> {
   }
 
   Widget _buildBody() {
-    switch (_state) {
-      case WalletState.loading:
-        return ListView(
-          padding: const EdgeInsets.only(top: 8, bottom: 100),
-          children: const [
-            SkeletonCard(height: 136),
-            SkeletonCard(height: 136),
-            SkeletonCard(height: 66),
-            SkeletonCard(height: 84),
-          ],
-        );
-      case WalletState.empty:
-        return EmptyState(
-          icon: Icons.credit_card_outlined,
-          title: 'Нет способов оплаты',
-          subtitle: 'Добавьте карту или другой способ',
-          buttonText: 'Добавить карту',
-          onButtonTap: _addPaymentMethod,
-        );
-      case WalletState.error:
-        return ErrorState(
-          message: 'Способы оплаты временно недоступны.',
-          onRetry: () => setState(() => _state = WalletState.loading),
-        );
-      case WalletState.loaded:
-        return _LoadedWalletContent(onAddCard: _addPaymentMethod);
+    final state = ref.watch(paymentWalletProvider);
+    if (state.isLoading && state.wallet == null) {
+      return ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 100),
+        children: const [
+          SkeletonCard(height: 136),
+          SkeletonCard(height: 136),
+          SkeletonCard(height: 66),
+          SkeletonCard(height: 84),
+        ],
+      );
     }
+
+    final wallet = state.wallet;
+    if (wallet == null && state.errorMessage != null) {
+      return ErrorState(
+        message: 'Способы оплаты временно недоступны.',
+        onRetry: () => ref.read(paymentWalletProvider.notifier).load(),
+      );
+    }
+
+    if (wallet == null || wallet.cards.isEmpty) {
+      return EmptyState(
+        icon: Icons.credit_card_outlined,
+        title: 'Нет способов оплаты',
+        subtitle: 'Добавьте карту для оплаты заказов',
+        buttonText: 'Добавить карту',
+        onButtonTap: _addPaymentMethod,
+      );
+    }
+
+    return _LoadedWalletContent(
+      wallet: wallet,
+      isSubmitting: state.isSubmitting,
+      onAddCard: _addPaymentMethod,
+      onSelectCard: (card) {
+        HapticFeedback.selectionClick();
+        ref.read(paymentWalletProvider.notifier).setDefaultCard(card.id);
+      },
+      onDeleteCard: (card) => _confirmDeleteCard(card),
+      onApplyPromocode: (code) {
+        HapticFeedback.heavyImpact();
+        ref.read(paymentWalletProvider.notifier).applyPromocode(code);
+      },
+    );
   }
 
   void _addPaymentMethod() {
@@ -112,15 +119,84 @@ class _ClientWalletScreenState extends State<ClientWalletScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const _AddCardBottomSheet(),
+      builder: (context) => _AddCardBottomSheet(
+        onSubmit: (command) =>
+            ref.read(paymentWalletProvider.notifier).addCard(command),
+      ),
     );
+  }
+
+  Future<void> _confirmDeleteCard(PaymentCard card) async {
+    HapticFeedback.lightImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить карту?'),
+        content:
+            Text('Карта ${card.maskedNumber} будет удалена из приложения.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    HapticFeedback.heavyImpact();
+    await ref.read(paymentWalletProvider.notifier).deleteCard(card.id);
   }
 }
 
-class _LoadedWalletContent extends StatelessWidget {
-  const _LoadedWalletContent({required this.onAddCard});
+class _LoadedWalletContent extends StatefulWidget {
+  const _LoadedWalletContent({
+    required this.wallet,
+    required this.isSubmitting,
+    required this.onAddCard,
+    required this.onSelectCard,
+    required this.onDeleteCard,
+    required this.onApplyPromocode,
+  });
 
+  final PaymentWallet wallet;
+  final bool isSubmitting;
   final VoidCallback onAddCard;
+  final ValueChanged<PaymentCard> onSelectCard;
+  final ValueChanged<PaymentCard> onDeleteCard;
+  final ValueChanged<String> onApplyPromocode;
+
+  @override
+  State<_LoadedWalletContent> createState() => _LoadedWalletContentState();
+}
+
+class _LoadedWalletContentState extends State<_LoadedWalletContent> {
+  late final TextEditingController _promoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _promoController =
+        TextEditingController(text: widget.wallet.promocode?.code);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LoadedWalletContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final code = widget.wallet.promocode?.code;
+    if (code != null && code != oldWidget.wallet.promocode?.code) {
+      _promoController.text = code;
+    }
+  }
+
+  @override
+  void dispose() {
+    _promoController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,23 +207,17 @@ class _LoadedWalletContent extends StatelessWidget {
         children: [
           Text('СОХРАНЁННЫЕ КАРТЫ', style: EvikTypography.sectionLabel),
           const SizedBox(height: 10),
-          const _BankCard(
-            cardMask: '•••• •••• •••• 4242',
-            expiresAt: 'До 12/27',
-            scheme: 'Visa',
-            selected: true,
-          ),
-          const SizedBox(height: 12),
-          const _BankCard(
-            cardMask: '•••• •••• •••• 5678',
-            expiresAt: 'До 08/26',
-            scheme: 'MC',
-            selected: false,
-            darkSecondary: true,
-          ),
-          const SizedBox(height: 12),
+          for (var index = 0; index < widget.wallet.cards.length; index++) ...[
+            _BankCard(
+              card: widget.wallet.cards[index],
+              darkSecondary: index.isOdd,
+              onTap: () => widget.onSelectCard(widget.wallet.cards[index]),
+              onDelete: () => widget.onDeleteCard(widget.wallet.cards[index]),
+            ),
+            const SizedBox(height: 12),
+          ],
           InkWell(
-            onTap: onAddCard,
+            onTap: widget.onAddCard,
             borderRadius: BorderRadius.circular(16),
             child: Container(
               height: 66,
@@ -198,11 +268,17 @@ class _LoadedWalletContent extends StatelessWidget {
                   ),
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'EVIK2025',
-                    style: EvikTypography.bodyLarge.copyWith(
-                      color: EvikColors.gray500,
+                  child: TextField(
+                    controller: _promoController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'EVIK2025',
                     ),
+                    style: EvikTypography.bodyLarge.copyWith(
+                      color: EvikColors.primaryBlack,
+                    ),
+                    onSubmitted: widget.onApplyPromocode,
                   ),
                 ),
               ),
@@ -212,55 +288,54 @@ class _LoadedWalletContent extends StatelessWidget {
                 child: EvikButton(
                   text: 'Применить',
                   small: true,
-                  onPressed: () {
-                    HapticFeedback.heavyImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Промокод применен.'),
-                        backgroundColor: EvikColors.successGreen,
-                      ),
-                    );
-                  },
+                  isLoading: widget.isSubmitting,
+                  onPressed: () =>
+                      widget.onApplyPromocode(_promoController.text),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6F6EF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBCE6D0)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.check, size: 16, color: Color(0xFF10B981)),
-                const SizedBox(width: 8),
-                Text(
-                  'Скидка 10% на следующую поездку',
-                  style: EvikTypography.bodyMedium.copyWith(
-                    color: const Color(0xFF059669),
+          if (widget.wallet.promocode != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE6F6EF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBCE6D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check, size: 16, color: Color(0xFF10B981)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.wallet.promocode!.description,
+                      style: EvikTypography.bodyMedium.copyWith(
+                        color: const Color(0xFF059669),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 18),
           Text('ПОСЛЕДНИЕ ПЛАТЕЖИ', style: EvikTypography.sectionLabel),
           const SizedBox(height: 10),
-          const _PaymentRow(
-            title: 'Эвакуация · Тверская',
-            date: '23 апр',
-            amount: '-2 300 ₽',
-          ),
-          const Divider(height: 18, color: EvikColors.gray200),
-          const _PaymentRow(
-            title: 'Эвакуация · Садовое',
-            date: '19 апр',
-            amount: '-1 800 ₽',
-          ),
+          if (widget.wallet.payments.isEmpty)
+            Text(
+              'Платежей пока нет',
+              style: EvikTypography.bodyMedium.copyWith(
+                color: EvikColors.gray500,
+              ),
+            )
+          else
+            for (final payment in widget.wallet.payments) ...[
+              _PaymentRow(payment: payment),
+              const Divider(height: 18, color: EvikColors.gray200),
+            ],
         ],
       ),
     );
@@ -268,7 +343,9 @@ class _LoadedWalletContent extends StatelessWidget {
 }
 
 class _AddCardBottomSheet extends StatefulWidget {
-  const _AddCardBottomSheet();
+  const _AddCardBottomSheet({required this.onSubmit});
+
+  final Future<void> Function(AddPaymentCardCommand command) onSubmit;
 
   @override
   State<_AddCardBottomSheet> createState() => _AddCardBottomSheetState();
@@ -298,16 +375,32 @@ class _AddCardBottomSheetState extends State<_AddCardBottomSheet> {
     }
 
     setState(() => _isSubmitting = true);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    HapticFeedback.heavyImpact();
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Карта добавлена.'),
-        backgroundColor: EvikColors.successGreen,
-      ),
-    );
+    try {
+      final expiry = _expiryController.text.split('/');
+      final expMonth = int.parse(expiry[0]);
+      final expYear = 2000 + int.parse(expiry[1]);
+      await widget.onSubmit(
+        AddPaymentCardCommand(
+          cardNumber: _cardController.text,
+          expMonth: expMonth,
+          expYear: expYear,
+          holder: _holderController.text.trim(),
+          cvv: _cvvController.text,
+          setDefault: true,
+        ),
+      );
+      if (!mounted) return;
+      HapticFeedback.heavyImpact();
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Карта добавлена.'),
+          backgroundColor: EvikColors.successGreen,
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -514,40 +607,17 @@ class _GroupedDigitsFormatter extends TextInputFormatter {
   }
 }
 
-class _WalletStateAction extends StatelessWidget {
-  const _WalletStateAction({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      child: Text(
-        label,
-        style: EvikTypography.bodySmall.copyWith(
-          color: EvikColors.accentOrange,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
 class _BankCard extends StatelessWidget {
   const _BankCard({
-    required this.cardMask,
-    required this.expiresAt,
-    required this.scheme,
-    required this.selected,
+    required this.card,
+    required this.onTap,
+    required this.onDelete,
     this.darkSecondary = false,
   });
 
-  final String cardMask;
-  final String expiresAt;
-  final String scheme;
-  final bool selected;
+  final PaymentCard card;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
   final bool darkSecondary;
 
   @override
@@ -555,105 +625,131 @@ class _BankCard extends StatelessWidget {
     final base =
         darkSecondary ? const Color(0xFF3C475B) : const Color(0xFF111827);
 
-    return Container(
-      height: 136,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: base,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: selected ? EvikColors.accentOrange : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -24,
-            top: -28,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: EvikColors.primaryWhite.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
-              ),
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 136,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: base,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                card.isDefault ? EvikColors.accentOrange : Colors.transparent,
+            width: 2,
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: 30,
-                    height: 22,
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              left: -4,
+              top: -4,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onDelete,
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 34,
+                    height: 34,
                     decoration: BoxDecoration(
-                      color: EvikColors.gray200.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(6),
+                      color: EvikColors.primaryWhite.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.credit_card,
-                        color: Color(0xFFF6C23E), size: 16),
-                  ),
-                  Text(
-                    scheme,
-                    style: EvikTypography.bodyMedium.copyWith(
+                    child: const Icon(
+                      Icons.close_rounded,
                       color: EvikColors.primaryWhite,
-                      fontWeight: FontWeight.w700,
+                      size: 20,
                     ),
                   ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                cardMask,
-                style: EvikTypography.h3.copyWith(
-                  color: EvikColors.primaryWhite,
-                  fontSize: 30 / 2,
-                  letterSpacing: 2,
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    expiresAt,
-                    style: EvikTypography.bodySmall
-                        .copyWith(color: const Color(0xFFCBD5E1)),
-                  ),
-                  if (selected)
-                    Container(
-                      width: 20,
-                      height: 20,
-                      decoration: const BoxDecoration(
-                        color: EvikColors.accentOrange,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check,
-                          size: 14, color: EvikColors.primaryWhite),
-                    ),
-                ],
+            ),
+            Positioned(
+              right: -24,
+              top: -28,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: EvikColors.primaryWhite.withValues(alpha: 0.05),
+                  shape: BoxShape.circle,
+                ),
               ),
-            ],
-          ),
-        ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 36),
+                      child: Container(
+                        width: 30,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: EvikColors.gray200.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.credit_card,
+                            color: Color(0xFFF6C23E), size: 16),
+                      ),
+                    ),
+                    Text(
+                      card.displayBrand,
+                      style: EvikTypography.bodyMedium.copyWith(
+                        color: EvikColors.primaryWhite,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  card.maskedNumber,
+                  style: EvikTypography.h3.copyWith(
+                    color: EvikColors.primaryWhite,
+                    fontSize: 30 / 2,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      card.expiresAt,
+                      style: EvikTypography.bodySmall
+                          .copyWith(color: const Color(0xFFCBD5E1)),
+                    ),
+                    if (card.isDefault)
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: EvikColors.accentOrange,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check,
+                            size: 14, color: EvikColors.primaryWhite),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _PaymentRow extends StatelessWidget {
-  const _PaymentRow({
-    required this.title,
-    required this.date,
-    required this.amount,
-  });
+  const _PaymentRow({required this.payment});
 
-  final String title;
-  final String date;
-  final String amount;
+  final PaymentTransaction payment;
 
   @override
   Widget build(BuildContext context) {
@@ -663,20 +759,50 @@ class _PaymentRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
+              Text(payment.title,
                   style: EvikTypography.bodyLarge
                       .copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
-              Text(date,
+              Text(_formatDate(payment.createdAt),
                   style: EvikTypography.bodySmall
                       .copyWith(color: EvikColors.gray500)),
             ],
           ),
         ),
-        Text(amount,
+        Text(_formatAmount(payment.amount),
             style: EvikTypography.h3
                 .copyWith(fontSize: 30 / 2, fontWeight: FontWeight.w800)),
       ],
     );
+  }
+
+  String _formatDate(DateTime value) {
+    const months = [
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'май',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек'
+    ];
+    return '${value.day} ${months[value.month - 1]}';
+  }
+
+  String _formatAmount(int amount) {
+    final sign = amount < 0 ? '-' : '';
+    final value = amount.abs().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < value.length; i++) {
+      final remaining = value.length - i;
+      buffer.write(value[i]);
+      if (remaining > 1 && remaining % 3 == 1) buffer.write(' ');
+    }
+    return '$sign$buffer ₽';
   }
 }

@@ -1,4 +1,5 @@
 import '../entities/order.dart';
+import '../entities/order_flow_state.dart';
 
 class CreateOrderCommand {
   const CreateOrderCommand({
@@ -9,6 +10,7 @@ class CreateOrderCommand {
     required this.distance,
     required this.estimatedPrice,
     required this.paymentMethod,
+    this.towTruckType,
     this.notes,
   });
 
@@ -19,6 +21,7 @@ class CreateOrderCommand {
   final double distance;
   final double estimatedPrice;
   final PaymentMethod paymentMethod;
+  final TowTruckType? towTruckType;
   final String? notes;
 }
 

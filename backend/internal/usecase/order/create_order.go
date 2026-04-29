@@ -44,6 +44,7 @@ type CreateOrderInput struct {
 	PickupLng    float64
 	DropoffLat   float64
 	DropoffLng   float64
+	TowTruckType orderdomain.TowTruckType
 	AutoDispatch bool
 }
 
@@ -69,7 +70,7 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	pickup := orderdomain.Coordinate{Lat: input.PickupLat, Lng: input.PickupLng}
 	dropoff := orderdomain.Coordinate{Lat: input.DropoffLat, Lng: input.DropoffLng}
 
-	ord, err := orderdomain.NewOrder(uc.idGenerator.NewID(), input.UserID, pickup, dropoff, uc.clock.Now())
+	ord, err := orderdomain.NewOrder(uc.idGenerator.NewID(), input.UserID, pickup, dropoff, input.TowTruckType, uc.clock.Now())
 	if err != nil {
 		uc.logger.Error("create order validation failed", err, "user_id", input.UserID)
 		return nil, err

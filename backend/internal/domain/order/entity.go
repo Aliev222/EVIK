@@ -9,34 +9,56 @@ type Coordinate struct {
 	Lng float64
 }
 
-type Order struct {
-	ID          string
-	UserID      string
-	DriverID    *string
-	Pickup      Coordinate
-	Dropoff     Coordinate
-	Status      Status
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	CancelledAt *time.Time
+type TowTruckType string
+
+const (
+	TowTruckWinch       TowTruckType = "winch"
+	TowTruckPlatform    TowTruckType = "platform"
+	TowTruckManipulator TowTruckType = "manipulator"
+)
+
+func (t TowTruckType) IsValid() bool {
+	switch t {
+	case TowTruckWinch, TowTruckPlatform, TowTruckManipulator:
+		return true
+	default:
+		return false
+	}
 }
 
-func NewOrder(id, userID string, pickup, dropoff Coordinate, now time.Time) (*Order, error) {
+type Order struct {
+	ID           string
+	UserID       string
+	DriverID     *string
+	Pickup       Coordinate
+	Dropoff      Coordinate
+	TowTruckType TowTruckType
+	Status       Status
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	CancelledAt  *time.Time
+}
+
+func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTruckType, now time.Time) (*Order, error) {
 	if userID == "" {
 		return nil, WrapValidation(errUserIDRequired{})
 	}
 	if !isValidCoordinate(pickup) || !isValidCoordinate(dropoff) {
 		return nil, WrapValidation(errInvalidCoordinate{})
 	}
+	if !towTruckType.IsValid() {
+		return nil, WrapValidation(errInvalidTowTruckType{})
+	}
 
 	return &Order{
-		ID:        id,
-		UserID:    userID,
-		Pickup:    pickup,
-		Dropoff:   dropoff,
-		Status:    StatusCreated,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:           id,
+		UserID:       userID,
+		Pickup:       pickup,
+		Dropoff:      dropoff,
+		TowTruckType: towTruckType,
+		Status:       StatusCreated,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}, nil
 }
 
@@ -73,6 +95,10 @@ func (errDriverIDRequired) Error() string { return "driver id is required" }
 type errInvalidCoordinate struct{}
 
 func (errInvalidCoordinate) Error() string { return "invalid coordinate" }
+
+type errInvalidTowTruckType struct{}
+
+func (errInvalidTowTruckType) Error() string { return "invalid tow truck type" }
 
 func isValidCoordinate(c Coordinate) bool {
 	return c.Lat >= -90 && c.Lat <= 90 && c.Lng >= -180 && c.Lng <= 180

@@ -1,5 +1,5 @@
-name: evik_frontend
-description: Uber-like tow truck app frontend
+name: tow_truck_frontend
+description: Professional tow truck service app
 publish_to: "none"
 version: 1.0.0+1
 
@@ -33,6 +33,10 @@ dependencies:
   google_fonts: ^6.1.0
   shimmer: ^3.0.0
 
+  # Code Generation
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -40,25 +44,30 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.14.4
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+  build_runner: ^2.4.13
 
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/img/iconapp.png"
-  adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/img/iconapp_fg.png"
-  adaptive_icon_foreground_inset: 16
+  remove_alpha_ios: true
+  image_path: "assets/img/app_icon_load.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/img/app_icon_load_fg.png"
+  adaptive_icon_foreground_inset: 0
   web:
     generate: true
-    image_path: "assets/img/iconapp.png"
+    image_path: "assets/img/app_icon_load.png"
   windows:
     generate: true
-    image_path: "assets/img/iconapp.png"
+    image_path: "assets/img/app_icon_load.png"
   macos:
     generate: true
-    image_path: "assets/img/iconapp.png"
+    image_path: "assets/img/app_icon_load.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/img/
+    - assets/images/vehicles/

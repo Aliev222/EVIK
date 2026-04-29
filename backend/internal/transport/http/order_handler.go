@@ -43,6 +43,7 @@ type createOrderRequest struct {
 	PickupLng    float64 `json:"pickup_lng"`
 	DropoffLat   float64 `json:"dropoff_lat"`
 	DropoffLng   float64 `json:"dropoff_lng"`
+	TowTruckType string  `json:"tow_truck_type"`
 	AutoDispatch bool    `json:"auto_dispatch"`
 }
 
@@ -64,19 +65,20 @@ type coordinateResponse struct {
 }
 
 type orderResponse struct {
-	ID          string             `json:"id"`
-	UserID      string             `json:"user_id"`
-	DriverID    *string            `json:"driver_id"`
-	Pickup      coordinateResponse `json:"pickup"`
-	Dropoff     coordinateResponse `json:"dropoff"`
-	PickupLat   float64            `json:"pickup_lat"`
-	PickupLng   float64            `json:"pickup_lng"`
-	DropoffLat  float64            `json:"dropoff_lat"`
-	DropoffLng  float64            `json:"dropoff_lng"`
-	Status      string             `json:"status"`
-	CreatedAt   string             `json:"created_at"`
-	UpdatedAt   string             `json:"updated_at"`
-	CancelledAt *string            `json:"cancelled_at"`
+	ID           string             `json:"id"`
+	UserID       string             `json:"user_id"`
+	DriverID     *string            `json:"driver_id"`
+	Pickup       coordinateResponse `json:"pickup"`
+	Dropoff      coordinateResponse `json:"dropoff"`
+	PickupLat    float64            `json:"pickup_lat"`
+	PickupLng    float64            `json:"pickup_lng"`
+	DropoffLat   float64            `json:"dropoff_lat"`
+	DropoffLng   float64            `json:"dropoff_lng"`
+	TowTruckType string             `json:"tow_truck_type"`
+	Status       string             `json:"status"`
+	CreatedAt    string             `json:"created_at"`
+	UpdatedAt    string             `json:"updated_at"`
+	CancelledAt  *string            `json:"cancelled_at"`
 }
 
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -91,12 +93,18 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	towTruckType := orderdomain.TowTruckType(req.TowTruckType)
+	if req.TowTruckType == "" {
+		towTruckType = orderdomain.TowTruckWinch // default fallback
+	}
+
 	ord, err := h.createUC.Execute(r.Context(), orderuc.CreateOrderInput{
 		UserID:       userID,
 		PickupLat:    req.PickupLat,
 		PickupLng:    req.PickupLng,
 		DropoffLat:   req.DropoffLat,
 		DropoffLng:   req.DropoffLng,
+		TowTruckType: towTruckType,
 		AutoDispatch: req.AutoDispatch,
 	})
 	if err != nil {
@@ -267,13 +275,14 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 			Lat: ord.Dropoff.Lat,
 			Lng: ord.Dropoff.Lng,
 		},
-		PickupLat:   ord.Pickup.Lat,
-		PickupLng:   ord.Pickup.Lng,
-		DropoffLat:  ord.Dropoff.Lat,
-		DropoffLng:  ord.Dropoff.Lng,
-		Status:      string(ord.Status),
-		CreatedAt:   ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:   ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		CancelledAt: cancelledAt,
+		PickupLat:    ord.Pickup.Lat,
+		PickupLng:    ord.Pickup.Lng,
+		DropoffLat:   ord.Dropoff.Lat,
+		DropoffLng:   ord.Dropoff.Lng,
+		TowTruckType: string(ord.TowTruckType),
+		Status:       string(ord.Status),
+		CreatedAt:    ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		UpdatedAt:    ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		CancelledAt:  cancelledAt,
 	}
 }

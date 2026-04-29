@@ -4,6 +4,7 @@ class ActiveOrder {
   final String clientPhone;
   final String vehicleModel;
   final String problemType;
+  final int blockedWheelsCount;
   final String pickupAddress;
   final String dropoffAddress;
   final double pickupLat;
@@ -23,6 +24,7 @@ class ActiveOrder {
     required this.clientPhone,
     required this.vehicleModel,
     required this.problemType,
+    required this.blockedWheelsCount,
     required this.pickupAddress,
     required this.dropoffAddress,
     required this.pickupLat,
@@ -60,6 +62,7 @@ class ActiveOrder {
     String? clientPhone,
     String? vehicleModel,
     String? problemType,
+    int? blockedWheelsCount,
     String? pickupAddress,
     String? dropoffAddress,
     double? pickupLat,
@@ -79,6 +82,7 @@ class ActiveOrder {
       clientPhone: clientPhone ?? this.clientPhone,
       vehicleModel: vehicleModel ?? this.vehicleModel,
       problemType: problemType ?? this.problemType,
+      blockedWheelsCount: blockedWheelsCount ?? this.blockedWheelsCount,
       pickupAddress: pickupAddress ?? this.pickupAddress,
       dropoffAddress: dropoffAddress ?? this.dropoffAddress,
       pickupLat: pickupLat ?? this.pickupLat,
