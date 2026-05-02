@@ -20,6 +20,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  bool _isNavigatingToDriverInfo = false;
 
   @override
   void initState() {
@@ -49,16 +50,29 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
     context.go('/');
   }
 
+  void _goToDriverInfo() {
+    if (_isNavigatingToDriverInfo) return;
+    _isNavigatingToDriverInfo = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go('/order/driver-info');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final orderFlowState = ref.watch(orderFlowProvider);
     final searchTimer = ref.watch(searchTimerDisplayProvider);
 
+    if (orderFlowState.currentStep == OrderFlowStep.driverFound) {
+      _goToDriverInfo();
+    }
+
     // Listen for navigation to next screen when driver is found
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
       if (next.currentStep == OrderFlowStep.driverFound &&
           previous?.currentStep != OrderFlowStep.driverFound) {
-        context.go('/order/driver-info');
+        _goToDriverInfo();
       }
 
       if (next.errorMessage != null &&

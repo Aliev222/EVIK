@@ -24,6 +24,7 @@ final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
             ? const NoOpApiClient()
             : platform_api.createPlatformApiClient(),
     accessToken: accessToken,
+    accessTokenProvider: () => ref.read(authProvider).accessToken,
   );
 });
 
@@ -84,6 +85,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   final Ref _ref;
   Timer? _refreshTimer;
   final Random _random = Random();
+  final Set<String> _declinedOrderIds = <String>{};
 
   String? get _currentDriverId {
     final userId = _ref.read(authProvider).user?.id;
@@ -208,6 +210,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   }
 
   Future<void> declineOrder(String orderId) async {
+    _declinedOrderIds.add(orderId);
     state = state.copyWith(
       availableOrders:
           state.availableOrders.where((order) => order.id != orderId).toList(),
@@ -218,35 +221,60 @@ class DriverNotifier extends StateNotifier<DriverState> {
     final activeOrder = state.activeOrder;
     if (activeOrder == null) return;
 
-    await _updateOrderStatus('arrived');
-    state = state.copyWith(
-      activeOrder:
-          activeOrder.copyWith(status: ActiveOrderStatus.arrivedAtClient),
-    );
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _updateOrderStatus('arrived');
+      if (!mounted) return;
+      state = state.copyWith(
+        activeOrder:
+            activeOrder.copyWith(status: ActiveOrderStatus.arrivedAtClient),
+        isLoading: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   Future<void> startDrivingToDestination() async {
     final activeOrder = state.activeOrder;
     if (activeOrder == null) return;
 
-    await _updateOrderStatus('in_progress');
-    state = state.copyWith(
-      workState: DriverWorkState.navigatingToDropoff,
-      activeOrder:
-          activeOrder.copyWith(status: ActiveOrderStatus.drivingToDestination),
-    );
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _updateOrderStatus('in_progress');
+      if (!mounted) return;
+      state = state.copyWith(
+        workState: DriverWorkState.navigatingToDropoff,
+        activeOrder: activeOrder.copyWith(
+          status: ActiveOrderStatus.drivingToDestination,
+        ),
+        isLoading: false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   Future<void> completeOrder() async {
     final activeOrder = state.activeOrder;
     if (activeOrder == null) return;
 
-    await _updateOrderStatus('completed');
-    state = state.copyWith(
-      workState: DriverWorkState.online,
-      clearActiveOrder: true,
-    );
-    await _loadAvailableOrders();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _updateOrderStatus('completed');
+      if (!mounted) return;
+      state = state.copyWith(
+        workState: DriverWorkState.online,
+        clearActiveOrder: true,
+        isLoading: false,
+      );
+      await _loadAvailableOrders();
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false);
+    }
   }
 
   Future<void> _updateOrderStatus(String status) async {
@@ -266,8 +294,12 @@ class DriverNotifier extends StateNotifier<DriverState> {
   Future<void> _loadAvailableOrders() async {
     try {
       final orders = await _driverRepository.getAvailableOrders();
+      final visibleOrders = orders.where((order) {
+        final orderId = order['id']?.toString();
+        return orderId == null || !_declinedOrderIds.contains(orderId);
+      });
       state = state.copyWith(
-        availableOrders: orders.map(availableOrderFromBackend).toList(),
+        availableOrders: visibleOrders.map(availableOrderFromBackend).toList(),
       );
     } catch (error) {
       state = state.copyWith(error: 'Не удалось загрузить заказы: $error');

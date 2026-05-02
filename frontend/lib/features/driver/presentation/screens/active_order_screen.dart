@@ -39,6 +39,17 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
     final driverState = ref.watch(newDriverProvider);
     final order = driverState.activeOrder;
 
+    ref.listen<DriverState>(newDriverProvider, (previous, next) {
+      final message = next.error;
+      if (message == null || message == previous?.error) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: EvikColors.errorRed,
+        ),
+      );
+    });
+
     if (order == null) {
       return const Scaffold(
         backgroundColor: EvikColors.gray50,

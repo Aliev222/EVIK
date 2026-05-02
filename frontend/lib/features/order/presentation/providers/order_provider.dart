@@ -21,6 +21,7 @@ final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return HttpOrderRepository(
     apiClient: platform_api.createPlatformApiClient(),
     accessToken: accessToken,
+    accessTokenProvider: () => ref.read(authProvider).accessToken,
   );
 });
 

@@ -8,14 +8,17 @@ class HttpOrderRepository implements OrderRepository {
   const HttpOrderRepository({
     required ApiClient apiClient,
     required String? accessToken,
+    String? Function()? accessTokenProvider,
   })  : _apiClient = apiClient,
-        _accessToken = accessToken;
+        _accessToken = accessToken,
+        _accessTokenProvider = accessTokenProvider;
 
   final ApiClient _apiClient;
   final String? _accessToken;
+  final String? Function()? _accessTokenProvider;
 
   Map<String, String>? get _authHeaders {
-    final token = _accessToken;
+    final token = _accessTokenProvider?.call() ?? _accessToken;
     if (token == null || token.isEmpty) {
       return null;
     }

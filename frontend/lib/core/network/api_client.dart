@@ -17,7 +17,7 @@ const defaultApiBaseUrl = String.fromEnvironment(
   'EVIK_API_BASE_URL',
   defaultValue: kDebugMode
       ? 'http://localhost:8080' // Development
-      : 'https://evik-backend.onrender.com', // Production на Render
+      : 'https://tow-truck.onrender.com', // Production on Render
 );
 
 class ApiClientException implements Exception {
