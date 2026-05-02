@@ -13,7 +13,9 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
-val yandexMapKitApiKey = localProperties.getProperty("YANDEX_MAPKIT_API_KEY", "MISSING_KEY")
+val yandexMapKitApiKey = localProperties.getProperty("YANDEX_MAPKIT_API_KEY")
+    ?: System.getenv("YANDEX_MAPKIT_API_KEY")
+    ?: "MISSING_KEY"
 
 android {
     namespace = "com.example.evik_frontend"

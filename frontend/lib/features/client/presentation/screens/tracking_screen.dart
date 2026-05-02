@@ -7,6 +7,7 @@ import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
 import '../../../driver/domain/entities/driver.dart';
+import '../../../map/presentation/widgets/yandex_map_view.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
@@ -72,17 +73,19 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: YandexMap(
-              onMapCreated: (controller) async {
-                _mapController = controller;
-                await controller.toggleTrafficLayer(visible: true);
-                await _focusDriver(driverPoint);
-              },
-              onTrafficChanged: (_) {},
-              mapObjects: _mapObjects(
-                driverPoint: driverPoint,
-                pickup: pickup,
-                destination: destination,
+            child: MapKitAwareYandexMap(
+              builder: (_) => YandexMap(
+                onMapCreated: (controller) async {
+                  _mapController = controller;
+                  await controller.toggleTrafficLayer(visible: true);
+                  await _focusDriver(driverPoint);
+                },
+                onTrafficChanged: (_) {},
+                mapObjects: _mapObjects(
+                  driverPoint: driverPoint,
+                  pickup: pickup,
+                  destination: destination,
+                ),
               ),
             ),
           ),

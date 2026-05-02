@@ -8,6 +8,7 @@ import 'package:yandex_mapkit/yandex_mapkit.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../../map/presentation/widgets/yandex_map_view.dart';
 import '../../domain/entities/available_order.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
@@ -298,10 +299,12 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: YandexMap(
-              onMapCreated: _onMapCreated,
-              mapType: MapType.vector,
-              mapObjects: _buildMapObjects(driverState),
+            child: MapKitAwareYandexMap(
+              builder: (_) => YandexMap(
+                onMapCreated: _onMapCreated,
+                mapType: MapType.vector,
+                mapObjects: _buildMapObjects(driverState),
+              ),
             ),
           ),
         ),

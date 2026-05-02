@@ -7,6 +7,7 @@ import 'package:yandex_mapkit/yandex_mapkit.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../../map/presentation/widgets/yandex_map_view.dart';
 import '../../domain/entities/active_order.dart';
 import '../providers/new_driver_provider.dart';
 
@@ -64,10 +65,12 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: YandexMap(
-              onMapCreated: _onMapCreated,
-              mapType: MapType.vector,
-              mapObjects: _mapObjects(order),
+            child: MapKitAwareYandexMap(
+              builder: (_) => YandexMap(
+                onMapCreated: _onMapCreated,
+                mapType: MapType.vector,
+                mapObjects: _mapObjects(order),
+              ),
             ),
           ),
           Positioned(
