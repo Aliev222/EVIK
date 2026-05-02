@@ -74,6 +74,54 @@ func TestAcceptOrderAssignsDriverAndPublishesEvent(t *testing.T) {
 	}
 }
 
+func TestAcceptOrderIsIdempotentForSameDriverActiveOrder(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	for _, status := range []orderdomain.Status{
+		orderdomain.StatusAccepted,
+		orderdomain.StatusArrived,
+		orderdomain.StatusInProgress,
+	} {
+		t.Run(string(status), func(t *testing.T) {
+			driverID := "driver-1"
+			orderRepo := &fakeOrderRepository{
+				order: &orderdomain.Order{
+					ID:        "order-1",
+					UserID:    "client-1",
+					DriverID:  &driverID,
+					Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+					Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+					Status:    status,
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			}
+			driverRepo := &fakeDriverOrderRepository{}
+			publisher := &fakeEventPublisher{}
+			uc := NewAcceptOrderUseCase(orderRepo, driverRepo, publisher, fakeClock{now: now}, fakeLogger{})
+
+			ord, err := uc.Execute(context.Background(), "order-1", driverID)
+			if err != nil {
+				t.Fatalf("Execute returned error: %v", err)
+			}
+			if ord.Status != status {
+				t.Fatalf("status = %q, want %q", ord.Status, status)
+			}
+			if ord.DriverID == nil || *ord.DriverID != driverID {
+				t.Fatalf("driver id = %v, want %s", ord.DriverID, driverID)
+			}
+			if orderRepo.updated {
+				t.Fatal("order was updated for idempotent accept")
+			}
+			if driverRepo.assignCalls != 0 {
+				t.Fatalf("assign calls = %d, want 0", driverRepo.assignCalls)
+			}
+			if len(publisher.events) != 0 {
+				t.Fatalf("events = %+v, want none", publisher.events)
+			}
+		})
+	}
+}
+
 func TestAcceptOrderRecoversStaleTerminalDriverOrderAndRetries(t *testing.T) {
 	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
 	staleID := "order-stale"
