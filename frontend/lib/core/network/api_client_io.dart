@@ -60,15 +60,17 @@ class IoApiClient implements ApiClient {
             request = await client.getUrl(uri);
           } else if (method == 'POST') {
             request = await client.postUrl(uri);
-            request.headers.contentType = ContentType.json;
-            if (body != null) {
-              request.write(jsonEncode(body));
-            }
           } else if (method == 'DELETE') {
             request = await client.deleteUrl(uri);
           }
 
           _applyHeaders(request, headers);
+          if (method == 'POST') {
+            request.headers.contentType = ContentType.json;
+            if (body != null) {
+              request.write(jsonEncode(body));
+            }
+          }
 
           final response = await request.close().timeout(_timeout);
           final responseText = await response.transform(utf8.decoder).join();

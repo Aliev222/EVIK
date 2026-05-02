@@ -1,19 +1,27 @@
 package http
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"evik/backend/internal/auth"
 )
 
 type AuthHandler struct {
-	tokens *auth.TokenManager
+	tokens        *auth.TokenManager
+	adminUserID   string
+	adminPassword string
 }
 
-func NewAuthHandler(tokens *auth.TokenManager) *AuthHandler {
-	return &AuthHandler{tokens: tokens}
+func NewAuthHandler(tokens *auth.TokenManager, adminUserID string, adminPassword string) *AuthHandler {
+	return &AuthHandler{
+		tokens:        tokens,
+		adminUserID:   strings.TrimSpace(adminUserID),
+		adminPassword: adminPassword,
+	}
 }
 
 type loginRequest struct {
@@ -23,6 +31,11 @@ type loginRequest struct {
 
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
+}
+
+type adminLoginRequest struct {
+	UserID   string `json:"user_id"`
+	Password string `json:"password"`
 }
 
 type authTokensResponse struct {
@@ -43,6 +56,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, "user_id and valid role are required")
 		return
 	}
+	if role == auth.RoleAdmin {
+		writeAuthError(w, http.StatusForbidden, "admin login is not allowed on this endpoint")
+		return
+	}
 
 	accessToken, refreshToken, err := h.tokens.Issue(req.UserID, role)
 	if err != nil {
@@ -59,6 +76,46 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"user": map[string]any{
 			"id":   req.UserID,
 			"role": role,
+		},
+	})
+}
+
+func (h *AuthHandler) AdminLogin(w http.ResponseWriter, r *http.Request) {
+	var req adminLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	userID := strings.TrimSpace(req.UserID)
+	if userID == "" {
+		userID = h.adminUserID
+	}
+	if h.adminUserID == "" || h.adminPassword == "" {
+		writeAuthError(w, http.StatusServiceUnavailable, "admin auth is not configured")
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(userID), []byte(h.adminUserID)) != 1 ||
+		subtle.ConstantTimeCompare([]byte(req.Password), []byte(h.adminPassword)) != 1 {
+		writeAuthError(w, http.StatusUnauthorized, "invalid admin credentials")
+		return
+	}
+
+	accessToken, refreshToken, err := h.tokens.Issue(h.adminUserID, auth.RoleAdmin)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"tokens": authTokensResponse{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			TokenType:    "Bearer",
+		},
+		"user": map[string]any{
+			"id":   h.adminUserID,
+			"role": auth.RoleAdmin,
 		},
 	})
 }

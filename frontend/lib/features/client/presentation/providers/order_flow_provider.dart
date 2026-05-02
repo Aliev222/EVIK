@@ -29,6 +29,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   final Ref _ref;
   Timer? _searchTimer;
   Timer? _driverFoundTimer;
+  Timer? _orderPollTimer;
 
   void startOrderFlow() {
     state = state.copyWith(
@@ -114,6 +115,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   void resetFlow() {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
+    _orderPollTimer?.cancel();
     state = const OrderFlowState();
   }
 
@@ -194,6 +196,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   void cancelSearch() {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
+    _orderPollTimer?.cancel();
     final orderNotifier = _ref.read(orderProvider.notifier);
     unawaited(orderNotifier.cancelCurrentOrder(reason: 'Отменено клиентом'));
     resetFlow();
@@ -224,7 +227,9 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     });
 
     unawaited(_createOrderWithFallback());
-    _driverFoundTimer = Timer(const Duration(seconds: 4), _assignMockDriver);
+    if (AppConstants.useMockData) {
+      _driverFoundTimer = Timer(const Duration(seconds: 4), _assignMockDriver);
+    }
   }
 
   Future<void> _createOrderWithFallback() async {
@@ -253,10 +258,114 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     try {
       await _ref.read(orderProvider.notifier).createOrder(command);
       final created = _ref.read(orderProvider).currentOrder;
-      state = state.copyWith(activeOrder: created ?? _mockOrder(command));
-    } catch (_) {
-      state = state.copyWith(activeOrder: _mockOrder(command));
+      if (created == null) {
+        if (AppConstants.useMockData) {
+          state = state.copyWith(activeOrder: _mockOrder(command));
+          return;
+        }
+        _handleSearchError(
+          _ref.read(orderProvider).errorMessage ??
+              'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р· РЅР° СЃРµСЂРІРµСЂРµ.',
+        );
+        return;
+      }
+
+      state = state.copyWith(activeOrder: created);
+      if (!AppConstants.useMockData) {
+        _startOrderPolling(created.id);
+      }
+    } catch (error) {
+      if (AppConstants.useMockData) {
+        state = state.copyWith(activeOrder: _mockOrder(command));
+        return;
+      }
+      _handleSearchError('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·: $error');
     }
+  }
+
+  void _startOrderPolling(String orderId) {
+    _orderPollTimer?.cancel();
+    _orderPollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      unawaited(_refreshActiveOrder(orderId));
+    });
+    unawaited(_refreshActiveOrder(orderId));
+  }
+
+  Future<void> _refreshActiveOrder(String orderId) async {
+    try {
+      final order = await _ref.read(orderRepositoryProvider).getOrder(orderId);
+      if (!mounted || order == null) return;
+      _applyBackendOrderUpdate(order);
+    } catch (_) {
+      // Keep the visible flow stable during transient local-server failures.
+    }
+  }
+
+  void _applyBackendOrderUpdate(Order order) {
+    var nextStep = state.currentStep;
+    var assignedDriver = state.assignedDriver;
+
+    if (order.driverId != null && order.driverId!.isNotEmpty) {
+      assignedDriver ??= _driverFromAcceptedOrder(order);
+      if (nextStep == OrderFlowStep.driverSearch) {
+        _searchTimer?.cancel();
+        nextStep = OrderFlowStep.driverFound;
+      }
+    }
+
+    if (order.status == OrderStatus.arrived ||
+        order.status == OrderStatus.evacuating) {
+      if (nextStep == OrderFlowStep.driverFound) {
+        nextStep = OrderFlowStep.tracking;
+      }
+    }
+
+    if (order.status == OrderStatus.completed) {
+      _searchTimer?.cancel();
+      _orderPollTimer?.cancel();
+      nextStep = OrderFlowStep.completion;
+    }
+
+    if (order.status == OrderStatus.cancelled) {
+      _searchTimer?.cancel();
+      _orderPollTimer?.cancel();
+      state = state.copyWith(
+        activeOrder: order,
+        currentStep: OrderFlowStep.idle,
+        isLoading: false,
+        errorMessage: 'Order was cancelled.',
+      );
+      return;
+    }
+
+    state = state.copyWith(
+      activeOrder: order,
+      assignedDriver: assignedDriver,
+      currentStep: nextStep,
+      isLoading: false,
+      errorMessage: null,
+    );
+  }
+
+  Driver _driverFromAcceptedOrder(Order order) {
+    final driverId = order.driverId ?? 'driver';
+    return Driver(
+      userId: driverId,
+      vehicleModel:
+          state.selectedTowTruckType?.displayName ?? 'EVIK tow truck',
+      vehicleNumber: 'EVIK',
+      vehicleType: VehicleType.light,
+      rating: 5,
+      totalOrders: 0,
+      isOnline: true,
+      currentLocation: DriverLocation(
+        lat: order.pickupLocation.lat + 0.012,
+        lng: order.pickupLocation.lng + 0.010,
+      ),
+      isVerified: true,
+      earnings: const DriverEarnings(today: 0, week: 0, month: 0),
+    );
   }
 
   String? _buildOrderNotes() {
@@ -322,6 +431,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   void _handleSearchTimeout() {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
+    _orderPollTimer?.cancel();
     state = state.copyWith(
       isLoading: false,
       errorMessage:
@@ -332,6 +442,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   void _handleSearchError(String error) {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
+    _orderPollTimer?.cancel();
     state = state.copyWith(
       isLoading: false,
       errorMessage: error,
@@ -383,6 +494,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   void dispose() {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
+    _orderPollTimer?.cancel();
     super.dispose();
   }
 }

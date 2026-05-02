@@ -1,0 +1,72 @@
+services:
+  backend:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file:
+      - ./.env.prod
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - evik-private
+
+  admin-web:
+    build:
+      context: ../admin-web
+    restart: unless-stopped
+    environment:
+      ADMIN_WEB_ADDR: ":5174"
+      EVIK_API_BASE_URL: "http://backend:8080"
+      YANDEX_MAPS_API_KEY: "${YANDEX_MAPS_API_KEY}"
+    depends_on:
+      - backend
+    networks:
+      - evik-private
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB}"
+      POSTGRES_USER: "${POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - evik-private
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - evik-private
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - admin-web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    networks:
+      - evik-private
+
+networks:
+  evik-private:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+

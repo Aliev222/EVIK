@@ -7,8 +7,10 @@ import (
 )
 
 type Client struct {
-	Conn *gws.Conn
-	Send chan []byte
+	Conn   *gws.Conn
+	Send   chan []byte
+	UserID string
+	Role   string
 }
 
 type Hub struct {
@@ -65,4 +67,36 @@ func (h *Hub) Unregister(c *Client) {
 
 func (h *Hub) Broadcast(payload []byte) {
 	h.broadcast <- payload
+}
+
+// SendToDriver sends a message to a specific driver
+func (h *Hub) SendToDriver(driverID string, payload []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for c := range h.clients {
+		if c.UserID == driverID && c.Role == "driver" {
+			select {
+			case c.Send <- payload:
+			default:
+				// Client buffer is full, skip
+			}
+		}
+	}
+}
+
+// SendToUser sends a message to a specific user
+func (h *Hub) SendToUser(userID string, payload []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for c := range h.clients {
+		if c.UserID == userID {
+			select {
+			case c.Send <- payload:
+			default:
+				// Client buffer is full, skip
+			}
+		}
+	}
 }

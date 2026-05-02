@@ -6,7 +6,17 @@ import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
 import '../../../auth/domain/entities/user.dart';
 
-final selectedOnboardingRoleProvider = StateProvider<UserRole?>((ref) => null);
+UserRole? _initialRoleFromEnvironment() {
+  const rawRole = String.fromEnvironment('EVIK_INITIAL_ROLE');
+  return switch (rawRole) {
+    'client' => UserRole.client,
+    'driver' => UserRole.driver,
+    _ => null,
+  };
+}
+
+final selectedOnboardingRoleProvider =
+    StateProvider<UserRole?>((ref) => _initialRoleFromEnvironment());
 
 class RoleSelectionScreen extends ConsumerStatefulWidget {
   const RoleSelectionScreen({super.key});

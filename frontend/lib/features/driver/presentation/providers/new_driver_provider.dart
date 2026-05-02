@@ -114,11 +114,14 @@ class DriverNotifier extends StateNotifier<DriverState> {
         activeOrder = null;
       }
 
+      final stats = await _loadStats(driverId);
+      if (!mounted) return;
+
       state = state.copyWith(
         workState: nextWorkState,
         activeOrder: activeOrder,
         clearActiveOrder: activeOrder == null,
-        stats: await _loadStats(driverId),
+        stats: stats,
         isLoading: false,
         clearError: true,
       );
@@ -127,6 +130,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         await _loadAvailableOrders();
       }
     } catch (error) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         error: 'Не удалось загрузить данные водителя: $error',
@@ -278,16 +282,16 @@ class DriverNotifier extends StateNotifier<DriverState> {
     final todayEarnings = completed * 2500.0;
     return DriverStats(
       yesterday:
-          const YesterdayStats(ordersCount: 4, earnings: 6200, rating: 4.9),
+          const YesterdayStats(ordersCount: 0, earnings: 0, rating: 5),
       today: TodayStats(ordersCount: completed, earnings: todayEarnings),
       weekly: WeeklyStats(
-        totalEarnings: todayEarnings + 18400,
-        weeklyChange: 12,
-        ordersCount: completed + 12,
+        totalEarnings: todayEarnings,
+        weeklyChange: 0,
+        ordersCount: completed,
         averageOrder: 2500,
-        hoursWorked: 28,
+        hoursWorked: 0,
         rating: 4.9,
-        availableForWithdrawal: todayEarnings + 18400,
+        availableForWithdrawal: todayEarnings,
       ),
     );
   }
@@ -295,6 +299,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   void _startPeriodicRefresh() {
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!mounted) return;
       if (state.workState == DriverWorkState.online) {
         unawaited(_loadAvailableOrders());
       }

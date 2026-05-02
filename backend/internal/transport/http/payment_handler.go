@@ -32,7 +32,6 @@ type addCardRequest struct {
 	ExpMonth   int    `json:"exp_month"`
 	ExpYear    int    `json:"exp_year"`
 	Holder     string `json:"holder"`
-	CVV        string `json:"cvv"`
 	SetDefault bool   `json:"set_default"`
 }
 
@@ -184,13 +183,9 @@ func (h *PaymentHandler) ApplyPromocode(w http.ResponseWriter, r *http.Request) 
 
 func (h *PaymentHandler) paymentMethodFromRequest(userID string, req addCardRequest) (paymentdomain.PaymentMethod, error) {
 	cardNumber := onlyDigits(req.CardNumber)
-	cvv := onlyDigits(req.CVV)
 	holder := strings.TrimSpace(req.Holder)
 	if len(cardNumber) < 13 || len(cardNumber) > 19 || !validLuhn(cardNumber) {
 		return paymentdomain.PaymentMethod{}, errors.New("invalid card number")
-	}
-	if len(cvv) < 3 || len(cvv) > 4 {
-		return paymentdomain.PaymentMethod{}, errors.New("invalid cvv")
 	}
 	if req.ExpMonth < 1 || req.ExpMonth > 12 {
 		return paymentdomain.PaymentMethod{}, errors.New("invalid expiration month")

@@ -105,7 +105,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		DropoffLat:   req.DropoffLat,
 		DropoffLng:   req.DropoffLng,
 		TowTruckType: towTruckType,
-		AutoDispatch: req.AutoDispatch,
+		AutoDispatch: false, // Always false - manual driver acceptance only
 	})
 	if err != nil {
 		switch {

@@ -94,6 +94,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 		Payload: map[string]any{
 			"status":    ord.Status,
 			"driver_id": driverID,
+			"user_id":   ord.UserID, // Add user_id for targeted delivery
 		},
 	}); err != nil {
 		uc.logger.Error("failed to publish accepted status", err, "order_id", ord.ID)

@@ -206,3 +206,22 @@ LIMIT $2
 	}
 	return transactions, rows.Err()
 }
+
+func (r *PaymentRepository) CreateTransaction(ctx context.Context, transaction *paymentdomain.PaymentTransaction) error {
+	const query = `
+		INSERT INTO payment_transactions (id, user_id, order_id, title, amount, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+
+	_, err := r.db.ExecContext(ctx, query,
+		transaction.ID,
+		transaction.UserID,
+		transaction.OrderID,
+		transaction.Title,
+		transaction.Amount,
+		transaction.Status,
+		transaction.CreatedAt,
+	)
+
+	return err
+}

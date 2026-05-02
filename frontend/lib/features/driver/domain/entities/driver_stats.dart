@@ -11,22 +11,22 @@ class DriverStats {
 
   static const DriverStats mock = DriverStats(
     yesterday: YesterdayStats(
-      ordersCount: 4,
-      earnings: 6200,
-      rating: 4.9,
+      ordersCount: 0,
+      earnings: 0,
+      rating: 5,
     ),
     today: TodayStats(
-      ordersCount: 2,
-      earnings: 3200,
+      ordersCount: 0,
+      earnings: 0,
     ),
     weekly: WeeklyStats(
-      totalEarnings: 18400,
-      weeklyChange: 12,
-      ordersCount: 12,
-      averageOrder: 1533,
-      hoursWorked: 28,
-      rating: 4.9,
-      availableForWithdrawal: 18400,
+      totalEarnings: 0,
+      weeklyChange: 0,
+      ordersCount: 0,
+      averageOrder: 0,
+      hoursWorked: 0,
+      rating: 5,
+      availableForWithdrawal: 0,
     ),
   );
 }
