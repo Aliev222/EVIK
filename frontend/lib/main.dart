@@ -51,7 +51,9 @@ class _LaunchScreen extends StatefulWidget {
 }
 
 class _LaunchScreenState extends State<_LaunchScreen> {
-  bool _showSplash = true;
+  static bool _didShowLaunchSplash = false;
+
+  late bool _showSplash = !_didShowLaunchSplash;
   bool _didPrepareSplash = false;
 
   @override
@@ -63,6 +65,11 @@ class _LaunchScreenState extends State<_LaunchScreen> {
   }
 
   Future<void> _prepareSplash() async {
+    if (_didShowLaunchSplash) {
+      WidgetsBinding.instance.allowFirstFrame();
+      return;
+    }
+
     try {
       await precacheImage(
         const AssetImage('assets/img/startevik.png'),
@@ -74,6 +81,7 @@ class _LaunchScreenState extends State<_LaunchScreen> {
 
     await Future<void>.delayed(const Duration(milliseconds: 1400));
     if (!mounted) return;
+    _didShowLaunchSplash = true;
     setState(() => _showSplash = false);
   }
 
