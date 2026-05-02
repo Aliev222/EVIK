@@ -97,7 +97,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PickupLng:    req.PickupLng,
 		DropoffLat:   req.DropoffLat,
 		DropoffLng:   req.DropoffLng,
-		AutoDispatch: req.AutoDispatch,
+		AutoDispatch: false,
 	})
 	if err != nil {
 		switch {
