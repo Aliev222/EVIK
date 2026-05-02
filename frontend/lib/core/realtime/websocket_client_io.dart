@@ -13,7 +13,7 @@ const defaultWsUrl = String.fromEnvironment(
   'EVIK_WS_URL',
   defaultValue: kDebugMode
     ? 'ws://localhost:8080/ws/orders'      // Development
-    : 'wss://evik-backend.onrender.com/ws/orders',      // Production на Render
+    : 'wss://tow-truck.onrender.com/ws/orders',         // Production on Render
 );
 
 WebSocketClient createPlatformWebSocketClient() {
