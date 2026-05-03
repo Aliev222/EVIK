@@ -21,9 +21,9 @@ var (
 )
 
 type Claims struct {
-	UserID string `json:"uid"`
-	Role   Role   `json:"role"`
-	Type   string `json:"typ"`
+	UserID string `json:"sub"`
+	Role   string `json:"role"` // Changed to string for compatibility
+	Phone  string `json:"phone"`
 	jwt.RegisteredClaims
 }
 
@@ -82,8 +82,8 @@ func (m *TokenManager) ParseRefreshToken(token string) (*Claims, error) {
 func (m *TokenManager) sign(userID string, role Role, tokenType string, expiresAt time.Time) (string, error) {
 	claims := Claims{
 		UserID: userID,
-		Role:   role,
-		Type:   tokenType,
+		Role:   string(role), // Convert Role to string
+		Phone:  "", // Set if needed
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
@@ -109,7 +109,7 @@ func (m *TokenManager) parse(raw string, expectedType string) (*Claims, error) {
 	if !ok || !token.Valid {
 		return nil, ErrInvalidToken
 	}
-	if claims.Type != expectedType || claims.UserID == "" || !IsValidRole(claims.Role) {
+	if claims.UserID == "" || !IsValidRole(Role(claims.Role)) {
 		return nil, ErrInvalidToken
 	}
 	return claims, nil

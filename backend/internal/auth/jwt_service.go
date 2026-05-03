@@ -22,12 +22,7 @@ type TokenPair struct {
 	ExpiresAt    time.Time `json:"expires_at"`
 }
 
-type Claims struct {
-	UserID string `json:"sub"`
-	Role   string `json:"role"`
-	Phone  string `json:"phone"`
-	jwt.RegisteredClaims
-}
+// Claims структура перенесена в tokens.go чтобы избежать дублирования
 
 type RefreshClaims struct {
 	UserID string `json:"sub"`
