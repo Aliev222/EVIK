@@ -230,11 +230,21 @@ class ClientOrderNotifier extends StateNotifier<ClientOrderState> {
       return;
     }
 
+    final newUIState = _mapOrderStatusToUIState(order.status);
     state = state.copyWith(
       currentOrder: order,
-      uiState: _mapOrderStatusToUIState(order.status),
+      uiState: newUIState,
       isLoading: false,
     );
+
+    // Auto-transition back to idle after completed state
+    if (newUIState == ClientHomeUIState.completed) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (state.uiState == ClientHomeUIState.completed) {
+          state = const ClientOrderState();
+        }
+      });
+    }
   }
 
   ClientHomeUIState _mapOrderStatusToUIState(OrderStatus status) {

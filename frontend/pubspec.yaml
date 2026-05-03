@@ -20,6 +20,7 @@ dependencies:
   web_socket_channel: ^3.0.0
   connectivity_plus: ^6.1.0
   permission_handler: ^11.3.1
+  flutter_secure_storage: ^9.2.2
 
   # UI & Utils
   go_router: ^14.6.1

@@ -27,20 +27,44 @@ class YandexMapView extends StatelessWidget {
         child: CustomPaint(
           painter: _MapFallbackPainter(),
           child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: EvikColors.surfaceDark.withValues(alpha: 0.86),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: EvikColors.borderDark),
-              ),
-              child: const Text(
-                'Предпросмотр карты',
-                style: TextStyle(
-                  color: EvikColors.textPrimaryDark,
-                  fontWeight: FontWeight.w600,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: EvikColors.surfaceDark.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: EvikColors.borderDark),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.map_outlined,
+                        color: EvikColors.textPrimaryDark,
+                        size: 32,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Карта недоступна',
+                        style: TextStyle(
+                          color: EvikColors.textPrimaryDark,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Настройте Yandex MapKit API',
+                        style: TextStyle(
+                          color: EvikColors.textSecondaryDark,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
