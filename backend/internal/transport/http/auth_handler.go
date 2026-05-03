@@ -79,7 +79,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	}
-	accessToken, refreshToken, err := h.tokens.Issue(claims.UserID, claims.Role)
+	accessToken, refreshToken, err := h.tokens.Issue(claims.UserID, auth.Role(claims.Role))
 	if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
 		return

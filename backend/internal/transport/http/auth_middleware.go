@@ -21,7 +21,7 @@ func AuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(withAuth(r.Context(), claims.UserID, claims.Role)))
+			next.ServeHTTP(w, r.WithContext(withAuth(r.Context(), claims.UserID, auth.Role(claims.Role))))
 		})
 	}
 }

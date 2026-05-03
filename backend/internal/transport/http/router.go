@@ -34,9 +34,10 @@ func NewRouter(
 	authMW := AuthMiddleware(tokens)
 
 	r.Route("/api/v1", func(api chi.Router) {
-		// SMS Auth endpoints (новые)
-		api.Post("/auth/send-sms", authHandler.SendSMS)
-		api.Post("/auth/verify-sms", authHandler.VerifySMS)
+		// SMS Auth endpoints (временно отключены до реализации)
+		// TODO: Implement SMS auth handlers
+		// api.Post("/auth/send-sms", authHandler.SendSMS)
+		// api.Post("/auth/verify-sms", authHandler.VerifySMS)
 
 		// Существующие auth endpoints
 		api.Post("/auth/login", authHandler.Login)
