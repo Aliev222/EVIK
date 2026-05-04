@@ -8,7 +8,8 @@
       "WebSearch",
       "Bash(unzip -l \"Tow truck-handoff.zip\")",
       "Bash(unzip -o \"Tow truck-handoff.zip\")",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(xargs cat *)"
     ]
   }
 }

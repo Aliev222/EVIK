@@ -95,6 +95,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo)
+	adminHandler := httptransport.NewAdminHandler() // Админский хэндлер
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	authHandler := httptransport.NewAuthHandler(tokenManager)
 	hub := wsinfra.NewHub()
@@ -103,7 +104,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher)
 	go eventRelay.Run(context.Background())
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, wsHandler, tokenManager)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, adminHandler, wsHandler, tokenManager)
 	return &Container{Router: router, db: db, rdb: rdb}, nil
 }
 

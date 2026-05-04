@@ -14,6 +14,7 @@ func NewRouter(
 	authHandler *AuthHandler,
 	orderHandler *OrderHandler,
 	driverHandler *DriverHandler,
+	adminHandler *AdminHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 ) nethttp.Handler {
@@ -56,6 +57,24 @@ func NewRouter(
 			secured.Get("/drivers/{driverID}", driverHandler.GetDriver)
 			secured.Get("/drivers/{driverID}/location", driverHandler.GetLocation)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/drivers/{driverID}/status", driverHandler.SetStatus)
+
+			// Admin endpoints
+			secured.Route("/admin", func(admin chi.Router) {
+				admin.Use(RequireRoles(auth.RoleAdmin))
+				admin.Get("/overview", adminHandler.GetOverview)
+				admin.Get("/driver-verifications", adminHandler.GetDriverVerifications)
+				admin.Get("/users", adminHandler.GetUsers)
+				admin.Get("/reviews", adminHandler.GetReviews)
+				admin.Get("/drivers-online", adminHandler.GetDriversOnline)
+
+				// Moderation endpoints
+				admin.Route("/moderation/driver-verifications", func(mod chi.Router) {
+					mod.Post("/{id}/approve", adminHandler.ApproveDriver)
+					mod.Post("/{id}/reject", adminHandler.RejectDriver)
+					mod.Post("/{id}/request-changes", adminHandler.RequestChanges)
+					mod.Post("/{id}/block", adminHandler.BlockDriver)
+				})
+			})
 		})
 	})
 	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
