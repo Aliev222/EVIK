@@ -24,9 +24,9 @@ func NewRouter(
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:*", "http://127.0.0.1:*", "http://10.0.2.2:*"},
+		AllowedOrigins:   []string{"http://localhost:*", "http://127.0.0.1:*", "http://10.0.2.2:*", "https://tow-truck.onrender.com", "*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Evik-Api-Base-Url"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -35,14 +35,12 @@ func NewRouter(
 	authMW := AuthMiddleware(tokens)
 
 	r.Route("/api/v1", func(api chi.Router) {
-		// SMS Auth endpoints (временно отключены до реализации)
-		// TODO: Implement SMS auth handlers
-		// api.Post("/auth/send-sms", authHandler.SendSMS)
-		// api.Post("/auth/verify-sms", authHandler.VerifySMS)
-
-		// Существующие auth endpoints
+		// Simple auth endpoints (phone + password, no SMS)
+		api.Post("/auth/register", authHandler.Register)    // Новая регистрация
 		api.Post("/auth/login", authHandler.Login)
 		api.Post("/auth/refresh", authHandler.Refresh)
+		// Админский login
+		api.Post("/auth/admin/login", authHandler.AdminLogin)
 
 		api.Group(func(secured chi.Router) {
 			secured.Use(authMW)
