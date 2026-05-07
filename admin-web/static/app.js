@@ -25,7 +25,8 @@ const apiUrlStorageKey = "evik_admin_api_url";
 const promapsKeyStorageKey = "evik_promaps_api_key";
 const adminUserIDStorageKey = "evik_admin_user_id";
 const promapsMapInstances = new Map();
-let promapsLoaded = false;
+const towTruckIcon = "images/vehicles/truck.png";
+const towTruckLoadedIcon = "images/vehicles/truck_loaded.png";
 
 // Функции для иконок водителей
 function getDriverStatusColor(status) {
@@ -39,16 +40,9 @@ function getDriverStatusColor(status) {
 }
 
 function getDriverIconPath(status) {
-  switch (status) {
-    case 'online':
-    case 'to_pickup':
-      return 'images/vehicles/truck.png'; // Пустой эвакуатор
-    case 'busy':
-    case 'to_destination':
-      return 'images/vehicles/truck_loaded.png'; // Загруженный эвакуатор
-    default:
-      return 'images/vehicles/truck.png'; // По умолчанию пустой
-  }
+  return status === "busy" || status === "to_destination"
+    ? towTruckLoadedIcon
+    : towTruckIcon;
 }
 
 window.addEventListener("error", (event) => {
@@ -130,7 +124,7 @@ async function loadConfig() {
   state.config = await response.json();
 
   const savedUrl = localStorage.getItem(apiUrlStorageKey);
-  if (savedUrl) {
+  if (savedUrl && !savedUrl.includes("localhost") && !savedUrl.includes("127.0.0.1")) {
     state.config.api_base_url = savedUrl;
   }
   const savedPromapsKey = localStorage.getItem(promapsKeyStorageKey);
@@ -199,8 +193,8 @@ async function loadAll() {
   state.users = normalizeItems(users.data);
   state.reviews = normalizeItems(reviews.data);
   state.onlineDrivers = normalizeItems(onlineDrivers.data);
-  state.source = [overview, verifications, users, reviews, onlineDrivers].some((item) => item.source === "mock")
-    ? "mock"
+  state.source = [overview, verifications, users, reviews, onlineDrivers].some((item) => item.source === "error")
+    ? "error"
     : "api";
 
   if (!state.selectedCaseId && state.verifications.length > 0) {
@@ -220,9 +214,14 @@ async function getAdminData(resource) {
     if (!response.ok) throw new Error(`API ${response.status}`);
     return { source: "api", data: await response.json() };
   } catch (error) {
-    const fallbackResponse = await fetch(`/admin-api/mock/${resource}`);
-    return { source: "mock", data: await fallbackResponse.json() };
+    console.error(`Admin API failed for ${resource}`, error);
+    return { source: "error", data: emptyAdminPayload(resource), error };
   }
+}
+
+function emptyAdminPayload(resource) {
+  if (resource === "overview") return {};
+  return { items: [] };
 }
 
 function authHeaders() {
@@ -289,6 +288,11 @@ function setSource(source) {
   if (source === "mock") {
     pill.textContent = "Fallback данные";
     pill.classList.add("mock");
+    return;
+  }
+  if (source === "error") {
+    pill.textContent = "API error";
+    pill.classList.add("error");
     return;
   }
   pill.textContent = "Real API";
@@ -509,119 +513,68 @@ function renderDriverMaps() {
 
 async function renderMap(container, drivers, showLabels) {
   if (!container) return;
-  if (!drivers.length) {
-    container.innerHTML = `<div class="empty">Нет водителей на смене</div>`;
+  const validDrivers = drivers
+    .map((driver) => ({ ...driver, lat: Number(driver.lat), lng: Number(driver.lng) }))
+    .filter((driver) => Number.isFinite(driver.lat) && Number.isFinite(driver.lng));
+
+  const apiKey = state.config?.promaps_api_key;
+  if (!apiKey) {
+    container.innerHTML = `<div class="map-fallback-note">??????? ProMaps API key ? ?????????? ??? ?????????? PROMAPS_API_KEY.</div>`;
     return;
   }
 
-  const visible = container.offsetWidth > 0 && container.offsetHeight > 0;
-  const apiKey = state.config?.promaps_api_key;
-  let fallbackNotice = "";
-  if (apiKey && visible) {
-    try {
-      await renderProMapsMap(container, drivers, showLabels, apiKey);
-      return;
-    } catch (error) {
-      console.error("ProMaps failed", error);
-      fallbackNotice = `<div class="map-fallback-note">ProMaps не загрузилась. Проверьте API key и доступ к api.promaps.online.</div>`;
-    }
-  } else if (!apiKey) {
-    fallbackNotice = `<div class="map-fallback-note">Чтобы видеть реальную ProMaps карту, укажите ProMaps API key во вкладке Настройки.</div>`;
-  }
-
-  const lats = drivers.map((item) => Number(item.lat)).filter(Number.isFinite);
-  const lngs = drivers.map((item) => Number(item.lng)).filter(Number.isFinite);
-  const minLat = Math.min(...lats) - 0.015;
-  const maxLat = Math.max(...lats) + 0.015;
-  const minLng = Math.min(...lngs) - 0.015;
-  const maxLng = Math.max(...lngs) + 0.015;
-
-  container.innerHTML = fallbackNotice + drivers.map((driver) => {
-    const x = scale(Number(driver.lng), minLng, maxLng, 8, 92);
-    const y = scale(Number(driver.lat), minLat, maxLat, 88, 12);
-    return `
-      ${showLabels ? `<div class="map-label" style="left:${x}%; top:${y}%">${escapeHtml(driver.name)}<span>${escapeHtml(driver.vehicle)} · ${formatStarsValue(driver.stars)} ★</span></div>` : ""}
-      <div class="map-pin" title="${escapeAttr(driver.name)}" style="left:${x}%; top:${y}%"></div>
-    `;
-  }).join("");
+  await renderProMapsMap(container, validDrivers, showLabels, apiKey);
 }
 
 async function renderProMapsMap(container, drivers, showLabels, apiKey) {
-  const validDrivers = drivers
-    .map((driver) => ({
-      ...driver,
-      lat: Number(driver.lat),
-      lng: Number(driver.lng),
-    }))
-    .filter((driver) => Number.isFinite(driver.lat) && Number.isFinite(driver.lng));
-
-  // Always show map, even if no drivers
-  const hasDrivers = validDrivers.length > 0;
-
-  // Default center is Moscow if no drivers
-  const center = hasDrivers ? getMapCenter(validDrivers) : [55.7558, 37.6173];
+  const center = drivers.length ? getMapCenter(drivers) : { lat: 55.7558, lng: 37.6173 };
+  const zoom = showLabels ? 12 : 10;
   const existing = promapsMapInstances.get(container.id);
-  if (existing) {
-    existing.remove();
-    promapsMapInstances.delete(container.id);
-  }
+  if (existing) existing.remove();
 
-  container.innerHTML = "";
   container.classList.add("promaps-ready");
+  const markers = drivers.map((driver) => renderDriverMarker(driver, center, zoom, showLabels)).join("");
+  const emptyState = drivers.length
+    ? ""
+    : `<div class="map-empty-state">??? ????????? ?? ?????</div>`;
 
-  // Create ProMaps iframe embed
-  const zoom = showLabels ? 11 : 10;
-  const mapHtml = `
-    <div class="promaps-container" style="position: relative; width: 100%; height: 100%; border-radius: 16px; overflow: hidden;">
+  container.innerHTML = `
+    <div class="promaps-container">
       <iframe
-        src="https://api.promaps.online/embed?lat=${center[0]}&lng=${center[1]}&zoom=${zoom}&key=${apiKey}&style=default"
+        src="https://api.promaps.online/embed?lat=${encodeURIComponent(center.lat)}&lng=${encodeURIComponent(center.lng)}&zoom=${zoom}&key=${encodeURIComponent(apiKey)}&style=default"
         width="100%"
         height="100%"
         frameborder="0"
-        style="border:none;"
         loading="lazy"
-        title="ProMaps - Карта водителей">
+        title="ProMaps - ????? ?????????">
       </iframe>
-      <div class="map-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
-        ${!hasDrivers ?
-          '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px;">Нет водителей онлайн</div>' :
-          validDrivers.map((driver, index) => {
-          // Convert coordinates to approximate pixel positions with smooth animation
-          const now = Date.now() / 1000;
-          const latDiff = (driver.lat - center[0]) * 10;
-          const lngDiff = (driver.lng - center[1]) * 10;
-
-          // Add slight movement animation for demo
-          const animationOffset = Math.sin(now + index) * 0.5;
-          const x = 50 + (lngDiff * 50 / Math.pow(2, 10 - zoom)) + animationOffset;
-          const y = 50 - (latDiff * 50 / Math.pow(2, 10 - zoom)) + Math.cos(now + index) * 0.3;
-
-          return `
-            <div class="promaps-driver-marker ${driver.status === 'online' ? 'online' : 'busy'} driver-${index}"
-                 style="position: absolute; left:${Math.max(5, Math.min(95, x))}%; top:${Math.max(5, Math.min(95, y))}%; transform: translate(-50%, -50%); pointer-events: auto; transition: all 3s ease-in-out;"
-                 title="${escapeAttr(driver.name)} · ${escapeAttr(driver.vehicle)} · ${formatStarsValue(driver.stars)} ★">
-              <div class="marker-container" style="width: 40px; height: 40px; border-radius: 50%; background: white; border: 3px solid ${getDriverStatusColor(driver.status)}; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-                <img src="${getDriverIconPath(driver.status)}"
-                     style="width: 24px; height: 24px; object-fit: contain;"
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-                <span style="display: none; font-size: 16px;">🚛</span>
-              </div>
-              ${showLabels ? `<div class="marker-label" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; font-weight: 500;">${escapeHtml(driver.name)}<br><small style="opacity: 0.8;">${escapeHtml(driver.vehicle || '')}</small></div>` : ''}
-            </div>
-          `;
-        }).join('')}
-
+      <div class="map-overlay" aria-label="???????? ?? ?????">
+        ${emptyState}
+        ${markers}
       </div>
     </div>
   `;
 
-  container.innerHTML = mapHtml;
   promapsMapInstances.set(container.id, {
     remove: () => {
-      container.innerHTML = '';
+      container.innerHTML = "";
       container.classList.remove("promaps-ready");
-    }
+    },
   });
+}
+
+function renderDriverMarker(driver, center, zoom, showLabels) {
+  const point = projectLatLng(driver.lat, driver.lng, center, zoom);
+  const left = clamp(point.x, 5, 95);
+  const top = clamp(point.y, 5, 95);
+  const status = driver.status || "online";
+  const label = driver.vehicle ? `${driver.name} ? ${driver.vehicle}` : driver.name;
+  return `
+    <button class="driver-map-marker ${escapeAttr(status)}" style="left:${left}%; top:${top}%; border-color:${getDriverStatusColor(status)}" title="${escapeAttr(label)}" type="button">
+      <img src="${getDriverIconPath(status)}" alt="" />
+      ${showLabels ? `<span>${escapeHtml(driver.name || driver.id)}<small>${escapeHtml(driver.vehicle || driver.status || "online")}</small></span>` : ""}
+    </button>
+  `;
 }
 
 function getMapCenter(drivers) {
@@ -633,12 +586,31 @@ function getMapCenter(drivers) {
     },
     { lat: 0, lng: 0 },
   );
-  return [sum.lat / drivers.length, sum.lng / drivers.length];
+  return { lat: sum.lat / drivers.length, lng: sum.lng / drivers.length };
 }
 
-function scale(value, min, max, outMin, outMax) {
-  if (max === min) return (outMin + outMax) / 2;
-  return outMin + ((value - min) / (max - min)) * (outMax - outMin);
+function projectLatLng(lat, lng, center, zoom) {
+  const scale = 256 * Math.pow(2, zoom);
+  const centerWorld = latLngToWorld(center.lat, center.lng, scale);
+  const pointWorld = latLngToWorld(lat, lng, scale);
+  const dx = pointWorld.x - centerWorld.x;
+  const dy = pointWorld.y - centerWorld.y;
+  return {
+    x: 50 + (dx / 10),
+    y: 50 + (dy / 10),
+  };
+}
+
+function latLngToWorld(lat, lng, scaleValue) {
+  const sinLat = Math.sin((lat * Math.PI) / 180);
+  return {
+    x: ((lng + 180) / 360) * scaleValue,
+    y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scaleValue,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function pendingCount() {

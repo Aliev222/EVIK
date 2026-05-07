@@ -2,13 +2,11 @@
 
 Separate desktop web console for moderation and operations.
 
-## Run locally
+## Run Locally With Render
 
 ```powershell
-cd C:\Users\Minec\Desktop\EVIK\admin-web
-$env:EVIK_API_BASE_URL="http://localhost:8080"
-$env:PROMAPS_API_KEY="YOUR_PROMAPS_API_KEY"
-go run .
+cd C:\Users\Minec\Desktop\EVIK-main-build
+.\start_admin_web.bat
 ```
 
 Open:
@@ -17,13 +15,25 @@ Open:
 http://127.0.0.1:5174
 ```
 
+The launcher connects the local admin gateway to:
+
+```text
+https://tow-truck.onrender.com
+```
+
+Manual run:
+
+```powershell
+cd C:\Users\Minec\Desktop\EVIK-main-build\admin-web
+$env:EVIK_API_BASE_URL="https://tow-truck.onrender.com"
+$env:PROMAPS_API_KEY="YOUR_PROMAPS_API_KEY"
+go run .
+```
+
 ## Configuration
 
-Environment variables:
-
 - `ADMIN_WEB_ADDR` - local admin web address, default `:5174`.
-- `EVIK_API_BASE_URL` - app backend server URL, default `http://localhost:8080`.
-- Backend URL can also be changed in the website settings. The local gateway will proxy requests to that URL.
+- `EVIK_API_BASE_URL` - app backend server URL, default `https://tow-truck.onrender.com`.
 - `PROMAPS_API_KEY` - ProMaps API key for the live driver map.
 
 The website sends app API calls through the local gateway:
@@ -32,9 +42,9 @@ The website sends app API calls through the local gateway:
 /api/v1/admin/...
 ```
 
-If the app backend does not yet expose admin endpoints, the website falls back to local mock data and shows `Fallback данные` in the top bar.
+If the app backend or admin token is unavailable, the website shows an API error state instead of fake production values.
 
-## Required production backend endpoints
+## Required Backend Endpoints
 
 - `GET /api/v1/admin/overview`
 - `GET /api/v1/admin/driver-verifications`
@@ -46,9 +56,4 @@ If the app backend does not yet expose admin endpoints, the website falls back t
 - `GET /api/v1/admin/reviews`
 - `GET /api/v1/admin/drivers-online`
 
-Implemented app-facing data endpoints:
-
-- `POST /api/v1/driver-verifications` - driver submits moderation data.
-- `POST /api/v1/reviews` - client submits driver rating and review.
-
-For local development, open `Settings`, click `Войти как admin`, then refresh data. The current backend dev auth issues an admin token for `user_id=admin` and `role=admin`.
+For local development, open `Settings`, enter the Render `ADMIN_PASSWORD`, click `Войти как admin`, then refresh data.

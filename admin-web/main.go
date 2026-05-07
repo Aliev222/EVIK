@@ -26,7 +26,7 @@ type config struct {
 func main() {
 	cfg := config{
 		addr:          getEnv("ADMIN_WEB_ADDR", ":5174"),
-		apiBaseURL:    strings.TrimRight(getEnv("EVIK_API_BASE_URL", "http://localhost:8080"), "/"),
+		apiBaseURL:    strings.TrimRight(getEnv("EVIK_API_BASE_URL", "https://tow-truck.onrender.com"), "/"),
 		promapsAPIKey: getEnv("PROMAPS_API_KEY", "pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5"),
 	}
 
