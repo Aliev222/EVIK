@@ -554,7 +554,7 @@ async function renderProMapsMap(container, drivers, showLabels, apiKey) {
     await loadMapLibre();
     const map = new maplibregl.Map({
       container: mapCanvasId,
-      style: `https://promaps.online/api/styles?key=${encodeURIComponent(apiKey)}`,
+      style: `https://promaps.online/api/styles/default?key=${encodeURIComponent(apiKey)}`,
       center: [center.lng, center.lat],
       zoom,
       attributionControl: false,
