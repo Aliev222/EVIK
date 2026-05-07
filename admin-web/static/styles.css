@@ -851,7 +851,7 @@ tr:hover td {
   min-height: inherit;
 }
 
-.promaps-container iframe,
+.promaps-map-canvas,
 .map-overlay {
   position: absolute;
   inset: 0;
@@ -859,8 +859,9 @@ tr:hover td {
   height: 100%;
 }
 
-.promaps-container iframe {
-  border: 0;
+.promaps-map-canvas {
+  overflow: hidden;
+  border-radius: 18px;
 }
 
 .map-overlay {
@@ -882,7 +883,6 @@ tr:hover td {
 }
 
 .driver-map-marker {
-  position: absolute;
   width: 48px;
   height: 48px;
   padding: 4px;
@@ -890,7 +890,6 @@ tr:hover td {
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.32);
-  transform: translate(-50%, -50%);
   pointer-events: auto;
   cursor: pointer;
 }

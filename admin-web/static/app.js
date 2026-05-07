@@ -27,6 +27,9 @@ const adminUserIDStorageKey = "evik_admin_user_id";
 const promapsMapInstances = new Map();
 const towTruckIcon = "images/vehicles/truck.png";
 const towTruckLoadedIcon = "images/vehicles/truck_loaded.png";
+const mapLibreScriptUrl = "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js";
+const mapLibreCssUrl = "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css";
+let mapLibreLoadPromise = null;
 
 // Функции для иконок водителей
 function getDriverStatusColor(status) {
@@ -214,7 +217,7 @@ async function getAdminData(resource) {
     if (!response.ok) throw new Error(`API ${response.status}`);
     return { source: "api", data: await response.json() };
   } catch (error) {
-    console.error(`failed to load ${resource}`, error);
+    console.error(`Admin API failed for ${resource}`, error);
     return { source: "error", data: emptyAdminPayload(resource), error };
   }
 }
@@ -533,48 +536,103 @@ async function renderProMapsMap(container, drivers, showLabels, apiKey) {
   if (existing) existing.remove();
 
   container.classList.add("promaps-ready");
-  const markers = drivers.map((driver) => renderDriverMarker(driver, center, zoom, showLabels)).join("");
   const emptyState = drivers.length
     ? ""
     : `<div class="map-empty-state">Нет водителей на смене</div>`;
+  const mapCanvasId = `${container.id || "promaps"}-canvas`;
 
   container.innerHTML = `
     <div class="promaps-container">
-      <iframe
-        src="https://promaps.online/embed?lat=${encodeURIComponent(center.lat)}&lng=${encodeURIComponent(center.lng)}&zoom=${zoom}&key=${encodeURIComponent(apiKey)}&style=default"
-        width="100%"
-        height="100%"
-        frameborder="0"
-        loading="lazy"
-        title="ProMaps - карта водителей">
-      </iframe>
+      <div class="promaps-map-canvas" id="${escapeAttr(mapCanvasId)}"></div>
       <div class="map-overlay" aria-label="Водители на смене">
         ${emptyState}
-        ${markers}
       </div>
     </div>
   `;
 
-  promapsMapInstances.set(container.id, {
-    remove: () => {
-      container.innerHTML = "";
-      container.classList.remove("promaps-ready");
-    },
-  });
+  try {
+    await loadMapLibre();
+    const map = new maplibregl.Map({
+      container: mapCanvasId,
+      style: `https://promaps.online/api/styles?key=${encodeURIComponent(apiKey)}`,
+      center: [center.lng, center.lat],
+      zoom,
+      attributionControl: false,
+    });
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+
+    map.on("load", () => {
+      drivers.forEach((driver) => {
+        new maplibregl.Marker({
+          element: createDriverMarkerElement(driver, showLabels),
+          anchor: "center",
+        })
+          .setLngLat([driver.lng, driver.lat])
+          .addTo(map);
+      });
+    });
+
+    map.on("error", (event) => {
+      console.error("ProMaps MapLibre error", event?.error || event);
+      showMapError(container, "ProMaps не загрузила стиль карты. Проверьте Maps API key.");
+    });
+
+    promapsMapInstances.set(container.id, {
+      remove: () => {
+        map.remove();
+        container.innerHTML = "";
+        container.classList.remove("promaps-ready");
+      },
+    });
+  } catch (error) {
+    console.error("MapLibre failed", error);
+    showMapError(container, "Не удалось загрузить MapLibre для ProMaps.");
+  }
 }
 
-function renderDriverMarker(driver, center, zoom, showLabels) {
-  const point = projectLatLng(driver.lat, driver.lng, center, zoom);
-  const left = clamp(point.x, 5, 95);
-  const top = clamp(point.y, 5, 95);
+function createDriverMarkerElement(driver, showLabels) {
   const status = driver.status || "online";
-  const label = driver.vehicle ? `${driver.name} · ${driver.vehicle}` : driver.name;
-  return `
-    <button class="driver-map-marker ${escapeAttr(status)}" style="left:${left}%; top:${top}%; border-color:${getDriverStatusColor(status)}" title="${escapeAttr(label)}" type="button">
-      <img src="${getDriverIconPath(status)}" alt="" />
-      ${showLabels ? `<span>${escapeHtml(driver.name || driver.id)}<small>${escapeHtml(driver.vehicle || driver.status || "online")}</small></span>` : ""}
-    </button>
+  const marker = document.createElement("button");
+  marker.className = `driver-map-marker ${status}`;
+  marker.type = "button";
+  marker.title = driver.vehicle ? `${driver.name} · ${driver.vehicle}` : driver.name || driver.id;
+  marker.style.borderColor = getDriverStatusColor(status);
+  marker.innerHTML = `
+    <img src="${getDriverIconPath(status)}" alt="" />
+    ${showLabels ? `<span>${escapeHtml(driver.name || driver.id)}<small>${escapeHtml(driver.vehicle || driver.status || "online")}</small></span>` : ""}
   `;
+  return marker;
+}
+
+function loadMapLibre() {
+  if (window.maplibregl) return Promise.resolve();
+  if (mapLibreLoadPromise) return mapLibreLoadPromise;
+
+  mapLibreLoadPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector(`link[href="${mapLibreCssUrl}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = mapLibreCssUrl;
+      document.head.appendChild(link);
+    }
+
+    const script = document.createElement("script");
+    script.src = mapLibreScriptUrl;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("MapLibre script failed to load"));
+    document.head.appendChild(script);
+  });
+
+  return mapLibreLoadPromise;
+}
+
+function showMapError(container, message) {
+  const overlay = container.querySelector(".map-overlay");
+  if (!overlay) return;
+  overlay.innerHTML = `<div class="map-empty-state">${escapeHtml(message)}</div>`;
 }
 
 function getMapCenter(drivers) {
