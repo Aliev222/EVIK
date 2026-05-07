@@ -241,7 +241,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     }
 
     final auth = _ref.read(authProvider);
-    final clientId = auth.user?.id ?? 'mock_client';
+    final clientId = auth.user?.id;
+    if (clientId == null || clientId.isEmpty) {
+      _handleSearchError('Нужно войти в аккаунт, чтобы создать заказ.');
+      return;
+    }
 
     final command = CreateOrderCommand(
       clientId: clientId,
@@ -279,7 +283,8 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         state = state.copyWith(activeOrder: _mockOrder(command));
         return;
       }
-      _handleSearchError('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·: $error');
+      _handleSearchError(
+          'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·: $error');
     }
   }
 
@@ -352,8 +357,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     final driverId = order.driverId ?? 'driver';
     return Driver(
       userId: driverId,
-      vehicleModel:
-          state.selectedTowTruckType?.displayName ?? 'EVIK tow truck',
+      vehicleModel: state.selectedTowTruckType?.displayName ?? 'EVIK tow truck',
       vehicleNumber: 'EVIK',
       vehicleType: VehicleType.light,
       rating: 5,

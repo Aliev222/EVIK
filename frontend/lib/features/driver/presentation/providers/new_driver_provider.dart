@@ -3,8 +3,6 @@ import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
@@ -19,10 +17,7 @@ final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
   final accessToken =
       ref.watch(authProvider.select((state) => state.accessToken));
   return HttpDriverRepository(
-    apiClient:
-        AppConstants.skipAuth && (accessToken == null || accessToken.isEmpty)
-            ? const NoOpApiClient()
-            : platform_api.createPlatformApiClient(),
+    apiClient: platform_api.createPlatformApiClient(),
     accessToken: accessToken,
     accessTokenProvider: () => ref.read(authProvider).accessToken,
   );
@@ -90,7 +85,6 @@ class DriverNotifier extends StateNotifier<DriverState> {
   String? get _currentDriverId {
     final userId = _ref.read(authProvider).user?.id;
     if (userId != null && userId.isNotEmpty) return userId;
-    if (AppConstants.skipAuth) return 'local-driver';
     return null;
   }
 
@@ -313,8 +307,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         .length;
     final todayEarnings = completed * 2500.0;
     return DriverStats(
-      yesterday:
-          const YesterdayStats(ordersCount: 0, earnings: 0, rating: 5),
+      yesterday: const YesterdayStats(ordersCount: 0, earnings: 0, rating: 5),
       today: TodayStats(ordersCount: completed, earnings: todayEarnings),
       weekly: WeeklyStats(
         totalEarnings: todayEarnings,

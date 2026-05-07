@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -28,6 +30,8 @@ class ProMapsViewSimple extends StatefulWidget {
 
 class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
   static const String _apiKey = AppConstants.promapsMapsApiKey;
+  static const double _tileSize = 256;
+  static const double _maxMercatorLat = 85.05112878;
 
   late double _currentLat;
   late double _currentLng;
@@ -124,10 +128,7 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
                 bottom: 16,
                 child: Text(
                   '© ProMaps',
-                  style: TextStyle(
-                    color: EvikColors.gray600,
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: EvikColors.gray600, fontSize: 10),
                 ),
               ),
             ],
@@ -138,18 +139,23 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
   }
 
   String _tileUrl() {
-    final zoom = _currentZoom.round();
-    final x = _lonToTileX(_currentLng, zoom);
-    final y = _latToTileY(_currentLat, zoom);
+    final zoom = _currentZoom.round().clamp(1, 18);
+    final tiles = 1 << zoom;
+    final x = _lonToTileX(_currentLng, zoom) % tiles;
+    final y = _latToTileY(_currentLat, zoom).clamp(0, tiles - 1);
     return '${AppConstants.promapsBaseUrl}/tiles/default/$zoom/$x/$y.png?key=$_apiKey';
   }
 
   int _lonToTileX(double lon, int zoom) {
-    return ((lon + 180.0) / 360.0 * (1 << zoom)).floor();
+    final normalizedLon = ((lon + 180) % 360 + 360) % 360 - 180;
+    return (((normalizedLon + 180) / 360) * (1 << zoom)).floor();
   }
 
   int _latToTileY(double lat, int zoom) {
-    return ((90.0 - lat) / 180.0 * (1 << zoom)).floor();
+    final clampedLat = lat.clamp(-_maxMercatorLat, _maxMercatorLat);
+    final latRad = clampedLat * math.pi / 180;
+    final n = math.pi - math.log(math.tan(math.pi / 4 + latRad / 2));
+    return ((n / (2 * math.pi)) * (1 << zoom)).floor();
   }
 
   void _handleTap(TapUpDetails details) {
@@ -160,19 +166,14 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
     }
 
     final size = box.size;
-    final zoom = _currentZoom.round();
-    final scale = (1 << zoom).toDouble();
-    const tileSize = 256.0;
-    final centerX = (_currentLng + 180.0) / 360.0 * scale;
-    final centerY = (90.0 - _currentLat) / 180.0 * scale;
-    final tappedX =
-        centerX + ((details.localPosition.dx - size.width / 2) / tileSize);
-    final tappedY =
-        centerY + ((details.localPosition.dy - size.height / 2) / tileSize);
-    final lng = (tappedX / scale * 360.0) - 180.0;
-    final lat = 90.0 - (tappedY / scale * 180.0);
-
-    widget.onTap?.call(lat.clamp(-90.0, 90.0), lng.clamp(-180.0, 180.0));
+    final zoom = _currentZoom.round().clamp(1, 18);
+    final center = _latLngToWorld(_currentLat, _currentLng, zoom);
+    final tapped = Offset(
+      center.dx + details.localPosition.dx - size.width / 2,
+      center.dy + details.localPosition.dy - size.height / 2,
+    );
+    final latLng = _worldToLatLng(tapped, zoom);
+    widget.onTap?.call(latLng.$1, latLng.$2);
   }
 
   void _zoomIn() {
@@ -188,19 +189,34 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
   }
 
   Offset _projectMarker(ProMapMarker marker, Size size) {
-    final zoom = _currentZoom.round();
-    final scale = (1 << zoom).toDouble();
-    final centerX = (_currentLng + 180.0) / 360.0 * scale;
-    final centerY = (90.0 - _currentLat) / 180.0 * scale;
-    final markerX = (marker.lng + 180.0) / 360.0 * scale;
-    final markerY = (90.0 - marker.lat) / 180.0 * scale;
-    const tileSize = 256.0;
-    final dx = (markerX - centerX) * tileSize + size.width / 2;
-    final dy = (markerY - centerY) * tileSize + size.height / 2;
+    final zoom = _currentZoom.round().clamp(1, 18);
+    final center = _latLngToWorld(_currentLat, _currentLng, zoom);
+    final point = _latLngToWorld(marker.lat, marker.lng, zoom);
+    final dx = point.dx - center.dx + size.width / 2;
+    final dy = point.dy - center.dy + size.height / 2;
     return Offset(
       dx.clamp(8.0, size.width - 8.0),
       dy.clamp(8.0, size.height - 8.0),
     );
+  }
+
+  Offset _latLngToWorld(double lat, double lng, int zoom) {
+    final scale = (1 << zoom) * _tileSize;
+    final clampedLat = lat.clamp(-_maxMercatorLat, _maxMercatorLat);
+    final sinLat = math.sin(clampedLat * math.pi / 180);
+    final x = ((lng + 180) / 360) * scale;
+    final y =
+        (0.5 - math.log((1 + sinLat) / (1 - sinLat)) / (4 * math.pi)) * scale;
+    return Offset(x, y);
+  }
+
+  (double lat, double lng) _worldToLatLng(Offset point, int zoom) {
+    final scale = (1 << zoom) * _tileSize;
+    final lng = (point.dx / scale) * 360 - 180;
+    final n = math.pi - 2 * math.pi * point.dy / scale;
+    final sinhN = (math.exp(n) - math.exp(-n)) / 2;
+    final lat = (180 / math.pi) * math.atan(sinhN);
+    return (lat.clamp(-_maxMercatorLat, _maxMercatorLat), lng.clamp(-180, 180));
   }
 }
 
@@ -272,7 +288,7 @@ class _ProMapsUnavailableState extends StatelessWidget {
               ),
               SizedBox(height: 8),
               Text(
-                'Карта недоступна',
+                'ProMaps недоступна',
                 style: TextStyle(
                   color: EvikColors.primaryBlack,
                   fontWeight: FontWeight.w600,
@@ -281,11 +297,8 @@ class _ProMapsUnavailableState extends StatelessWidget {
               ),
               SizedBox(height: 4),
               Text(
-                'Проверьте интернет-соединение',
-                style: TextStyle(
-                  color: EvikColors.gray600,
-                  fontSize: 14,
-                ),
+                'Проверьте ключ или endpoint карты',
+                style: TextStyle(color: EvikColors.gray600, fontSize: 14),
               ),
             ],
           ),

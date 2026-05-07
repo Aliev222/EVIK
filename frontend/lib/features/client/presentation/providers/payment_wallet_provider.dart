@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
@@ -14,9 +12,7 @@ import '../../domain/entities/payment_wallet.dart';
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   final token = ref.watch(authProvider.select((state) => state.accessToken));
   return PaymentRepository(
-    apiClient: AppConstants.skipAuth && (token == null || token.isEmpty)
-        ? const NoOpApiClient()
-        : platform_api.createPlatformApiClient(),
+    apiClient: platform_api.createPlatformApiClient(),
     accessToken: token,
   );
 });

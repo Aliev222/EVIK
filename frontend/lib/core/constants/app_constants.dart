@@ -11,7 +11,7 @@ class AppConstants {
 
   // Режим быстрого тестирования - пропуск авторизации
   static const bool skipAuth =
-      bool.fromEnvironment('SKIP_AUTH', defaultValue: true);
+      bool.fromEnvironment('SKIP_AUTH', defaultValue: false);
 
   // ProMaps API keys.
   static const String promapsMapsApiKey = String.fromEnvironment(
