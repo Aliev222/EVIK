@@ -18,7 +18,7 @@ services:
     environment:
       ADMIN_WEB_ADDR: ":5174"
       EVIK_API_BASE_URL: "http://backend:8080"
-      YANDEX_MAPS_API_KEY: "${YANDEX_MAPS_API_KEY}"
+      PROMAPS_API_KEY: "${PROMAPS_API_KEY}"
     depends_on:
       - backend
     networks:

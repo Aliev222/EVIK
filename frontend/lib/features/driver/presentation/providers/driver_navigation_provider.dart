@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/services/location_service.dart';
+import '../../../../core/services/promaps_service.dart';
 import '../../../order/domain/entities/order.dart';
 
 class DriverNavigationState {
@@ -71,18 +72,15 @@ class DriverNavigationNotifier extends StateNotifier<DriverNavigationState> {
     );
   }
 
-  Future<void> openYandexNavigator(double lat, double lng) async {
-    final uri =
-        Uri.parse('yandexnavi://build_route_on_map?lat_to=$lat&lon_to=$lng');
-    final fallback =
-        Uri.parse('https://yandex.ru/maps/?rtext=~$lat,$lng&rtt=auto');
+  Future<void> openProMapsNavigation(double lat, double lng) async {
+    final uri = Uri.parse(
+      ProMapsService.getEmbedMapUrl(lat: lat, lng: lng, zoom: 16),
+    );
 
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
       return;
     }
-
-    await launchUrl(fallback, mode: LaunchMode.externalApplication);
   }
 
   Future<void> trackDriverPosition() async {

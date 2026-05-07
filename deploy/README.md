@@ -21,7 +21,7 @@ Copy-Item .env.prod.example .env.prod
 
 - Replace all `CHANGE_ME...`
 - Set real domains in `ALLOWED_ORIGINS`
-- Set `YANDEX_MAPS_API_KEY`
+- Set `PROMAPS_API_KEY` and `PROMAPS_ROAD_API_KEY`
 - Set S3 credentials
 
 3. Copy Nginx config:

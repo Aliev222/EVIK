@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../map/presentation/widgets/yandex_map_view.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
 import '../../../order/domain/entities/order.dart';
 
 class DriverMapWidget extends StatelessWidget {
@@ -41,10 +41,33 @@ class DriverMapWidget extends StatelessWidget {
           SizedBox(
             height: 220,
             width: double.infinity,
-            child: YandexMapView(
+            child: ProMapsViewSimple(
               initialLat: initialLat,
               initialLng: initialLng,
               initialZoom: currentOrder == null ? 12 : 10,
+              markers: [
+                if (driverLocation != null)
+                  ProMapMarker(
+                    lat: driverLocation!.lat,
+                    lng: driverLocation!.lng,
+                    title: 'Вы',
+                    color: const Color(0xFF2E90FA),
+                  ),
+                if (currentOrder != null) ...[
+                  ProMapMarker(
+                    lat: currentOrder!.pickupLocation.lat,
+                    lng: currentOrder!.pickupLocation.lng,
+                    title: currentOrder!.pickupLocation.address,
+                    color: const Color(0xFF12B76A),
+                  ),
+                  ProMapMarker(
+                    lat: currentOrder!.dropoffLocation.lat,
+                    lng: currentOrder!.dropoffLocation.lng,
+                    title: currentOrder!.dropoffLocation.address,
+                    color: const Color(0xFFF04438),
+                  ),
+                ],
+              ],
             ),
           ),
           Positioned(

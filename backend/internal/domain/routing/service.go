@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 
 	orderdomain "evik/backend/internal/domain/order"
 )
@@ -14,56 +15,45 @@ var (
 	ErrInvalidInput  = errors.New("invalid routing input")
 )
 
-// RoutingService provides navigation and route calculation
 type RoutingService interface {
-	// CalculateRoute calculates optimal route from driver to client
 	CalculateRoute(ctx context.Context, req RouteRequest) (*Route, error)
-
-	// GetDirections gets turn-by-turn directions
 	GetDirections(ctx context.Context, req RouteRequest) ([]RouteStep, error)
 }
 
-// YandexRoutingService implements routing using Yandex Maps API
-type YandexRoutingService struct {
+type ProMapsRoutingService struct {
 	apiKey string
 	client HTTPClient
 }
 
 type HTTPClient interface {
-	Get(ctx context.Context, url string) ([]byte, error)
+	Get(ctx context.Context, url string, headers ...map[string]string) ([]byte, error)
 }
 
-func NewYandexRoutingService(apiKey string, client HTTPClient) *YandexRoutingService {
-	return &YandexRoutingService{
+func NewProMapsRoutingService(apiKey string, client HTTPClient) *ProMapsRoutingService {
+	return &ProMapsRoutingService{
 		apiKey: apiKey,
 		client: client,
 	}
 }
 
-func (s *YandexRoutingService) CalculateRoute(ctx context.Context, req RouteRequest) (*Route, error) {
+func (s *ProMapsRoutingService) CalculateRoute(ctx context.Context, req RouteRequest) (*Route, error) {
 	if req.OrderID == "" {
 		return nil, ErrInvalidInput
 	}
 
-	// Build Yandex Maps API URL for route calculation
-	url := s.buildRouteURL(req.DriverLocation, req.ClientLocation)
-
-	// Call Yandex API
-	response, err := s.client.Get(ctx, url)
+	headers := map[string]string{}
+	if s.apiKey != "" {
+		headers["Authorization"] = "Bearer " + s.apiKey
+	}
+	response, err := s.client.Get(ctx, s.buildRouteURL(req.DriverLocation, req.ClientLocation), headers)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse response and build Route
-	route, err := s.parseYandexRouteResponse(response, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return route, nil
+	return s.parseRouteResponse(response, req)
 }
 
-func (s *YandexRoutingService) GetDirections(ctx context.Context, req RouteRequest) ([]RouteStep, error) {
+func (s *ProMapsRoutingService) GetDirections(ctx context.Context, req RouteRequest) ([]RouteStep, error) {
 	route, err := s.CalculateRoute(ctx, req)
 	if err != nil {
 		return nil, err
@@ -71,72 +61,61 @@ func (s *YandexRoutingService) GetDirections(ctx context.Context, req RouteReque
 	return route.Steps, nil
 }
 
-func (s *YandexRoutingService) buildRouteURL(origin, destination orderdomain.Coordinate) string {
-	// Yandex Maps API endpoint for route calculation
-	baseURL := "https://api.routing.yandex.net/v1/routes"
-	return baseURL + "?apikey=" + s.apiKey +
-		"&waypoints=" + formatCoordinate(origin) + "|" + formatCoordinate(destination) +
-		"&mode=driving&avoid_tolls=false&lang=ru_RU"
+func (s *ProMapsRoutingService) buildRouteURL(origin, destination orderdomain.Coordinate) string {
+	values := url.Values{}
+	values.Set("start", formatCoordinate(origin))
+	values.Set("end", formatCoordinate(destination))
+	values.Set("profile", "driving")
+	return "https://api.promaps.online/routing/route?" + values.Encode()
 }
 
 func formatCoordinate(coord orderdomain.Coordinate) string {
 	return fmt.Sprintf("%.6f,%.6f", coord.Lng, coord.Lat)
 }
 
-func (s *YandexRoutingService) parseYandexRouteResponse(response []byte, req RouteRequest) (*Route, error) {
-	// Parse Yandex API response JSON
-	var yandexResp struct {
+func (s *ProMapsRoutingService) parseRouteResponse(response []byte, req RouteRequest) (*Route, error) {
+	var payload struct {
 		Routes []struct {
-			Distance float64 `json:"distance"`
-			Duration int     `json:"duration"`
-			Geometry struct {
-				Coordinates [][]float64 `json:"coordinates"`
-			} `json:"geometry"`
-			Legs []struct {
+			Distance float64     `json:"distance"`
+			Duration float64     `json:"duration"`
+			Geometry interface{} `json:"geometry"`
+			Legs     []struct {
 				Steps []struct {
-					Instruction string    `json:"instruction"`
-					Distance    float64   `json:"distance"`
-					Duration    int       `json:"duration"`
-					Geometry    struct {
-						Coordinates []float64 `json:"coordinates"`
-					} `json:"geometry"`
+					Instruction string      `json:"instruction"`
+					Distance    float64     `json:"distance"`
+					Duration    float64     `json:"duration"`
+					Maneuver    interface{} `json:"maneuver"`
+					Geometry    interface{} `json:"geometry"`
 				} `json:"steps"`
 			} `json:"legs"`
 		} `json:"routes"`
 	}
 
-	if err := json.Unmarshal(response, &yandexResp); err != nil {
+	if err := json.Unmarshal(response, &payload); err != nil {
 		return nil, err
 	}
-
-	if len(yandexResp.Routes) == 0 {
+	if len(payload.Routes) == 0 {
 		return nil, ErrRouteNotFound
 	}
 
-	yRoute := yandexResp.Routes[0]
-
-	// Convert to internal Route format
+	src := payload.Routes[0]
 	route := &Route{
 		OrderID:     req.OrderID,
 		Origin:      req.DriverLocation,
 		Destination: req.ClientLocation,
-		Distance:    yRoute.Distance,
-		Duration:    yRoute.Duration,
+		Distance:    src.Distance,
+		Duration:    int(src.Duration),
 		Steps:       make([]RouteStep, 0),
-		Polyline:    encodePolyline(yRoute.Geometry.Coordinates),
+		Polyline:    geometryPolyline(src.Geometry),
 	}
 
-	// Convert steps
-	for _, leg := range yRoute.Legs {
+	for _, leg := range src.Legs {
 		for _, step := range leg.Steps {
 			route.Steps = append(route.Steps, RouteStep{
 				Instruction: step.Instruction,
 				Distance:    step.Distance,
-				Duration:    step.Duration,
-				Position: orderdomain.Coordinate{
-					Lat: step.Geometry.Coordinates[1],
-					Lng: step.Geometry.Coordinates[0],
-				},
+				Duration:    int(step.Duration),
+				Position:    stepCoordinate(step, req.DriverLocation),
 			})
 		}
 	}
@@ -144,8 +123,44 @@ func (s *YandexRoutingService) parseYandexRouteResponse(response []byte, req Rou
 	return route, nil
 }
 
-func encodePolyline(coordinates [][]float64) string {
-	// Simple polyline encoding - in production use proper Google Polyline algorithm
-	// For now return empty string, frontend will use direct line
+func geometryPolyline(geometry interface{}) string {
+	if polyline, ok := geometry.(string); ok {
+		return polyline
+	}
 	return ""
+}
+
+func stepCoordinate(step struct {
+	Instruction string      `json:"instruction"`
+	Distance    float64     `json:"distance"`
+	Duration    float64     `json:"duration"`
+	Maneuver    interface{} `json:"maneuver"`
+	Geometry    interface{} `json:"geometry"`
+}, fallback orderdomain.Coordinate) orderdomain.Coordinate {
+	if coord, ok := coordinateFromGeometry(step.Geometry); ok {
+		return coord
+	}
+	if maneuver, ok := step.Maneuver.(map[string]interface{}); ok {
+		if raw, ok := maneuver["location"]; ok {
+			if coord, ok := coordinateFromGeometry(raw); ok {
+				return coord
+			}
+		}
+	}
+	return fallback
+}
+
+func coordinateFromGeometry(raw interface{}) (orderdomain.Coordinate, bool) {
+	values, ok := raw.([]interface{})
+	if !ok || len(values) < 2 {
+		return orderdomain.Coordinate{}, false
+	}
+
+	lng, okLng := values[0].(float64)
+	lat, okLat := values[1].(float64)
+	if !okLng || !okLat {
+		return orderdomain.Coordinate{}, false
+	}
+
+	return orderdomain.Coordinate{Lat: lat, Lng: lng}, true
 }

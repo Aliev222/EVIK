@@ -28,7 +28,7 @@ type Config struct {
 	S3Bucket       string
 	S3AccessKey    string
 	S3SecretKey    string
-	YandexAPIKey   string
+	ProMapsRoadKey string
 }
 
 func MustLoad() Config {
@@ -55,7 +55,7 @@ func MustLoad() Config {
 		S3Bucket:       getEnv("S3_BUCKET", ""),
 		S3AccessKey:    getEnv("S3_ACCESS_KEY", ""),
 		S3SecretKey:    getEnv("S3_SECRET_KEY", ""),
-		YandexAPIKey:   getEnv("YANDEX_API_KEY", ""),
+		ProMapsRoadKey: getEnv("PROMAPS_ROAD_API_KEY", ""),
 	}
 	validateProductionConfig(cfg)
 	return cfg

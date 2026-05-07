@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/evik_colors.dart';
 
-/// Простая карта ProMaps через тайлы
 class ProMapsViewSimple extends StatefulWidget {
   const ProMapsViewSimple({
     super.key,
@@ -12,7 +11,8 @@ class ProMapsViewSimple extends StatefulWidget {
     this.initialLng,
     this.initialZoom = 14,
     this.onTap,
-    this.markers = const [],
+    this.markers = const <ProMapMarker>[],
+    this.showControls = true,
   });
 
   final double? initialLat;
@@ -20,6 +20,7 @@ class ProMapsViewSimple extends StatefulWidget {
   final double initialZoom;
   final void Function(double lat, double lng)? onTap;
   final List<ProMapMarker> markers;
+  final bool showControls;
 
   @override
   State<ProMapsViewSimple> createState() => _ProMapsViewSimpleState();
@@ -35,8 +36,8 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
   @override
   void initState() {
     super.initState();
-    _currentLat = widget.initialLat ?? 55.7558; // Default Moscow
-    _currentLng = widget.initialLng ?? 37.6173;
+    _currentLat = widget.initialLat ?? AppConstants.moscowLat;
+    _currentLng = widget.initialLng ?? AppConstants.moscowLng;
     _currentZoom = widget.initialZoom;
   }
 
@@ -54,13 +55,93 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
     }
   }
 
-  String _getTileUrl() {
-    // Конвертируем координаты в тайловые координаты
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        return ColoredBox(
+          color: EvikColors.gray100,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  onTapUp: _handleTap,
+                  child: CachedNetworkImage(
+                    imageUrl: _tileUrl(),
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => const ColoredBox(
+                      color: EvikColors.gray100,
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) =>
+                        const _ProMapsUnavailableState(),
+                  ),
+                ),
+              ),
+              ...widget.markers.map((marker) {
+                final point = _projectMarker(marker, size);
+                return Positioned(
+                  left: point.dx - 9,
+                  top: point.dy - 9,
+                  child: Tooltip(
+                    message: marker.title ?? '',
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: marker.color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: EvikColors.primaryWhite,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.22),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              if (widget.showControls)
+                Positioned(
+                  right: 16,
+                  bottom: 42,
+                  child: _ZoomControls(
+                    onZoomIn: _zoomIn,
+                    onZoomOut: _zoomOut,
+                  ),
+                ),
+              const Positioned(
+                right: 16,
+                bottom: 16,
+                child: Text(
+                  '© ProMaps',
+                  style: TextStyle(
+                    color: EvikColors.gray600,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _tileUrl() {
     final zoom = _currentZoom.round();
     final x = _lonToTileX(_currentLng, zoom);
     final y = _latToTileY(_currentLat, zoom);
-
-    return 'https://api.promaps.online/tiles/default/$zoom/$x/$y.png?key=$_apiKey';
+    return '${AppConstants.promapsBaseUrl}/tiles/default/$zoom/$x/$y.png?key=$_apiKey';
   }
 
   int _lonToTileX(double lon, int zoom) {
@@ -68,256 +149,162 @@ class _ProMapsViewSimpleState extends State<ProMapsViewSimple> {
   }
 
   int _latToTileY(double lat, int zoom) {
-    // Упрощенная формула для демонстрации
     return ((90.0 - lat) / 180.0 * (1 << zoom)).floor();
   }
 
   void _handleTap(TapUpDetails details) {
-    // Простое приближение координат по тапу
-    // В реальной реализации нужно было бы точное преобразование пикселей в координаты
-    if (widget.onTap != null) {
-      widget.onTap!(_currentLat, _currentLng);
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) {
+      widget.onTap?.call(_currentLat, _currentLng);
+      return;
     }
+
+    final size = box.size;
+    final zoom = _currentZoom.round();
+    final scale = (1 << zoom).toDouble();
+    const tileSize = 256.0;
+    final centerX = (_currentLng + 180.0) / 360.0 * scale;
+    final centerY = (90.0 - _currentLat) / 180.0 * scale;
+    final tappedX =
+        centerX + ((details.localPosition.dx - size.width / 2) / tileSize);
+    final tappedY =
+        centerY + ((details.localPosition.dy - size.height / 2) / tileSize);
+    final lng = (tappedX / scale * 360.0) - 180.0;
+    final lat = 90.0 - (tappedY / scale * 180.0);
+
+    widget.onTap?.call(lat.clamp(-90.0, 90.0), lng.clamp(-180.0, 180.0));
   }
 
   void _zoomIn() {
     if (_currentZoom < 18) {
-      setState(() {
-        _currentZoom += 1;
-      });
+      setState(() => _currentZoom += 1);
     }
   }
 
   void _zoomOut() {
     if (_currentZoom > 1) {
-      setState(() {
-        _currentZoom -= 1;
-      });
+      setState(() => _currentZoom -= 1);
     }
   }
 
+  Offset _projectMarker(ProMapMarker marker, Size size) {
+    final zoom = _currentZoom.round();
+    final scale = (1 << zoom).toDouble();
+    final centerX = (_currentLng + 180.0) / 360.0 * scale;
+    final centerY = (90.0 - _currentLat) / 180.0 * scale;
+    final markerX = (marker.lng + 180.0) / 360.0 * scale;
+    final markerY = (90.0 - marker.lat) / 180.0 * scale;
+    const tileSize = 256.0;
+    final dx = (markerX - centerX) * tileSize + size.width / 2;
+    final dy = (markerY - centerY) * tileSize + size.height / 2;
+    return Offset(
+      dx.clamp(8.0, size.width - 8.0),
+      dy.clamp(8.0, size.height - 8.0),
+    );
+  }
+}
+
+class _ZoomControls extends StatelessWidget {
+  const _ZoomControls({
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
+
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(gradient: EvikColors.mapFallbackGradient),
-      child: Stack(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Основной тайл карты
-          Positioned.fill(
-            child: GestureDetector(
-              onTapUp: _handleTap,
-              child: CachedNetworkImage(
-                imageUrl: _getTileUrl(),
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: EvikColors.surfaceDark,
-                  child: const Center(
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  decoration: const BoxDecoration(
-                      gradient: EvikColors.mapFallbackGradient),
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: EvikColors.surfaceDark.withValues(alpha: 0.9),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: EvikColors.borderDark),
-                      ),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.map_outlined,
-                            color: EvikColors.textPrimaryDark,
-                            size: 32,
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Карта недоступна',
-                            style: TextStyle(
-                              color: EvikColors.textPrimaryDark,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Проверьте интернет-соединение',
-                            style: TextStyle(
-                              color: EvikColors.textSecondaryDark,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          IconButton(
+            onPressed: onZoomIn,
+            icon: const Icon(Icons.add_rounded),
+            color: EvikColors.primaryBlack,
           ),
-
-          // Маркеры
-          ...widget.markers.map((marker) => Positioned(
-                left:
-                    100, // В реальной реализации нужно преобразовать координаты в пиксели
-                top: 100,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                  width: 12,
-                  height: 12,
-                  child: marker.title != null
-                      ? Tooltip(
-                          message: marker.title!,
-                          child: const SizedBox.shrink(),
-                        )
-                      : null,
-                ),
-              )),
-
-          // Элементы управления
-          Positioned(
-            right: 16,
-            bottom: 80,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Кнопка приближения
-                Container(
-                  decoration: BoxDecoration(
-                    color: EvikColors.surfaceDark.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: EvikColors.borderDark),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _zoomIn,
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.add,
-                          color: EvikColors.textPrimaryDark,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 1),
-                // Кнопка отдаления
-                Container(
-                  decoration: BoxDecoration(
-                    color: EvikColors.surfaceDark.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: EvikColors.borderDark),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _zoomOut,
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.remove,
-                          color: EvikColors.textPrimaryDark,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Индикатор зума
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: EvikColors.surfaceDark.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: EvikColors.borderDark),
-              ),
-              child: Text(
-                'Zoom: ${_currentZoom.toStringAsFixed(1)}',
-                style: const TextStyle(
-                  color: EvikColors.textPrimaryDark,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ),
-
-          // ProMaps attribution
-          const Positioned(
-            right: 16,
-            bottom: 16,
-            child: Text(
-              '© ProMaps',
-              style: TextStyle(
-                color: EvikColors.textSecondaryDark,
-                fontSize: 10,
-              ),
-            ),
+          const SizedBox(height: 1),
+          IconButton(
+            onPressed: onZoomOut,
+            icon: const Icon(Icons.remove_rounded),
+            color: EvikColors.primaryBlack,
           ),
         ],
       ),
     );
   }
+}
 
-  // Публичные методы для управления картой
-  void setCenter(double lat, double lng) {
-    setState(() {
-      _currentLat = lat;
-      _currentLng = lng;
-    });
-  }
+class _ProMapsUnavailableState extends StatelessWidget {
+  const _ProMapsUnavailableState();
 
-  void setZoom(double zoom) {
-    setState(() {
-      _currentZoom = zoom.clamp(1, 18);
-    });
-  }
-
-  void animateToLocation(double lat, double lng, {double? zoom}) {
-    setState(() {
-      _currentLat = lat;
-      _currentLng = lng;
-      if (zoom != null) {
-        _currentZoom = zoom.clamp(1, 18);
-      }
-    });
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: EvikColors.gray100,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: EvikColors.gray200),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                color: EvikColors.primaryBlack,
+                size: 32,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Карта недоступна',
+                style: TextStyle(
+                  color: EvikColors.primaryBlack,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Проверьте интернет-соединение',
+                style: TextStyle(
+                  color: EvikColors.gray600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
-/// Простой маркер для карты
 class ProMapMarker {
-  final double lat;
-  final double lng;
-  final String? title;
-  final Color color;
-
   const ProMapMarker({
     required this.lat,
     required this.lng,
     this.title,
-    this.color = Colors.red,
+    this.color = EvikColors.accentOrange,
   });
+
+  final double lat;
+  final double lng;
+  final String? title;
+  final Color color;
 }

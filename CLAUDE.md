@@ -132,7 +132,7 @@ frontend/lib/
 │   │   ├── data/repository_impl/http_order_repository.dart # 🌐 API calls
 │   │   └── presentation/providers/order_provider.dart # 🔄 Order state
 │   └── map/                          # 🗺️ Maps integration
-│       ├── presentation/widgets/evik_map_widget.dart # 🗺️ Yandex Maps
+│       ├── presentation/widgets/promaps_view_simple.dart # 🗺️ ProMaps
 │       └── domain/entities/map_location.dart # 📍 Location model
 ├── shared/                           # 🤝 Shared components
 │   ├── widgets/                      # 🧩 Reusable UI components
@@ -147,7 +147,7 @@ frontend/lib/
 
 | **Component** | **Location** | **Purpose** |
 |---------------|--------------|-------------|
-| **Yandex Maps** | `frontend/lib/features/map/` | Map display & navigation |
+| **ProMaps** | `frontend/lib/features/map/` | Map display, geocoding & routing |
 | **JWT Auth** | `backend/internal/auth/` + `frontend/lib/features/auth/` | User authentication |
 | **PostgreSQL** | `backend/internal/infrastructure/postgres/` | Primary database |
 | **Redis** | `backend/internal/infrastructure/redis/` | Caching & pub/sub |
@@ -172,7 +172,7 @@ frontend/lib/
 **Active Architecture: Flutter + Custom Go Backend**
 - Frontend: Flutter with Riverpod state management  
 - Backend: Go server with PostgreSQL + Redis
-- Maps: Yandex Maps (yandex_mapkit ^4.2.1)
+- Maps: ProMaps tiles, geocoding, and routing
 - Authentication: JWT-based phone authentication
 - Real-time: WebSocket communication
 - Deployment: Render.com hosting
@@ -278,7 +278,7 @@ internal/
 
 **Client Flow:**
 1. Role Selection → Phone Auth → SMS Verification
-2. Client Home Screen with Yandex Map
+2. Client Home Screen with ProMaps map
 3. Order Creation: pickup/dropoff selection, vehicle type, pricing
 4. Real-time order tracking (searching → assigned → arriving → evacuating → completed)
 
@@ -302,11 +302,11 @@ internal/
 
 ## Maps Integration
 
-**Yandex Maps Setup:**
-- API key configuration: `AppConstants.yandexMapkitApiKey`
-- Custom wrapper: `EvikMapWidget` with EVIK-specific styling
-- Features: location tracking, route building, custom markers
-- Android integration: `YandexMapPlatformView.kt`
+**ProMaps Setup:**
+- API key configuration: `PROMAPS_MAPS_API_KEY`, `PROMAPS_ROAD_API_KEY`, `PROMAPS_SDK_API_KEY`
+- Custom wrapper: `ProMapsViewSimple` with EVIK-specific markers
+- Features: location tracking, address search, route metadata, custom markers
+- Android integration: pure Flutter plugin stack, no native map platform view
 
 ## Development Workflow Considerations
 
@@ -329,7 +329,7 @@ internal/
 ## Common Issues
 
 **Dependencies:**
-- Yandex MapKit version locked at ^4.2.1 (higher versions cause conflicts)
+- ProMaps keys must be configured for production maps and routing
 - HTTP client configured with 30-second timeouts and retry logic
 
 **State Management:**  

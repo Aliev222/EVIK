@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/yandex_map_view.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
 import '../../domain/entities/available_order.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
@@ -22,25 +21,17 @@ class NewDriverHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
-  bool _mapInitialized = false;
   bool _isAppInForeground = true;
-  String? _cachedMapSignature;
-  List<MapObject>? _cachedMapObjects;
   late final _DriverLifecycleObserver _lifecycleObserver;
-  DrivingSession? _drivingSession;
   Timer? _offerTimer;
   double _offerProgress = 1;
   String? _visibleOfferId;
-  List<MapObject> _routeObjects = const [];
-  int _routeVersion = 0;
   static const Duration _offerLifetime = Duration(seconds: 10);
   static const Duration _offerTick = Duration(milliseconds: 50);
 
   // Координаты Москвы по умолчанию
-  static const Point _moscowCenter = Point(
-    latitude: 55.7558,
-    longitude: 37.6173,
-  );
+  static const double _moscowLat = 55.7558;
+  static const double _moscowLng = 37.6173;
 
   @override
   void initState() {
@@ -61,7 +52,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   @override
   void dispose() {
     _offerTimer?.cancel();
-    _drivingSession?.close();
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
@@ -107,7 +97,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
     _visibleOfferId = incoming.id;
     _offerProgress = 1;
     final expiresAt = DateTime.now().add(_offerLifetime);
-    _updateOfferRoute(incoming);
     _offerTimer = Timer.periodic(_offerTick, (timer) {
       if (!mounted) return;
       final remaining = expiresAt.difference(DateTime.now());
@@ -117,8 +106,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
         setState(() {
           _visibleOfferId = null;
           _offerProgress = 1;
-          _routeObjects = const [];
-          _routeVersion++;
         });
         return;
       }
@@ -299,12 +286,11 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: MapKitAwareYandexMap(
-              builder: (_) => YandexMap(
-                onMapCreated: _onMapCreated,
-                mapType: MapType.vector,
-                mapObjects: _buildMapObjects(driverState),
-              ),
+            child: ProMapsViewSimple(
+              initialLat: incomingOrder?.pickupLat ?? _moscowLat,
+              initialLng: incomingOrder?.pickupLng ?? _moscowLng,
+              initialZoom: incomingOrder == null ? 12.2 : 13.5,
+              markers: _mapMarkers(incomingOrder),
             ),
           ),
         ),
@@ -344,8 +330,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
                 setState(() {
                   _visibleOfferId = null;
                   _offerProgress = 1;
-                  _routeObjects = const [];
-                  _routeVersion++;
                 });
                 ref
                     .read(newDriverProvider.notifier)
@@ -362,55 +346,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
           ),
       ],
     );
-  }
-
-  Future<void> _updateOfferRoute(AvailableOrder order) async {
-    await _drivingSession?.cancel();
-    await _drivingSession?.close();
-
-    try {
-      final resultWithSession = await YandexDriving.requestRoutes(
-        points: [
-          const RequestPoint(
-            point: _moscowCenter,
-            requestPointType: RequestPointType.wayPoint,
-          ),
-          RequestPoint(
-            point: Point(latitude: order.pickupLat, longitude: order.pickupLng),
-            requestPointType: RequestPointType.wayPoint,
-          ),
-        ],
-        drivingOptions: const DrivingOptions(
-          routesCount: 1,
-          annotationLanguage: AnnotationLanguage.russian,
-          avoidanceFlags: DrivingAvoidanceFlags(),
-        ),
-      );
-      _drivingSession = resultWithSession.$1;
-      final result = await resultWithSession.$2;
-      if (!mounted || _visibleOfferId != order.id) return;
-      final route =
-          result.routes?.isNotEmpty == true ? result.routes!.first : null;
-      setState(() {
-        _routeObjects = route == null
-            ? const []
-            : [
-                PolylineMapObject(
-                  mapId: const MapObjectId('incoming_order_route'),
-                  polyline: route.geometry,
-                  strokeColor: EvikColors.accentOrange,
-                  strokeWidth: 4,
-                ),
-              ];
-        _routeVersion++;
-      });
-    } catch (_) {
-      if (!mounted || _visibleOfferId != order.id) return;
-      setState(() {
-        _routeObjects = const [];
-        _routeVersion++;
-      });
-    }
   }
 
   Widget _buildStatColumn(String value, String label) {
@@ -436,68 +371,22 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
     );
   }
 
-  Future<void> _onMapCreated(YandexMapController controller) async {
-    await controller.toggleTrafficLayer(visible: true);
-    if (_mapInitialized) return;
-    _mapInitialized = true;
-
-    await controller.moveCamera(
-      CameraUpdate.newCameraPosition(
-        const CameraPosition(target: _moscowCenter, zoom: 12.2),
+  List<ProMapMarker> _mapMarkers(AvailableOrder? incoming) {
+    return [
+      const ProMapMarker(
+        lat: _moscowLat,
+        lng: _moscowLng,
+        title: 'Вы',
+        color: EvikColors.successGreen,
       ),
-      animation: const MapAnimation(type: MapAnimationType.smooth, duration: 1),
-    );
-  }
-
-  List<MapObject> _buildMapObjects(DriverState driverState) {
-    final signature = [
-      driverState.availableOrders.map((e) => e.id).join('|'),
-      _routeVersion,
-    ].join(':');
-    if (_cachedMapObjects != null && _cachedMapSignature == signature) {
-      return _cachedMapObjects!;
-    }
-
-    final objects = <MapObject>[
-      ..._routeObjects,
-      PlacemarkMapObject(
-        mapId: const MapObjectId('driver_location'),
-        point: _moscowCenter,
-        icon: PlacemarkIcon.single(
-          PlacemarkIconStyle(
-            image: BitmapDescriptor.fromBytes(Uint8List.fromList([0, 180, 90])),
-            scale: 1.0,
-          ),
+      if (incoming != null)
+        ProMapMarker(
+          lat: incoming.pickupLat,
+          lng: incoming.pickupLng,
+          title: incoming.pickupAddress,
+          color: EvikColors.accentOrange,
         ),
-      ),
     ];
-
-    final incoming = driverState.availableOrders.isEmpty
-        ? null
-        : driverState.availableOrders.first;
-    if (incoming != null) {
-      objects.add(
-        PlacemarkMapObject(
-          mapId: MapObjectId('pickup_${incoming.id}'),
-          point: Point(
-            latitude: incoming.pickupLat,
-            longitude: incoming.pickupLng,
-          ),
-          icon: PlacemarkIcon.single(
-            PlacemarkIconStyle(
-              image: BitmapDescriptor.fromBytes(
-                Uint8List.fromList([255, 96, 50]),
-              ),
-              scale: 0.9,
-            ),
-          ),
-        ),
-      );
-    }
-
-    _cachedMapSignature = signature;
-    _cachedMapObjects = objects;
-    return objects;
   }
 }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/constants/app_constants.dart';
@@ -27,7 +26,6 @@ import 'features/client/presentation/screens/driver_rating_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized().deferFirstFrame();
-  AndroidYandexMap.useAndroidViewSurface = false;
 
   // Debug info removed for clean testing
 

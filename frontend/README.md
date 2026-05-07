@@ -1,33 +1,26 @@
 # EVIK Frontend
 
-## Yandex MapKit Setup (Android)
+Flutter client for the EVIK tow truck app.
 
-Prerequisites:
-- JDK 17 (or at least JDK 11)
-- Android SDK configured
+## Maps
 
-1. Copy `android/local.properties.example` to `android/local.properties`.
-2. Add your key:
+The app uses ProMaps for map tiles, address lookup, reverse geocoding, and route metadata.
 
-```properties
-YANDEX_MAPKIT_API_KEY=YOUR_KEY_HERE
+Configure keys with Dart defines when needed:
+
+```bash
+flutter run \
+  --dart-define=PROMAPS_MAPS_API_KEY=YOUR_MAPS_KEY \
+  --dart-define=PROMAPS_ROAD_API_KEY=YOUR_ROAD_KEY \
+  --dart-define=PROMAPS_SDK_API_KEY=YOUR_SDK_KEY
 ```
 
-3. Run app as usual:
+For local development, defaults are defined in `lib/core/constants/app_constants.dart`.
+
+## Run
 
 ```bash
 flutter pub get
+flutter run -d chrome
 flutter run -d android
 ```
-
-Web:
-
-```bash
-flutter run -d chrome
-```
-
-Notes:
-- API key is read from `android/local.properties` via Gradle and injected into `AndroidManifest.xml` as a placeholder.
-- Never commit real keys to git.
-- If key is missing or MapKit fails, EVIK shows a safe map placeholder without crashing.
-- Web always uses a safe placeholder map (StubMapProvider).

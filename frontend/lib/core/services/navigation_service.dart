@@ -2,9 +2,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_constants.dart';
+import 'promaps_service.dart';
 
 class NavigationService {
-  /// Opens route in external navigation app (Yandex Navigator or Maps)
+  /// Opens route in ProMaps first, then falls back to OS-level navigation.
   static Future<bool> openRoute({
     required double fromLat,
     required double fromLng,
@@ -13,34 +14,15 @@ class NavigationService {
     String? orderName,
   }) async {
     try {
-      // Try Yandex Navigator first (better for Russian users)
-      final yandexNavUrl = Uri(
-        scheme: 'yandexnavi',
-        path: 'build_route_on_map',
-        queryParameters: {
-          'lat_to': toLat.toString(),
-          'lon_to': toLng.toString(),
-          'lat_from': fromLat.toString(),
-          'lon_from': fromLng.toString(),
-        },
+      final proMapsUri = Uri.parse(
+        ProMapsService.getEmbedMapUrl(lat: toLat, lng: toLng, zoom: 16),
       );
 
-      if (await canLaunchUrl(yandexNavUrl)) {
-        await launchUrl(yandexNavUrl, mode: LaunchMode.externalApplication);
+      if (await canLaunchUrl(proMapsUri)) {
+        await launchUrl(proMapsUri, mode: LaunchMode.externalApplication);
         return true;
       }
 
-      // Fallback to Yandex Maps web interface
-      final yandexMapsUrl = Uri.parse(
-        'https://yandex.ru/maps/?rtext=$fromLat,$fromLng~$toLat,$toLng&rtt=auto'
-      );
-
-      if (await canLaunchUrl(yandexMapsUrl)) {
-        await launchUrl(yandexMapsUrl, mode: LaunchMode.externalApplication);
-        return true;
-      }
-
-      // Last fallback to Google Maps (universal)
       String googleMapsUrl;
       if (Platform.isAndroid) {
         googleMapsUrl = 'google.navigation:q=$toLat,$toLng';

@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/services/promaps_service.dart';
 import '../../domain/entities/map_location.dart';
 
-// Состояние карты
 class MapState {
   const MapState({
     this.currentPosition,
@@ -51,18 +51,15 @@ class MapState {
   }
 }
 
-// Провайдер для управления состоянием карты
 class MapNotifier extends StateNotifier<MapState> {
   MapNotifier() : super(const MapState());
 
   StreamSubscription<Position>? _positionSubscription;
 
-  // Получить текущее GPS местоположение
   Future<void> getCurrentLocation() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // Проверить разрешения
       final permission = await Permission.location.request();
       if (permission.isDenied) {
         state = state.copyWith(
@@ -73,7 +70,6 @@ class MapNotifier extends StateNotifier<MapState> {
         return;
       }
 
-      // Проверить включена ли геолокация
       final isEnabled = await Geolocator.isLocationServiceEnabled();
       if (!isEnabled) {
         state = state.copyWith(
@@ -84,7 +80,6 @@ class MapNotifier extends StateNotifier<MapState> {
         return;
       }
 
-      // Получить текущую позицию
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -92,10 +87,14 @@ class MapNotifier extends StateNotifier<MapState> {
         ),
       );
 
+      final address = await reverseGeocode(
+        position.latitude,
+        position.longitude,
+      );
       final currentLocation = MapLocation(
         latitude: position.latitude,
         longitude: position.longitude,
-        address: 'Моё местоположение',
+        address: address,
       );
 
       state = state.copyWith(
@@ -105,7 +104,6 @@ class MapNotifier extends StateNotifier<MapState> {
         permissionGranted: true,
       );
 
-      // Запустить отслеживание позиции
       _startLocationTracking();
     } catch (e) {
       state = state.copyWith(
@@ -115,21 +113,24 @@ class MapNotifier extends StateNotifier<MapState> {
     }
   }
 
-  // Запустить отслеживание позиции в реальном времени
   void _startLocationTracking() {
     _positionSubscription?.cancel();
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // минимальная дистанция для обновления (метры)
+        distanceFilter: 10,
       ),
     ).listen(
-      (position) {
+      (position) async {
+        final address = await reverseGeocode(
+          position.latitude,
+          position.longitude,
+        );
         final newLocation = MapLocation(
           latitude: position.latitude,
           longitude: position.longitude,
-          address: 'Моё местоположение',
+          address: address,
         );
 
         state = state.copyWith(currentPosition: newLocation);
@@ -140,23 +141,19 @@ class MapNotifier extends StateNotifier<MapState> {
     );
   }
 
-  // Остановить отслеживание позиции
   void stopLocationTracking() {
     _positionSubscription?.cancel();
     _positionSubscription = null;
   }
 
-  // Установить точку забора
   void setPickupLocation(MapLocation location) {
     state = state.copyWith(pickupLocation: location);
   }
 
-  // Установить точку доставки
   void setDropoffLocation(MapLocation location) {
     state = state.copyWith(dropoffLocation: location);
   }
 
-  // Переместить камеру
   void moveCamera(MapLocation location, {double? zoom}) {
     state = state.copyWith(
       cameraPosition: location,
@@ -164,23 +161,22 @@ class MapNotifier extends StateNotifier<MapState> {
     );
   }
 
-  // Обратное геокодирование - получить адрес по координатам
   Future<String> reverseGeocode(double latitude, double longitude) async {
     try {
-      // Здесь должен быть вызов к Yandex Geocoder API
-      // Пока возвращаем заглушку
-      return 'ул. Примерная, д. ${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+      return await ProMapsService.reverseGeocode(
+            lat: latitude,
+            lng: longitude,
+          ) ??
+          'Москва, ${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
     } catch (e) {
       return 'Неизвестный адрес';
     }
   }
 
-  // Очистить ошибки
   void clearError() {
     state = state.copyWith(error: null);
   }
 
-  // Сброс всех локаций
   void resetLocations() {
     state = state.copyWith(
       pickupLocation: null,
@@ -195,12 +191,10 @@ class MapNotifier extends StateNotifier<MapState> {
   }
 }
 
-// Провайдеры для Riverpod
 final mapProvider = StateNotifierProvider<MapNotifier, MapState>((ref) {
   return MapNotifier();
 });
 
-// Провайдеры для отдельных частей состояния
 final currentPositionProvider = Provider<MapLocation?>((ref) {
   return ref.watch(mapProvider).currentPosition;
 });

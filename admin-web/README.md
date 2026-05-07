@@ -7,7 +7,7 @@ Separate desktop web console for moderation and operations.
 ```powershell
 cd C:\Users\Minec\Desktop\EVIK\admin-web
 $env:EVIK_API_BASE_URL="http://localhost:8080"
-$env:YANDEX_MAPS_API_KEY="YOUR_YANDEX_JS_API_KEY"
+$env:PROMAPS_API_KEY="YOUR_PROMAPS_API_KEY"
 go run .
 ```
 
@@ -24,7 +24,7 @@ Environment variables:
 - `ADMIN_WEB_ADDR` - local admin web address, default `:5174`.
 - `EVIK_API_BASE_URL` - app backend server URL, default `http://localhost:8080`.
 - Backend URL can also be changed in the website settings. The local gateway will proxy requests to that URL.
-- `YANDEX_MAPS_API_KEY` - Yandex Maps JavaScript API key for the live driver map. `YANDEX_MAPKIT_API_KEY` is also accepted as a fallback.
+- `PROMAPS_API_KEY` - ProMaps API key for the live driver map.
 
 The website sends app API calls through the local gateway:
 

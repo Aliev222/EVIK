@@ -91,7 +91,7 @@ class DriverActiveOrderCard extends ConsumerWidget {
                       : order.pickupLocation;
                   ref
                       .read(driverNavigationProvider.notifier)
-                      .openYandexNavigator(target.lat, target.lng);
+                      .openProMapsNavigation(target.lat, target.lng);
                 },
                 icon: const Icon(Icons.navigation_outlined),
                 label: const Text('Навигация'),

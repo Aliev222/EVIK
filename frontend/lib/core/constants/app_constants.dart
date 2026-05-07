@@ -13,7 +13,7 @@ class AppConstants {
   static const bool skipAuth =
       bool.fromEnvironment('SKIP_AUTH', defaultValue: true);
 
-  // ProMaps API keys (replacing Yandex Maps)
+  // ProMaps API keys.
   static const String promapsMapsApiKey = String.fromEnvironment(
     'PROMAPS_MAPS_API_KEY',
     defaultValue: 'pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5',
@@ -30,11 +30,6 @@ class AppConstants {
   );
 
   static const String promapsBaseUrl = 'https://api.promaps.online';
-
-  static const String yandexGeocoderApiKey = String.fromEnvironment(
-    'YANDEX_GEOCODER_API_KEY',
-    defaultValue: '',
-  );
 
   static const Duration locationUpdateInterval = Duration(seconds: 10);
   static const Duration orderTimeoutDuration = Duration(minutes: 30);

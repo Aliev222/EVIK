@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/yandex_map_view.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
 import '../../domain/entities/active_order.dart';
 import '../providers/new_driver_provider.dart';
 
@@ -19,21 +19,8 @@ class ActiveOrderScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
-  static const Point _driverPoint = Point(
-    latitude: 55.7558,
-    longitude: 37.6173,
-  );
-
-  YandexMapController? _mapController;
-  DrivingSession? _drivingSession;
-  List<MapObject> _routeObjects = const [];
-  String? _routeSignature;
-
-  @override
-  void dispose() {
-    _drivingSession?.close();
-    super.dispose();
-  }
+  static const double _driverLat = 55.7558;
+  static const double _driverLng = 37.6173;
 
   @override
   Widget build(BuildContext context) {
@@ -58,19 +45,16 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
       );
     }
 
-    _syncRoute(order);
-
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
       body: Stack(
         children: [
           Positioned.fill(
-            child: MapKitAwareYandexMap(
-              builder: (_) => YandexMap(
-                onMapCreated: _onMapCreated,
-                mapType: MapType.vector,
-                mapObjects: _mapObjects(order),
-              ),
+            child: ProMapsViewSimple(
+              initialLat: _driverLat,
+              initialLng: _driverLng,
+              initialZoom: 13.4,
+              markers: _mapMarkers(order),
             ),
           ),
           Positioned(
@@ -104,135 +88,34 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
     );
   }
 
-  Future<void> _onMapCreated(YandexMapController controller) async {
-    _mapController = controller;
-    await controller.toggleTrafficLayer(visible: true);
-    await _focusRoute();
-  }
-
-  void _syncRoute(ActiveOrder order) {
-    final target = _targetPoint(order);
-    final from = order.status == ActiveOrderStatus.drivingToDestination
-        ? Point(latitude: order.pickupLat, longitude: order.pickupLng)
-        : _driverPoint;
-    final signature = [
-      order.status.name,
-      from.latitude.toStringAsFixed(6),
-      from.longitude.toStringAsFixed(6),
-      target.latitude.toStringAsFixed(6),
-      target.longitude.toStringAsFixed(6),
-    ].join(':');
-    if (_routeSignature == signature) return;
-    _routeSignature = signature;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestRoute(from: from, to: target, signature: signature);
-    });
-  }
-
-  Future<void> _requestRoute({
-    required Point from,
-    required Point to,
-    required String signature,
-  }) async {
-    await _drivingSession?.cancel();
-    await _drivingSession?.close();
-
-    try {
-      final resultWithSession = await YandexDriving.requestRoutes(
-        points: [
-          RequestPoint(
-            point: from,
-            requestPointType: RequestPointType.wayPoint,
-          ),
-          RequestPoint(point: to, requestPointType: RequestPointType.wayPoint),
-        ],
-        drivingOptions: const DrivingOptions(
-          routesCount: 1,
-          annotationLanguage: AnnotationLanguage.russian,
-          avoidanceFlags: DrivingAvoidanceFlags(),
-        ),
-      );
-      _drivingSession = resultWithSession.$1;
-      final result = await resultWithSession.$2;
-      if (!mounted || _routeSignature != signature) return;
-      final route =
-          result.routes?.isNotEmpty == true ? result.routes!.first : null;
-      setState(() {
-        _routeObjects = route == null
-            ? const []
-            : [
-                PolylineMapObject(
-                  mapId: const MapObjectId('active_order_route'),
-                  polyline: route.geometry,
-                  strokeColor: EvikColors.accentOrange,
-                  strokeWidth: 4,
-                ),
-              ];
-      });
-      await _focusRoute();
-    } catch (_) {
-      if (!mounted || _routeSignature != signature) return;
-      setState(() => _routeObjects = const []);
-    }
-  }
-
-  Future<void> _focusRoute() async {
-    await _mapController?.moveCamera(
-      CameraUpdate.newCameraPosition(
-        const CameraPosition(target: _driverPoint, zoom: 13.4),
-      ),
-      animation: const MapAnimation(
-        type: MapAnimationType.smooth,
-        duration: 0.45,
-      ),
-    );
-  }
-
-  List<MapObject> _mapObjects(ActiveOrder order) {
+  List<ProMapMarker> _mapMarkers(ActiveOrder order) {
     return [
-      ..._routeObjects,
-      PlacemarkMapObject(
-        mapId: const MapObjectId('driver_location'),
-        point: _driverPoint,
-        icon: PlacemarkIcon.single(
-          PlacemarkIconStyle(
-            image: BitmapDescriptor.fromBytes(Uint8List.fromList([0, 180, 90])),
-            scale: 1,
-          ),
-        ),
+      const ProMapMarker(
+        lat: _driverLat,
+        lng: _driverLng,
+        title: 'Водитель',
+        color: EvikColors.infoBlue,
       ),
-      PlacemarkMapObject(
-        mapId: const MapObjectId('pickup_location'),
-        point: Point(latitude: order.pickupLat, longitude: order.pickupLng),
-        icon: PlacemarkIcon.single(
-          PlacemarkIconStyle(
-            image: BitmapDescriptor.fromBytes(
-              Uint8List.fromList([255, 96, 50]),
-            ),
-            scale: 0.9,
-          ),
-        ),
+      ProMapMarker(
+        lat: order.pickupLat,
+        lng: order.pickupLng,
+        title: order.pickupAddress,
+        color: EvikColors.accentOrange,
       ),
-      PlacemarkMapObject(
-        mapId: const MapObjectId('dropoff_location'),
-        point: Point(latitude: order.dropoffLat, longitude: order.dropoffLng),
-        icon: PlacemarkIcon.single(
-          PlacemarkIconStyle(
-            image: BitmapDescriptor.fromBytes(
-              Uint8List.fromList([80, 90, 110]),
-            ),
-            scale: 0.8,
-          ),
-        ),
+      ProMapMarker(
+        lat: order.dropoffLat,
+        lng: order.dropoffLng,
+        title: order.dropoffAddress,
+        color: EvikColors.gray700,
       ),
     ];
   }
 
-  Point _targetPoint(ActiveOrder order) {
+  ({double lat, double lng}) _targetPoint(ActiveOrder order) {
     if (order.status == ActiveOrderStatus.drivingToDestination) {
-      return Point(latitude: order.dropoffLat, longitude: order.dropoffLng);
+      return (lat: order.dropoffLat, lng: order.dropoffLng);
     }
-    return Point(latitude: order.pickupLat, longitude: order.pickupLng);
+    return (lat: order.pickupLat, lng: order.pickupLng);
   }
 
   Future<void> _handlePrimaryAction(ActiveOrder order) async {
@@ -266,7 +149,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
   Future<void> _openNavigation(ActiveOrder order) async {
     final target = _targetPoint(order);
     final uri = Uri.parse(
-      'yandexnavi://build_route_on_map?lat_to=${target.latitude}&lon_to=${target.longitude}',
+      'https://api.promaps.online/embed?lat=${target.lat}&lng=${target.lng}&zoom=16&key=${AppConstants.promapsSdkApiKey}',
     );
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }

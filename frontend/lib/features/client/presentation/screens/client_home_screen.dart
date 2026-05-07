@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
-import '../../../map/presentation/widgets/yandex_map_view.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
 import '../providers/order_flow_provider.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
@@ -47,11 +47,19 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: YandexMapView(
+            child: ProMapsViewSimple(
               key: ValueKey<String>('$lat,$lng'),
               initialLat: lat,
               initialLng: lng,
               initialZoom: 15.5,
+              markers: [
+                ProMapMarker(
+                  lat: lat,
+                  lng: lng,
+                  title: address,
+                  color: EvikColors.accentOrange,
+                ),
+              ],
             ),
           ),
           Positioned(

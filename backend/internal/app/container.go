@@ -16,9 +16,9 @@ import (
 	domainmatching "evik/backend/internal/domain/matching"
 	pricingdomain "evik/backend/internal/domain/pricing"
 	routingdomain "evik/backend/internal/domain/routing"
+	httpinfra "evik/backend/internal/infrastructure/http"
 	"evik/backend/internal/infrastructure/postgres"
 	redisinfra "evik/backend/internal/infrastructure/redis"
-	httpinfra "evik/backend/internal/infrastructure/http"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 	httptransport "evik/backend/internal/transport/http"
 	wstransport "evik/backend/internal/transport/ws"
@@ -106,9 +106,9 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	distanceCalculator := pricingdomain.NewHaversineDistanceCalculator()
 	pricingService := pricingdomain.NewService(pricingRepo, distanceCalculator, clock)
 
-	// Create routing service with Yandex Maps
+	// Create routing service with ProMaps.
 	httpClient := httpinfra.NewClient()
-	routingService := routingdomain.NewYandexRoutingService(cfg.YandexAPIKey, httpClient)
+	routingService := routingdomain.NewProMapsRoutingService(cfg.ProMapsRoadKey, httpClient)
 
 	// Create payment transaction use case
 	createTransactionUC := paymentuc.NewCreateTransactionUseCase(paymentRepo, clock, idGen)
