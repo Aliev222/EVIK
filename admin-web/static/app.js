@@ -214,7 +214,7 @@ async function getAdminData(resource) {
     if (!response.ok) throw new Error(`API ${response.status}`);
     return { source: "api", data: await response.json() };
   } catch (error) {
-    console.error(`Admin API failed for ${resource}`, error);
+    console.error(`failed to load ${resource}`, error);
     return { source: "error", data: emptyAdminPayload(resource), error };
   }
 }
@@ -519,7 +519,7 @@ async function renderMap(container, drivers, showLabels) {
 
   const apiKey = state.config?.promaps_api_key;
   if (!apiKey) {
-    container.innerHTML = `<div class="map-fallback-note">??????? ProMaps API key ? ?????????? ??? ?????????? PROMAPS_API_KEY.</div>`;
+    container.innerHTML = `<div class="map-fallback-note">Укажите ProMaps API key в настройках или переменной PROMAPS_API_KEY.</div>`;
     return;
   }
 
@@ -536,7 +536,7 @@ async function renderProMapsMap(container, drivers, showLabels, apiKey) {
   const markers = drivers.map((driver) => renderDriverMarker(driver, center, zoom, showLabels)).join("");
   const emptyState = drivers.length
     ? ""
-    : `<div class="map-empty-state">??? ????????? ?? ?????</div>`;
+    : `<div class="map-empty-state">Нет водителей на смене</div>`;
 
   container.innerHTML = `
     <div class="promaps-container">
@@ -546,9 +546,9 @@ async function renderProMapsMap(container, drivers, showLabels, apiKey) {
         height="100%"
         frameborder="0"
         loading="lazy"
-        title="ProMaps - ????? ?????????">
+        title="ProMaps - карта водителей">
       </iframe>
-      <div class="map-overlay" aria-label="???????? ?? ?????">
+      <div class="map-overlay" aria-label="Водители на смене">
         ${emptyState}
         ${markers}
       </div>
@@ -568,7 +568,7 @@ function renderDriverMarker(driver, center, zoom, showLabels) {
   const left = clamp(point.x, 5, 95);
   const top = clamp(point.y, 5, 95);
   const status = driver.status || "online";
-  const label = driver.vehicle ? `${driver.name} ? ${driver.vehicle}` : driver.name;
+  const label = driver.vehicle ? `${driver.name} · ${driver.vehicle}` : driver.name;
   return `
     <button class="driver-map-marker ${escapeAttr(status)}" style="left:${left}%; top:${top}%; border-color:${getDriverStatusColor(status)}" title="${escapeAttr(label)}" type="button">
       <img src="${getDriverIconPath(status)}" alt="" />
