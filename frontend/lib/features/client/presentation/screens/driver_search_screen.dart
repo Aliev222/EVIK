@@ -6,7 +6,7 @@ import '../../../../core/services/realtime_location_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/live_driver_map.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
@@ -18,16 +18,12 @@ class DriverSearchScreen extends ConsumerStatefulWidget {
   ConsumerState<DriverSearchScreen> createState() => _DriverSearchScreenState();
 }
 
-class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   bool _isNavigatingToDriverInfo = false;
 
   @override
   void initState() {
     super.initState();
-    _setupAnimations();
     _initializeRealTimeService();
   }
 
@@ -75,20 +71,8 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
     }
   }
 
-  void _setupAnimations() {
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _pulseController.repeat(reverse: true);
-  }
-
   @override
   void dispose() {
-    _pulseController.dispose();
     // Disconnect from real-time service
     ref.read(realTimeLocationServiceProvider).disconnect();
     super.dispose();
@@ -158,33 +142,16 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
       ),
       body: Stack(
         children: [
-          // Map background with real-time drivers
+          // Map background only. Search feedback lives in the sheet below, so
+          // fallback map states never compete with markers or pulse overlays.
           if (orderFlowState.pickupLocation != null)
             Positioned.fill(
-              child: LiveDriverMap(
-                pickupLocation: orderFlowState.pickupLocation!,
-                destinationLocation: orderFlowState.destinationLocation,
-                showSearchAnimation: true,
+              child: ProMapsViewSimple(
+                initialLat: orderFlowState.pickupLocation!.latitude,
+                initialLng: orderFlowState.pickupLocation!.longitude,
+                initialZoom: 15,
               ),
             ),
-
-          // Search animation overlay
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _pulseAnimation,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: SearchPulsePainter(
-                    animationValue: _pulseAnimation.value,
-                    center: Offset(
-                      MediaQuery.of(context).size.width * 0.5,
-                      MediaQuery.of(context).size.height * 0.4,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
 
           // Search info panel
           Positioned(
@@ -329,47 +296,5 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
         ),
       ],
     );
-  }
-}
-
-class SearchPulsePainter extends CustomPainter {
-  const SearchPulsePainter({
-    required this.animationValue,
-    required this.center,
-  });
-
-  final double animationValue;
-  final Offset center;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color =
-          EvikColors.accentOrange.withValues(alpha: 0.3 * (1 - animationValue))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
-
-    // Draw multiple expanding circles
-    for (int i = 0; i < 3; i++) {
-      final radius = 30.0 + (animationValue * 80.0) + (i * 20.0);
-      final alpha = (0.3 * (1 - animationValue)) - (i * 0.1);
-
-      if (alpha > 0) {
-        paint.color =
-            EvikColors.accentOrange.withValues(alpha: alpha.clamp(0.0, 1.0));
-        canvas.drawCircle(center, radius, paint);
-      }
-    }
-
-    // Draw center point
-    final centerPaint = Paint()
-      ..color = EvikColors.accentOrange
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 8.0, centerPaint);
-  }
-
-  @override
-  bool shouldRepaint(SearchPulsePainter oldDelegate) {
-    return animationValue != oldDelegate.animationValue;
   }
 }
