@@ -45,7 +45,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 		return nil, err
 	}
 
-	if ord.Status == orderdomain.StatusAccepted && ord.DriverID != nil && *ord.DriverID == driverID {
+	if isSameDriverActiveOrder(ord, driverID) {
 		return ord, nil
 	}
 
@@ -152,6 +152,18 @@ func (uc *AcceptOrderUseCase) tryRecoverDriverAvailability(
 func isTerminalOrderStatus(status orderdomain.Status) bool {
 	switch status {
 	case orderdomain.StatusCompleted, orderdomain.StatusCancelled, orderdomain.StatusNoDriverFound:
+		return true
+	default:
+		return false
+	}
+}
+
+func isSameDriverActiveOrder(ord *orderdomain.Order, driverID string) bool {
+	if ord.DriverID == nil || *ord.DriverID != driverID {
+		return false
+	}
+	switch ord.Status {
+	case orderdomain.StatusAccepted, orderdomain.StatusArrived, orderdomain.StatusInProgress:
 		return true
 	default:
 		return false

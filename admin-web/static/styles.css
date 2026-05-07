@@ -840,11 +840,11 @@ tr:hover td {
   backdrop-filter: blur(16px);
 }
 
-.yandex-map-ready {
+.promaps-ready {
   background: #0a0a0d;
 }
 
-.yandex-driver-marker {
+.promaps-driver-marker {
   position: relative;
   width: 22px;
   height: 22px;
@@ -855,21 +855,21 @@ tr:hover td {
   transform: translate(-50%, -50%);
 }
 
-.yandex-driver-marker::before,
-.yandex-driver-marker::after {
+.promaps-driver-marker::before,
+.promaps-driver-marker::after {
   content: "";
   position: absolute;
   inset: -9px;
   border-radius: inherit;
   border: 2px solid rgba(34, 197, 94, 0.45);
-  animation: yandexDriverPulse 1800ms ease-out infinite;
+  animation: promapsDriverPulse 1800ms ease-out infinite;
 }
 
-.yandex-driver-marker::after {
+.promaps-driver-marker::after {
   animation-delay: 600ms;
 }
 
-.yandex-driver-marker span {
+.promaps-driver-marker span {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -988,7 +988,7 @@ tr:hover td {
   }
 }
 
-@keyframes yandexDriverPulse {
+@keyframes promapsDriverPulse {
   0% {
     opacity: 0.75;
     transform: scale(0.68);

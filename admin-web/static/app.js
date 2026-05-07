@@ -22,10 +22,34 @@ const pageMeta = {
 
 const tokenStorageKey = "evik_admin_access_token";
 const apiUrlStorageKey = "evik_admin_api_url";
-const yandexKeyStorageKey = "evik_yandex_maps_api_key";
+const promapsKeyStorageKey = "evik_promaps_api_key";
 const adminUserIDStorageKey = "evik_admin_user_id";
-const yandexMapInstances = new Map();
-let yandexMapsPromise = null;
+const promapsMapInstances = new Map();
+let promapsLoaded = false;
+
+// Функции для иконок водителей
+function getDriverStatusColor(status) {
+  switch (status) {
+    case 'online': return '#10b981'; // Зеленый - свободен
+    case 'busy': return '#3b82f6'; // Синий - везет клиента
+    case 'to_pickup': return '#10b981'; // Зеленый - едет к клиенту
+    case 'to_destination': return '#3b82f6'; // Синий - везет машину
+    default: return '#f59e0b'; // Оранжевый - ожидает
+  }
+}
+
+function getDriverIconPath(status) {
+  switch (status) {
+    case 'online':
+    case 'to_pickup':
+      return 'images/vehicles/truck.png'; // Пустой эвакуатор
+    case 'busy':
+    case 'to_destination':
+      return 'images/vehicles/truck_loaded.png'; // Загруженный эвакуатор
+    default:
+      return 'images/vehicles/truck.png'; // По умолчанию пустой
+  }
+}
 
 window.addEventListener("error", (event) => {
   const message = event?.message || "JavaScript error";
@@ -76,12 +100,12 @@ function bindSettings() {
   document.getElementById("save-settings-button")?.addEventListener("click", async () => {
     const apiUrl = document.getElementById("api-url-input").value.trim();
     const token = document.getElementById("admin-token-input").value.trim();
-    const yandexKey = document.getElementById("yandex-key-input").value.trim();
+    const promapsKey = document.getElementById("promaps-key-input").value.trim();
     const adminUserID = document.getElementById("admin-user-id-input").value.trim();
 
     if (apiUrl) localStorage.setItem(apiUrlStorageKey, apiUrl.replace(/\/$/, ""));
     if (token) localStorage.setItem(tokenStorageKey, token.replace(/^Bearer\s+/i, ""));
-    if (yandexKey) localStorage.setItem(yandexKeyStorageKey, yandexKey);
+    if (promapsKey) localStorage.setItem(promapsKeyStorageKey, promapsKey);
     if (adminUserID) localStorage.setItem(adminUserIDStorageKey, adminUserID);
 
     showToast("Настройки сохранены. Обновляю данные.");
@@ -109,16 +133,19 @@ async function loadConfig() {
   if (savedUrl) {
     state.config.api_base_url = savedUrl;
   }
-  const savedYandexKey = localStorage.getItem(yandexKeyStorageKey);
-  if (savedYandexKey) {
-    state.config.yandex_maps_api_key = savedYandexKey;
+  const savedPromapsKey = localStorage.getItem(promapsKeyStorageKey);
+  if (savedPromapsKey) {
+    state.config.promaps_api_key = savedPromapsKey;
+  } else {
+    // Default ProMaps key
+    state.config.promaps_api_key = "pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5";
   }
 
   document.getElementById("api-base-label").textContent = state.config.api_base_url;
   document.getElementById("api-url-input").value = state.config.api_base_url;
   document.getElementById("admin-token-input").value = localStorage.getItem(tokenStorageKey) || "";
   document.getElementById("admin-user-id-input").value = localStorage.getItem(adminUserIDStorageKey) || "admin";
-  document.getElementById("yandex-key-input").value = state.config.yandex_maps_api_key || "";
+  document.getElementById("promaps-key-input").value = state.config.promaps_api_key || "";
 }
 
 async function loginAdmin() {
@@ -488,18 +515,18 @@ async function renderMap(container, drivers, showLabels) {
   }
 
   const visible = container.offsetWidth > 0 && container.offsetHeight > 0;
-  const apiKey = state.config?.yandex_maps_api_key;
+  const apiKey = state.config?.promaps_api_key;
   let fallbackNotice = "";
   if (apiKey && visible) {
     try {
-      await renderYandexMap(container, drivers, showLabels, apiKey);
+      await renderProMapsMap(container, drivers, showLabels, apiKey);
       return;
     } catch (error) {
-      console.error("Yandex map failed", error);
-      fallbackNotice = `<div class="map-fallback-note">Яндекс.Карта не загрузилась. Проверьте API key и доступ к api-maps.yandex.ru.</div>`;
+      console.error("ProMaps failed", error);
+      fallbackNotice = `<div class="map-fallback-note">ProMaps не загрузилась. Проверьте API key и доступ к api.promaps.online.</div>`;
     }
   } else if (!apiKey) {
-    fallbackNotice = `<div class="map-fallback-note">Чтобы видеть реальную Яндекс.Карту, укажите Yandex Maps JavaScript API key во вкладке Настройки.</div>`;
+    fallbackNotice = `<div class="map-fallback-note">Чтобы видеть реальную ProMaps карту, укажите ProMaps API key во вкладке Настройки.</div>`;
   }
 
   const lats = drivers.map((item) => Number(item.lat)).filter(Number.isFinite);
@@ -519,9 +546,7 @@ async function renderMap(container, drivers, showLabels) {
   }).join("");
 }
 
-async function renderYandexMap(container, drivers, showLabels, apiKey) {
-  await loadYandexMaps(apiKey);
-
+async function renderProMapsMap(container, drivers, showLabels, apiKey) {
   const validDrivers = drivers
     .map((driver) => ({
       ...driver,
@@ -530,83 +555,73 @@ async function renderYandexMap(container, drivers, showLabels, apiKey) {
     }))
     .filter((driver) => Number.isFinite(driver.lat) && Number.isFinite(driver.lng));
 
-  if (!validDrivers.length) {
-    container.innerHTML = `<div class="empty">Нет координат водителей</div>`;
-    return;
-  }
+  // Always show map, even if no drivers
+  const hasDrivers = validDrivers.length > 0;
 
-  const center = getMapCenter(validDrivers);
-  const existing = yandexMapInstances.get(container.id);
+  // Default center is Moscow if no drivers
+  const center = hasDrivers ? getMapCenter(validDrivers) : [55.7558, 37.6173];
+  const existing = promapsMapInstances.get(container.id);
   if (existing) {
-    existing.destroy();
-    yandexMapInstances.delete(container.id);
+    existing.remove();
+    promapsMapInstances.delete(container.id);
   }
 
   container.innerHTML = "";
-  container.classList.add("yandex-map-ready");
+  container.classList.add("promaps-ready");
 
-  const map = new ymaps.Map(container, {
-    center,
-    zoom: showLabels ? 11 : 10,
-    controls: showLabels ? ["zoomControl", "fullscreenControl"] : [],
-  }, {
-    suppressMapOpenBlock: true,
-    yandexMapDisablePoiInteractivity: true,
+  // Create ProMaps iframe embed
+  const zoom = showLabels ? 11 : 10;
+  const mapHtml = `
+    <div class="promaps-container" style="position: relative; width: 100%; height: 100%; border-radius: 16px; overflow: hidden;">
+      <iframe
+        src="https://api.promaps.online/embed?lat=${center[0]}&lng=${center[1]}&zoom=${zoom}&key=${apiKey}&style=default"
+        width="100%"
+        height="100%"
+        frameborder="0"
+        style="border:none;"
+        loading="lazy"
+        title="ProMaps - Карта водителей">
+      </iframe>
+      <div class="map-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+        ${!hasDrivers ?
+          '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px;">Нет водителей онлайн</div>' :
+          validDrivers.map((driver, index) => {
+          // Convert coordinates to approximate pixel positions with smooth animation
+          const now = Date.now() / 1000;
+          const latDiff = (driver.lat - center[0]) * 10;
+          const lngDiff = (driver.lng - center[1]) * 10;
+
+          // Add slight movement animation for demo
+          const animationOffset = Math.sin(now + index) * 0.5;
+          const x = 50 + (lngDiff * 50 / Math.pow(2, 10 - zoom)) + animationOffset;
+          const y = 50 - (latDiff * 50 / Math.pow(2, 10 - zoom)) + Math.cos(now + index) * 0.3;
+
+          return `
+            <div class="promaps-driver-marker ${driver.status === 'online' ? 'online' : 'busy'} driver-${index}"
+                 style="position: absolute; left:${Math.max(5, Math.min(95, x))}%; top:${Math.max(5, Math.min(95, y))}%; transform: translate(-50%, -50%); pointer-events: auto; transition: all 3s ease-in-out;"
+                 title="${escapeAttr(driver.name)} · ${escapeAttr(driver.vehicle)} · ${formatStarsValue(driver.stars)} ★">
+              <div class="marker-container" style="width: 40px; height: 40px; border-radius: 50%; background: white; border: 3px solid ${getDriverStatusColor(driver.status)}; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+                <img src="${getDriverIconPath(driver.status)}"
+                     style="width: 24px; height: 24px; object-fit: contain;"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                <span style="display: none; font-size: 16px;">🚛</span>
+              </div>
+              ${showLabels ? `<div class="marker-label" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; font-weight: 500;">${escapeHtml(driver.name)}<br><small style="opacity: 0.8;">${escapeHtml(driver.vehicle || '')}</small></div>` : ''}
+            </div>
+          `;
+        }).join('')}
+
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = mapHtml;
+  promapsMapInstances.set(container.id, {
+    remove: () => {
+      container.innerHTML = '';
+      container.classList.remove("promaps-ready");
+    }
   });
-
-  map.behaviors.disable("scrollZoom");
-  const collection = new ymaps.GeoObjectCollection();
-  const markerLayout = ymaps.templateLayoutFactory.createClass(
-    '<div class="yandex-driver-marker {{ properties.statusClass }}" title="{{ properties.title }}"><span></span></div>',
-  );
-
-  validDrivers.forEach((driver) => {
-    const placemark = new ymaps.Placemark(
-      [driver.lat, driver.lng],
-      {
-        title: `${driver.name || "Водитель"} · ${driver.vehicle || ""}`,
-        statusClass: "is-online",
-        balloonContentHeader: escapeHtml(driver.name || "Водитель"),
-        balloonContentBody: `${escapeHtml(driver.vehicle || "")}<br>${formatStarsValue(driver.stars)} ★<br>${driverStatusLabel(driver.status)}`,
-      },
-      {
-        iconLayout: markerLayout,
-        iconShape: {
-          type: "Circle",
-          coordinates: [0, 0],
-          radius: 18,
-        },
-      },
-    );
-    collection.add(placemark);
-  });
-
-  map.geoObjects.add(collection);
-  if (validDrivers.length > 1) {
-    map.setBounds(collection.getBounds(), {
-      checkZoomRange: true,
-      zoomMargin: showLabels ? 64 : 36,
-    });
-  }
-  window.setTimeout(() => map.container.fitToViewport(), 120);
-  yandexMapInstances.set(container.id, map);
-}
-
-function loadYandexMaps(apiKey) {
-  if (window.ymaps) {
-    return new Promise((resolve, reject) => window.ymaps.ready(resolve, reject));
-  }
-  if (yandexMapsPromise) return yandexMapsPromise;
-
-  yandexMapsPromise = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU`;
-    script.async = true;
-    script.onload = () => window.ymaps.ready(resolve, reject);
-    script.onerror = () => reject(new Error("failed to load Yandex Maps API"));
-    document.head.appendChild(script);
-  });
-  return yandexMapsPromise;
 }
 
 function getMapCenter(drivers) {

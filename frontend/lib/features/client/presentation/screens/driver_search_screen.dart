@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/realtime_location_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/evik_map_widget.dart';
+import '../../../map/presentation/widgets/live_driver_map.dart';
+import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
 
@@ -26,6 +28,51 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
   void initState() {
     super.initState();
     _setupAnimations();
+    _initializeRealTimeService();
+  }
+
+  void _initializeRealTimeService() async {
+    final realTimeService = ref.read(realTimeLocationServiceProvider);
+    final orderFlowState = ref.read(orderFlowProvider);
+
+    // Connect as client when searching for driver
+    const clientId = 'client_app_user'; // Use a simple ID for now
+
+    final connected =
+        await realTimeService.connect(userId: clientId, userType: 'client');
+
+    if (connected) {
+      // Listen for order updates
+      realTimeService.orderUpdateStream.listen((orderUpdate) {
+        if (!mounted) return;
+
+        if (orderUpdate.status == OrderUpdateType.driverFound) {
+          // Driver found! Navigate to next screen
+          ref.read(orderFlowProvider.notifier).goToDriverFound();
+        } else if (orderUpdate.status == OrderUpdateType.noDriversAvailable) {
+          // No drivers available - show error
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Свободные водители не найдены. Попробуйте позже.'),
+              backgroundColor: EvikColors.errorRed,
+            ),
+          );
+        }
+      });
+
+      // Create order if we have all required data
+      if (orderFlowState.pickupLocation != null &&
+          orderFlowState.destinationLocation != null) {
+        await realTimeService.createOrder(
+          pickupLat: orderFlowState.pickupLocation!.latitude,
+          pickupLng: orderFlowState.pickupLocation!.longitude,
+          dropoffLat: orderFlowState.destinationLocation!.latitude,
+          dropoffLng: orderFlowState.destinationLocation!.longitude,
+          vehicleType: VehicleType.light, // Based on selected vehicle
+          notes: 'Order from client app',
+        );
+      }
+    }
   }
 
   void _setupAnimations() {
@@ -42,6 +89,8 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    // Disconnect from real-time service
+    ref.read(realTimeLocationServiceProvider).disconnect();
     super.dispose();
   }
 
@@ -109,11 +158,13 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen>
       ),
       body: Stack(
         children: [
-          // Map background
+          // Map background with real-time drivers
           if (orderFlowState.pickupLocation != null)
-            const Positioned.fill(
-              child: EvikMapWidget(
-                isSelectionMode: false,
+            Positioned.fill(
+              child: LiveDriverMap(
+                pickupLocation: orderFlowState.pickupLocation!,
+                destinationLocation: orderFlowState.destinationLocation,
+                showSearchAnimation: true,
               ),
             ),
 

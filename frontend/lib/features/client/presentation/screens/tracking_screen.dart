@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
 
+import '../../../../core/services/realtime_location_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
 import '../../../driver/domain/entities/driver.dart';
-import '../../../map/presentation/widgets/yandex_map_view.dart';
+import '../../../map/presentation/widgets/animated_driver_marker.dart';
+import '../../../map/presentation/widgets/live_driver_map.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
@@ -20,15 +21,42 @@ class TrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _TrackingScreenState extends ConsumerState<TrackingScreen> {
-  YandexMapController? _mapController;
-  DrivingSession? _drivingSession;
-  List<MapObject> _routeObjects = const [];
-  String? _routeSignature;
-  String? _routeEta;
+  DriverLocationUpdate? _latestDriverLocation;
+  String? _estimatedArrival;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeRealTimeTracking();
+  }
+
+  void _initializeRealTimeTracking() {
+    final realTimeService = ref.read(realTimeLocationServiceProvider);
+
+    // Listen for real-time driver location updates
+    realTimeService.driverLocationStream.listen((driverUpdate) {
+      if (!mounted) return;
+      setState(() {
+        _latestDriverLocation = driverUpdate;
+        // Update ETA based on driver status
+        _estimatedArrival = _calculateETA(driverUpdate);
+      });
+    });
+  }
+
+  String _calculateETA(DriverLocationUpdate driverUpdate) {
+    switch (driverUpdate.status) {
+      case DriverMarkerStatus.toPickup:
+        return '5-10 мин';
+      case DriverMarkerStatus.waiting:
+        return 'прибыл';
+      case DriverMarkerStatus.toDestination:
+        return 'едет к месту назначения';
+    }
+  }
 
   @override
   void dispose() {
-    _drivingSession?.close();
     super.dispose();
   }
 
@@ -51,42 +79,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
       );
     }
 
-    final pickup = Point(
-      latitude: state.pickupLocation?.latitude ?? order.pickupLocation.lat,
-      longitude: state.pickupLocation?.longitude ?? order.pickupLocation.lng,
-    );
-    final destination = Point(
-      latitude:
-          state.destinationLocation?.latitude ?? order.dropoffLocation.lat,
-      longitude:
-          state.destinationLocation?.longitude ?? order.dropoffLocation.lng,
-    );
-    final driverPoint = _driverPoint(driver, pickup);
-    _updateYandexRoute(
-      driverPoint: driverPoint,
-      pickup: pickup,
-      destination: destination,
-    );
-
     return Scaffold(
       backgroundColor: EvikColors.gray50,
       body: Stack(
         children: [
           Positioned.fill(
-            child: MapKitAwareYandexMap(
-              builder: (_) => YandexMap(
-                onMapCreated: (controller) async {
-                  _mapController = controller;
-                  await controller.toggleTrafficLayer(visible: true);
-                  await _focusDriver(driverPoint);
-                },
-                onTrafficChanged: (_) {},
-                mapObjects: _mapObjects(
-                  driverPoint: driverPoint,
-                  pickup: pickup,
-                  destination: destination,
-                ),
-              ),
+            child: LiveDriverMap(
+              pickupLocation: state.pickupLocation!,
+              destinationLocation: state.destinationLocation,
+              showRoute: true,
+              showSearchAnimation: false,
+              driverLocation: _latestDriverLocation,
             ),
           ),
           Positioned(
@@ -95,7 +98,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             right: 14,
             child: _TopStatusCard(
               vehicleNumber: driver?.vehicleNumber ?? 'А923АА 777',
-              eta: _routeEta ?? 'уточняется',
+              eta: _estimatedArrival ?? 'уточняется',
               onBackToOrder: () => context.go('/order/driver-info'),
             ),
           ),
@@ -103,7 +106,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             right: 16,
             bottom: 376,
             child: _FocusDriverButton(
-              onPressed: () => _focusDriver(driverPoint),
+              onPressed: () {
+                // Focus on driver location in the live map
+                // This would be handled by the LiveDriverMap widget
+              },
             ),
           ),
           Positioned(
@@ -125,162 +131,6 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
     );
   }
 
-  Point _driverPoint(Driver? driver, Point pickup) {
-    final current = driver?.currentLocation;
-    if (current != null) {
-      return Point(latitude: current.lat, longitude: current.lng);
-    }
-
-    return Point(
-      latitude: pickup.latitude + 0.012,
-      longitude: pickup.longitude + 0.010,
-    );
-  }
-
-  Future<void> _focusDriver(Point point) async {
-    await _mapController?.moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: point, zoom: 15.8),
-      ),
-      animation: const MapAnimation(
-        type: MapAnimationType.smooth,
-        duration: 0.45,
-      ),
-    );
-  }
-
-  void _updateYandexRoute({
-    required Point driverPoint,
-    required Point pickup,
-    required Point destination,
-  }) {
-    final signature = [
-      driverPoint.latitude.toStringAsFixed(6),
-      driverPoint.longitude.toStringAsFixed(6),
-      pickup.latitude.toStringAsFixed(6),
-      pickup.longitude.toStringAsFixed(6),
-      destination.latitude.toStringAsFixed(6),
-      destination.longitude.toStringAsFixed(6),
-    ].join(':');
-
-    if (_routeSignature == signature) return;
-    _routeSignature = signature;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestYandexRoute(
-        driverPoint: driverPoint,
-        pickup: pickup,
-        destination: destination,
-        signature: signature,
-      );
-    });
-  }
-
-  Future<void> _requestYandexRoute({
-    required Point driverPoint,
-    required Point pickup,
-    required Point destination,
-    required String signature,
-  }) async {
-    await _drivingSession?.cancel();
-    await _drivingSession?.close();
-
-    try {
-      final resultWithSession = await YandexDriving.requestRoutes(
-        points: [
-          RequestPoint(
-            point: driverPoint,
-            requestPointType: RequestPointType.wayPoint,
-          ),
-          RequestPoint(
-            point: pickup,
-            requestPointType: RequestPointType.viaPoint,
-          ),
-          RequestPoint(
-            point: destination,
-            requestPointType: RequestPointType.wayPoint,
-          ),
-        ],
-        drivingOptions: const DrivingOptions(
-          routesCount: 1,
-          annotationLanguage: AnnotationLanguage.russian,
-          avoidanceFlags: DrivingAvoidanceFlags(),
-        ),
-      );
-
-      _drivingSession = resultWithSession.$1;
-      final result = await resultWithSession.$2;
-      if (!mounted || _routeSignature != signature || result.error != null) {
-        return;
-      }
-
-      final routes = result.routes;
-      if (routes == null || routes.isEmpty) {
-        setState(() {
-          _routeObjects = const [];
-          _routeEta = null;
-        });
-        return;
-      }
-
-      final route = routes.first;
-      setState(() {
-        _routeEta = route.metadata.weight.timeWithTraffic.text;
-        _routeObjects = [
-          PolylineMapObject(
-            mapId: const MapObjectId('yandex_driver_route'),
-            polyline: route.geometry,
-            strokeColor: EvikColors.accentOrange,
-            strokeWidth: 4,
-          ),
-        ];
-      });
-    } catch (_) {
-      if (!mounted || _routeSignature != signature) return;
-      setState(() {
-        _routeObjects = const [];
-        _routeEta = null;
-      });
-    }
-  }
-
-  List<MapObject> _mapObjects({
-    required Point driverPoint,
-    required Point pickup,
-    required Point destination,
-  }) {
-    return [
-      ..._routeObjects,
-      CircleMapObject(
-        mapId: const MapObjectId('driver_position_outer'),
-        circle: Circle(center: driverPoint, radius: 72),
-        fillColor: EvikColors.infoBlue.withValues(alpha: 0.16),
-        strokeColor: EvikColors.infoBlue.withValues(alpha: 0.28),
-        strokeWidth: 2,
-      ),
-      CircleMapObject(
-        mapId: const MapObjectId('driver_position'),
-        circle: Circle(center: driverPoint, radius: 18),
-        fillColor: EvikColors.infoBlue,
-        strokeColor: EvikColors.primaryWhite,
-        strokeWidth: 4,
-      ),
-      CircleMapObject(
-        mapId: const MapObjectId('pickup_position'),
-        circle: Circle(center: pickup, radius: 16),
-        fillColor: EvikColors.successGreen,
-        strokeColor: EvikColors.primaryWhite,
-        strokeWidth: 4,
-      ),
-      CircleMapObject(
-        mapId: const MapObjectId('destination_position'),
-        circle: Circle(center: destination, radius: 16),
-        fillColor: EvikColors.accentOrange,
-        strokeColor: EvikColors.primaryWhite,
-        strokeWidth: 4,
-      ),
-    ];
-  }
 }
 
 class _TopStatusCard extends StatelessWidget {

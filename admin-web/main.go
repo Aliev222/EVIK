@@ -18,16 +18,16 @@ import (
 var staticFiles embed.FS
 
 type config struct {
-	addr             string
-	apiBaseURL       string
-	yandexMapsAPIKey string
+	addr          string
+	apiBaseURL    string
+	promapsAPIKey string
 }
 
 func main() {
 	cfg := config{
-		addr:             getEnv("ADMIN_WEB_ADDR", ":5174"),
-		apiBaseURL:       strings.TrimRight(getEnv("EVIK_API_BASE_URL", "http://localhost:8080"), "/"),
-		yandexMapsAPIKey: getEnv("YANDEX_MAPS_API_KEY", getEnv("YANDEX_MAPKIT_API_KEY", "")),
+		addr:          getEnv("ADMIN_WEB_ADDR", ":5174"),
+		apiBaseURL:    strings.TrimRight(getEnv("EVIK_API_BASE_URL", "http://localhost:8080"), "/"),
+		promapsAPIKey: getEnv("PROMAPS_API_KEY", "pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5"),
 	}
 
 	apiURL, err := url.Parse(cfg.apiBaseURL)
@@ -78,9 +78,9 @@ func securityHeaders(next http.Handler) http.Handler {
 func handleConfig(cfg config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"api_base_url":        cfg.apiBaseURL,
-			"admin_api_prefix":    "/api/v1/admin",
-			"yandex_maps_api_key": cfg.yandexMapsAPIKey,
+			"api_base_url":     cfg.apiBaseURL,
+			"admin_api_prefix": "/api/v1/admin",
+			"promaps_api_key":  cfg.promapsAPIKey,
 		})
 	}
 }

@@ -119,21 +119,28 @@ func (uc *FindDriverUseCase) Execute(ctx context.Context, orderID string) (*orde
 	}
 
 	now := uc.clock.Now()
-	if err := ord.TransitionTo(orderdomain.StatusNoDriverFound, now); err != nil {
+	latest, err := uc.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
 		return nil, err
 	}
-	if err := uc.orderRepo.Update(ctx, ord); err != nil {
+	if latest.Status != orderdomain.StatusSearching {
+		return latest, nil
+	}
+	if err := latest.TransitionTo(orderdomain.StatusNoDriverFound, now); err != nil {
+		return nil, err
+	}
+	if err := uc.orderRepo.Update(ctx, latest); err != nil {
 		return nil, err
 	}
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventNoDriverFound,
-		OrderID: ord.ID,
+		OrderID: latest.ID,
 		Payload: map[string]any{
-			"status": ord.Status,
+			"status": latest.Status,
 			"reason": "no_driver_found_after_retries",
 		},
 	}); err != nil {
 		return nil, err
 	}
-	return ord, nil
+	return latest, nil
 }
