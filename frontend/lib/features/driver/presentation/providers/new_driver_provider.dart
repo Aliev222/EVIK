@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../data/repository_impl/http_driver_repository.dart';
 import '../../domain/entities/active_order.dart';
 import '../../domain/entities/available_order.dart';
@@ -14,11 +14,10 @@ import '../../domain/entities/driver_stats.dart';
 import '../../domain/entities/driver_work_state.dart';
 
 final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
-  final accessToken =
-      ref.watch(authProvider.select((state) => state.accessToken));
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
   return HttpDriverRepository(
     apiClient: platform_api.createPlatformApiClient(),
-    accessToken: accessToken,
+    accessToken: isAuthenticated ? "from_api_client" : null,
   );
 });
 
@@ -80,7 +79,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   Timer? _refreshTimer;
   final Random _random = Random();
 
-  String? get _currentDriverId => _ref.read(authProvider).user?.id;
+  String? get _currentDriverId => _ref.read(newAuthProvider).user?.id;
 
   Future<void> _initializeDriver() async {
     final driverId = _currentDriverId;

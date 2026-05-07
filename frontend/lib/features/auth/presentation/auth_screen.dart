@@ -7,7 +7,7 @@ import '../../../core/theme/evik_typography.dart';
 import '../../../shared/widgets/evik_button.dart';
 import '../../onboarding/presentation/screens/role_selection_screen.dart';
 import '../domain/entities/user.dart';
-import 'providers/auth_provider.dart';
+import 'providers/new_auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({
@@ -39,7 +39,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(newAuthProvider);
 
     return Scaffold(
       backgroundColor: EvikColors.gray50,
@@ -177,7 +177,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   void _sendSmsCode() {
     final role =
         _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
-    ref.read(authProvider.notifier).signInWithPhone(
+    ref.read(newAuthProvider.notifier).sendSmsCode(
           _phoneController.text.trim(),
           'User Name',
           role: role,

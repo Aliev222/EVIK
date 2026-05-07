@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../domain/entities/driver_earnings.dart';
 import 'new_driver_provider.dart';
 
@@ -43,7 +43,7 @@ class DriverEarningsNotifier extends StateNotifier<DriverEarningsState> {
   final Ref _ref;
 
   Future<void> refresh() async {
-    final driverId = _ref.read(authProvider).user?.id;
+    final driverId = _ref.read(newAuthProvider).user?.id;
     if (driverId == null) {
       state = state.copyWith(isLoading: false);
       return;

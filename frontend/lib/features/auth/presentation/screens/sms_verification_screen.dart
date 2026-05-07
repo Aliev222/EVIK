@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../providers/auth_provider.dart';
+import '../providers/new_auth_provider.dart';
 
 class SmsVerificationScreen extends ConsumerStatefulWidget {
   const SmsVerificationScreen({super.key});
@@ -61,14 +61,14 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AuthState>(authProvider, (previous, next) {
+    ref.listen<NewAuthState>(newAuthProvider, (previous, next) {
       if (next.errorMessage != null &&
           next.errorMessage != previous?.errorMessage) {
         _showCodeError();
       }
     });
 
-    final authState = ref.watch(authProvider);
+    final authState = ref.watch(newAuthProvider);
     final phoneNumber = authState.phoneNumber ?? '+7 (999) 000-00-00';
     final hasError = _hasCodeError || authState.errorMessage != null;
 
@@ -85,7 +85,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
         titleSpacing: 16,
         leading: IconButton(
           onPressed: () {
-            ref.read(authProvider.notifier).resetAuth();
+            ref.read(newAuthProvider.notifier).resetAuth();
             if (Navigator.of(context).canPop()) Navigator.of(context).pop();
           },
           icon: const Icon(
@@ -220,7 +220,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
   }
 
   void _resendCode() {
-    ref.read(authProvider.notifier).resendSmsCode();
+    ref.read(newAuthProvider.notifier).resendSmsCode();
     setState(() {
       _secondsLeft = 75;
       _hasCodeError = false;
@@ -230,7 +230,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
   void _verifySmsCode() {
     if (_isComplete) {
-      ref.read(authProvider.notifier).verifySmsCode(_smsCode);
+      ref.read(newAuthProvider.notifier).verifySmsCode(_smsCode);
     } else {
       _showCodeError();
     }

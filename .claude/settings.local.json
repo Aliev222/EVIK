@@ -9,7 +9,8 @@
       "Bash(unzip -l \"Tow truck-handoff.zip\")",
       "Bash(unzip -o \"Tow truck-handoff.zip\")",
       "Bash(flutter pub *)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(curl -s http://127.0.0.1:5174)"
     ]
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/services/location_service.dart';
+import '../../../../core/services/promaps_service.dart';
 import '../../../order/domain/entities/order.dart';
 
 class DriverNavigationState {
@@ -53,36 +54,58 @@ class DriverNavigationNotifier extends StateNotifier<DriverNavigationState> {
     required LocationModel from,
     required LocationModel to,
   }) async {
-    final distance = await _locationService.calculateRouteDistance(
-      from: from,
-      to: to,
-    );
-    final etaMinutes = await _locationService.calculateEstimatedTime(
-      from: from,
-      to: to,
-    );
+    try {
+      // Use ProMaps for route calculation
+      final route = await ProMapsService.getRoute(
+        fromLat: from.lat,
+        fromLng: from.lng,
+        toLat: to.lat,
+        toLng: to.lng,
+        profile: 'driving',
+      );
 
-    state = state.copyWith(
-      currentRoute: <LocationModel>[from, to],
-      distanceKm: distance,
-      eta: etaMinutes == null ? null : Duration(minutes: etaMinutes),
-      isNavigating: true,
-      errorMessage: null,
-    );
+      if (route != null) {
+        state = state.copyWith(
+          currentRoute: <LocationModel>[from, to],
+          distanceKm: route.distanceKm,
+          eta: Duration(minutes: route.durationMinutes.round()),
+          isNavigating: true,
+          errorMessage: null,
+        );
+      } else {
+        state = state.copyWith(
+          errorMessage: 'Не удалось построить маршрут',
+          isNavigating: false,
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Ошибка построения маршрута: $e',
+        isNavigating: false,
+      );
+    }
   }
 
-  Future<void> openYandexNavigator(double lat, double lng) async {
-    final uri =
-        Uri.parse('yandexnavi://build_route_on_map?lat_to=$lat&lon_to=$lng');
-    final fallback =
-        Uri.parse('https://yandex.ru/maps/?rtext=~$lat,$lng&rtt=auto');
+  Future<void> openProMapsNavigator(double lat, double lng) async {
+    // Try to open in external navigation apps first
+    final googleMapsUri = Uri.parse('google.navigation:q=$lat,$lng');
+    final yandexNaviUri = Uri.parse('yandexnavi://build_route_on_map?lat_to=$lat&lon_to=$lng');
 
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+    // Try Google Maps first
+    if (await canLaunchUrl(googleMapsUri)) {
+      await launchUrl(googleMapsUri);
       return;
     }
 
-    await launchUrl(fallback, mode: LaunchMode.externalApplication);
+    // Try Yandex Navigator
+    if (await canLaunchUrl(yandexNaviUri)) {
+      await launchUrl(yandexNaviUri);
+      return;
+    }
+
+    // Fallback to web ProMaps
+    final webFallback = Uri.parse('https://maps.google.com/maps?daddr=$lat,$lng');
+    await launchUrl(webFallback, mode: LaunchMode.externalApplication);
   }
 
   Future<void> trackDriverPosition() async {

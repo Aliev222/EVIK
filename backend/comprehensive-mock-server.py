@@ -369,6 +369,112 @@ def serve_file(file_id):
         download_name=file_info["original_name"]
     )
 
+# ================== ADMIN ENDPOINTS ==================
+@app.route('/api/v1/admin/overview', methods=['GET'])
+def admin_overview():
+    """Admin overview with real data from mock server"""
+    total_users = len(users)
+    clients = len([u for u in users.values() if u.get('role') == 'client'])
+    drivers = len([u for u in users.values() if u.get('role') == 'driver'])
+
+    return jsonify({
+        "total_users": total_users,
+        "clients": clients,
+        "drivers": drivers,
+        "online_drivers": drivers // 3,  # Simulate 1/3 online
+        "pending_moderations": drivers // 10,  # Simulate some pending
+        "average_driver_stars": 4.7,
+        "reviews_today": len(orders) * 2,  # 2 reviews per order on average
+        "active_orders": len([o for o in orders.values() if o.get('status') in ['assigned', 'arriving', 'evacuating']]),
+    })
+
+@app.route('/api/v1/admin/driver-verifications', methods=['GET'])
+def admin_driver_verifications():
+    """Admin driver verifications from real data"""
+    driver_verifications = []
+
+    for user_id, user in users.items():
+        if user.get('role') == 'driver':
+            driver_verifications.append({
+                "id": f"DRV-{user_id[-4:]}",
+                "driver_name": user.get('full_name', 'Unknown'),
+                "phone": user.get('phone', 'N/A'),
+                "city": "Москва",
+                "vehicle": "GAZ Next",
+                "plate": f"А{user_id[-3:]}МО 797",
+                "vehicle_type": "Платформа",
+                "status": "pending",
+                "risk": "low",
+                "stars": 4.5,
+                "orders": len([o for o in orders.values() if o.get('driver_id') == user_id]),
+                "submitted_at": user.get('created_at', datetime.now().isoformat()),
+                "documents": ["Паспорт", "Водительское удостоверение", "СТС"],
+                "signals": []
+            })
+
+    return jsonify({"items": driver_verifications})
+
+@app.route('/api/v1/admin/users', methods=['GET'])
+def admin_users():
+    """Admin users list from real data"""
+    user_list = []
+
+    for user_id, user in users.items():
+        user_orders = len([o for o in orders.values() if o.get('user_id') == user_id])
+        user_list.append({
+            "id": user_id,
+            "name": user.get('full_name', 'Unknown'),
+            "role": user.get('role', 'client'),
+            "phone": user.get('phone', 'N/A'),
+            "orders": user_orders,
+            "status": "active"
+        })
+
+    return jsonify({"items": user_list})
+
+@app.route('/api/v1/admin/reviews', methods=['GET'])
+def admin_reviews():
+    """Admin reviews from real order data"""
+    reviews = []
+
+    for order_id, order in orders.items():
+        if order.get('status') == 'completed':
+            reviews.append({
+                "id": f"REV-{order_id[-4:]}",
+                "driver_name": users.get(order.get('driver_id', ''), {}).get('full_name', 'Unknown Driver'),
+                "client_name": users.get(order.get('user_id', ''), {}).get('full_name', 'Unknown Client'),
+                "stars": 5,
+                "text": "Быстро и качественно!",
+                "created_at": order.get('updated_at', datetime.now().isoformat())
+            })
+
+    return jsonify({"items": reviews})
+
+@app.route('/api/v1/admin/drivers-online', methods=['GET'])
+def admin_drivers_online():
+    """Admin online drivers from real data"""
+    online_drivers = []
+
+    # Moscow coordinates for simulation
+    base_coords = [(55.7558, 37.6173), (55.7811, 37.6092), (55.7424, 37.6247)]
+
+    driver_users = [u for u in users.values() if u.get('role') == 'driver']
+
+    for i, user in enumerate(driver_users[:10]):  # Show first 10 drivers as online
+        coords = base_coords[i % len(base_coords)]
+        online_drivers.append({
+            "id": f"DRV-{user.get('phone', '')[-3:]}",
+            "name": user.get('full_name', 'Unknown'),
+            "lat": coords[0] + (i * 0.01),  # Spread around Moscow
+            "lng": coords[1] + (i * 0.01),
+            "status": "online" if i % 3 != 0 else "busy",
+            "stars": 4.7,
+            "vehicle": "Платформа",
+            "last_seen": (datetime.now() - timedelta(minutes=i*2)).isoformat()
+        })
+
+    return jsonify({"items": online_drivers})
+
 # ================== DEBUGGING ENDPOINTS ==================
 @app.route('/api/v1/debug/stats', methods=['GET'])
 def debug_stats():
@@ -388,6 +494,7 @@ if __name__ == '__main__':
     print("   📦 Orders: /api/v1/orders/*")
     print("   📁 Files: /api/v1/driver/documents, /api/v1/files/*")
     print("   🔧 Debug: /api/v1/debug/stats")
+    print("   👥 Admin: /api/v1/admin/*")
     print()
     print("📱 Ready for complete Flutter integration testing!")
     print("🔑 Test credentials: +79123456789, code: 1234")

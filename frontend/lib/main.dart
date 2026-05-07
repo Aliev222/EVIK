@@ -8,7 +8,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/evik_tokens.dart';
 import 'features/auth/domain/entities/user.dart';
 import 'features/auth/presentation/auth_screen.dart';
-import 'features/auth/presentation/providers/auth_provider.dart';
+import 'features/auth/presentation/providers/new_auth_provider.dart';
 import 'features/auth/presentation/screens/sms_verification_screen.dart';
 import 'features/driver/presentation/driver_screen.dart';
 import 'features/client/presentation/screens/client_app_shell.dart';
@@ -418,8 +418,8 @@ class _AppRouter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final currentUser = ref.watch(currentUserProvider);
+    final authState = ref.watch(newAuthProvider);
+    final currentUser = ref.watch(currentUserProviderNew);
     final selectedRole = ref.watch(selectedOnboardingRoleProvider);
 
     if (authState.isAuthenticated && currentUser != null) {
@@ -432,7 +432,7 @@ class _AppRouter extends ConsumerWidget {
       return const ClientAppShell(); // Клиентский интерфейс
     }
 
-    if (authState.isCodeSent) {
+    if (authState.canVerifyCode) {
       return const SmsVerificationScreen();
     }
 

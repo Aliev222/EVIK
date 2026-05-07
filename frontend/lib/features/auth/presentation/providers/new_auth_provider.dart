@@ -17,6 +17,7 @@ final currentUserProviderNew = Provider<User?>((ref) {
 class NewAuthState {
   const NewAuthState({
     this.user,
+    this.accessToken,
     this.isLoading = false,
     this.errorMessage,
     this.phoneNumber,
@@ -28,6 +29,7 @@ class NewAuthState {
   });
 
   final User? user;
+  final String? accessToken;
   final bool isLoading;
   final String? errorMessage;
   final String? phoneNumber;
@@ -42,6 +44,8 @@ class NewAuthState {
 
   NewAuthState copyWith({
     User? user,
+    String? accessToken,
+    bool clearAccessToken = false,
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
@@ -57,6 +61,7 @@ class NewAuthState {
   }) {
     return NewAuthState(
       user: user ?? this.user,
+      accessToken: clearAccessToken ? null : accessToken ?? this.accessToken,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       phoneNumber: clearPendingAuth ? null : phoneNumber ?? this.phoneNumber,
@@ -177,6 +182,7 @@ class NewAuthNotifier extends StateNotifier<NewAuthState> {
 
       state = state.copyWith(
         user: user,
+        accessToken: response['access_token'],
         isLoading: false,
         clearError: true,
         clearPendingAuth: true,
@@ -229,6 +235,7 @@ class NewAuthNotifier extends StateNotifier<NewAuthState> {
     await _apiClient.clearTokens();
     state = state.copyWith(
       user: null,
+      clearAccessToken: true,
       clearPendingAuth: true,
       clearError: true,
       isLoading: false,

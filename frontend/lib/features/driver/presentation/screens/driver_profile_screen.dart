@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../../onboarding/presentation/screens/role_selection_screen.dart';
 
 class DriverProfileScreen extends ConsumerWidget {
@@ -235,7 +235,7 @@ class DriverProfileScreen extends ConsumerWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    ref.read(authProvider.notifier).signOut();
+                    ref.read(newAuthProvider.notifier).signOut();
                     // Очищаем выбранную роль чтобы попасть на экран выбора роли
                     ref.read(selectedOnboardingRoleProvider.notifier).state =
                         null;

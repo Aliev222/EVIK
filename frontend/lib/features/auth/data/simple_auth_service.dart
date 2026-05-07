@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class SimpleAuthService {
-  static const String baseUrl = 'https://tow-truck.onrender.com/api/v1';
+  static const String baseUrl = 'http://localhost:5000/api/v1';
 
   // Регистрация без SMS
   static Future<Map<String, dynamic>> register({

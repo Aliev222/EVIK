@@ -10,17 +10,16 @@ import '../../../../core/realtime/websocket_client.dart';
 import '../../../../core/realtime/websocket_client_stub.dart'
     if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
     as platform_ws;
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../data/repository_impl/http_order_repository.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/repositories/order_repository.dart';
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
-  final accessToken =
-      ref.watch(authProvider.select((state) => state.accessToken));
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
   return HttpOrderRepository(
     apiClient: platform_api.createPlatformApiClient(),
-    accessToken: accessToken,
+    accessToken: isAuthenticated ? "from_api_client" : null,
   );
 });
 
@@ -33,15 +32,14 @@ final webSocketClientProvider = Provider<WebSocketClient>((ref) {
 });
 
 final eventDispatcherProvider = Provider<EventDispatcher?>((ref) {
-  final accessToken =
-      ref.watch(authProvider.select((state) => state.accessToken));
-  if (accessToken == null || accessToken.isEmpty) {
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
+  if (!isAuthenticated) {
     return null;
   }
 
   final wsUrl = Uri.parse(defaultWsUrl).replace(
       queryParameters: <String, String>{
-        'access_token': accessToken
+        'access_token': 'token_from_api_client'
       }).toString();
   final dispatcher = WsEventDispatcher(
     client: ref.watch(webSocketClientProvider),

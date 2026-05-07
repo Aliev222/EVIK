@@ -4,15 +4,17 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:yandex_mapkit/yandex_mapkit.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/repositories/order_repository.dart';
 import '../../../order/presentation/providers/order_provider.dart';
+import '../../../order/presentation/providers/realtime_order_provider.dart';
+import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../widgets/live_driver_map.dart';
 
 enum OrderCreationState {
   addressInput,
@@ -35,12 +37,10 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
-  static const Point _moscowPoint =
-      Point(latitude: 55.7558, longitude: 37.6176);
+  static const LocationModel _moscowLocation =
+      LocationModel(lat: 55.7558, lng: 37.6176, address: 'Москва');
 
-  YandexMapController? _mapController;
-  Point _userPoint = _moscowPoint;
-  bool _cameraInitialized = false;
+  LocationModel _userLocation = _moscowLocation;
   _ClientHomeFlowState _flowState = _ClientHomeFlowState.idle;
   OrderCreationState _orderState = OrderCreationState.addressInput;
   Timer? _searchTimer;
@@ -48,9 +48,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   String? _dropoffAddress;
   bool _notificationRequested = false;
   int _arrivalMinutes = 12;
-  Point? _cachedMapPoint;
-  _ClientHomeFlowState? _cachedMapFlowState;
-  List<MapObject>? _cachedMapObjects;
 
   static const Map<String, String> _mockDriver = {
     'name': 'Михаил Соколов',
@@ -69,19 +66,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   void dispose() {
     _searchTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _onMapCreated(YandexMapController controller) async {
-    _mapController = controller;
-    if (_cameraInitialized) return;
-    _cameraInitialized = true;
-    await controller.moveCamera(
-      CameraUpdate.newCameraPosition(
-        const CameraPosition(target: _moscowPoint, zoom: 15.2),
-      ),
-      animation:
-          const MapAnimation(type: MapAnimationType.smooth, duration: 0.5),
-    );
   }
 
   Future<void> _moveToCurrentLocation() async {
@@ -119,17 +103,16 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           timeLimit: Duration(seconds: 10),
         ),
       );
-      final point =
-          Point(latitude: position.latitude, longitude: position.longitude);
+
       if (!mounted) return;
 
-      setState(() => _userPoint = point);
-      await _mapController?.moveCamera(
-        CameraUpdate.newCameraPosition(
-            CameraPosition(target: point, zoom: 16.2)),
-        animation:
-            const MapAnimation(type: MapAnimationType.smooth, duration: 0.6),
-      );
+      setState(() {
+        _userLocation = LocationModel(
+          lat: position.latitude,
+          lng: position.longitude,
+          address: 'Текущее местоположение',
+        );
+      });
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(
@@ -144,7 +127,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   Future<void> _startOrderFlow() async {
     final pickup = await Navigator.of(context).push<_SelectedLocation>(
       MaterialPageRoute(
-        builder: (_) => _LocationSelectScreen(initialPoint: _userPoint),
+        builder: (_) => _LocationSelectScreen(initialPoint: _userLocation),
       ),
     );
     if (pickup == null || !mounted) return;
@@ -157,7 +140,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     if (draft == null || !mounted) return;
 
     setState(() {
-      _userPoint = pickup.point;
+      _userLocation = pickup.location;
       _pickupAddress = pickup.address;
       _dropoffAddress = draft.dropoffAddress;
     });
@@ -168,7 +151,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     _SelectedLocation pickup,
     _OrderDraft draft,
   ) async {
-    final user = ref.read(currentUserProvider);
+    final user = ref.read(currentUserProviderNew);
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -179,40 +162,37 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       return;
     }
 
-    final dropoffPoint = Point(
-      latitude: pickup.point.latitude - 0.025,
-      longitude: pickup.point.longitude + 0.0091,
+    final dropoffLocation = LocationModel(
+      lat: pickup.location.lat - 0.025,
+      lng: pickup.location.lng + 0.0091,
+      address: draft.dropoffAddress,
     );
 
-    final command = CreateOrderCommand(
+    // Используем НОВЫЙ real-time сервис вместо старого HTTP API
+    await ref.read(realTimeOrderProvider.notifier).createRealTimeOrder(
       clientId: user.id,
-      pickupLocation: LocationModel(
-        lat: pickup.point.latitude,
-        lng: pickup.point.longitude,
-        address: pickup.address,
-      ),
-      dropoffLocation: LocationModel(
-        lat: dropoffPoint.latitude,
-        lng: dropoffPoint.longitude,
-        address: draft.dropoffAddress,
-      ),
+      pickupLocation: pickup.location,
+      dropoffLocation: dropoffLocation,
       vehicleType: draft.vehicleType,
-      distance: 0,
-      estimatedPrice: 0,
-      paymentMethod: draft.paymentMethod,
       notes: draft.reason,
     );
 
-    await ref.read(orderProvider.notifier).createOrder(command);
-    final error = ref.read(orderProvider).errorMessage;
-    if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: EvikColors.errorRed),
-      );
-      return;
-    }
-
-    _startDriverSearch();
+    final orderState = ref.read(realTimeOrderProvider);
+    orderState.when(
+      data: (orderId) {
+        if (orderId != null) {
+          _startDriverSearch();
+        }
+      },
+      loading: () {},
+      error: (error, _) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.toString()), backgroundColor: EvikColors.errorRed),
+          );
+        }
+      },
+    );
   }
 
   void _goToEvacuating() =>
@@ -269,41 +249,33 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     );
   }
 
-  List<MapObject> _buildMapObjects() {
-    if (_cachedMapObjects != null &&
-        _cachedMapPoint == _userPoint &&
-        _cachedMapFlowState == _flowState) {
-      return _cachedMapObjects!;
+  Widget _buildMapWidget() {
+    if (_flowState == _ClientHomeFlowState.evacuating) {
+      // Show live driver tracking during evacuation
+      final currentOrder = ref.watch(orderProvider).currentOrder;
+      if (currentOrder != null) {
+        return LiveDriverMap(
+          order: currentOrder,
+          pickupLocation: _userLocation,
+          height: double.infinity,
+        );
+      }
     }
 
-    if (_flowState == _ClientHomeFlowState.completed) return const [];
-    final objects = [
-      CircleMapObject(
-        mapId: const MapObjectId('user_zone'),
-        circle: Circle(center: _userPoint, radius: 120),
-        fillColor: EvikColors.accentOrange.withValues(alpha: 0.12),
-        strokeColor: EvikColors.accentOrange.withValues(alpha: 0.22),
-        strokeWidth: 1.8,
-      ),
-      CircleMapObject(
-        mapId: const MapObjectId('user_outer'),
-        circle: Circle(center: _userPoint, radius: 10),
-        fillColor: EvikColors.primaryWhite,
-        strokeColor: EvikColors.primaryWhite,
-        strokeWidth: 2,
-      ),
-      CircleMapObject(
-        mapId: const MapObjectId('user_inner'),
-        circle: Circle(center: _userPoint, radius: 7),
-        fillColor: EvikColors.accentOrange,
-        strokeColor: EvikColors.accentOrange,
-        strokeWidth: 1,
-      ),
-    ];
-    _cachedMapPoint = _userPoint;
-    _cachedMapFlowState = _flowState;
-    _cachedMapObjects = objects;
-    return objects;
+    // Default ProMaps view for idle state
+    return ProMapsViewSimple(
+      initialLat: _userLocation.lat,
+      initialLng: _userLocation.lng,
+      initialZoom: 15,
+      markers: [
+        ProMapMarker(
+          lat: _userLocation.lat,
+          lng: _userLocation.lng,
+          title: 'Ваше местоположение',
+          color: Colors.orange,
+        ),
+      ],
+    );
   }
 
   @override
@@ -317,13 +289,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: RepaintBoundary(
-              child: YandexMap(
-                onMapCreated: _onMapCreated,
-                mapType: MapType.vector,
-                mapObjects: _buildMapObjects(),
-              ),
-            ),
+            child: _buildMapWidget(),
           ),
           if (_flowState == _ClientHomeFlowState.idle) ...[
             const Positioned(left: 0, right: 0, top: 0, child: _MapHeader()),
@@ -1155,31 +1121,30 @@ class _CompletedScreen extends StatelessWidget {
 
 class _SelectedLocation {
   const _SelectedLocation({
-    required this.point,
+    required this.location,
     required this.address,
   });
 
-  final Point point;
+  final LocationModel location;
   final String address;
 }
 
 class _LocationSelectScreen extends StatefulWidget {
   const _LocationSelectScreen({required this.initialPoint});
-  final Point initialPoint;
+  final LocationModel initialPoint;
 
   @override
   State<_LocationSelectScreen> createState() => _LocationSelectScreenState();
 }
 
 class _LocationSelectScreenState extends State<_LocationSelectScreen> {
-  YandexMapController? _controller;
-  late Point _selectedPoint;
+  late LocationModel _selectedLocation;
   late final TextEditingController _addressController;
 
   @override
   void initState() {
     super.initState();
-    _selectedPoint = widget.initialPoint;
+    _selectedLocation = widget.initialPoint;
     _addressController = TextEditingController(text: 'Текущее местоположение');
   }
 
@@ -1189,19 +1154,7 @@ class _LocationSelectScreenState extends State<_LocationSelectScreen> {
     super.dispose();
   }
 
-  Future<void> _onMapCreated(YandexMapController controller) async {
-    _controller = controller;
-    await controller.moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: widget.initialPoint, zoom: 16),
-      ),
-      animation:
-          const MapAnimation(type: MapAnimationType.smooth, duration: 0.5),
-    );
-    await _moveToCurrentLocation(initial: true);
-  }
-
-  Future<void> _moveToCurrentLocation({bool initial = false}) async {
+  Future<void> _moveToCurrentLocation() async {
     if (!await Geolocator.isLocationServiceEnabled()) return;
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -1216,16 +1169,13 @@ class _LocationSelectScreenState extends State<_LocationSelectScreen> {
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      final point =
-          Point(latitude: position.latitude, longitude: position.longitude);
-      setState(() => _selectedPoint = point);
-      await _controller?.moveCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(target: point, zoom: 17)),
-        animation: MapAnimation(
-          type: MapAnimationType.smooth,
-          duration: initial ? 0.3 : 0.6,
-        ),
-      );
+      setState(() {
+        _selectedLocation = LocationModel(
+          lat: position.latitude,
+          lng: position.longitude,
+          address: 'Текущее местоположение',
+        );
+      });
     } catch (_) {}
   }
 
@@ -1233,7 +1183,7 @@ class _LocationSelectScreenState extends State<_LocationSelectScreen> {
     final address = _addressController.text.trim();
     Navigator.of(context).pop(
       _SelectedLocation(
-        point: _selectedPoint,
+        location: _selectedLocation,
         address: address.isEmpty ? 'Точка на карте' : address,
       ),
     );
@@ -1283,13 +1233,18 @@ class _LocationSelectScreenState extends State<_LocationSelectScreen> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: RepaintBoundary(
-                    child: YandexMap(
-                      onMapCreated: _onMapCreated,
-                      onCameraPositionChanged: (cameraPosition, _, __) {
-                        _selectedPoint = cameraPosition.target;
-                      },
-                    ),
+                  child: ProMapsViewSimple(
+                    initialLat: _selectedLocation.lat,
+                    initialLng: _selectedLocation.lng,
+                    initialZoom: 16,
+                    markers: [
+                      ProMapMarker(
+                        lat: _selectedLocation.lat,
+                        lng: _selectedLocation.lng,
+                        title: 'Выбранное место',
+                        color: Colors.orange,
+                      ),
+                    ],
                   ),
                 ),
                 const Center(

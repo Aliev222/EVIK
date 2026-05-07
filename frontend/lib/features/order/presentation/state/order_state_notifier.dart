@@ -11,7 +11,7 @@ import '../../../../core/realtime/websocket_client.dart';
 import '../../../../core/realtime/websocket_client_stub.dart'
     if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
     as platform_ws;
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../data/repository_impl/order_repository_impl.dart';
 import '../../domain/entities/order.dart';
 import '../../domain/repositories/order_repository.dart';
@@ -51,10 +51,10 @@ class OrderUiState {
 }
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
-  final accessToken = ref.watch(authProvider.select((state) => state.accessToken));
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
   final dataSource = HttpOrderRemoteDataSource(
     apiClient: platform_api.createPlatformApiClient(),
-    accessToken: accessToken,
+    accessToken: isAuthenticated ? "from_api_client" : null,
   );
   return OrderRepositoryImpl(remote: dataSource);
 });
@@ -65,10 +65,10 @@ final createOrderUseCaseProvider = Provider<CreateOrderUseCase>((ref) {
 });
 
 final eventDispatcherProvider = Provider<EventDispatcher>((ref) {
-  final accessToken = ref.watch(authProvider.select((state) => state.accessToken));
-  final wsUrl = accessToken == null || accessToken.isEmpty
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
+  final wsUrl = !isAuthenticated
       ? defaultWsUrl
-      : '$defaultWsUrl?access_token=$accessToken';
+      : '$defaultWsUrl?access_token=from_api_client';
   return WsEventDispatcher(
     client: platform_ws.createPlatformWebSocketClient(),
     wsUrl: wsUrl,

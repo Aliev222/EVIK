@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/repositories/order_repository.dart';
 import '../../../order/presentation/providers/order_provider.dart';
@@ -100,7 +100,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
   StreamSubscription<Order?>? _currentOrderSubscription;
   StreamSubscription<List<Order>>? _availableOrdersSubscription;
 
-  String? get _driverId => ref.read(authProvider).user?.id;
+  String? get _driverId => ref.read(newAuthProvider).user?.id;
 
   void _bind() {
     final driverId = _driverId;

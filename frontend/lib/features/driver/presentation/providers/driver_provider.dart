@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../data/repository/driver_repository.dart';
 import '../../data/repository_impl/http_driver_repository.dart';
 import '../../domain/entities/driver.dart';
@@ -11,11 +11,10 @@ import '../../../order/domain/entities/order.dart';
 
 // Driver Repository Provider
 final driverRepositoryProvider = Provider<DriverRepository>((ref) {
-  final accessToken =
-      ref.watch(authProvider.select((state) => state.accessToken));
+  final isAuthenticated = ref.watch(newAuthProvider.select((state) => state.isAuthenticated));
   return HttpDriverRepository(
     apiClient: platform_api.createPlatformApiClient(),
-    accessToken: accessToken,
+    accessToken: isAuthenticated ? "from_api_client" : null, // ApiClient manages tokens internally
   );
 });
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/providers/new_auth_provider.dart';
 import '../../../onboarding/presentation/screens/role_selection_screen.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
@@ -135,7 +135,7 @@ class ClientProfileScreen extends ConsumerWidget {
                     height: 58,
                     child: ElevatedButton(
                       onPressed: () {
-                        ref.read(authProvider.notifier).signOut();
+                        ref.read(newAuthProvider.notifier).signOut();
                         // Очищаем выбранную роль чтобы попасть на экран выбора роли
                         ref
                             .read(selectedOnboardingRoleProvider.notifier)
