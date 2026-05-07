@@ -541,7 +541,7 @@ async function renderProMapsMap(container, drivers, showLabels, apiKey) {
   container.innerHTML = `
     <div class="promaps-container">
       <iframe
-        src="https://api.promaps.online/embed?lat=${encodeURIComponent(center.lat)}&lng=${encodeURIComponent(center.lng)}&zoom=${zoom}&key=${encodeURIComponent(apiKey)}&style=default"
+        src="https://promaps.online/embed?lat=${encodeURIComponent(center.lat)}&lng=${encodeURIComponent(center.lng)}&zoom=${zoom}&key=${encodeURIComponent(apiKey)}&style=default"
         width="100%"
         height="100%"
         frameborder="0"
