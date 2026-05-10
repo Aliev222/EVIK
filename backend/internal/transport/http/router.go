@@ -83,7 +83,6 @@ func NewRouter(
 			secured.Get("/pricing/tariffs/{type}", pricingHandler.GetTariffByType)
 
 			// Routing endpoints for drivers
-			secured.Get("/routes/preview", routingHandler.Preview)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", routingHandler.CalculateRoute)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/directions", routingHandler.GetDirections)
 
