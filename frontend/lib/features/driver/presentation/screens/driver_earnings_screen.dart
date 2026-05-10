@@ -7,417 +7,439 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/evik_button.dart';
 import '../../../../shared/widgets/skeleton_card.dart';
+import '../../domain/entities/driver_wallet.dart';
+import '../providers/driver_wallet_provider.dart';
 
-enum EarningsState { loading, empty, loaded, error }
-
-class DriverEarningsScreen extends ConsumerStatefulWidget {
+class DriverEarningsScreen extends ConsumerWidget {
   const DriverEarningsScreen({super.key});
 
   @override
-  ConsumerState<DriverEarningsScreen> createState() =>
-      _DriverEarningsScreenState();
-}
-
-class _DriverEarningsScreenState extends ConsumerState<DriverEarningsScreen> {
-  EarningsState _state = EarningsState.loaded;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(driverWalletProvider);
     return Scaffold(
       backgroundColor: EvikColors.gray50,
       appBar: AppBar(
         title: Text(
-          'Доходы',
+          'Баланс',
           style: EvikTypography.h2.copyWith(fontSize: 24),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
         titleSpacing: 16,
-        leading: IconButton(
-          onPressed: () {
-            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
-            size: 20,
-          ),
-          splashRadius: 24,
-          padding: const EdgeInsets.all(8),
-        ),
         actions: [
-          _EarningsStateAction(
-            label: 'Empty',
-            onTap: () => setState(() => _state = EarningsState.empty),
-          ),
-          _EarningsStateAction(
-            label: 'Loading',
-            onTap: () => setState(() => _state = EarningsState.loading),
-          ),
-          _EarningsStateAction(
-            label: 'Error',
-            onTap: () => setState(() => _state = EarningsState.error),
-          ),
-          _EarningsStateAction(
-            label: 'Loaded',
-            onTap: () => setState(() => _state = EarningsState.loaded),
+          IconButton(
+            onPressed: state.isLoading
+                ? null
+                : () => ref.read(driverWalletProvider.notifier).refresh(),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Обновить',
           ),
         ],
       ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    switch (_state) {
-      case EarningsState.loading:
-        return ListView(
-          padding: const EdgeInsets.only(top: 8, bottom: 100),
-          children: const [
-            SkeletonCard(height: 168),
-            SkeletonCard(height: 100),
-            SkeletonCard(height: 100),
-            SkeletonCard(height: 190),
-          ],
-        );
-      case EarningsState.empty:
-        return const EmptyState(
-          icon: Icons.monetization_on_outlined,
-          title: 'Пока доходов нет',
-          subtitle: 'Выполните первый заказ чтобы увидеть статистику',
-        );
-      case EarningsState.error:
-        return ErrorState(
-          message: 'Статистика доходов временно недоступна.',
-          onRetry: () => setState(() => _state = EarningsState.loading),
-        );
-      case EarningsState.loaded:
-        return _buildLoadedContent();
-    }
-  }
-
-  Widget _buildLoadedContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: EvikColors.primaryWhite,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Эта неделя',
-                      style: EvikTypography.bodyMedium.copyWith(
-                        color: EvikColors.gray500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: EvikColors.successGreen,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '+12%',
-                        style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.primaryWhite,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '18 400 ₽',
-                  style: EvikTypography.h1.copyWith(
-                    color: EvikColors.accentOrange,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'чем на прошлой неделе',
-                  style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.gray500,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: _buildWeekCalendar(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.shopping_bag_outlined,
-                  value: '12',
-                  label: 'Заказов',
-                  color: EvikColors.accentOrange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.attach_money,
-                  value: '1 533 ₽',
-                  label: 'Средний чек',
-                  color: EvikColors.successGreen,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.access_time_rounded,
-                  value: '28 ч',
-                  label: 'Часов в работе',
-                  color: EvikColors.infoBlue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.star_outlined,
-                  value: '4.9',
-                  label: 'Рейтинг',
-                  color: EvikColors.warningAmber,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: EvikColors.primaryWhite,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ВЫПЛАТА',
-                  style: EvikTypography.sectionLabel.copyWith(
-                    color: EvikColors.gray500,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '18 400 ₽',
-                  style: EvikTypography.h2.copyWith(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Доступно для вывода',
-                  style: EvikTypography.bodyMedium.copyWith(
-                    color: EvikColors.gray500,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: EvikColors.gray100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.credit_card,
-                            size: 18,
-                            color: EvikColors.gray700,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Сбербанк •••• 4242',
-                            style: EvikTypography.bodyMedium.copyWith(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                EvikButton(
-                  text: 'Вывести',
-                  onPressed: () {},
-                  width: double.infinity,
-                  variant: EvikButtonVariant.green,
-                ),
-              ],
-            ),
-          ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(driverWalletProvider.notifier).refresh(),
+        child: _WalletBody(state: state),
       ),
     );
   }
+}
 
-  List<Widget> _buildWeekCalendar() {
-    final days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    final earnings = [
-      2400,
-      3100,
-      2800,
-      0,
-      4200,
-      3500,
-      2400
-    ]; // Заработок по дням
-    const today = 4; // Пятница (индекс 4)
+class _WalletBody extends ConsumerWidget {
+  const _WalletBody({required this.state});
 
-    return days.asMap().entries.map((entry) {
-      final index = entry.key;
-      final day = entry.value;
-      final earning = earnings[index];
-      final isToday = index == today;
-      final hasEarning = earning > 0;
+  final DriverWalletState state;
 
-      return Container(
-        width: 36,
-        height: 52,
-        decoration: BoxDecoration(
-          color: isToday
-              ? EvikColors.accentOrange
-              : hasEarning
-                  ? EvikColors.gray100
-                  : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              day,
-              style: EvikTypography.bodySmall.copyWith(
-                color: isToday ? EvikColors.primaryWhite : EvikColors.gray500,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: hasEarning
-                    ? (isToday
-                        ? EvikColors.primaryWhite
-                        : EvikColors.successGreen)
-                    : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.isLoading && state.wallet == null) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        children: const [
+          SkeletonCard(height: 190),
+          SkeletonCard(height: 96),
+          SkeletonCard(height: 96),
+          SkeletonCard(height: 260),
+        ],
       );
-    }).toList();
-  }
+    }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
+    if (state.wallet == null && state.errorMessage != null) {
+      return ErrorState(
+        message: state.errorMessage!,
+        onRetry: () => ref.read(driverWalletProvider.notifier).refresh(),
+      );
+    }
+
+    final wallet = state.wallet ??
+        const DriverWallet(
+          availableBalance: 0,
+          pendingBalance: 0,
+          debtBalance: 0,
+          currency: 'RUB',
+          recentTransactions: [],
+          recentPayouts: [],
+        );
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+      children: [
+        if (state.errorMessage != null) ...[
+          _InlineError(message: state.errorMessage!),
+          const SizedBox(height: 12),
+        ],
+        _AvailableBalanceCard(wallet: wallet, state: state),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                title: 'В обработке',
+                amount: wallet.pendingBalance,
+                icon: Icons.schedule_rounded,
+                color: EvikColors.infoBlue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _MetricTile(
+                title: 'Расчеты с Tow Truck',
+                amount: wallet.debtBalance,
+                subtitle: wallet.debtBalance > 0
+                    ? 'Будет удержано из следующих безналичных заказов'
+                    : 'Расчеты закрыты',
+                icon: Icons.receipt_long_rounded,
+                color: wallet.debtBalance > 0
+                    ? EvikColors.errorRed
+                    : EvikColors.successGreen,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _FinanceActionTile(
+          icon: Icons.account_balance_rounded,
+          title: 'Способы вывода',
+          subtitle: _payoutMethodSubtitle(state.payoutMethods),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const DriverPayoutMethodsScreen(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _FinanceActionTile(
+          icon: Icons.workspace_premium_rounded,
+          title: 'Подписка',
+          subtitle: _subscriptionSubtitle(state.subscriptionStatus),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const DriverSubscriptionScreen(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _SectionHeader(
+          title: 'История операций',
+          action: state.wallet?.recentTransactions.isNotEmpty == true
+              ? '${state.wallet!.recentTransactions.length}'
+              : null,
+        ),
+        const SizedBox(height: 8),
+        if (wallet.recentTransactions.isEmpty)
+          const EmptyState(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Операций пока нет',
+            subtitle: 'После завершенного заказа начисления появятся здесь.',
+          )
+        else
+          _TransactionsList(transactions: wallet.recentTransactions),
+      ],
+    );
+  }
+}
+
+class _AvailableBalanceCard extends ConsumerWidget {
+  const _AvailableBalanceCard({
+    required this.wallet,
+    required this.state,
+  });
+
+  final DriverWallet wallet;
+  final DriverWalletState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canWithdraw = state.canWithdraw;
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: EvikColors.primaryBlack,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 20,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: EvikColors.primaryWhite.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: EvikColors.primaryWhite,
+                ),
+              ),
+              const Spacer(),
+              _StatusChip(
+                label: canWithdraw ? 'Можно вывести' : 'Недоступно',
+                color:
+                    canWithdraw ? EvikColors.successGreen : EvikColors.gray500,
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
           Text(
-            value,
+            'Доступно к выводу',
             style: EvikTypography.bodyMedium.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 18,
+              color: EvikColors.gray300,
+              fontSize: 14,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: EvikTypography.bodySmall.copyWith(
-              color: EvikColors.gray500,
-              fontSize: 11,
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _money(wallet.availableBalance),
+              style: EvikTypography.h1.copyWith(
+                color: EvikColors.primaryWhite,
+                fontSize: 40,
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          EvikButton(
+            text: 'Вывести',
+            icon: const Icon(Icons.arrow_outward_rounded, size: 18),
+            width: double.infinity,
+            variant: EvikButtonVariant.green,
+            isLoading: state.isSubmitting,
+            onPressed: canWithdraw
+                ? () => _confirmPayout(context, ref, wallet.availableBalance)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmPayout(
+    BuildContext context,
+    WidgetRef ref,
+    int amount,
+  ) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Вывести деньги', style: EvikTypography.h3),
+              const SizedBox(height: 8),
+              Text(
+                'Заявка на вывод ${_money(amount)} будет отправлена в обработку.',
+                style: EvikTypography.bodyLarge
+                    .copyWith(color: EvikColors.gray600),
+              ),
+              const SizedBox(height: 20),
+              EvikButton(
+                text: 'Подтвердить вывод',
+                width: double.infinity,
+                variant: EvikButtonVariant.green,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+              const SizedBox(height: 8),
+              EvikButton(
+                text: 'Отмена',
+                width: double.infinity,
+                variant: EvikButtonVariant.ghost,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(driverWalletProvider.notifier).requestFullPayout();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Заявка на вывод создана')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(ref.read(driverWalletProvider).errorMessage ??
+                'Не удалось создать вывод')),
+      );
+    }
+  }
+}
+
+class DriverPayoutMethodsScreen extends ConsumerWidget {
+  const DriverPayoutMethodsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(driverWalletProvider);
+    return Scaffold(
+      backgroundColor: EvikColors.gray50,
+      appBar: AppBar(
+        title: Text('Способы вывода',
+            style: EvikTypography.h2.copyWith(fontSize: 22)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [
+          const _InfoBanner(
+            icon: Icons.security_rounded,
+            title: 'Данные карт не хранятся в приложении',
+            text:
+                'Для вывода используется сохраненный идентификатор получателя в платежном провайдере.',
+          ),
+          const SizedBox(height: 16),
+          if (state.payoutMethods.isEmpty)
+            const EmptyState(
+              icon: Icons.credit_card_off_rounded,
+              title: 'Способ вывода не добавлен',
+              subtitle:
+                  'Добавление карты, СБП или счета будет доступно после подключения live выплат.',
+            )
+          else
+            for (final method in state.payoutMethods) ...[
+              _PayoutMethodTile(method: method),
+              const SizedBox(height: 8),
+            ],
+          const SizedBox(height: 12),
+          EvikButton(
+            text: 'Добавить способ',
+            icon: const Icon(Icons.add_rounded, size: 18),
+            width: double.infinity,
+            variant: EvikButtonVariant.ghost,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Добавление способа вывода будет подключено после live выплат'),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DriverSubscriptionScreen extends ConsumerWidget {
+  const DriverSubscriptionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(driverWalletProvider);
+    final subscription = state.subscriptionStatus;
+    final isActive = subscription?.status == 'active';
+    return Scaffold(
+      backgroundColor: EvikColors.gray50,
+      appBar: AppBar(
+        title:
+            Text('Подписка', style: EvikTypography.h2.copyWith(fontSize: 22)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: _surfaceDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StatusChip(
+                  label: isActive ? 'Активна' : 'Не активна',
+                  color: isActive
+                      ? EvikColors.successGreen
+                      : EvikColors.warningAmber,
+                ),
+                const SizedBox(height: 14),
+                Text('Tow Truck Pro', style: EvikTypography.h2),
+                const SizedBox(height: 8),
+                Text(
+                  'Приоритет в распределении заказов и доступ к финансовым инструментам водителя.',
+                  style: EvikTypography.bodyLarge
+                      .copyWith(color: EvikColors.gray600),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  '1 990 ₽ / месяц',
+                  style: EvikTypography.h3
+                      .copyWith(color: EvikColors.accentOrange),
+                ),
+                const SizedBox(height: 20),
+                EvikButton(
+                  text: isActive ? 'Продлить подписку' : 'Оплатить подписку',
+                  width: double.infinity,
+                  isLoading: state.isSubmitting,
+                  onPressed: () async {
+                    try {
+                      final url = await ref
+                          .read(driverWalletProvider.notifier)
+                          .createSubscriptionPayment('pro_month');
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            url == null || url.isEmpty
+                                ? 'Платеж подписки создан'
+                                : 'Платеж создан. Откройте страницу оплаты.',
+                          ),
+                        ),
+                      );
+                    } catch (_) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text(
+                                ref.read(driverWalletProvider).errorMessage ??
+                                    'Не удалось создать платеж')),
+                      );
+                    }
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -426,23 +448,423 @@ class _DriverEarningsScreenState extends ConsumerState<DriverEarningsScreen> {
   }
 }
 
-class _EarningsStateAction extends StatelessWidget {
-  const _EarningsStateAction({required this.label, required this.onTap});
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.title,
+    required this.amount,
+    required this.icon,
+    required this.color,
+    this.subtitle,
+  });
 
-  final String label;
+  final String title;
+  final int amount;
+  final IconData icon;
+  final Color color;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.all(14),
+      decoration: _surfaceDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const Spacer(),
+          Text(
+            _money(amount),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: EvikTypography.h3.copyWith(fontSize: 18),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle ?? title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: EvikTypography.bodySmall.copyWith(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FinanceActionTile extends StatelessWidget {
+  const _FinanceActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      child: Text(
-        label,
-        style: EvikTypography.bodySmall.copyWith(
-          color: EvikColors.accentOrange,
-          fontWeight: FontWeight.w800,
+    return Material(
+      color: EvikColors.primaryWhite,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: EvikColors.gray200),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: EvikColors.accentOrange, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(title,
+                        style:
+                            EvikTypography.bodyMedium.copyWith(fontSize: 15)),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: EvikTypography.bodySmall.copyWith(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: EvikColors.gray400),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _TransactionsList extends StatelessWidget {
+  const _TransactionsList({required this.transactions});
+
+  final List<WalletTransaction> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: _surfaceDecoration(),
+      child: Column(
+        children: [
+          for (var index = 0; index < transactions.length; index++) ...[
+            _TransactionTile(transaction: transactions[index]),
+            if (index != transactions.length - 1)
+              const Divider(height: 1, color: EvikColors.gray100),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionTile extends StatelessWidget {
+  const _TransactionTile({required this.transaction});
+
+  final WalletTransaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDebit = transaction.direction == 'debit';
+    final color = isDebit ? EvikColors.errorRed : EvikColors.successGreen;
+    return Padding(
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(_transactionIcon(transaction.type),
+                color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _transactionTitle(transaction),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: EvikTypography.bodyMedium.copyWith(fontSize: 14),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _transactionSubtitle(transaction),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: EvikTypography.bodySmall.copyWith(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${isDebit ? '-' : '+'}${_money(transaction.amount)}',
+            style:
+                EvikTypography.bodyMedium.copyWith(color: color, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PayoutMethodTile extends StatelessWidget {
+  const _PayoutMethodTile({required this.method});
+
+  final DriverPayoutMethod method;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _surfaceDecoration(),
+      child: Row(
+        children: [
+          const Icon(Icons.credit_card_rounded, color: EvikColors.accentOrange),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_methodType(method.type),
+                    style: EvikTypography.bodyMedium.copyWith(fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(method.maskedValue,
+                    style: EvikTypography.bodySmall.copyWith(fontSize: 12)),
+              ],
+            ),
+          ),
+          if (method.isDefault)
+            const _StatusChip(
+                label: 'Основной', color: EvikColors.successGreen),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: EvikColors.infoBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: EvikColors.infoBlue.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: EvikColors.infoBlue),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: EvikTypography.bodyMedium.copyWith(fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(text,
+                    style: EvikTypography.bodySmall
+                        .copyWith(fontSize: 12, height: 1.45)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: EvikColors.errorRed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: EvikColors.errorRed, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: EvikTypography.bodySmall.copyWith(
+                color: EvikColors.errorRed,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.action});
+
+  final String title;
+  final String? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(title, style: EvikTypography.h3.copyWith(fontSize: 18)),
+        const Spacer(),
+        if (action != null)
+          Text(action!, style: EvikTypography.bodySmall.copyWith(fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: EvikTypography.bodySmall.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+BoxDecoration _surfaceDecoration() {
+  return BoxDecoration(
+    color: EvikColors.primaryWhite,
+    borderRadius: BorderRadius.circular(14),
+    border: Border.all(color: EvikColors.gray200),
+  );
+}
+
+String _money(int kopecks) {
+  final rubles = kopecks ~/ 100;
+  final text = rubles.toString().replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => ' ',
+      );
+  return '$text ₽';
+}
+
+String _payoutMethodSubtitle(List<DriverPayoutMethod> methods) {
+  if (methods.isEmpty) return 'Карта, СБП или банковский счет';
+  final primary = methods.firstWhere(
+    (method) => method.isDefault,
+    orElse: () => methods.first,
+  );
+  return '${_methodType(primary.type)} · ${primary.maskedValue}';
+}
+
+String _subscriptionSubtitle(DriverSubscriptionStatus? status) {
+  if (status == null || status.status == 'unknown') return 'Статус не загружен';
+  if (status.status == 'active') return 'Активна';
+  return 'Не активна';
+}
+
+String _methodType(String type) {
+  return switch (type) {
+    'sbp' => 'СБП',
+    'bank_account' => 'Банковский счет',
+    _ => 'Карта',
+  };
+}
+
+String _transactionTitle(WalletTransaction transaction) {
+  return switch (transaction.type) {
+    'order_income' => 'Доход за заказ',
+    'cash_commission_debt' => 'Удержание комиссии за наличный заказ',
+    'debt_repayment' => 'Комиссия удержана из безналичного заказа',
+    'pending_to_available' => 'Доступно к выводу',
+    'payout' => 'Вывод средств',
+    'refund' => 'Возврат',
+    'bonus' => 'Бонус',
+    'penalty' => 'Штраф',
+    _ => transaction.description.isEmpty ? 'Операция' : transaction.description,
+  };
+}
+
+String _transactionSubtitle(WalletTransaction transaction) {
+  final status = switch (transaction.status) {
+    'pending' => 'В обработке',
+    'succeeded' => 'Выполнено',
+    'failed' => 'Ошибка',
+    _ => transaction.status,
+  };
+  final date = transaction.createdAt;
+  if (date == null) return status;
+  return '$status · ${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}';
+}
+
+IconData _transactionIcon(String type) {
+  return switch (type) {
+    'order_income' => Icons.local_shipping_rounded,
+    'cash_commission_debt' => Icons.receipt_long_rounded,
+    'debt_repayment' => Icons.payments_rounded,
+    'pending_to_available' => Icons.check_circle_rounded,
+    'payout' => Icons.account_balance_rounded,
+    'refund' => Icons.undo_rounded,
+    _ => Icons.swap_vert_rounded,
+  };
 }

@@ -10,11 +10,16 @@ type UpdateStatusUseCase struct {
 	orderRepo      orderdomain.Repository
 	driverRepo     DriverOrderRepository
 	eventPublisher EventPublisher
-	clock          Clock
+	financeService interface {
+		CompleteOrderFinancially(ctx context.Context, orderID string) error
+	}
+	clock Clock
 }
 
-func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverOrderRepository, eventPublisher EventPublisher, clock Clock) *UpdateStatusUseCase {
-	return &UpdateStatusUseCase{orderRepo: orderRepo, driverRepo: driverRepo, eventPublisher: eventPublisher, clock: clock}
+func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverOrderRepository, eventPublisher EventPublisher, financeService interface {
+	CompleteOrderFinancially(ctx context.Context, orderID string) error
+}, clock Clock) *UpdateStatusUseCase {
+	return &UpdateStatusUseCase{orderRepo: orderRepo, driverRepo: driverRepo, eventPublisher: eventPublisher, financeService: financeService, clock: clock}
 }
 
 func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next orderdomain.Status) (*orderdomain.Order, error) {
@@ -36,6 +41,11 @@ func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next
 	}
 	if previousDriverID != nil && releasesDriver(next) {
 		if err := uc.driverRepo.ReleaseOrder(ctx, *previousDriverID, ord.ID, now); err != nil {
+			return nil, err
+		}
+	}
+	if next == orderdomain.StatusCompleted && uc.financeService != nil {
+		if err := uc.financeService.CompleteOrderFinancially(ctx, ord.ID); err != nil {
 			return nil, err
 		}
 	}

@@ -42,6 +42,7 @@ func NewRouter(
 		api.Post("/auth/login", authHandler.Login)
 		api.Post("/auth/admin/login", authHandler.AdminLogin)
 		api.Post("/auth/refresh", authHandler.Refresh)
+		api.Post("/webhooks/yookassa", paymentHandler.HandleYooKassaWebhook)
 
 		api.Group(func(secured chi.Router) {
 			secured.Use(authMW)
@@ -50,6 +51,9 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders", orderHandler.CreateOrder)
 			secured.Get("/orders", orderHandler.ListOrders)
 			secured.Get("/orders/{orderID}", orderHandler.GetOrder)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders/{orderID}/payments", paymentHandler.CreateOrderPayment)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/orders/{orderID}/payment-status", paymentHandler.GetOrderPaymentStatus)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/orders/{orderID}/receipt", paymentHandler.GetOrderReceipt)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/orders/{orderID}/accept", orderHandler.AcceptOrder)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/orders/{orderID}/status", orderHandler.UpdateOrderStatus)
 			secured.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)
@@ -63,6 +67,14 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Delete("/payments/cards/{cardID}", paymentHandler.DeleteCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards/{cardID}/default", paymentHandler.SetDefaultCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/promocode/apply", paymentHandler.ApplyPromocode)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/wallet", paymentHandler.GetDriverWallet)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/wallet/transactions", paymentHandler.ListDriverWalletTransactions)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/payouts", paymentHandler.ListDriverPayouts)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver/payouts/request", paymentHandler.RequestDriverPayout)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/payout-methods", paymentHandler.ListDriverPayoutMethods)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver/payout-methods", paymentHandler.AddDriverPayoutMethod)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver/subscription/payment", paymentHandler.CreateDriverSubscriptionPayment)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/subscription/status", paymentHandler.GetDriverSubscriptionStatus)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/reviews", adminHandler.CreateReview)
 
 			// Pricing endpoints
@@ -71,6 +83,7 @@ func NewRouter(
 			secured.Get("/pricing/tariffs/{type}", pricingHandler.GetTariffByType)
 
 			// Routing endpoints for drivers
+			secured.Get("/routes/preview", routingHandler.Preview)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", routingHandler.CalculateRoute)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/directions", routingHandler.GetDirections)
 
@@ -85,6 +98,16 @@ func NewRouter(
 				admin.Post("/moderation/driver-verifications/{verificationID}/reject", adminHandler.RejectDriverVerification)
 				admin.Post("/moderation/driver-verifications/{verificationID}/request-changes", adminHandler.RequestDriverVerificationChanges)
 				admin.Post("/moderation/driver-verifications/{verificationID}/block", adminHandler.BlockDriverVerification)
+				admin.Get("/finance/{reportType}", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/orders", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/payments", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/payouts", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/wallets", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/transactions", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/subscriptions", paymentHandler.AdminFinanceReport)
+				admin.Get("/finance/cash-debts", paymentHandler.AdminFinanceReport)
+				admin.Post("/finance/refunds", paymentHandler.AdminCreateRefund)
+				admin.Post("/finance/export", paymentHandler.AdminExportFinance)
 			})
 		})
 	})

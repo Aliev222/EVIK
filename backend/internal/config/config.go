@@ -11,24 +11,33 @@ import (
 )
 
 type Config struct {
-	HTTPAddr       string
-	AppEnv         string
-	PostgresDSN    string
-	RedisAddr      string
-	RedisPassword  string
-	RedisURL       string
-	JWTSecret      string
-	AccessTTL      time.Duration
-	RefreshTTL     time.Duration
-	AllowedOrigins []string
-	AdminUserID    string
-	AdminPassword  string
-	S3Endpoint     string
-	S3Region       string
-	S3Bucket       string
-	S3AccessKey    string
-	S3SecretKey    string
-	ProMapsRoadKey string
+	HTTPAddr                  string
+	AppEnv                    string
+	PostgresDSN               string
+	RedisAddr                 string
+	RedisPassword             string
+	RedisURL                  string
+	JWTSecret                 string
+	AccessTTL                 time.Duration
+	RefreshTTL                time.Duration
+	AllowedOrigins            []string
+	AdminUserID               string
+	AdminPassword             string
+	S3Endpoint                string
+	S3Region                  string
+	S3Bucket                  string
+	S3AccessKey               string
+	S3SecretKey               string
+	OSRMBaseURL               string
+	YooKassaShopID            string
+	YooKassaSecret            string
+	YooKassaReturnURL         string
+	YooKassaWebhookSecret     string
+	YooKassaPayoutGatewayID   string
+	YooKassaPayoutSecret      string
+	YooKassaPayoutMode        string
+	FinancePendingHoldSeconds int
+	MinimumWithdrawalKopecks  int64
 }
 
 func MustLoad() Config {
@@ -38,24 +47,33 @@ func MustLoad() Config {
 	}
 
 	cfg := Config{
-		HTTPAddr:       httpAddr,
-		AppEnv:         getEnv("APP_ENV", "development"),
-		PostgresDSN:    normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
-		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:  getEnv("REDIS_PASSWORD", ""),
-		RedisURL:       getEnv("REDIS_URL", ""),
-		JWTSecret:      getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
-		AccessTTL:      getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
-		RefreshTTL:     getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
-		AllowedOrigins: getAllowedOrigins(),
-		AdminUserID:    getEnv("ADMIN_USER_ID", "admin"),
-		AdminPassword:  getEnv("ADMIN_PASSWORD", ""),
-		S3Endpoint:     getEnv("S3_ENDPOINT", ""),
-		S3Region:       getEnv("S3_REGION", "ru-1"),
-		S3Bucket:       getEnv("S3_BUCKET", ""),
-		S3AccessKey:    getEnv("S3_ACCESS_KEY", ""),
-		S3SecretKey:    getEnv("S3_SECRET_KEY", ""),
-		ProMapsRoadKey: getEnv("PROMAPS_ROAD_API_KEY", ""),
+		HTTPAddr:                  httpAddr,
+		AppEnv:                    getEnv("APP_ENV", "development"),
+		PostgresDSN:               normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
+		RedisAddr:                 getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:             getEnv("REDIS_PASSWORD", ""),
+		RedisURL:                  getEnv("REDIS_URL", ""),
+		JWTSecret:                 getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
+		AccessTTL:                 getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
+		RefreshTTL:                getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
+		AllowedOrigins:            getAllowedOrigins(),
+		AdminUserID:               getEnv("ADMIN_USER_ID", "admin"),
+		AdminPassword:             getEnv("ADMIN_PASSWORD", ""),
+		S3Endpoint:                getEnv("S3_ENDPOINT", ""),
+		S3Region:                  getEnv("S3_REGION", "ru-1"),
+		S3Bucket:                  getEnv("S3_BUCKET", ""),
+		S3AccessKey:               getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:               getEnv("S3_SECRET_KEY", ""),
+		OSRMBaseURL:               getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
+		YooKassaShopID:            getEnv("YOOKASSA_SHOP_ID", ""),
+		YooKassaSecret:            getEnv("YOOKASSA_SECRET_KEY", ""),
+		YooKassaReturnURL:         getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
+		YooKassaWebhookSecret:     getEnv("YOOKASSA_WEBHOOK_SECRET", ""),
+		YooKassaPayoutGatewayID:   getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
+		YooKassaPayoutSecret:      getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
+		YooKassaPayoutMode:        getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
+		FinancePendingHoldSeconds: getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
+		MinimumWithdrawalKopecks:  int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
 	}
 	validateProductionConfig(cfg)
 	return cfg
@@ -85,9 +103,24 @@ func validateProductionConfig(cfg Config) {
 	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
 		missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY")
 	}
+	if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
+		missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
+	}
 	if len(missing) > 0 {
 		log.Fatalf("invalid production config: %s", strings.Join(missing, ", "))
 	}
+}
+
+func getEnvInt(key string, fallback int) int {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return value
 }
 
 func getEnv(key, fallback string) string {
