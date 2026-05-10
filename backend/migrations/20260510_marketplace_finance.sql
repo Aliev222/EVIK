@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS driver_wallets (
 	updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_driver_wallets_driver_id_unique ON driver_wallets (driver_id);
+
 CREATE TABLE IF NOT EXISTS wallet_transactions (
 	id TEXT PRIMARY KEY,
 	wallet_id TEXT NOT NULL REFERENCES driver_wallets(id),

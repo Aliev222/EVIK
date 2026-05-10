@@ -847,16 +847,15 @@ func ensureWalletLocked(ctx context.Context, tx *sql.Tx, driverID string) (strin
 	var walletID string
 	err := tx.QueryRowContext(ctx, `SELECT id FROM driver_wallets WHERE driver_id = $1 FOR UPDATE`, driverID).Scan(&walletID)
 	if errors.Is(err, sql.ErrNoRows) {
-		walletID = "wallet_" + driverID
-		if _, err := tx.ExecContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 INSERT INTO driver_wallets (id, driver_id, available_balance, pending_balance, debt_balance, currency, created_at, updated_at)
 VALUES ($1, $2, 0, 0, 0, 'RUB', NOW(), NOW())
-ON CONFLICT (driver_id) DO NOTHING`, walletID, driverID); err != nil {
+ON CONFLICT (driver_id) DO UPDATE SET updated_at = driver_wallets.updated_at
+RETURNING id`, "wallet_"+driverID, driverID).Scan(&walletID)
+		if err != nil {
 			return "", err
 		}
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM driver_wallets WHERE driver_id = $1 FOR UPDATE`, driverID).Scan(&walletID); err != nil {
-			return "", err
-		}
+		return walletID, nil
 	}
 	return walletID, err
 }

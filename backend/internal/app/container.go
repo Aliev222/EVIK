@@ -320,6 +320,7 @@ CREATE TABLE IF NOT EXISTS driver_wallets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_driver_wallets_driver_id ON driver_wallets (driver_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_driver_wallets_driver_id_unique ON driver_wallets (driver_id);
 
 CREATE TABLE IF NOT EXISTS wallet_transactions (
 	id TEXT PRIMARY KEY,
