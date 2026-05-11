@@ -29,9 +29,10 @@ import (
 )
 
 type Container struct {
-	Router http.Handler
-	db     *sql.DB
-	rdb    *redis.Client
+	Router    http.Handler
+	Scheduler *Scheduler
+	db        *sql.DB
+	rdb       *redis.Client
 }
 
 type stdClock struct{}
@@ -63,6 +64,8 @@ func (p yookassaProvider) CreatePayment(ctx context.Context, req paymentuc.Provi
 		Description:    req.Description,
 		IdempotencyKey: req.IdempotencyKey,
 		Metadata:       req.Metadata,
+		Capture:        req.Capture,
+		SaveMethod:     req.SaveMethod,
 	})
 	if err != nil {
 		return nil, err
@@ -124,6 +127,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db)
 	paymentRepo := postgres.NewPaymentRepository(db)
+	userRepo := postgres.NewUserRepository(db)
+	serviceAreaRepo := postgres.NewServiceAreaRepository(db)
 	pricingRepo := postgres.NewPricingRepository(db)
 	adminRepo := postgres.NewAdminRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
@@ -146,6 +151,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	createTransactionUC := paymentuc.NewCreateTransactionUseCase(paymentRepo, clock, idGen)
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret)
+	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired)
 
 	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
 	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, createTransactionUC, eventPublisher, clock, idGen, appLogger)
@@ -154,15 +160,17 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo)
-	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo)
-	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, idGen, clock)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, driverGates, clock)
+	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
+	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
 		driverRepo,
 		locationRepo,
+		orderRepo,
 		idGen,
 		clock,
 		httptransport.DocumentStorageConfig{
@@ -174,36 +182,59 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		},
 	)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
-	authHandler := httptransport.NewAuthHandler(tokenManager, cfg.AdminUserID, cfg.AdminPassword)
+	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction())
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager)
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, logger)
 	go eventRelay.Run(context.Background())
-	go func() {
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				released, err := financeUC.ReleasePendingBalances(context.Background(), 100)
-				if err != nil {
-					logger.Printf("release pending balances failed: %v", err)
-					continue
-				}
-				if released > 0 {
-					logger.Printf("release pending balances completed: released=%d", released)
-				}
-			}
-		}
-	}()
+	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, wsHandler, tokenManager, cfg.AllowedOrigins)
-	return &Container{Router: router, db: db, rdb: rdb}, nil
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, wsHandler, tokenManager, cfg.AllowedOrigins)
+	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
 }
 
 func ensureSchema(db *sql.DB) error {
 	const schema = `
+CREATE TABLE IF NOT EXISTS users (
+	id TEXT PRIMARY KEY,
+	phone TEXT NOT NULL,
+	full_name TEXT NOT NULL,
+	role TEXT NOT NULL,
+	password_hash TEXT,
+	status TEXT NOT NULL DEFAULT 'active',
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_role ON users (phone, role);
+CREATE INDEX IF NOT EXISTS idx_users_role_status ON users (role, status);
+
+CREATE TABLE IF NOT EXISTS user_refresh_sessions (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	role TEXT NOT NULL,
+	token_hash TEXT NOT NULL UNIQUE,
+	expires_at TIMESTAMPTZ NOT NULL,
+	revoked_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_refresh_sessions_user_created ON user_refresh_sessions (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_refresh_sessions_active_hash ON user_refresh_sessions (token_hash) WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS phone_otps (
+	id TEXT PRIMARY KEY,
+	phone TEXT NOT NULL,
+	role TEXT NOT NULL,
+	code_hash TEXT NOT NULL,
+	expires_at TIMESTAMPTZ NOT NULL,
+	consumed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_phone_otps_lookup ON phone_otps (phone, role, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS orders (
 	id TEXT PRIMARY KEY,
 	user_id TEXT NOT NULL,
@@ -260,16 +291,26 @@ CREATE INDEX IF NOT EXISTS idx_drivers_current_order_id ON drivers (current_orde
 CREATE TABLE IF NOT EXISTS payment_methods (
 	id TEXT PRIMARY KEY,
 	user_id TEXT NOT NULL,
+	provider TEXT NOT NULL DEFAULT 'yookassa',
+	provider_payment_method_id TEXT,
+	provider_payment_id TEXT,
 	brand TEXT NOT NULL,
 	last4 TEXT NOT NULL,
 	exp_month INTEGER NOT NULL,
 	exp_year INTEGER NOT NULL,
 	holder TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'active',
 	is_default BOOLEAN NOT NULL DEFAULT FALSE,
 	created_at TIMESTAMPTZ NOT NULL
 );
 
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'yookassa';
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider_payment_method_id TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
 CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods (user_id, is_default DESC, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_methods_provider_method_id ON payment_methods (provider, provider_payment_method_id) WHERE provider_payment_method_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payment_methods_provider_payment_id ON payment_methods (provider_payment_id) WHERE provider_payment_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS payment_transactions (
 	id TEXT PRIMARY KEY,
@@ -509,6 +550,54 @@ CREATE TABLE IF NOT EXISTS moderation_audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_moderation_audit_entity_created_at ON moderation_audit_log (entity_type, entity_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS service_areas (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	min_lat DOUBLE PRECISION NOT NULL,
+	min_lng DOUBLE PRECISION NOT NULL,
+	max_lat DOUBLE PRECISION NOT NULL,
+	max_lng DOUBLE PRECISION NOT NULL,
+	is_active BOOLEAN NOT NULL DEFAULT TRUE,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_service_areas_active_bounds ON service_areas (is_active, min_lat, max_lat, min_lng, max_lng);
+
+INSERT INTO service_areas (id, name, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
+VALUES ('moscow-default', 'Moscow default area', 55.20, 36.80, 56.20, 38.40, TRUE, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = NOW();
+
+CREATE TABLE IF NOT EXISTS driver_tax_profiles (
+	driver_id TEXT PRIMARY KEY,
+	inn TEXT NOT NULL,
+	taxpayer_type TEXT NOT NULL,
+	verification_status TEXT NOT NULL DEFAULT 'pending',
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL,
+	CONSTRAINT driver_tax_profiles_inn_format CHECK (inn ~ '^[0-9]{10}([0-9]{2})?$'),
+	CONSTRAINT driver_tax_profiles_taxpayer_type CHECK (taxpayer_type IN ('self_employed', 'ip')),
+	CONSTRAINT driver_tax_profiles_status CHECK (verification_status IN ('pending', 'verified', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_driver_tax_profiles_status ON driver_tax_profiles (verification_status, updated_at DESC);
+
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_access_token TEXT;
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_refresh_token TEXT;
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_token_expires_at TIMESTAMPTZ;
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_connected_at TIMESTAMPTZ;
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_revoked_at TIMESTAMPTZ;
+ALTER TABLE driver_tax_profiles ADD COLUMN IF NOT EXISTS npd_connection_status TEXT NOT NULL DEFAULT 'not_connected';
+
+ALTER TABLE driver_tax_profiles DROP CONSTRAINT IF EXISTS driver_tax_profiles_npd_status;
+ALTER TABLE driver_tax_profiles ADD CONSTRAINT driver_tax_profiles_npd_status
+	CHECK (npd_connection_status IN ('not_connected', 'connected', 'revoked', 'error'));
+
+CREATE INDEX IF NOT EXISTS idx_driver_tax_profiles_npd_status
+	ON driver_tax_profiles (npd_connection_status, updated_at DESC);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS fns_full_name TEXT;
 `
 	_, err := db.Exec(schema)
 	return err

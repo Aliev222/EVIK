@@ -12,4 +12,7 @@ var (
 	ErrInsufficientFunds     = errors.New("insufficient available balance")
 	ErrDuplicateOperation    = errors.New("duplicate operation")
 	ErrInvalidAmount         = errors.New("invalid amount")
+	ErrPayoutNotFound        = errors.New("payout not found")
+	ErrPayoutNotApprovable   = errors.New("payout cannot be approved in its current status")
+	ErrPayoutNotRejectable   = errors.New("payout cannot be rejected in its current status")
 )

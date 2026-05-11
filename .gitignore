@@ -3,6 +3,16 @@ backend/tmp/
 backend/*.log
 backend/.env
 backend/app
+backend/main
+backend/main.exe
+
+# Admin web
+admin-web/admin-web
+admin-web/admin-web.exe
+
+# Claude Code local config
+.claude/
+
 
 # Frontend
 frontend/build/

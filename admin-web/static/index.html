@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>EVIK Admin</title>
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <div class="app-shell">
@@ -18,28 +18,105 @@
         </div>
 
         <nav class="nav-list">
+          <div class="nav-group-label">Операции</div>
           <button class="nav-item active" data-tab="dashboard" type="button">
-            <span class="nav-icon">OV</span>
-            <span>Обзор</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+            </span>
+            <span>Дашборд</span>
           </button>
+          <button class="nav-item" data-tab="drivers" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+            </span>
+            <span>Водители</span>
+          </button>
+          <button class="nav-item" data-tab="documents" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+            </span>
+            <span>Документы</span>
+          </button>
+          <button class="nav-item" data-tab="orders" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h13l5 5v5a2 2 0 0 1-2 2h-1"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M3 7v10h2"/><path d="M9 19h6"/></svg>
+            </span>
+            <span>Заказы</span>
+          </button>
+
+          <div class="nav-group-label">Финансы</div>
+          <button class="nav-item" data-tab="payments" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 11h20"/><path d="M6 16h4"/></svg>
+            </span>
+            <span>Платежи</span>
+          </button>
+          <button class="nav-item" data-tab="payouts" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><rect x="3" y="17" width="18" height="4" rx="1.5"/></svg>
+            </span>
+            <span>Выплаты</span>
+          </button>
+          <button class="nav-item" data-tab="wallets" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v3"/><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="17" cy="13.5" r="1.2"/></svg>
+            </span>
+            <span>Кошельки</span>
+          </button>
+          <button class="nav-item" data-tab="transactions" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3"/><path d="M20 17H7l3 3"/></svg>
+            </span>
+            <span>Транзакции</span>
+          </button>
+          <button class="nav-item" data-tab="subscriptions" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>
+            </span>
+            <span>Подписки</span>
+          </button>
+          <button class="nav-item" data-tab="refunds" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14H4v5"/><path d="M4 14a9 9 0 1 0 2-6"/></svg>
+            </span>
+            <span>Возвраты</span>
+          </button>
+          <button class="nav-item" data-tab="reports" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V9"/><path d="M11 21V5"/><path d="M17 21v-9"/><path d="M3 21h18"/></svg>
+            </span>
+            <span>Отчёты</span>
+          </button>
+
+          <div class="nav-group-label">Прочее</div>
           <button class="nav-item" data-tab="moderation" type="button">
-            <span class="nav-icon">MD</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg>
+            </span>
             <span>Модерация</span>
           </button>
           <button class="nav-item" data-tab="users" type="button">
-            <span class="nav-icon">US</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="3.5"/><path d="M3 20c0-3 3-5.5 6-5.5s6 2.5 6 5.5"/><circle cx="17" cy="10" r="2.5"/><path d="M15 20c0-2.2 2-3.8 4-3.8s2 .8 2 2"/></svg>
+            </span>
             <span>Пользователи</span>
           </button>
           <button class="nav-item" data-tab="reviews" type="button">
-            <span class="nav-icon">RV</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></svg>
+            </span>
             <span>Отзывы</span>
           </button>
           <button class="nav-item" data-tab="map" type="button">
-            <span class="nav-icon">MP</span>
-            <span>Карта водителей</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3l-6 3v15l6-3 6 3 6-3V3l-6 3z"/><path d="M9 3v15M15 6v15"/></svg>
+            </span>
+            <span>Карта</span>
           </button>
           <button class="nav-item" data-tab="settings" type="button">
-            <span class="nav-icon">ST</span>
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </span>
             <span>Настройки</span>
           </button>
         </nav>
@@ -53,21 +130,70 @@
       <main class="main">
         <header class="topbar">
           <div>
-            <h1 id="page-title">Обзор</h1>
+            <h1 id="page-title">Дашборд</h1>
             <p id="page-subtitle">Операционная панель модерации и контроля EVIK</p>
           </div>
           <div class="topbar-actions">
             <span class="status-pill" id="data-source-pill">Проверка API</span>
-            <button class="icon-button" id="refresh-button" type="button" aria-label="Обновить данные">R</button>
+            <button class="icon-button" id="refresh-button" type="button" aria-label="Обновить данные" title="Обновить">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+            </button>
           </div>
         </header>
 
-        <section class="tab-panel active" id="tab-dashboard" aria-labelledby="Обзор">
-          <div class="metrics-grid" id="overview-metrics"></div>
+        <!-- Dashboard -->
+        <section class="tab-panel active" id="tab-dashboard" aria-labelledby="Дашборд">
+          <div id="dashboard-state"></div>
+          <div class="kpi-grid" id="overview-metrics"></div>
+          <div class="content-grid two-columns chart-grid">
+            <section class="panel chart-panel">
+              <div class="panel-header">
+                <h2>GMV по дням</h2>
+                <span class="muted" id="gmv-total-label">за 30 дней</span>
+              </div>
+              <div class="chart-canvas-wrap">
+                <canvas id="chart-gmv" height="220" aria-label="GMV по дням"></canvas>
+                <div class="chart-empty" id="chart-gmv-empty" hidden></div>
+              </div>
+            </section>
+            <section class="panel chart-panel">
+              <div class="panel-header">
+                <h2>Комиссия по дням</h2>
+                <span class="muted" id="commission-total-label">за 30 дней</span>
+              </div>
+              <div class="chart-canvas-wrap">
+                <canvas id="chart-commission" height="220" aria-label="Комиссия по дням"></canvas>
+                <div class="chart-empty" id="chart-commission-empty" hidden></div>
+              </div>
+            </section>
+          </div>
+          <div class="content-grid three-columns recent-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Последние заказы</h2>
+                <button class="link-button" type="button" data-tab-link="orders">Все →</button>
+              </div>
+              <div class="list compact-list" id="dashboard-recent-orders"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Последние платежи</h2>
+                <button class="link-button" type="button" data-tab-link="payments">Все →</button>
+              </div>
+              <div class="list compact-list" id="dashboard-recent-payments"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h2>Последние выплаты</h2>
+                <button class="link-button" type="button" data-tab-link="payouts">Все →</button>
+              </div>
+              <div class="list compact-list" id="dashboard-recent-payouts"></div>
+            </section>
+          </div>
           <div class="content-grid two-columns">
             <section class="panel">
               <div class="panel-header">
-                <h2>Последние заявки</h2>
+                <h2>Заявки на модерации</h2>
                 <span class="muted" id="pending-count-label">0 в очереди</span>
               </div>
               <div class="list" id="dashboard-moderation-list"></div>
@@ -82,6 +208,107 @@
           </div>
         </section>
 
+        <!-- Drivers -->
+        <section class="tab-panel" id="tab-drivers" aria-labelledby="Водители">
+          <div class="filter-host" id="drivers-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Водители</h2>
+              <span class="muted" id="drivers-count-label">—</span>
+            </div>
+            <div id="drivers-table"></div>
+          </section>
+        </section>
+
+        <!-- Documents / Moderation V2 -->
+        <section class="tab-panel" id="tab-documents" aria-labelledby="Документы">
+          <div class="filter-host" id="documents-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Документы водителей</h2>
+              <span class="muted" id="documents-count-label">—</span>
+            </div>
+            <div id="documents-grid"></div>
+          </section>
+        </section>
+
+        <!-- Orders -->
+        <section class="tab-panel" id="tab-orders" aria-labelledby="Заказы">
+          <div class="filter-host" id="orders-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Заказы</h2>
+              <span class="muted" id="orders-count-label">—</span>
+            </div>
+            <div id="orders-table"></div>
+          </section>
+        </section>
+
+        <!-- Payments -->
+        <section class="tab-panel" id="tab-payments" aria-labelledby="Платежи">
+          <div class="filter-host" id="payments-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Платежи</h2>
+              <span class="muted" id="payments-count-label">—</span>
+            </div>
+            <div id="payments-table"></div>
+          </section>
+        </section>
+
+        <!-- Payouts -->
+        <section class="tab-panel" id="tab-payouts" aria-labelledby="Выплаты">
+          <div class="filter-host" id="payouts-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Выплаты водителям</h2>
+              <span class="muted" id="payouts-count-label">—</span>
+            </div>
+            <div id="payouts-table"></div>
+          </section>
+        </section>
+
+        <!-- Wallets -->
+        <section class="tab-panel" id="tab-wallets" aria-labelledby="Кошельки">
+          <div class="filter-host" id="wallets-filters"></div>
+          <div class="kpi-grid kpi-grid-compact" id="wallets-kpi"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Кошельки водителей</h2>
+              <span class="muted" id="wallets-count-label">—</span>
+            </div>
+            <div id="wallets-table"></div>
+          </section>
+        </section>
+
+        <!-- Wallet Transactions -->
+        <section class="tab-panel" id="tab-transactions" aria-labelledby="Транзакции">
+          <div class="filter-host" id="transactions-filters"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Транзакции кошельков</h2>
+              <span class="muted" id="transactions-count-label">—</span>
+            </div>
+            <div id="transactions-table"></div>
+          </section>
+        </section>
+
+        <!-- Subscriptions -->
+        <section class="tab-panel" id="tab-subscriptions" aria-labelledby="Подписки">
+          <div data-section-placeholder="subscriptions"></div>
+        </section>
+
+        <!-- Refunds -->
+        <section class="tab-panel" id="tab-refunds" aria-labelledby="Возвраты">
+          <div data-section-placeholder="refunds"></div>
+        </section>
+
+        <!-- Reports -->
+        <section class="tab-panel" id="tab-reports" aria-labelledby="Отчёты">
+          <div data-section-placeholder="reports"></div>
+        </section>
+
+        <!-- Moderation (legacy V1) -->
         <section class="tab-panel" id="tab-moderation" aria-labelledby="Модерация">
           <div class="toolbar">
             <div class="segmented" role="tablist" aria-label="Фильтр заявок">
@@ -103,6 +330,7 @@
           </div>
         </section>
 
+        <!-- Users -->
         <section class="tab-panel" id="tab-users" aria-labelledby="Пользователи">
           <section class="panel">
             <div class="panel-header">
@@ -127,6 +355,7 @@
           </section>
         </section>
 
+        <!-- Reviews -->
         <section class="tab-panel" id="tab-reviews" aria-labelledby="Отзывы">
           <section class="panel">
             <div class="panel-header">
@@ -137,6 +366,7 @@
           </section>
         </section>
 
+        <!-- Map -->
         <section class="tab-panel" id="tab-map" aria-labelledby="Карта водителей">
           <div class="content-grid map-layout">
             <section class="panel driver-map-panel">
@@ -156,6 +386,7 @@
           </div>
         </section>
 
+        <!-- Settings (existing) -->
         <section class="tab-panel" id="tab-settings" aria-labelledby="Настройки">
           <section class="panel settings-panel">
             <div class="panel-header">
@@ -188,15 +419,21 @@
               <button class="secondary-button" id="clear-token-button" type="button">Очистить токен</button>
             </div>
             <p class="help-text">
-              Для production данные должны приходить с `/api/v1/admin/...`. Пока backend не реализовал эти endpoints,
-              сайт показывает fallback-данные и отмечает источник в верхней панели.
+              Все разделы админки используют только реальные данные backend `/api/v1/admin/...`. Если endpoint
+              недоступен, экран покажет ошибку с возможностью повторной попытки — fallback-данные не
+              используются.
             </p>
           </section>
         </section>
       </main>
     </div>
 
+    <!-- Global UI infrastructure -->
+    <div class="drawer-root" id="drawer-root" aria-hidden="true"></div>
+    <div class="dialog-root" id="dialog-root" aria-hidden="true"></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=8" defer></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+    <script src="app.js?v=14" defer></script>
   </body>
 </html>

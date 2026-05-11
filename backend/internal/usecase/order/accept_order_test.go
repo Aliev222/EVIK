@@ -259,6 +259,14 @@ func (r *fakeOrderRepository) ListByStatus(context.Context, orderdomain.Status, 
 	return nil, nil
 }
 
+func (r *fakeOrderRepository) ListAdminOrders(context.Context, orderdomain.AdminOrderFilter) ([]orderdomain.AdminOrderListItem, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *fakeOrderRepository) GetAdminOrderDetails(context.Context, string) (*orderdomain.AdminOrderDetails, error) {
+	return nil, nil
+}
+
 type fakeDriverOrderRepository struct {
 	assignErr         error
 	assignErrSequence []error

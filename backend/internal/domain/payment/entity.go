@@ -12,15 +12,24 @@ const (
 )
 
 type PaymentMethod struct {
-	ID        string
-	UserID    string
-	Brand     CardBrand
-	Last4     string
-	ExpMonth  int
-	ExpYear   int
-	Holder    string
-	IsDefault bool
-	CreatedAt time.Time
+	ID                      string
+	UserID                  string
+	Provider                PaymentProvider
+	ProviderPaymentMethodID *string
+	ProviderPaymentID       *string
+	Brand                   CardBrand
+	Last4                   string
+	ExpMonth                int
+	ExpYear                 int
+	Holder                  string
+	Status                  string
+	IsDefault               bool
+	CreatedAt               time.Time
+}
+
+type AddCardInit struct {
+	PaymentMethodID string
+	ConfirmationURL string
 }
 
 type PaymentTransaction struct {
@@ -58,6 +67,7 @@ const (
 
 	PaymentPurposeOrder        PaymentPurpose = "order"
 	PaymentPurposeSubscription PaymentPurpose = "subscription"
+	PaymentPurposeCardBinding  PaymentPurpose = "card_binding"
 
 	PaymentStatusPending   PaymentStatus = "pending"
 	PaymentStatusWaiting   PaymentStatus = "waiting_for_capture"
@@ -84,6 +94,7 @@ const (
 	WalletDirectionDebit  WalletDirection = "debit"
 
 	WalletTxStatusPending   WalletTransactionStatus = "pending"
+	WalletTxStatusAvailable WalletTransactionStatus = "available"
 	WalletTxStatusSucceeded WalletTransactionStatus = "succeeded"
 	WalletTxStatusFailed    WalletTransactionStatus = "failed"
 
@@ -184,17 +195,21 @@ type DriverPayoutMethod struct {
 }
 
 type Subscription struct {
-	ID        string
-	DriverID  string
-	PlanID    string
-	PaymentID string
-	Amount    int64
-	Currency  string
-	Status    SubscriptionStatus
-	StartsAt  *time.Time
-	EndsAt    *time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            string
+	DriverID      string
+	PlanID        string
+	Plan          string
+	PaymentID     string
+	LastPaymentID string
+	Amount        int64
+	Currency      string
+	Status        SubscriptionStatus
+	StartsAt      *time.Time
+	EndsAt        *time.Time
+	PeriodStart   *time.Time
+	PeriodEnd     *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Refund struct {

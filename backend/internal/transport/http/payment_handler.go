@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"evik/backend/internal/auth"
+	orderdomain "evik/backend/internal/domain/order"
 	paymentdomain "evik/backend/internal/domain/payment"
+	driveruc "evik/backend/internal/usecase/driver"
 	paymentuc "evik/backend/internal/usecase/payment"
 	"github.com/go-chi/chi/v5"
 )
@@ -19,6 +21,8 @@ import (
 type PaymentHandler struct {
 	repo      paymentdomain.Repository
 	financeUC *paymentuc.FinanceUseCase
+	orderRepo orderdomain.Repository
+	gates     *driveruc.GateService
 	idGen     interface{ NewID() string }
 	clock     interface{ Now() time.Time }
 }
@@ -26,10 +30,12 @@ type PaymentHandler struct {
 func NewPaymentHandler(
 	repo paymentdomain.Repository,
 	financeUC *paymentuc.FinanceUseCase,
+	orderRepo orderdomain.Repository,
+	gates *driveruc.GateService,
 	idGen interface{ NewID() string },
 	clock interface{ Now() time.Time },
 ) *PaymentHandler {
-	return &PaymentHandler{repo: repo, financeUC: financeUC, idGen: idGen, clock: clock}
+	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock}
 }
 
 type addCardRequest struct {
@@ -70,14 +76,16 @@ type refundRequest struct {
 }
 
 type paymentMethodResponse struct {
-	ID        string `json:"id"`
-	Brand     string `json:"brand"`
-	Last4     string `json:"last4"`
-	ExpMonth  int    `json:"exp_month"`
-	ExpYear   int    `json:"exp_year"`
-	Holder    string `json:"holder"`
-	IsDefault bool   `json:"is_default"`
-	CreatedAt string `json:"created_at"`
+	ID                      string  `json:"id"`
+	ProviderPaymentMethodID *string `json:"provider_payment_method_id,omitempty"`
+	Brand                   string  `json:"brand"`
+	Last4                   string  `json:"last4"`
+	ExpMonth                int     `json:"exp_month"`
+	ExpYear                 int     `json:"exp_year"`
+	Holder                  string  `json:"holder"`
+	Status                  string  `json:"status"`
+	IsDefault               bool    `json:"is_default"`
+	CreatedAt               string  `json:"created_at"`
 }
 
 type paymentTransactionResponse struct {
@@ -101,7 +109,7 @@ func (h *PaymentHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	transactions, err := h.repo.ListTransactions(r.Context(), userID, 20)
+	transactions, err := h.repo.ListClientPayments(r.Context(), userID, 20, 0)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -140,7 +148,37 @@ func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+func (h *PaymentHandler) InitClientPaymentMethod(w http.ResponseWriter, r *http.Request) {
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if role != auth.RoleClient && role != auth.RoleAdmin {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	init, err := h.financeUC.SaveClientPaymentMethod(r.Context(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"confirmation_url":  init.ConfirmationURL,
+		"payment_method_id": init.PaymentMethodID,
+	})
+}
+
 func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Request) {
+	if !h.canAccessOrderPayment(r, chi.URLParam(r, "orderID")) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	payment, err := h.repo.GetPaymentByOrderID(r.Context(), chi.URLParam(r, "orderID"))
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -154,6 +192,10 @@ func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request) {
+	if !h.canAccessOrderPayment(r, chi.URLParam(r, "orderID")) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	payment, err := h.repo.GetPaymentByOrderID(r.Context(), chi.URLParam(r, "orderID"))
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
@@ -251,6 +293,12 @@ func (h *PaymentHandler) RequestDriverPayout(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
+	if h.gates != nil {
+		if err := h.gates.EnsureCanRequestPayout(r.Context(), driverID); err != nil {
+			h.writeDriverGateError(w, err)
+			return
+		}
+	}
 	idempotencyKey := r.Header.Get("Idempotency-Key")
 	if idempotencyKey == "" {
 		idempotencyKey = r.Header.Get("X-Idempotency-Key")
@@ -324,7 +372,17 @@ func (h *PaymentHandler) CreateDriverSubscriptionPayment(w http.ResponseWriter, 
 }
 
 func (h *PaymentHandler) GetDriverSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"status": "unknown"})
+	driverID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	status, err := h.financeUC.GetDriverSubscriptionStatus(r.Context(), driverID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (h *PaymentHandler) AdminCreateRefund(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +421,202 @@ func (h *PaymentHandler) AdminFinanceReport(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"rows": records})
 }
 
+type adminRejectPayoutRequest struct {
+	Reason string `json:"reason"`
+}
+
+// AdminListRefunds serves GET /admin/finance/refunds with filters.
+// Money amounts in the response are in kopecks (minor units).
+func (h *PaymentHandler) AdminListRefunds(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filter := paymentdomain.AdminRefundFilter{
+		Status:    strings.TrimSpace(q.Get("status")),
+		PaymentID: strings.TrimSpace(q.Get("payment_id")),
+		OrderID:   strings.TrimSpace(q.Get("order_id")),
+		Limit:     parseAdminLimit(r, 50, 200),
+		Offset:    parseAdminOffset(r),
+	}
+	if from, ok := parseAdminTime(q.Get("from")); ok {
+		filter.From = &from
+	}
+	if to, ok := parseAdminTime(q.Get("to")); ok {
+		filter.To = &to
+	}
+
+	refunds, total, err := h.financeUC.ListAdminRefunds(r.Context(), filter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	items := make([]map[string]any, 0, len(refunds))
+	for _, refund := range refunds {
+		items = append(items, adminRefundItemJSON(refund))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  filter.Limit,
+		"offset": filter.Offset,
+	})
+}
+
+// AdminApprovePayout serves POST /admin/finance/payouts/{id}/approve.
+func (h *PaymentHandler) AdminApprovePayout(w http.ResponseWriter, r *http.Request) {
+	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutID"))
+	if payoutID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payout id is required"})
+		return
+	}
+	moderatorID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	payout, err := h.financeUC.ApprovePayout(r.Context(), payoutID, moderatorID)
+	if err != nil {
+		switch {
+		case errors.Is(err, paymentdomain.ErrPayoutNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		case errors.Is(err, paymentdomain.ErrPayoutNotApprovable):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		default:
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"payout": adminPayoutJSON(payout)})
+}
+
+// AdminRejectPayout serves POST /admin/finance/payouts/{id}/reject.
+func (h *PaymentHandler) AdminRejectPayout(w http.ResponseWriter, r *http.Request) {
+	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutID"))
+	if payoutID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payout id is required"})
+		return
+	}
+	var req adminRejectPayoutRequest
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
+	}
+	reason := strings.TrimSpace(req.Reason)
+	if len(reason) < 8 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "reason is required (min 8 characters)"})
+		return
+	}
+	moderatorID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	payout, err := h.financeUC.RejectPayout(r.Context(), payoutID, moderatorID, reason)
+	if err != nil {
+		switch {
+		case errors.Is(err, paymentdomain.ErrPayoutNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		case errors.Is(err, paymentdomain.ErrPayoutNotRejectable):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		default:
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"payout": adminPayoutJSON(payout)})
+}
+
+func adminRefundItemJSON(refund paymentdomain.Refund) map[string]any {
+	providerRefundID := ""
+	if refund.ProviderRefundID != nil {
+		providerRefundID = *refund.ProviderRefundID
+	}
+	return map[string]any{
+		"refund_id":          refund.ID,
+		"payment_id":         refund.PaymentID,
+		"order_id":           "", // resolved via /admin/orders if needed
+		"amount":             refund.Amount,
+		"currency":           refund.Currency,
+		"reason":             refund.Reason,
+		"status":             refund.Status,
+		"provider_refund_id": providerRefundID,
+		"created_at":         refund.CreatedAt.Format(time.RFC3339),
+		"updated_at":         refund.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func adminPayoutJSON(payout *paymentdomain.Payout) map[string]any {
+	providerPayoutID := ""
+	if payout.ProviderPayoutID != nil {
+		providerPayoutID = *payout.ProviderPayoutID
+	}
+	failureReason := ""
+	if payout.FailureReason != nil {
+		failureReason = *payout.FailureReason
+	}
+	paidAt := any(nil)
+	if payout.PaidAt != nil {
+		paidAt = payout.PaidAt.Format(time.RFC3339)
+	}
+	return map[string]any{
+		"id":                 payout.ID,
+		"driver_id":          payout.DriverID,
+		"wallet_id":          payout.WalletID,
+		"provider":           payout.Provider,
+		"provider_payout_id": providerPayoutID,
+		"amount":             payout.Amount,
+		"currency":           payout.Currency,
+		"status":             payout.Status,
+		"failure_reason":     failureReason,
+		"paid_at":            paidAt,
+		"created_at":         payout.CreatedAt.Format(time.RFC3339),
+		"updated_at":         payout.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
 func (h *PaymentHandler) AddCard(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusGone, map[string]string{"error": "direct card entry is disabled; use /client/payment-methods/init"})
+	return
+}
+
+func (h *PaymentHandler) canAccessOrderPayment(r *http.Request, orderID string) bool {
+	ord, err := h.orderRepo.GetByID(r.Context(), orderID)
+	if err != nil {
+		return false
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		return false
+	}
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		return false
+	}
+	switch role {
+	case auth.RoleAdmin:
+		return true
+	case auth.RoleClient:
+		return ord.UserID == userID
+	case auth.RoleDriver:
+		return ord.DriverID != nil && *ord.DriverID == userID
+	default:
+		return false
+	}
+}
+
+func (h *PaymentHandler) writeDriverGateError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, driveruc.ErrDriverDocumentsNotApproved),
+		errors.Is(err, driveruc.ErrDriverTaxNotVerified),
+		errors.Is(err, driveruc.ErrDriverSubscriptionInactive):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+	default:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+}
+
+func (h *PaymentHandler) addCardLegacyDisabled(w http.ResponseWriter, r *http.Request) {
 	role, err := roleFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
@@ -488,14 +741,16 @@ func (h *PaymentHandler) paymentMethodFromRequest(userID string, req addCardRequ
 
 func newPaymentMethodResponse(method paymentdomain.PaymentMethod) paymentMethodResponse {
 	return paymentMethodResponse{
-		ID:        method.ID,
-		Brand:     string(method.Brand),
-		Last4:     method.Last4,
-		ExpMonth:  method.ExpMonth,
-		ExpYear:   method.ExpYear,
-		Holder:    method.Holder,
-		IsDefault: method.IsDefault,
-		CreatedAt: method.CreatedAt.Format(time.RFC3339),
+		ID:                      method.ID,
+		ProviderPaymentMethodID: method.ProviderPaymentMethodID,
+		Brand:                   string(method.Brand),
+		Last4:                   method.Last4,
+		ExpMonth:                method.ExpMonth,
+		ExpYear:                 method.ExpYear,
+		Holder:                  method.Holder,
+		Status:                  method.Status,
+		IsDefault:               method.IsDefault,
+		CreatedAt:               method.CreatedAt.Format(time.RFC3339),
 	}
 }
 

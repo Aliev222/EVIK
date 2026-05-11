@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	admindomain "evik/backend/internal/domain/admin"
 	driverdomain "evik/backend/internal/domain/driver"
 	locationdomain "evik/backend/internal/domain/location"
+	orderdomain "evik/backend/internal/domain/order"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -20,10 +22,18 @@ type AdminRepository interface {
 	Overview(ctx context.Context) (admindomain.Overview, error)
 	ListDriverVerifications(ctx context.Context, limit int) ([]admindomain.DriverVerification, error)
 	UpsertDriverVerification(ctx context.Context, item admindomain.DriverVerification) error
-	DecideDriverVerification(ctx context.Context, id string, status string, reason string, moderatorID string, auditID string, now time.Time) error
+	DecideDriverVerification(ctx context.Context, decision admindomain.DriverVerificationDecision) error
 	ListUsers(ctx context.Context, limit int) ([]admindomain.User, error)
 	ListReviews(ctx context.Context, limit int) ([]admindomain.Review, error)
 	CreateReview(ctx context.Context, item admindomain.Review) error
+}
+
+// AdminOrderRepository is the narrow contract the admin handler uses to
+// power GET /admin/orders and GET /admin/orders/{id}. It is satisfied by
+// the postgres OrderRepository.
+type AdminOrderRepository interface {
+	ListAdminOrders(ctx context.Context, filter orderdomain.AdminOrderFilter) ([]orderdomain.AdminOrderListItem, int64, error)
+	GetAdminOrderDetails(ctx context.Context, orderID string) (*orderdomain.AdminOrderDetails, error)
 }
 
 type AdminDriverRepository interface {
@@ -54,6 +64,7 @@ type AdminHandler struct {
 	repo         AdminRepository
 	driverRepo   AdminDriverRepository
 	locationRepo AdminLocationRepository
+	orderRepo    AdminOrderRepository
 	idGen        AdminIDGenerator
 	clock        AdminClock
 	storage      DocumentStorageConfig
@@ -63,6 +74,7 @@ func NewAdminHandler(
 	repo AdminRepository,
 	driverRepo AdminDriverRepository,
 	locationRepo AdminLocationRepository,
+	orderRepo AdminOrderRepository,
 	idGen AdminIDGenerator,
 	clock AdminClock,
 	storage DocumentStorageConfig,
@@ -71,6 +83,7 @@ func NewAdminHandler(
 		repo:         repo,
 		driverRepo:   driverRepo,
 		locationRepo: locationRepo,
+		orderRepo:    orderRepo,
 		idGen:        idGen,
 		clock:        clock,
 		storage:      storage,
@@ -79,6 +92,22 @@ func NewAdminHandler(
 
 type adminDecisionRequest struct {
 	Reason string `json:"reason"`
+	// VehiclePlate / VehicleModel / VehicleType are required when the admin
+	// is approving a driver verification — they're entered manually after
+	// the admin reviews the uploaded photos / documents. Ignored for other
+	// status transitions (rejected / changes_requested / blocked).
+	VehiclePlate string `json:"vehicle_plate,omitempty"`
+	VehicleModel string `json:"vehicle_model,omitempty"`
+	VehicleType  string `json:"vehicle_type,omitempty"`
+}
+
+// allowedVehicleTypes mirrors the tow truck types known to the pricing
+// domain. We validate here so the admin can't save garbage that would
+// later break order pricing or matching.
+var allowedVehicleTypes = map[string]struct{}{
+	"winch":       {},
+	"platform":    {},
+	"manipulator": {},
 }
 
 type submitDriverVerificationRequest struct {
@@ -123,6 +152,15 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gmvByDay := make([]map[string]any, 0, len(overview.GMVByDay))
+	for _, point := range overview.GMVByDay {
+		gmvByDay = append(gmvByDay, map[string]any{"date": point.Date, "amount": point.Amount})
+	}
+	commissionByDay := make([]map[string]any, 0, len(overview.CommissionByDay))
+	for _, point := range overview.CommissionByDay {
+		commissionByDay = append(commissionByDay, map[string]any{"date": point.Date, "amount": point.Amount})
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"total_users":          overview.TotalUsers,
 		"clients":              overview.Clients,
@@ -132,6 +170,24 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 		"average_driver_stars": overview.AverageDriverStars,
 		"reviews_today":        overview.ReviewsToday,
 		"active_orders":        overview.ActiveOrders,
+
+		// Phase 1 KPI. All amounts in kopecks (minor units).
+		"gmv_today":                    overview.GMVToday,
+		"gmv_month":                    overview.GMVMonth,
+		"commission_today":             overview.CommissionToday,
+		"commission_month":             overview.CommissionMonth,
+		"payouts_today":                overview.PayoutsToday,
+		"payouts_month":                overview.PayoutsMonth,
+		"payouts_pending":              overview.PayoutsPending,
+		"failed_payments":              overview.FailedPayments,
+		"failed_payouts":               overview.FailedPayouts,
+		"subscriptions_revenue_today":  overview.SubscriptionsRevenueToday,
+		"subscriptions_revenue_month":  overview.SubscriptionsRevenueMonth,
+		"cash_debt_total":              overview.CashDebtTotal,
+		"active_drivers":               overview.ActiveDrivers,
+		"pending_verifications":        overview.PendingVerifications,
+		"gmv_by_day":                   gmvByDay,
+		"commission_by_day":            commissionByDay,
 	})
 }
 
@@ -437,21 +493,45 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 		reason = "approved by admin"
 	}
 
+	plate := strings.ToUpper(strings.TrimSpace(req.VehiclePlate))
+	model := strings.TrimSpace(req.VehicleModel)
+	vehicleType := strings.TrimSpace(req.VehicleType)
+
+	if status == "approved" {
+		// When approving, the admin must enter the vehicle data — we don't
+		// trust whatever the driver originally submitted because the
+		// approval is the moment the data becomes authoritative.
+		if plate == "" || model == "" || vehicleType == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "vehicle_plate, vehicle_model and vehicle_type are required when approving",
+			})
+			return
+		}
+		if _, ok := allowedVehicleTypes[vehicleType]; !ok {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "vehicle_type must be one of winch, platform, manipulator",
+			})
+			return
+		}
+	}
+
 	moderatorID, err := userIDFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	err = h.repo.DecideDriverVerification(
-		r.Context(),
-		verificationID,
-		status,
-		reason,
-		moderatorID,
-		h.idGen.NewID(),
-		h.clock.Now(),
-	)
+	err = h.repo.DecideDriverVerification(r.Context(), admindomain.DriverVerificationDecision{
+		ID:           verificationID,
+		Status:       status,
+		Reason:       reason,
+		ModeratorID:  moderatorID,
+		AuditID:      h.idGen.NewID(),
+		Now:          h.clock.Now(),
+		VehiclePlate: plate,
+		VehicleModel: model,
+		VehicleType:  vehicleType,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "verification not found"})
@@ -461,10 +541,212 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// SMS notification stub. When a real SMS provider is wired in (Phase A
+	// security MVP already issues OTPs via phone_otps but doesn't expose a
+	// generic sender), this is the single point that needs to be replaced.
+	if status == "approved" {
+		log.Printf("[sms-stub] driver verification %s approved — would notify driver via SMS", verificationID)
+	} else if status == "rejected" || status == "changes_requested" {
+		log.Printf("[sms-stub] driver verification %s %s — would notify driver via SMS with reason", verificationID, status)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":     verificationID,
 		"status": status,
 	})
+}
+
+// ListAdminOrders serves GET /admin/orders with filters. All money values
+// in the response are in kopecks (minor units). The response shape is:
+//
+//	{ "items": [...], "total": N, "limit": L, "offset": O }
+func (h *AdminHandler) ListAdminOrders(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filter := orderdomain.AdminOrderFilter{
+		Status:          strings.TrimSpace(q.Get("status")),
+		PaymentMethod:   strings.TrimSpace(q.Get("payment_method")),
+		FinancialStatus: strings.TrimSpace(q.Get("financial_status")),
+		DriverID:        strings.TrimSpace(q.Get("driver_id")),
+		ClientID:        strings.TrimSpace(q.Get("client_id")),
+		Limit:           parseAdminLimit(r, 50, 200),
+		Offset:          parseAdminOffset(r),
+	}
+	if from, ok := parseAdminTime(q.Get("from")); ok {
+		filter.From = &from
+	}
+	if to, ok := parseAdminTime(q.Get("to")); ok {
+		filter.To = &to
+	}
+
+	items, total, err := h.orderRepo.ListAdminOrders(r.Context(), filter)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	payload := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, adminOrderItemJSON(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  payload,
+		"total":  total,
+		"limit":  filter.Limit,
+		"offset": filter.Offset,
+	})
+}
+
+// GetAdminOrderDetails serves GET /admin/orders/{orderID}.
+func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Request) {
+	orderID := strings.TrimSpace(chi.URLParam(r, "orderID"))
+	if orderID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "order id is required"})
+		return
+	}
+	details, err := h.orderRepo.GetAdminOrderDetails(r.Context(), orderID)
+	if err != nil {
+		if errors.Is(err, orderdomain.ErrOrderNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	timeline := make([]map[string]any, 0, len(details.Timeline))
+	for _, event := range details.Timeline {
+		timeline = append(timeline, map[string]any{
+			"at":     event.At.Format(time.RFC3339),
+			"status": event.Status,
+		})
+	}
+
+	walletTxs := make([]map[string]any, 0, len(details.WalletTransactions))
+	for _, tx := range details.WalletTransactions {
+		walletTxs = append(walletTxs, map[string]any{
+			"id":          tx.ID,
+			"driver_id":   tx.DriverID,
+			"type":        tx.Type,
+			"direction":   tx.Direction,
+			"amount":      tx.Amount,
+			"status":      tx.Status,
+			"description": tx.Description,
+			"created_at":  tx.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	payouts := make([]map[string]any, 0, len(details.Payouts))
+	for _, p := range details.Payouts {
+		payouts = append(payouts, map[string]any{
+			"id":         p.ID,
+			"driver_id":  p.DriverID,
+			"amount":     p.Amount,
+			"status":     p.Status,
+			"created_at": p.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	refunds := make([]map[string]any, 0, len(details.Refunds))
+	for _, ref := range details.Refunds {
+		refunds = append(refunds, map[string]any{
+			"id":         ref.ID,
+			"payment_id": ref.PaymentID,
+			"amount":     ref.Amount,
+			"status":     ref.Status,
+			"reason":     ref.Reason,
+			"created_at": ref.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	var payment map[string]any
+	if details.Payment != nil {
+		payment = map[string]any{
+			"id":                  details.Payment.ID,
+			"provider":            details.Payment.Provider,
+			"provider_payment_id": details.Payment.ProviderPaymentID,
+			"payment_method":      details.Payment.PaymentMethod,
+			"amount":              details.Payment.Amount,
+			"status":              details.Payment.Status,
+			"paid_at":             formatNullableTime(details.Payment.PaidAt),
+			"created_at":          details.Payment.CreatedAt.Format(time.RFC3339),
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"order":          adminOrderItemJSON(details.Order),
+		"pickup":         map[string]any{"lat": details.Pickup.Lat, "lng": details.Pickup.Lng},
+		"dropoff":        map[string]any{"lat": details.Dropoff.Lat, "lng": details.Dropoff.Lng},
+		"tow_truck_type": details.TowTruckType,
+		"timeline":       timeline,
+		"payment":        payment,
+		"wallet_transactions": walletTxs,
+		"payouts":             payouts,
+		"refunds":             refunds,
+		"financial_breakdown": map[string]any{
+			"total_amount":         details.FinancialBreakdown.TotalAmount,
+			"commission_amount":    details.FinancialBreakdown.CommissionAmount,
+			"driver_amount":        details.FinancialBreakdown.DriverAmount,
+			"cash_commission_hold": details.FinancialBreakdown.CashCommissionHold,
+			"platform_net_amount":  details.FinancialBreakdown.PlatformNetAmount,
+		},
+	})
+}
+
+func adminOrderItemJSON(item orderdomain.AdminOrderListItem) map[string]any {
+	return map[string]any{
+		"order_id":          item.OrderID,
+		"client_id":         item.ClientID,
+		"client_name":       item.ClientName,
+		"client_phone":      item.ClientPhone,
+		"driver_id":         item.DriverID,
+		"driver_name":       item.DriverName,
+		"driver_phone":      item.DriverPhone,
+		"status":            item.Status,
+		"payment_method":    item.PaymentMethod,
+		"payment_status":    item.PaymentStatus,
+		"financial_status":  item.FinancialStatus,
+		"price_total":       item.PriceTotal,
+		"commission_amount": item.CommissionAmount,
+		"driver_amount":     item.DriverAmount,
+		"created_at":        item.CreatedAt.Format(time.RFC3339),
+		"completed_at":      formatNullableTime(item.CompletedAt),
+		"cancelled_at":      formatNullableTime(item.CancelledAt),
+	}
+}
+
+func formatNullableTime(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.Format(time.RFC3339)
+}
+
+// parseAdminOffset parses ?offset=N from the request URL, clamped to >= 0.
+func parseAdminOffset(r *http.Request) int {
+	raw := strings.TrimSpace(r.URL.Query().Get("offset"))
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 {
+		return 0
+	}
+	return value
+}
+
+// parseAdminTime accepts ISO-8601 (RFC3339) or YYYY-MM-DD values.
+func parseAdminTime(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse("2006-01-02", raw); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
 }
 
 func parseAdminLimit(r *http.Request, fallback int, max int) int {

@@ -21,9 +21,10 @@ func NewPaymentRepository(db *sql.DB) *PaymentRepository {
 
 func (r *PaymentRepository) ListMethods(ctx context.Context, userID string) ([]paymentdomain.PaymentMethod, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, user_id, brand, last4, exp_month, exp_year, holder, is_default, created_at
+SELECT id, user_id, provider, provider_payment_method_id, provider_payment_id, brand, last4, exp_month, exp_year, holder, status, is_default, created_at
 FROM payment_methods
 WHERE user_id = $1
+AND status = 'active'
 ORDER BY is_default DESC, created_at DESC
 `, userID)
 	if err != nil {
@@ -34,20 +35,28 @@ ORDER BY is_default DESC, created_at DESC
 	methods := make([]paymentdomain.PaymentMethod, 0)
 	for rows.Next() {
 		var method paymentdomain.PaymentMethod
-		var brand string
+		var provider, brand string
+		var providerPaymentMethodID, providerPaymentID sql.NullString
 		if err := rows.Scan(
 			&method.ID,
 			&method.UserID,
+			&provider,
+			&providerPaymentMethodID,
+			&providerPaymentID,
 			&brand,
 			&method.Last4,
 			&method.ExpMonth,
 			&method.ExpYear,
 			&method.Holder,
+			&method.Status,
 			&method.IsDefault,
 			&method.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
+		method.Provider = paymentdomain.PaymentProvider(provider)
+		method.ProviderPaymentMethodID = nullableString(providerPaymentMethodID)
+		method.ProviderPaymentID = nullableString(providerPaymentID)
 		method.Brand = paymentdomain.CardBrand(brand)
 		methods = append(methods, method)
 	}
@@ -62,24 +71,78 @@ func (r *PaymentRepository) AddMethod(ctx context.Context, method paymentdomain.
 	defer tx.Rollback()
 
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM payment_methods WHERE user_id = $1`, method.UserID).Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM payment_methods WHERE user_id = $1 AND status = 'active'`, method.UserID).Scan(&count); err != nil {
 		return err
+	}
+	if method.Provider == "" {
+		method.Provider = paymentdomain.ProviderYooKassa
+	}
+	if method.Status == "" {
+		method.Status = "active"
 	}
 	isDefault := method.IsDefault || count == 0
 	if isDefault {
-		if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1`, method.UserID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1 AND status = 'active'`, method.UserID); err != nil {
 			return err
 		}
 	}
 
 	_, err = tx.ExecContext(ctx, `
-INSERT INTO payment_methods (id, user_id, brand, last4, exp_month, exp_year, holder, is_default, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-`, method.ID, method.UserID, string(method.Brand), method.Last4, method.ExpMonth, method.ExpYear, method.Holder, isDefault, method.CreatedAt)
+INSERT INTO payment_methods (id, user_id, provider, provider_payment_method_id, provider_payment_id, brand, last4, exp_month, exp_year, holder, status, is_default, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+`, method.ID, method.UserID, string(method.Provider), method.ProviderPaymentMethodID, method.ProviderPaymentID, string(method.Brand), method.Last4, method.ExpMonth, method.ExpYear, method.Holder, method.Status, isDefault, method.CreatedAt)
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *PaymentRepository) CreatePendingPaymentMethod(ctx context.Context, p *paymentdomain.Payment, method paymentdomain.PaymentMethod) (*paymentdomain.AddCardInit, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if method.Provider == "" {
+		method.Provider = paymentdomain.ProviderYooKassa
+	}
+	if method.Status == "" {
+		method.Status = "pending"
+	}
+	_, err = tx.ExecContext(ctx, `
+INSERT INTO payment_methods (id, user_id, provider, provider_payment_method_id, provider_payment_id, brand, last4, exp_month, exp_year, holder, status, is_default, created_at)
+VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, FALSE, $11)
+ON CONFLICT (id) DO UPDATE SET provider_payment_id = EXCLUDED.provider_payment_id
+`, method.ID, method.UserID, string(method.Provider), method.ProviderPaymentID, string(method.Brand), method.Last4, method.ExpMonth, method.ExpYear, method.Holder, method.Status, method.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	created, err := scanPayment(tx.QueryRowContext(ctx, `
+INSERT INTO payments (
+	id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at
+)
+VALUES ($1, NULL, NULL, $2, $3, $4, $5, $6, cents_to_rub($7), $8, $9, $10, $11, NULL, $12, $13)
+ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = payments.updated_at
+RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
+	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+		p.ID, p.UserID, string(p.Provider), p.ProviderPaymentID, string(p.PaymentMethod), string(p.Purpose),
+		p.Amount, p.Currency, string(p.Status), p.ConfirmationURL, p.IdempotencyKey, p.CreatedAt, p.UpdatedAt))
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	confirmationURL := ""
+	if created.ConfirmationURL != nil {
+		confirmationURL = *created.ConfirmationURL
+	}
+	return &paymentdomain.AddCardInit{
+		PaymentMethodID: method.ID,
+		ConfirmationURL: confirmationURL,
+	}, nil
 }
 
 func (r *PaymentRepository) SetDefaultMethod(ctx context.Context, userID string, methodID string) (*paymentdomain.PaymentMethod, error) {
@@ -91,7 +154,7 @@ func (r *PaymentRepository) SetDefaultMethod(ctx context.Context, userID string,
 
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `
-SELECT EXISTS(SELECT 1 FROM payment_methods WHERE id = $1 AND user_id = $2)
+SELECT EXISTS(SELECT 1 FROM payment_methods WHERE id = $1 AND user_id = $2 AND status = 'active')
 `, methodID, userID).Scan(&exists); err != nil {
 		return nil, err
 	}
@@ -99,27 +162,32 @@ SELECT EXISTS(SELECT 1 FROM payment_methods WHERE id = $1 AND user_id = $2)
 		return nil, paymentdomain.ErrPaymentMethodNotFound
 	}
 
-	if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1`, userID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1 AND status = 'active'`, userID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = TRUE WHERE id = $1 AND user_id = $2`, methodID, userID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = TRUE WHERE id = $1 AND user_id = $2 AND status = 'active'`, methodID, userID); err != nil {
 		return nil, err
 	}
 
 	var method paymentdomain.PaymentMethod
-	var brand string
+	var provider, brand string
+	var providerPaymentMethodID, providerPaymentID sql.NullString
 	err = tx.QueryRowContext(ctx, `
-SELECT id, user_id, brand, last4, exp_month, exp_year, holder, is_default, created_at
+SELECT id, user_id, provider, provider_payment_method_id, provider_payment_id, brand, last4, exp_month, exp_year, holder, status, is_default, created_at
 FROM payment_methods
 WHERE id = $1 AND user_id = $2
 `, methodID, userID).Scan(
 		&method.ID,
 		&method.UserID,
+		&provider,
+		&providerPaymentMethodID,
+		&providerPaymentID,
 		&brand,
 		&method.Last4,
 		&method.ExpMonth,
 		&method.ExpYear,
 		&method.Holder,
+		&method.Status,
 		&method.IsDefault,
 		&method.CreatedAt,
 	)
@@ -129,6 +197,9 @@ WHERE id = $1 AND user_id = $2
 	if err != nil {
 		return nil, err
 	}
+	method.Provider = paymentdomain.PaymentProvider(provider)
+	method.ProviderPaymentMethodID = nullableString(providerPaymentMethodID)
+	method.ProviderPaymentID = nullableString(providerPaymentID)
 	method.Brand = paymentdomain.CardBrand(brand)
 	if err := tx.Commit(); err != nil {
 		return nil, err
@@ -145,7 +216,7 @@ func (r *PaymentRepository) DeleteMethod(ctx context.Context, userID string, met
 
 	var wasDefault bool
 	err = tx.QueryRowContext(ctx, `
-SELECT is_default FROM payment_methods WHERE id = $1 AND user_id = $2
+SELECT is_default FROM payment_methods WHERE id = $1 AND user_id = $2 AND status = 'active'
 `, methodID, userID).Scan(&wasDefault)
 	if errors.Is(err, sql.ErrNoRows) {
 		return paymentdomain.ErrPaymentMethodNotFound
@@ -167,6 +238,7 @@ SET is_default = TRUE
 WHERE id = (
 	SELECT id FROM payment_methods
 	WHERE user_id = $1
+	AND status = 'active'
 	ORDER BY created_at DESC
 	LIMIT 1
 )
@@ -186,6 +258,43 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2
 `, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	transactions := make([]paymentdomain.PaymentTransaction, 0)
+	for rows.Next() {
+		var transaction paymentdomain.PaymentTransaction
+		if err := rows.Scan(
+			&transaction.ID,
+			&transaction.UserID,
+			&transaction.OrderID,
+			&transaction.Title,
+			&transaction.Amount,
+			&transaction.Status,
+			&transaction.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, transaction)
+	}
+	return transactions, rows.Err()
+}
+
+func (r *PaymentRepository) ListClientPayments(ctx context.Context, userID string, limit int, offset int) ([]paymentdomain.PaymentTransaction, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT p.id, p.user_id, COALESCE(p.order_id, ''), COALESCE('Заказ №' || p.order_id, 'Оплата'), rub_to_cents(p.amount), p.status, COALESCE(p.paid_at, p.created_at)
+FROM payments p
+LEFT JOIN orders o ON o.id = p.order_id
+WHERE p.user_id = $1
+AND p.purpose = 'order'
+ORDER BY COALESCE(p.paid_at, p.created_at) DESC
+LIMIT $2 OFFSET $3
+`, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +462,62 @@ func (r *PaymentRepository) MarkWebhookProcessed(ctx context.Context, eventID st
 	return err
 }
 
+func (r *PaymentRepository) ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var userID string
+	var methodID string
+	if err := tx.QueryRowContext(ctx, `
+SELECT user_id, id
+FROM payment_methods
+WHERE provider_payment_id = $1
+FOR UPDATE
+`, providerPaymentID).Scan(&userID, &methodID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return paymentdomain.ErrPaymentMethodNotFound
+		}
+		return err
+	}
+
+	var activeCount int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM payment_methods WHERE user_id = $1 AND status = 'active'`, userID).Scan(&activeCount); err != nil {
+		return err
+	}
+	isDefault := activeCount == 0
+	if isDefault {
+		if _, err := tx.ExecContext(ctx, `UPDATE payment_methods SET is_default = FALSE WHERE user_id = $1`, userID); err != nil {
+			return err
+		}
+	}
+	cardBrand := normalizeProviderBrand(brand)
+	if last4 == "" {
+		last4 = "0000"
+	}
+	if holder == "" {
+		holder = "Bank card *" + last4
+	}
+	_, err = tx.ExecContext(ctx, `
+UPDATE payment_methods
+SET provider_payment_method_id = $2,
+	brand = $3,
+	last4 = $4,
+	exp_month = $5,
+	exp_year = $6,
+	holder = $7,
+	status = 'active',
+	is_default = CASE WHEN $8 THEN TRUE ELSE is_default END
+WHERE id = $1
+`, methodID, providerPaymentMethodID, string(cardBrand), last4, expMonth, expYear, holder, isDefault)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -451,61 +616,86 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount)
 }
 
 func (r *PaymentRepository) ReleasePendingBalances(ctx context.Context, limit int) (int, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	transactions, err := r.ListReleasablePendingTransactions(ctx, limit)
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
-	rows, err := tx.QueryContext(ctx, `
-SELECT id, wallet_id, driver_id, rub_to_cents(amount), order_id, payment_id
+	count := 0
+	for _, transaction := range transactions {
+		if err := r.MarkTransactionReleased(ctx, transaction.ID); err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (r *PaymentRepository) ListReleasablePendingTransactions(ctx context.Context, limit int) ([]paymentdomain.WalletTransaction, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
 FROM wallet_transactions
 WHERE type = 'order_income' AND status = 'pending' AND available_after <= NOW()
 ORDER BY created_at ASC
-LIMIT $1
-FOR UPDATE SKIP LOCKED`, limit)
+LIMIT $1`, limit)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer rows.Close()
-	type pendingTx struct {
+	var txs []paymentdomain.WalletTransaction
+	for rows.Next() {
+		tx, err := scanWalletTxRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
+}
+
+func (r *PaymentRepository) MarkTransactionReleased(ctx context.Context, txID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var item struct {
 		id, walletID, driverID string
 		amount                 int64
 		orderID, paymentID     sql.NullString
 	}
-	var items []pendingTx
-	for rows.Next() {
-		var item pendingTx
-		if err := rows.Scan(&item.id, &item.walletID, &item.driverID, &item.amount, &item.orderID, &item.paymentID); err != nil {
-			return 0, err
-		}
-		items = append(items, item)
+	err = tx.QueryRowContext(ctx, `
+SELECT id, wallet_id, driver_id, rub_to_cents(amount), order_id, payment_id
+FROM wallet_transactions
+WHERE id = $1 AND type = 'order_income' AND status = 'pending' AND available_after <= NOW()
+FOR UPDATE`, txID).Scan(&item.id, &item.walletID, &item.driverID, &item.amount, &item.orderID, &item.paymentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return tx.Commit()
 	}
-	if err := rows.Err(); err != nil {
-		return 0, err
+	if err != nil {
+		return err
 	}
-	for _, item := range items {
-		if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, item.walletID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, item.walletID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
 UPDATE driver_wallets
 SET pending_balance = pending_balance - cents_to_rub($1), available_balance = available_balance + cents_to_rub($1), updated_at = NOW()
 WHERE id = $2`, item.amount, item.walletID); err != nil {
-			return 0, err
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE wallet_transactions SET status = 'succeeded' WHERE id = $1`, item.id); err != nil {
-			return 0, err
-		}
-		orderID := nullableString(item.orderID)
-		paymentID := nullableString(item.paymentID)
-		if err := insertWalletTx(ctx, tx, item.walletID, item.driverID, orderID, paymentID, nil, paymentdomain.WalletTypePendingToAvailable, paymentdomain.WalletDirectionCredit, item.amount, paymentdomain.WalletTxStatusSucceeded, "Released pending income to available balance", "release:"+item.id, nil); err != nil {
-			return 0, err
-		}
+		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
+	if _, err := tx.ExecContext(ctx, `UPDATE wallet_transactions SET status = 'available' WHERE id = $1`, item.id); err != nil {
+		return err
 	}
-	return len(items), nil
+	orderID := nullableString(item.orderID)
+	paymentID := nullableString(item.paymentID)
+	if err := insertWalletTx(ctx, tx, item.walletID, item.driverID, orderID, paymentID, nil, paymentdomain.WalletTypePendingToAvailable, paymentdomain.WalletDirectionCredit, item.amount, paymentdomain.WalletTxStatusSucceeded, "Released pending income to available balance", "release:"+item.id, nil); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (r *PaymentRepository) GetDriverWallet(ctx context.Context, driverID string) (*paymentdomain.DriverWallet, error) {
@@ -530,6 +720,7 @@ func (r *PaymentRepository) ListWalletTransactions(ctx context.Context, driverID
 SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
 FROM wallet_transactions
 WHERE driver_id = $1
+AND type <> 'pending_to_available'
 ORDER BY created_at DESC
 LIMIT $2`, driverID, limit)
 	if err != nil {
@@ -697,6 +888,311 @@ func (r *PaymentRepository) MarkPayoutFailed(ctx context.Context, payoutID, reas
 	return err
 }
 
+// GetPayout fetches a single payout by ID. Returns ErrPayoutNotFound on missing.
+func (r *PaymentRepository) GetPayout(ctx context.Context, payoutID string) (*paymentdomain.Payout, error) {
+	const query = `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts WHERE id = $1`
+	payout, err := scanPayout(r.db.QueryRowContext(ctx, query, payoutID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, paymentdomain.ErrPayoutNotFound
+		}
+		return nil, err
+	}
+	return payout, nil
+}
+
+// ApprovePayout marks a payout as paid (admin approval workflow) and debits
+// the driver's available balance, mirroring MarkPayoutPaid but allowed only
+// for payouts in approvable statuses: created, processing or manual_review.
+// providerPayoutID may be empty when admin approves a payout that has no
+// matching provider record (manual SBP/bank transfer).
+func (r *PaymentRepository) ApprovePayout(ctx context.Context, payoutID, moderatorID, providerPayoutID string, now time.Time) (*paymentdomain.Payout, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	payout, err := scanPayout(tx.QueryRowContext(ctx, `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, paymentdomain.ErrPayoutNotFound
+		}
+		return nil, err
+	}
+
+	if payout.Status == paymentdomain.PayoutStatusPaid {
+		// Idempotent: already approved.
+		return payout, tx.Commit()
+	}
+	if !payoutIsApprovable(payout.Status) {
+		return nil, paymentdomain.ErrPayoutNotApprovable
+	}
+
+	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, payout.WalletID); err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - cents_to_rub($1), updated_at = $2 WHERE id = $3`, payout.Amount, now, payout.WalletID); err != nil {
+		return nil, err
+	}
+
+	var providerArg any
+	if providerPayoutID != "" {
+		providerArg = providerPayoutID
+	} else {
+		providerArg = nil
+	}
+	updated, err := scanPayout(tx.QueryRowContext(ctx, `
+UPDATE payouts
+SET status = 'paid',
+	provider_payout_id = COALESCE($2, provider_payout_id),
+	paid_at = $3,
+	updated_at = $3
+WHERE id = $1
+RETURNING id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
+		payoutID, providerArg, now))
+	if err != nil {
+		return nil, err
+	}
+
+	idempotency := fmt.Sprintf("admin_approve_payout:%s", payoutID)
+	if err := insertWalletTx(
+		ctx, tx, payout.WalletID, payout.DriverID,
+		nil, nil, &payout.ID,
+		paymentdomain.WalletTypePayout, paymentdomain.WalletDirectionDebit,
+		payout.Amount, paymentdomain.WalletTxStatusSucceeded,
+		"Admin approved driver payout", idempotency, nil,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO moderation_audit_log (id, entity_type, entity_id, action, reason, moderator_id, created_at)
+VALUES ($1, 'payout', $2, 'approve', $3, $4, $5)
+ON CONFLICT (id) DO NOTHING`,
+		"mod_payout_approve_"+payoutID, payoutID, "admin approval", moderatorID, now); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// RejectPayout cancels a payout that has not been paid yet, records the
+// reason, writes an audit log entry and credits the reserved amount back to
+// the driver's available balance via a corrective wallet transaction so the
+// driver does not lose funds that were tentatively reserved by CreatePayout.
+//
+// Only payouts in created / processing / manual_review can be rejected.
+// Already-paid or already-failed/cancelled payouts return ErrPayoutNotRejectable.
+func (r *PaymentRepository) RejectPayout(ctx context.Context, payoutID, moderatorID, reason string, now time.Time) (*paymentdomain.Payout, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	payout, err := scanPayout(tx.QueryRowContext(ctx, `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, paymentdomain.ErrPayoutNotFound
+		}
+		return nil, err
+	}
+	if !payoutIsRejectable(payout.Status) {
+		return nil, paymentdomain.ErrPayoutNotRejectable
+	}
+
+	updated, err := scanPayout(tx.QueryRowContext(ctx, `
+UPDATE payouts
+SET status = 'cancelled',
+	failure_reason = $2,
+	updated_at = $3
+WHERE id = $1
+RETURNING id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
+		payoutID, reason, now))
+	if err != nil {
+		return nil, err
+	}
+
+	// CreatePayout reserves money on the driver wallet by virtue of checking
+	// available_balance >= amount but it does not yet move funds; the
+	// available_balance is debited only on MarkPayoutPaid/ApprovePayout.
+	// Therefore on rejection we do not need to re-credit the wallet, but we
+	// record a zero-amount audit transaction so admins see the rejection in
+	// the wallet history.
+	idempotency := fmt.Sprintf("admin_reject_payout:%s", payoutID)
+	if err := insertWalletTx(
+		ctx, tx, payout.WalletID, payout.DriverID,
+		nil, nil, &payout.ID,
+		paymentdomain.WalletTypeAdjustment, paymentdomain.WalletDirectionCredit,
+		0, paymentdomain.WalletTxStatusSucceeded,
+		"Admin rejected payout: "+reason, idempotency, nil,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO moderation_audit_log (id, entity_type, entity_id, action, reason, moderator_id, created_at)
+VALUES ($1, 'payout', $2, 'reject', $3, $4, $5)
+ON CONFLICT (id) DO NOTHING`,
+		"mod_payout_reject_"+payoutID, payoutID, reason, moderatorID, now); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func payoutIsApprovable(status paymentdomain.PayoutStatus) bool {
+	switch status {
+	case paymentdomain.PayoutStatusCreated,
+		paymentdomain.PayoutStatusProcessing,
+		paymentdomain.PayoutStatusManualReview,
+		paymentdomain.PayoutStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func payoutIsRejectable(status paymentdomain.PayoutStatus) bool {
+	switch status {
+	case paymentdomain.PayoutStatusCreated,
+		paymentdomain.PayoutStatusProcessing,
+		paymentdomain.PayoutStatusManualReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// ListAdminRefunds returns refunds with filters for the admin panel.
+// Filters by status, payment_id, order_id (resolved through payments) and
+// a created_at date range. Returns total count for pagination.
+func (r *PaymentRepository) ListAdminRefunds(ctx context.Context, filter paymentdomain.AdminRefundFilter) ([]paymentdomain.Refund, int64, error) {
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	conds := []string{}
+	args := []any{}
+	add := func(cond string, value any) {
+		args = append(args, value)
+		conds = append(conds, strings.ReplaceAll(cond, "?", argRef(len(args))))
+	}
+	if s := strings.TrimSpace(filter.Status); s != "" {
+		add("r.status = ?", s)
+	}
+	if s := strings.TrimSpace(filter.PaymentID); s != "" {
+		add("r.payment_id = ?", s)
+	}
+	if s := strings.TrimSpace(filter.OrderID); s != "" {
+		add("EXISTS (SELECT 1 FROM payments p WHERE p.id = r.payment_id AND p.order_id = ?)", s)
+	}
+	if filter.From != nil {
+		add("r.created_at >= ?", *filter.From)
+	}
+	if filter.To != nil {
+		add("r.created_at <= ?", *filter.To)
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = "WHERE " + strings.Join(conds, " AND ")
+	}
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM refunds r "+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listSQL := `
+SELECT id, payment_id, provider_refund_id, rub_to_cents(amount), currency, reason, status, idempotency_key, created_at, updated_at
+FROM refunds r
+` + where + `
+ORDER BY r.created_at DESC
+LIMIT ` + argRef(len(args)+1) + ` OFFSET ` + argRef(len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, listSQL, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	out := make([]paymentdomain.Refund, 0, limit)
+	for rows.Next() {
+		refund, err := scanRefund(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *refund)
+	}
+	return out, total, rows.Err()
+}
+
+// ListWalletTransactionsByOrder returns all wallet transactions linked to a
+// single order, ordered chronologically. Amounts in kopecks.
+func (r *PaymentRepository) ListWalletTransactionsByOrder(ctx context.Context, orderID string) ([]paymentdomain.WalletTransaction, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
+FROM wallet_transactions
+WHERE order_id = $1
+ORDER BY created_at ASC`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var txs []paymentdomain.WalletTransaction
+	for rows.Next() {
+		tx, err := scanWalletTxRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, tx)
+	}
+	return txs, rows.Err()
+}
+
+func (r *PaymentRepository) GetActiveDriverSubscription(ctx context.Context, driverID string) (*paymentdomain.Subscription, error) {
+	subscription, err := scanSubscription(r.db.QueryRowContext(ctx, subscriptionSelectSQL()+`
+WHERE driver_id = $1 AND status = 'active' AND ends_at > NOW()
+ORDER BY ends_at DESC
+LIMIT 1`, driverID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return subscription, err
+}
+
+func (r *PaymentRepository) GetLatestDriverSubscription(ctx context.Context, driverID string) (*paymentdomain.Subscription, error) {
+	subscription, err := scanSubscription(r.db.QueryRowContext(ctx, subscriptionSelectSQL()+`
+WHERE driver_id = $1
+ORDER BY COALESCE(ends_at, created_at) DESC
+LIMIT 1`, driverID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return subscription, err
+}
+
 func (r *PaymentRepository) ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error {
 	_, err := r.db.ExecContext(ctx, `
 UPDATE subscriptions
@@ -772,6 +1268,10 @@ func walletSelectSQL() string {
 	return `SELECT id, driver_id, rub_to_cents(available_balance), rub_to_cents(pending_balance), rub_to_cents(debt_balance), currency, created_at, updated_at FROM driver_wallets`
 }
 
+func subscriptionSelectSQL() string {
+	return `SELECT id, driver_id, plan_id, payment_id, rub_to_cents(amount), currency, status, starts_at, ends_at, created_at, updated_at FROM subscriptions `
+}
+
 func scanPayment(row interface{ Scan(dest ...any) error }) (*paymentdomain.Payment, error) {
 	var p paymentdomain.Payment
 	var provider, method, purpose, status string
@@ -796,6 +1296,20 @@ func scanWallet(row interface{ Scan(dest ...any) error }) (*paymentdomain.Driver
 		return nil, err
 	}
 	return &w, nil
+}
+
+func scanSubscription(row interface{ Scan(dest ...any) error }) (*paymentdomain.Subscription, error) {
+	var s paymentdomain.Subscription
+	var status string
+	if err := row.Scan(&s.ID, &s.DriverID, &s.PlanID, &s.PaymentID, &s.Amount, &s.Currency, &status, &s.StartsAt, &s.EndsAt, &s.CreatedAt, &s.UpdatedAt); err != nil {
+		return nil, err
+	}
+	s.Plan = s.PlanID
+	s.LastPaymentID = s.PaymentID
+	s.PeriodStart = s.StartsAt
+	s.PeriodEnd = s.EndsAt
+	s.Status = paymentdomain.SubscriptionStatus(status)
+	return &s, nil
 }
 
 func scanPayout(row interface{ Scan(dest ...any) error }) (*paymentdomain.Payout, error) {
@@ -867,6 +1381,20 @@ VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, cents_to_rub($8), '
 ON CONFLICT (idempotency_key) DO NOTHING`,
 		walletID, driverID, orderID, paymentID, payoutID, string(typ), string(direction), amount, string(status), description, idempotencyKey, availableAfter)
 	return err
+}
+
+func normalizeProviderBrand(value string) paymentdomain.CardBrand {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "visa":
+		return paymentdomain.CardBrandVisa
+	case "mastercard", "master card":
+		return paymentdomain.CardBrandMastercard
+	case "mir", "мир":
+		return paymentdomain.CardBrandMir
+	default:
+		return paymentdomain.CardBrandUnknown
+	}
 }
 
 func nullableString(value sql.NullString) *string {

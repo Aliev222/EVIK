@@ -11,6 +11,49 @@ type Overview struct {
 	AverageDriverStars float64
 	ReviewsToday       int64
 	ActiveOrders       int64
+
+	// Phase 1 KPI extension. All amounts are in kopecks (minor units).
+	GMVToday                  int64
+	GMVMonth                  int64
+	CommissionToday           int64
+	CommissionMonth           int64
+	PayoutsToday              int64
+	PayoutsMonth              int64
+	PayoutsPending            int64
+	FailedPayments            int64
+	FailedPayouts             int64
+	SubscriptionsRevenueToday int64
+	SubscriptionsRevenueMonth int64
+	CashDebtTotal             int64
+	ActiveDrivers             int64
+	PendingVerifications      int64
+
+	GMVByDay        []KPIDailyPoint
+	CommissionByDay []KPIDailyPoint
+}
+
+// KPIDailyPoint is a single calendar-day aggregate value used in dashboard
+// charts. Date is formatted as YYYY-MM-DD. Amount is in kopecks (minor units).
+type KPIDailyPoint struct {
+	Date   string
+	Amount int64
+}
+
+// DriverVerificationDecision carries the fields the admin enters while
+// approving or rejecting a driver verification. VehiclePlate / VehicleModel /
+// VehicleType are admin-entered and only applied when Status = "approved";
+// they overwrite whatever the driver submitted with the verification request.
+// Empty strings mean "leave the existing column untouched".
+type DriverVerificationDecision struct {
+	ID           string
+	Status       string
+	Reason       string
+	ModeratorID  string
+	AuditID      string
+	Now          time.Time
+	VehiclePlate string
+	VehicleModel string
+	VehicleType  string
 }
 
 type DriverVerification struct {

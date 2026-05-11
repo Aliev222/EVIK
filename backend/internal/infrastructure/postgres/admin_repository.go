@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"time"
 
 	admindomain "evik/backend/internal/domain/admin"
 )
@@ -29,6 +28,9 @@ drivers_count AS (
 online_drivers AS (
 	SELECT COUNT(*) AS count FROM drivers WHERE status IN ('online', 'busy')
 ),
+active_drivers AS (
+	SELECT COUNT(*) AS count FROM drivers WHERE status IN ('online', 'busy')
+),
 pending_moderations AS (
 	SELECT COUNT(*) AS count FROM driver_verifications WHERE status = 'pending'
 ),
@@ -40,6 +42,56 @@ reviews_today AS (
 ),
 active_orders AS (
 	SELECT COUNT(*) AS count FROM orders WHERE status IN ('searching', 'accepted', 'arrived', 'in_progress')
+),
+-- Finance KPI. All money in kopecks (rub_to_cents).
+gmv_today AS (
+	SELECT COALESCE(SUM(rub_to_cents(price_total)), 0) AS amount
+	FROM orders WHERE status = 'completed' AND created_at >= DATE_TRUNC('day', NOW())
+),
+gmv_month AS (
+	SELECT COALESCE(SUM(rub_to_cents(price_total)), 0) AS amount
+	FROM orders WHERE status = 'completed' AND created_at >= DATE_TRUNC('month', NOW())
+),
+commission_today AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM wallet_transactions
+	WHERE type IN ('commission','cash_commission_debt')
+	AND created_at >= DATE_TRUNC('day', NOW())
+),
+commission_month AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM wallet_transactions
+	WHERE type IN ('commission','cash_commission_debt')
+	AND created_at >= DATE_TRUNC('month', NOW())
+),
+payouts_today AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM payouts WHERE status = 'paid' AND created_at >= DATE_TRUNC('day', NOW())
+),
+payouts_month AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM payouts WHERE status = 'paid' AND created_at >= DATE_TRUNC('month', NOW())
+),
+payouts_pending AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM payouts WHERE status IN ('created','processing','manual_review')
+),
+failed_payments AS (
+	SELECT COUNT(*) AS count FROM payments WHERE status IN ('failed','canceled')
+),
+failed_payouts AS (
+	SELECT COUNT(*) AS count FROM payouts WHERE status = 'failed'
+),
+subs_today AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM subscriptions WHERE status = 'active' AND created_at >= DATE_TRUNC('day', NOW())
+),
+subs_month AS (
+	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	FROM subscriptions WHERE status = 'active' AND created_at >= DATE_TRUNC('month', NOW())
+),
+cash_debt_total AS (
+	SELECT COALESCE(SUM(rub_to_cents(debt_balance)), 0) AS amount FROM driver_wallets
 )
 SELECT
 	(SELECT count FROM clients) + (SELECT count FROM drivers_count) AS total_users,
@@ -49,7 +101,21 @@ SELECT
 	(SELECT count FROM pending_moderations) AS pending_moderations,
 	(SELECT value FROM avg_reviews) AS average_driver_stars,
 	(SELECT count FROM reviews_today) AS reviews_today,
-	(SELECT count FROM active_orders) AS active_orders`
+	(SELECT count FROM active_orders) AS active_orders,
+	(SELECT amount FROM gmv_today)              AS gmv_today,
+	(SELECT amount FROM gmv_month)              AS gmv_month,
+	(SELECT amount FROM commission_today)       AS commission_today,
+	(SELECT amount FROM commission_month)       AS commission_month,
+	(SELECT amount FROM payouts_today)          AS payouts_today,
+	(SELECT amount FROM payouts_month)          AS payouts_month,
+	(SELECT amount FROM payouts_pending)        AS payouts_pending,
+	(SELECT count FROM failed_payments)         AS failed_payments,
+	(SELECT count FROM failed_payouts)          AS failed_payouts,
+	(SELECT amount FROM subs_today)             AS subs_today,
+	(SELECT amount FROM subs_month)             AS subs_month,
+	(SELECT amount FROM cash_debt_total)        AS cash_debt_total,
+	(SELECT count FROM active_drivers)          AS active_drivers,
+	(SELECT count FROM pending_moderations)     AS pending_verifications`
 
 	var out admindomain.Overview
 	err := r.db.QueryRowContext(ctx, query).Scan(
@@ -61,8 +127,63 @@ SELECT
 		&out.AverageDriverStars,
 		&out.ReviewsToday,
 		&out.ActiveOrders,
+		&out.GMVToday,
+		&out.GMVMonth,
+		&out.CommissionToday,
+		&out.CommissionMonth,
+		&out.PayoutsToday,
+		&out.PayoutsMonth,
+		&out.PayoutsPending,
+		&out.FailedPayments,
+		&out.FailedPayouts,
+		&out.SubscriptionsRevenueToday,
+		&out.SubscriptionsRevenueMonth,
+		&out.CashDebtTotal,
+		&out.ActiveDrivers,
+		&out.PendingVerifications,
 	)
+	if err != nil {
+		return out, err
+	}
+
+	out.GMVByDay, err = r.kpiDailySeries(ctx, `
+SELECT to_char(d::date, 'YYYY-MM-DD') AS day,
+	COALESCE(SUM(rub_to_cents(o.price_total)), 0) AS amount
+FROM generate_series(DATE_TRUNC('day', NOW()) - INTERVAL '29 days', DATE_TRUNC('day', NOW()), INTERVAL '1 day') d
+LEFT JOIN orders o
+	ON o.status = 'completed' AND DATE_TRUNC('day', o.created_at) = d
+GROUP BY d
+ORDER BY d`)
+	if err != nil {
+		return out, err
+	}
+	out.CommissionByDay, err = r.kpiDailySeries(ctx, `
+SELECT to_char(d::date, 'YYYY-MM-DD') AS day,
+	COALESCE(SUM(rub_to_cents(wt.amount)), 0) AS amount
+FROM generate_series(DATE_TRUNC('day', NOW()) - INTERVAL '29 days', DATE_TRUNC('day', NOW()), INTERVAL '1 day') d
+LEFT JOIN wallet_transactions wt
+	ON wt.type IN ('commission','cash_commission_debt') AND DATE_TRUNC('day', wt.created_at) = d
+GROUP BY d
+ORDER BY d`)
 	return out, err
+}
+
+// kpiDailySeries returns a 30-day series of {date, amount}. amount is in kopecks.
+func (r *AdminRepository) kpiDailySeries(ctx context.Context, query string) ([]admindomain.KPIDailyPoint, error) {
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	points := make([]admindomain.KPIDailyPoint, 0, 30)
+	for rows.Next() {
+		var point admindomain.KPIDailyPoint
+		if err := rows.Scan(&point.Date, &point.Amount); err != nil {
+			return nil, err
+		}
+		points = append(points, point)
+	}
+	return points, rows.Err()
 }
 
 func (r *AdminRepository) ListDriverVerifications(ctx context.Context, limit int) ([]admindomain.DriverVerification, error) {
@@ -197,12 +318,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 func (r *AdminRepository) DecideDriverVerification(
 	ctx context.Context,
-	id string,
-	status string,
-	reason string,
-	moderatorID string,
-	auditID string,
-	now time.Time,
+	decision admindomain.DriverVerificationDecision,
 ) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -210,16 +326,33 @@ func (r *AdminRepository) DecideDriverVerification(
 	}
 	defer tx.Rollback()
 
-	result, err := tx.ExecContext(ctx, `
+	// When approving, overwrite vehicle columns with the values the admin
+	// entered in the approval form. For other status transitions we leave
+	// them alone — they may have been set by an earlier approval.
+	var result sql.Result
+	if decision.Status == "approved" && decision.VehiclePlate != "" {
+		result, err = tx.ExecContext(ctx, `
+UPDATE driver_verifications
+SET status = $2,
+    decision_reason = $3,
+    reviewed_by = $4,
+    reviewed_at = $5,
+    updated_at = $5,
+    vehicle_plate = $6,
+    vehicle_model = $7,
+    vehicle_type = $8
+WHERE id = $1`,
+			decision.ID, decision.Status, decision.Reason, decision.ModeratorID, decision.Now,
+			decision.VehiclePlate, decision.VehicleModel, decision.VehicleType,
+		)
+	} else {
+		result, err = tx.ExecContext(ctx, `
 UPDATE driver_verifications
 SET status = $2, decision_reason = $3, reviewed_by = $4, reviewed_at = $5, updated_at = $5
 WHERE id = $1`,
-		id,
-		status,
-		reason,
-		moderatorID,
-		now,
-	)
+			decision.ID, decision.Status, decision.Reason, decision.ModeratorID, decision.Now,
+		)
+	}
 	if err != nil {
 		return err
 	}
@@ -234,12 +367,12 @@ WHERE id = $1`,
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO moderation_audit_log (id, entity_type, entity_id, action, reason, moderator_id, created_at)
 VALUES ($1, 'driver_verification', $2, $3, $4, $5, $6)`,
-		auditID,
-		id,
-		status,
-		reason,
-		moderatorID,
-		now,
+		decision.AuditID,
+		decision.ID,
+		decision.Status,
+		decision.Reason,
+		decision.ModeratorID,
+		decision.Now,
 	)
 	if err != nil {
 		return err

@@ -227,6 +227,14 @@ func (r *fakePaymentOrderRepo) ListByStatus(context.Context, orderdomain.Status,
 	return nil, nil
 }
 
+func (r *fakePaymentOrderRepo) ListAdminOrders(context.Context, orderdomain.AdminOrderFilter) ([]orderdomain.AdminOrderListItem, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *fakePaymentOrderRepo) GetAdminOrderDetails(context.Context, string) (*orderdomain.AdminOrderDetails, error) {
+	return nil, nil
+}
+
 type fakePricingService struct{}
 
 func (s *fakePricingService) CalculatePrice(context.Context, pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error) {

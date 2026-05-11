@@ -8,6 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
+	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
 	paymentdomain "evik/backend/internal/domain/payment"
@@ -29,6 +33,8 @@ type ProviderPaymentRequest struct {
 	Description    string
 	IdempotencyKey string
 	Metadata       map[string]string
+	Capture        bool
+	SaveMethod     bool
 }
 
 type ProviderPaymentResponse struct {
@@ -61,6 +67,17 @@ type FinanceUseCase struct {
 	holdSeconds       int
 	minimumWithdrawal int64
 	webhookSecret     string
+}
+
+type DriverSubscriptionStatus struct {
+	Status          string     `json:"status"`
+	Plan            *string    `json:"plan"`
+	Amount          int64      `json:"amount"`
+	Currency        string     `json:"currency"`
+	PeriodEnd       *time.Time `json:"period_end"`
+	EndsAt          *time.Time `json:"ends_at"`
+	DaysLeft        int        `json:"days_left"`
+	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
 func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, webhookSecret string) *FinanceUseCase {
@@ -132,6 +149,7 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 			"order_id": orderID,
 			"user_id":  userID,
 		},
+		Capture: true,
 	})
 	if err != nil {
 		return nil, err
@@ -146,6 +164,54 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 	return uc.repo.CreateOrderPayment(ctx, p)
 }
 
+func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID string) (*paymentdomain.AddCardInit, error) {
+	now := uc.clock.Now()
+	methodID := uc.idGen.NewID()
+	idempotencyKey := "client_payment_method:" + methodID
+	providerPayment, err := uc.provider.CreatePayment(ctx, ProviderPaymentRequest{
+		Amount:         100,
+		Currency:       paymentdomain.CurrencyRUB,
+		Description:    "Tow Truck card binding",
+		IdempotencyKey: idempotencyKey,
+		Metadata: map[string]string{
+			"purpose":           string(paymentdomain.PaymentPurposeCardBinding),
+			"user_id":           clientID,
+			"payment_method_id": methodID,
+		},
+		Capture:    false,
+		SaveMethod: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	payment := &paymentdomain.Payment{
+		ID:                uc.idGen.NewID(),
+		UserID:            clientID,
+		Provider:          paymentdomain.ProviderYooKassa,
+		ProviderPaymentID: &providerPayment.ID,
+		PaymentMethod:     paymentdomain.PaymentMethodCard,
+		Purpose:           paymentdomain.PaymentPurposeCardBinding,
+		Amount:            100,
+		Currency:          paymentdomain.CurrencyRUB,
+		Status:            paymentdomain.PaymentStatus(providerPayment.Status),
+		ConfirmationURL:   &providerPayment.ConfirmationURL,
+		IdempotencyKey:    idempotencyKey,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	method := paymentdomain.PaymentMethod{
+		ID:                methodID,
+		UserID:            clientID,
+		Provider:          paymentdomain.ProviderYooKassa,
+		ProviderPaymentID: &providerPayment.ID,
+		Brand:             paymentdomain.CardBrandUnknown,
+		Last4:             "0000",
+		Status:            "pending",
+		CreatedAt:         now,
+	}
+	return uc.repo.CreatePendingPaymentMethod(ctx, payment, method)
+}
+
 func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []byte, signature string) error {
 	if uc.webhookSecret != "" && !validSignature(payload, signature, uc.webhookSecret) {
 		return errors.New("invalid webhook signature")
@@ -154,10 +220,21 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 		Type   string `json:"type"`
 		Event  string `json:"event"`
 		Object struct {
-			ID       string            `json:"id"`
-			Status   string            `json:"status"`
-			Paid     bool              `json:"paid"`
-			Metadata map[string]string `json:"metadata"`
+			ID            string            `json:"id"`
+			Status        string            `json:"status"`
+			Paid          bool              `json:"paid"`
+			Metadata      map[string]string `json:"metadata"`
+			PaymentMethod struct {
+				ID    string `json:"id"`
+				Saved bool   `json:"saved"`
+				Title string `json:"title"`
+				Card  struct {
+					Last4       string `json:"last4"`
+					ExpiryMonth string `json:"expiry_month"`
+					ExpiryYear  string `json:"expiry_year"`
+					CardType    string `json:"card_type"`
+				} `json:"card"`
+			} `json:"payment_method"`
 		} `json:"object"`
 	}
 	if err := json.Unmarshal(payload, &event); err != nil {
@@ -181,6 +258,24 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 			return err
 		}
 	}
+	if p.Purpose == paymentdomain.PaymentPurposeCardBinding &&
+		event.Object.PaymentMethod.Saved &&
+		event.Object.PaymentMethod.ID != "" {
+		expMonth, _ := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryMonth)
+		expYear, _ := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryYear)
+		if err := uc.repo.ActivatePaymentMethodFromProvider(
+			ctx,
+			event.Object.ID,
+			event.Object.PaymentMethod.ID,
+			event.Object.PaymentMethod.Card.CardType,
+			event.Object.PaymentMethod.Card.Last4,
+			expMonth,
+			expYear,
+			event.Object.PaymentMethod.Title,
+		); err != nil {
+			return err
+		}
+	}
 	return uc.repo.MarkWebhookProcessed(ctx, eventID)
 }
 
@@ -192,7 +287,23 @@ func (uc *FinanceUseCase) ReleasePendingBalances(ctx context.Context, limit int)
 	if limit <= 0 {
 		limit = 100
 	}
-	return uc.repo.ReleasePendingBalances(ctx, limit)
+	transactions, err := uc.repo.ListReleasablePendingTransactions(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	count := 0
+	var failed []string
+	for _, transaction := range transactions {
+		if err := uc.repo.MarkTransactionReleased(ctx, transaction.ID); err != nil {
+			failed = append(failed, fmt.Sprintf("%s: %v", transaction.ID, err))
+			continue
+		}
+		count++
+	}
+	if len(failed) > 0 {
+		return count, fmt.Errorf("release pending balances failed for %d transactions: %s", len(failed), strings.Join(failed, "; "))
+	}
+	return count, nil
 }
 
 func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID string, amount int64, idempotencyKey string) (*paymentdomain.Payout, error) {
@@ -283,6 +394,7 @@ func (uc *FinanceUseCase) CreateDriverSubscriptionPayment(ctx context.Context, d
 			"driver_id": driverID,
 			"plan_id":   planID,
 		},
+		Capture: true,
 	})
 	if err != nil {
 		return nil, err
@@ -303,6 +415,36 @@ func (uc *FinanceUseCase) CreateDriverSubscriptionPayment(ctx context.Context, d
 	return uc.repo.CreateSubscriptionPayment(ctx, payment, subscription)
 }
 
+func (uc *FinanceUseCase) GetDriverSubscriptionStatus(ctx context.Context, driverID string) (*DriverSubscriptionStatus, error) {
+	active, err := uc.repo.GetActiveDriverSubscription(ctx, driverID)
+	if err != nil {
+		return nil, err
+	}
+	if active != nil {
+		return uc.subscriptionStatus(active, "active", true), nil
+	}
+
+	latest, err := uc.repo.GetLatestDriverSubscription(ctx, driverID)
+	if err != nil {
+		return nil, err
+	}
+	if latest == nil {
+		return &DriverSubscriptionStatus{
+			Status:          "none",
+			Currency:        paymentdomain.CurrencyRUB,
+			CanAcceptOrders: false,
+		}, nil
+	}
+	if latest.EndsAt != nil && !latest.EndsAt.After(uc.clock.Now()) {
+		return uc.subscriptionStatus(latest, "expired", false), nil
+	}
+	return &DriverSubscriptionStatus{
+		Status:          "none",
+		Currency:        paymentdomain.CurrencyRUB,
+		CanAcceptOrders: false,
+	}, nil
+}
+
 func (uc *FinanceUseCase) CreateRefund(ctx context.Context, paymentID string, amount int64, reason string) (*paymentdomain.Refund, error) {
 	if amount <= 0 {
 		return nil, paymentdomain.ErrInvalidAmount
@@ -319,6 +461,42 @@ func (uc *FinanceUseCase) CreateRefund(ctx context.Context, paymentID string, am
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	})
+}
+
+// ApprovePayout marks a payout paid by admin decision. If the payout has
+// an associated provider record, the provider is asked to execute the
+// transfer first; otherwise the payout is closed manually (operator did
+// a manual bank/SBP transfer). The provider call is skipped when the
+// payout already has a provider_payout_id from a previous attempt.
+func (uc *FinanceUseCase) ApprovePayout(ctx context.Context, payoutID, moderatorID string) (*paymentdomain.Payout, error) {
+	payout, err := uc.repo.GetPayout(ctx, payoutID)
+	if err != nil {
+		return nil, err
+	}
+	if payout.Status == paymentdomain.PayoutStatusPaid {
+		return payout, nil
+	}
+	providerPayoutID := ""
+	if payout.ProviderPayoutID != nil {
+		providerPayoutID = *payout.ProviderPayoutID
+	}
+	now := uc.clock.Now()
+	return uc.repo.ApprovePayout(ctx, payoutID, moderatorID, providerPayoutID, now)
+}
+
+// RejectPayout cancels a payout that has not yet been paid. Reason must be
+// supplied by the admin (validated by the handler).
+func (uc *FinanceUseCase) RejectPayout(ctx context.Context, payoutID, moderatorID, reason string) (*paymentdomain.Payout, error) {
+	if strings.TrimSpace(reason) == "" {
+		return nil, paymentdomain.ErrValidationFailed
+	}
+	now := uc.clock.Now()
+	return uc.repo.RejectPayout(ctx, payoutID, moderatorID, reason, now)
+}
+
+// ListAdminRefunds is a thin pass-through used by the admin handler.
+func (uc *FinanceUseCase) ListAdminRefunds(ctx context.Context, filter paymentdomain.AdminRefundFilter) ([]paymentdomain.Refund, int64, error) {
+	return uc.repo.ListAdminRefunds(ctx, filter)
 }
 
 func (uc *FinanceUseCase) MinimumWithdrawal() int64 {
@@ -338,6 +516,27 @@ func subscriptionAmount(planID string) int64 {
 		return 199000
 	default:
 		return 99000
+	}
+}
+
+func (uc *FinanceUseCase) subscriptionStatus(subscription *paymentdomain.Subscription, status string, canAcceptOrders bool) *DriverSubscriptionStatus {
+	plan := subscription.PlanID
+	daysLeft := 0
+	if canAcceptOrders && subscription.EndsAt != nil {
+		daysLeft = int(math.Ceil(subscription.EndsAt.Sub(uc.clock.Now()).Hours() / 24))
+		if daysLeft < 0 {
+			daysLeft = 0
+		}
+	}
+	return &DriverSubscriptionStatus{
+		Status:          status,
+		Plan:            &plan,
+		Amount:          subscription.Amount,
+		Currency:        subscription.Currency,
+		PeriodEnd:       subscription.EndsAt,
+		EndsAt:          subscription.EndsAt,
+		DaysLeft:        daysLeft,
+		CanAcceptOrders: canAcceptOrders,
 	}
 }
 

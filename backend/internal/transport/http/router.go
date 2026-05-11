@@ -18,6 +18,7 @@ func NewRouter(
 	pricingHandler *PricingHandler,
 	routingHandler *RoutingHandler,
 	adminHandler *AdminHandler,
+	serviceAreaHandler *ServiceAreaHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
@@ -39,10 +40,14 @@ func NewRouter(
 	authMW := AuthMiddleware(tokens)
 
 	r.Route("/api/v1", func(api chi.Router) {
+		api.Post("/auth/register", authHandler.Register)
 		api.Post("/auth/login", authHandler.Login)
+		api.Post("/auth/otp/request", authHandler.RequestOTP)
+		api.Post("/auth/otp/verify", authHandler.VerifyOTP)
 		api.Post("/auth/admin/login", authHandler.AdminLogin)
 		api.Post("/auth/refresh", authHandler.Refresh)
 		api.Post("/webhooks/yookassa", paymentHandler.HandleYooKassaWebhook)
+		api.Get("/service-areas/check", serviceAreaHandler.Check)
 
 		api.Group(func(secured chi.Router) {
 			secured.Use(authMW)
@@ -60,9 +65,12 @@ func NewRouter(
 			secured.Get("/drivers/{driverID}", driverHandler.GetDriver)
 			secured.Get("/drivers/{driverID}/location", driverHandler.GetLocation)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/drivers/{driverID}/status", driverHandler.SetStatus)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/drivers/{driverID}/tax-profile", driverHandler.GetTaxProfile)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Put("/drivers/{driverID}/tax-profile", driverHandler.UpsertTaxProfile)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver-verifications", adminHandler.SubmitDriverVerification)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver-documents/uploads", adminHandler.CreateDocumentUpload)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/payments/wallet", paymentHandler.GetWallet)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/client/payment-methods/init", paymentHandler.InitClientPaymentMethod)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards", paymentHandler.AddCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Delete("/payments/cards/{cardID}", paymentHandler.DeleteCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards/{cardID}/default", paymentHandler.SetDefaultCard)
@@ -97,6 +105,9 @@ func NewRouter(
 				admin.Post("/moderation/driver-verifications/{verificationID}/reject", adminHandler.RejectDriverVerification)
 				admin.Post("/moderation/driver-verifications/{verificationID}/request-changes", adminHandler.RequestDriverVerificationChanges)
 				admin.Post("/moderation/driver-verifications/{verificationID}/block", adminHandler.BlockDriverVerification)
+				admin.Get("/orders", adminHandler.ListAdminOrders)
+				admin.Get("/orders/{orderID}", adminHandler.GetAdminOrderDetails)
+				admin.Get("/finance/refunds", paymentHandler.AdminListRefunds)
 				admin.Get("/finance/{reportType}", paymentHandler.AdminFinanceReport)
 				admin.Get("/finance/orders", paymentHandler.AdminFinanceReport)
 				admin.Get("/finance/payments", paymentHandler.AdminFinanceReport)
@@ -106,6 +117,8 @@ func NewRouter(
 				admin.Get("/finance/subscriptions", paymentHandler.AdminFinanceReport)
 				admin.Get("/finance/cash-debts", paymentHandler.AdminFinanceReport)
 				admin.Post("/finance/refunds", paymentHandler.AdminCreateRefund)
+				admin.Post("/finance/payouts/{payoutID}/approve", paymentHandler.AdminApprovePayout)
+				admin.Post("/finance/payouts/{payoutID}/reject", paymentHandler.AdminRejectPayout)
 				admin.Post("/finance/export", paymentHandler.AdminExportFinance)
 			})
 		})
