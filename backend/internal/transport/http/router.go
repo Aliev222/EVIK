@@ -108,14 +108,11 @@ func NewRouter(
 				admin.Get("/orders", adminHandler.ListAdminOrders)
 				admin.Get("/orders/{orderID}", adminHandler.GetAdminOrderDetails)
 				admin.Get("/finance/refunds", paymentHandler.AdminListRefunds)
+				// AdminFinanceReport handles every other report kind via {reportType}
+				// parameter — orders / payments / payouts / wallets / transactions /
+				// subscriptions / cash-debts / commissions. See
+				// payment_repository.go:ExportFinanceReport for the supported set.
 				admin.Get("/finance/{reportType}", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/orders", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/payments", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/payouts", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/wallets", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/transactions", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/subscriptions", paymentHandler.AdminFinanceReport)
-				admin.Get("/finance/cash-debts", paymentHandler.AdminFinanceReport)
 				admin.Post("/finance/refunds", paymentHandler.AdminCreateRefund)
 				admin.Post("/finance/payouts/{payoutID}/approve", paymentHandler.AdminApprovePayout)
 				admin.Post("/finance/payouts/{payoutID}/reject", paymentHandler.AdminRejectPayout)
