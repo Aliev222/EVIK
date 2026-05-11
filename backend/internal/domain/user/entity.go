@@ -51,4 +51,34 @@ type TaxProfile struct {
 	VerificationStatus string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+
+	// NPD partner connection (Moy Nalog / lknpd.nalog.ru). All fields are
+	// populated only after the driver grants permission to our partner
+	// integration through the Moy Nalog app. Until the partner contract
+	// with FNS is signed, ConnectionStatus stays "not_connected".
+	NPDAccessToken      string
+	NPDRefreshToken     string
+	NPDTokenExpiresAt   *time.Time
+	NPDConnectedAt      *time.Time
+	NPDRevokedAt        *time.Time
+	NPDConnectionStatus string
+}
+
+const (
+	NPDStatusNotConnected = "not_connected"
+	NPDStatusConnected    = "connected"
+	NPDStatusRevoked      = "revoked"
+	NPDStatusError        = "error"
+)
+
+// NPDConnectionResult is what the Moy Nalog partner API returns after the
+// driver successfully connects our integration. Real provider produces all
+// fields; the stub provider used until partnership is signed produces only
+// the INN passed in plus a placeholder access token.
+type NPDConnectionResult struct {
+	INN          string
+	FullName     string
+	AccessToken  string
+	RefreshToken string
+	ExpiresAt    time.Time
 }

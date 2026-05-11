@@ -161,7 +161,11 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, clock, appLogger)
 
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates)
-	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, driverGates, clock)
+	// NPD service uses the stub provider until the FNS Moy Nalog partner
+	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
+	// lknpd.nalog.ru OAuth2) when partner credentials are available.
+	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, driverGates, npdService, clock)
 	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)

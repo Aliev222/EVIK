@@ -135,11 +135,23 @@ ON CONFLICT (driver_id) DO UPDATE SET
 
 func (r *UserRepository) GetTaxProfile(ctx context.Context, driverID string) (*userdomain.TaxProfile, error) {
 	const query = `
-SELECT driver_id, inn, taxpayer_type, verification_status, created_at, updated_at
+SELECT driver_id, inn, taxpayer_type, verification_status, created_at, updated_at,
+       COALESCE(npd_access_token, ''),
+       COALESCE(npd_refresh_token, ''),
+       npd_token_expires_at,
+       npd_connected_at,
+       npd_revoked_at,
+       COALESCE(npd_connection_status, 'not_connected')
 FROM driver_tax_profiles
 WHERE driver_id = $1`
 	var profile userdomain.TaxProfile
-	err := r.db.QueryRowContext(ctx, query, driverID).Scan(&profile.DriverID, &profile.INN, &profile.TaxpayerType, &profile.VerificationStatus, &profile.CreatedAt, &profile.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, driverID).Scan(
+		&profile.DriverID, &profile.INN, &profile.TaxpayerType, &profile.VerificationStatus,
+		&profile.CreatedAt, &profile.UpdatedAt,
+		&profile.NPDAccessToken, &profile.NPDRefreshToken,
+		&profile.NPDTokenExpiresAt, &profile.NPDConnectedAt, &profile.NPDRevokedAt,
+		&profile.NPDConnectionStatus,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, userdomain.ErrTaxProfileNotFound
@@ -147,6 +159,77 @@ WHERE driver_id = $1`
 		return nil, err
 	}
 	return &profile, nil
+}
+
+// UpdateNPDConnection writes Moy Nalog OAuth2 tokens into the existing
+// driver_tax_profiles row. The row must already exist (the driver had to
+// submit their INN via UpsertTaxProfile before connecting Moy Nalog).
+// Also mirrors the FNS full name into users.fns_full_name so the admin
+// can later see the official name from FNS alongside whatever was typed
+// during onboarding.
+func (r *UserRepository) UpdateNPDConnection(ctx context.Context, driverID string, result userdomain.NPDConnectionResult, now time.Time) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `
+UPDATE driver_tax_profiles
+SET inn = $2,
+    npd_access_token = $3,
+    npd_refresh_token = $4,
+    npd_token_expires_at = $5,
+    npd_connected_at = $6,
+    npd_revoked_at = NULL,
+    npd_connection_status = 'connected',
+    updated_at = $6
+WHERE driver_id = $1`,
+		driverID, result.INN, result.AccessToken, result.RefreshToken, result.ExpiresAt, now,
+	)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return userdomain.ErrTaxProfileNotFound
+	}
+
+	if strings.TrimSpace(result.FullName) != "" {
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET fns_full_name = $2, updated_at = $3 WHERE id = $1`, driverID, result.FullName, now); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// MarkNPDRevoked flips the profile to "revoked" — tokens are wiped so
+// stale auth attempts don't keep firing at FNS. Called when the driver
+// disconnects from their side or when FNS rejects the refresh token.
+func (r *UserRepository) MarkNPDRevoked(ctx context.Context, driverID string, now time.Time) error {
+	res, err := r.db.ExecContext(ctx, `
+UPDATE driver_tax_profiles
+SET npd_access_token = NULL,
+    npd_refresh_token = NULL,
+    npd_token_expires_at = NULL,
+    npd_revoked_at = $2,
+    npd_connection_status = 'revoked',
+    updated_at = $2
+WHERE driver_id = $1`, driverID, now)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return userdomain.ErrTaxProfileNotFound
+	}
+	return nil
 }
 
 func (r *UserRepository) IsDriverTaxVerified(ctx context.Context, driverID string) (bool, error) {

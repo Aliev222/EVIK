@@ -8,4 +8,5 @@ var (
 	ErrSessionNotFound    = errors.New("refresh session not found")
 	ErrOTPNotFound        = errors.New("otp code not found")
 	ErrTaxProfileNotFound = errors.New("tax profile not found")
+	ErrNPDProviderNotConfigured = errors.New("npd partner integration is not configured yet")
 )

@@ -34,6 +34,7 @@ type DriverHandler struct {
 	locationRepo DriverLocationRepository
 	profileRepo  DriverProfileRepository
 	gates        *driveruc.GateService
+	npd          *driveruc.NPDService
 	clock        interface{ Now() time.Time }
 }
 
@@ -43,6 +44,7 @@ func NewDriverHandler(
 	locationRepo DriverLocationRepository,
 	profileRepo DriverProfileRepository,
 	gates *driveruc.GateService,
+	npd *driveruc.NPDService,
 	clock interface{ Now() time.Time },
 ) *DriverHandler {
 	return &DriverHandler{
@@ -51,6 +53,7 @@ func NewDriverHandler(
 		locationRepo: locationRepo,
 		profileRepo:  profileRepo,
 		gates:        gates,
+		npd:          npd,
 		clock:        clock,
 	}
 }
@@ -293,12 +296,131 @@ func validINN(value string) bool {
 }
 
 func taxProfileJSON(profile *userdomain.TaxProfile) map[string]any {
-	return map[string]any{
-		"driver_id":           profile.DriverID,
-		"inn":                 profile.INN,
-		"taxpayer_type":       profile.TaxpayerType,
-		"verification_status": profile.VerificationStatus,
-		"created_at":          profile.CreatedAt.Format(time.RFC3339),
-		"updated_at":          profile.UpdatedAt.Format(time.RFC3339),
+	status := profile.NPDConnectionStatus
+	if status == "" {
+		status = userdomain.NPDStatusNotConnected
 	}
+	out := map[string]any{
+		"driver_id":             profile.DriverID,
+		"inn":                   profile.INN,
+		"taxpayer_type":         profile.TaxpayerType,
+		"verification_status":   profile.VerificationStatus,
+		"npd_connection_status": status,
+		"created_at":            profile.CreatedAt.Format(time.RFC3339),
+		"updated_at":            profile.UpdatedAt.Format(time.RFC3339),
+	}
+	if profile.NPDConnectedAt != nil {
+		out["npd_connected_at"] = profile.NPDConnectedAt.Format(time.RFC3339)
+	}
+	if profile.NPDRevokedAt != nil {
+		out["npd_revoked_at"] = profile.NPDRevokedAt.Format(time.RFC3339)
+	}
+	return out
+}
+
+type npdConnectRequest struct {
+	INN string `json:"inn"`
+}
+
+// GetNPDStatus serves GET /drivers/{driverID}/npd/status.
+// Returns the driver's current Moy Nalog (FNS НПД) partner connection
+// state without ever exposing OAuth2 tokens. Driver UI uses this to
+// decide whether to render the "Подключите Мой Налог" screen, the
+// "Скоро" banner (while integration is in stub mode), or the connected
+// confirmation block.
+func (h *DriverHandler) GetNPDStatus(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+	profile, err := h.npd.Status(r.Context(), driverID)
+	if err != nil {
+		if errors.Is(err, userdomain.ErrTaxProfileNotFound) {
+			h.writeJSON(w, http.StatusOK, map[string]any{
+				"driver_id":             driverID,
+				"npd_connection_status": userdomain.NPDStatusNotConnected,
+				"inn":                   "",
+			})
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"profile": taxProfileJSON(profile)})
+}
+
+// ConnectNPD serves POST /drivers/{driverID}/npd/connect.
+// Driver enters their INN in our app after granting partner access in
+// the Moy Nalog app — we exchange the grant for tokens via NPDProvider.
+// Returns 503 Service Unavailable while the integration is stubbed; the
+// driver UI translates that into the "Скоро" banner.
+func (h *DriverHandler) ConnectNPD(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+	var req npdConnectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	profile, err := h.npd.Connect(r.Context(), driverID, req.INN)
+	if err != nil {
+		switch {
+		case errors.Is(err, driveruc.ErrINNRequired):
+			h.writeError(w, http.StatusBadRequest, err)
+		case errors.Is(err, userdomain.ErrNPDProviderNotConfigured):
+			h.writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"error":   "npd_not_configured",
+				"message": "Интеграция с «Мой Налог» появится после получения статуса партнёра ФНС.",
+			})
+		case errors.Is(err, userdomain.ErrTaxProfileNotFound):
+			h.writeError(w, http.StatusNotFound, err)
+		default:
+			h.writeError(w, http.StatusInternalServerError, err)
+		}
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"profile": taxProfileJSON(profile)})
+}
+
+// DisconnectNPD serves POST /drivers/{driverID}/npd/disconnect.
+// Wipes tokens locally and flips status to "revoked". Does not call FNS —
+// FNS-side revocation must be done by the driver from the Moy Nalog app.
+func (h *DriverHandler) DisconnectNPD(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+	if err := h.npd.Disconnect(r.Context(), driverID); err != nil {
+		if errors.Is(err, userdomain.ErrTaxProfileNotFound) {
+			h.writeError(w, http.StatusNotFound, err)
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// authorizeDriverScope enforces that the caller is either the driver
+// themselves or an admin. Writes the appropriate 401/403 error and
+// returns ok=false if denied — callers should return immediately.
+func (h *DriverHandler) authorizeDriverScope(w http.ResponseWriter, r *http.Request) (string, bool) {
+	driverID := chi.URLParam(r, "driverID")
+	authUserID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	if role != auth.RoleAdmin && driverID != authUserID {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return "", false
+	}
+	return driverID, true
 }

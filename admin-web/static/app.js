@@ -1955,9 +1955,11 @@ function openDriverDrawer(driver) {
         <dt>Авто</dt><dd>${escapeHtml(driver.vehicle || "—")} · ${escapeHtml(driver.plate || "—")}</dd>
         <dt>Рейтинг</dt><dd>${escapeHtml(formatStarsValue(driver.stars))} · ${escapeHtml(numberOr(driver.orders))} заказов</dd>
         <dt>Верификация</dt><dd>${driver.verificationStatus ? statusBadge(driver.verificationStatus) : '<span class="muted">не подавал документы</span>'}</dd>
-        <dt>ИНН</dt><dd><span class="muted">—</span> <span class="hint">появится после интеграции налогового статуса</span></dd>
-        <dt>Налоговый статус</dt><dd><span class="muted">—</span></dd>
       </dl>
+    </section>
+    <section class="drawer-section" data-driver-npd>
+      <h3>Самозанятость</h3>
+      <div class="state state-loading"><span class="state-spinner" aria-hidden="true"></span><span>Загружаем налоговый статус…</span></div>
     </section>
     <section class="drawer-section">
       <h3>Активность</h3>
@@ -2015,8 +2017,48 @@ function openDriverDrawer(driver) {
           }
         });
       });
+      loadDriverNPDStatus(driver, drawer);
     },
   });
+}
+
+const NPD_STATUS_LABELS = {
+  not_connected: "Не подключено",
+  connected: "Подключено",
+  revoked: "Отозвано",
+  error: "Ошибка",
+};
+
+async function loadDriverNPDStatus(driver, drawer) {
+  const host = drawer.querySelector("[data-driver-npd]");
+  if (!host) return;
+  const result = await getAdminPath(`/api/v1/drivers/${encodeURIComponent(driver.id)}/npd/status`);
+  if (result.source === "error") {
+    host.innerHTML = `<h3>Самозанятость</h3>${renderErrorState({
+      message: "Не удалось загрузить налоговый статус водителя.",
+    })}`;
+    return;
+  }
+  const data = result.data || {};
+  const profile = data.profile || data;
+  const status = String(profile.npd_connection_status || "not_connected").toLowerCase();
+  const inn = profile.inn || "";
+  const connectedAt = profile.npd_connected_at;
+  const revokedAt = profile.npd_revoked_at;
+  const verificationStatus = profile.verification_status;
+  const tone = status === "connected" ? "ok" : status === "revoked" ? "warn" : "neutral";
+
+  host.innerHTML = `
+    <h3>Самозанятость</h3>
+    <dl class="info-list">
+      <dt>Статус «Мой Налог»</dt><dd><span class="badge badge-${escapeAttr(tone)}">${escapeHtml(NPD_STATUS_LABELS[status] || status)}</span></dd>
+      <dt>ИНН</dt><dd>${inn ? `<span class="mono">${escapeHtml(inn)}</span>${copyButton(inn)}` : '<span class="muted">не указан</span>'}</dd>
+      ${verificationStatus ? `<dt>Налоговая проверка</dt><dd>${statusBadge(verificationStatus)}</dd>` : ""}
+      ${connectedAt ? `<dt>Подключён</dt><dd>${escapeHtml(formatDate(connectedAt))}</dd>` : ""}
+      ${revokedAt ? `<dt>Отозвано</dt><dd>${escapeHtml(formatDate(revokedAt))}</dd>` : ""}
+    </dl>
+    ${status === "not_connected" ? `<p class="muted" style="margin-top:8px">Водитель ещё не подключил «Мой Налог». Интеграция станет активной после получения статуса партнёра ФНС.</p>` : ""}
+  `;
 }
 
 async function driverBlockToggle(driver, action) {

@@ -189,3 +189,11 @@ func (r *fakeUserRepository) IsDriverDocumentsApproved(context.Context, string) 
 func (r *fakeUserRepository) IsDriverSubscriptionActive(context.Context, string, time.Time) (bool, error) {
 	return true, nil
 }
+
+func (r *fakeUserRepository) UpdateNPDConnection(context.Context, string, userdomain.NPDConnectionResult, time.Time) error {
+	return nil
+}
+
+func (r *fakeUserRepository) MarkNPDRevoked(context.Context, string, time.Time) error {
+	return nil
+}
