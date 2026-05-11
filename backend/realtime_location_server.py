@@ -36,6 +36,17 @@ class DriverLocation:
         self.last_update = datetime.utcnow().isoformat()
 
 @dataclass
+class ClientLocation:
+    client_id: str
+    lat: float
+    lng: float
+    order_id: Optional[str] = None
+    last_update: Optional[str] = None
+
+    def __post_init__(self):
+        self.last_update = datetime.utcnow().isoformat()
+
+@dataclass
 class ClientOrder:
     """Заказ клиента"""
     order_id: str
@@ -63,6 +74,7 @@ class RealTimeLocationServer:
 
         # Данные в памяти (в продакшене используй Redis)
         self.driver_locations: Dict[str, DriverLocation] = {}
+        self.client_locations: Dict[str, ClientLocation] = {}
         self.active_orders: Dict[str, ClientOrder] = {}
 
         # Thread safety
@@ -169,6 +181,48 @@ class RealTimeLocationServer:
 
         except Exception as e:
             logger.error(f"❌ Error updating driver location: {e}")
+
+    async def update_client_location(self, client_id: str, data: dict):
+        """Store latest client position and notify assigned driver in real time."""
+        try:
+            lat = float(data.get('lat', 0))
+            lng = float(data.get('lng', 0))
+            order_id = data.get('order_id')
+
+            with self.lock:
+                self.client_locations[client_id] = ClientLocation(
+                    client_id=client_id,
+                    lat=lat,
+                    lng=lng,
+                    order_id=order_id
+                )
+                driver_id = None
+                if order_id and order_id in self.active_orders:
+                    driver_id = self.active_orders[order_id].assigned_driver_id
+                elif not order_id:
+                    for active_order in self.active_orders.values():
+                        if active_order.client_id == client_id:
+                            order_id = active_order.order_id
+                            self.client_locations[client_id].order_id = order_id
+                            driver_id = active_order.assigned_driver_id
+                            break
+
+            if driver_id and driver_id in self.driver_connections:
+                await self.driver_connections[driver_id].send(json.dumps({
+                    "type": "client.location.updated",
+                    "client_id": client_id,
+                    "location": asdict(self.client_locations[client_id]),
+                    "order_id": order_id
+                }))
+
+            await self.broadcast_to_admins({
+                "type": "client.location.updated",
+                "client_id": client_id,
+                "location": asdict(self.client_locations[client_id])
+            })
+
+        except Exception as e:
+            logger.error(f"Error updating client location: {e}")
 
     async def create_order(self, client_id: str, data: dict):
         """Создание нового заказа клиентом"""
@@ -343,6 +397,11 @@ class RealTimeLocationServer:
                         driver_id = message.get('driver_id')
                         if driver_id:
                             await self.update_driver_location(driver_id, message.get('data', {}))
+
+                    elif message_type == 'client_location_update':
+                        client_id = message.get('client_id')
+                        if client_id:
+                            await self.update_client_location(client_id, message.get('data', {}))
 
                     elif message_type == 'create_order':
                         client_id = message.get('client_id')

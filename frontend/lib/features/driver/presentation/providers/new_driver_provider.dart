@@ -24,14 +24,14 @@ final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
 });
 
 class DriverState {
-  const DriverState({
+  DriverState({
     required this.workState,
-    required this.availableOrders,
+    required List<AvailableOrder> availableOrders,
     this.activeOrder,
     required this.stats,
     this.isLoading = false,
     this.error,
-  });
+  }) : availableOrders = List.unmodifiable(availableOrders);
 
   final DriverWorkState workState;
   final List<AvailableOrder> availableOrders;
@@ -52,7 +52,9 @@ class DriverState {
   }) {
     return DriverState(
       workState: workState ?? this.workState,
-      availableOrders: availableOrders ?? this.availableOrders,
+      availableOrders: List.unmodifiable(
+        availableOrders ?? this.availableOrders,
+      ),
       activeOrder: clearActiveOrder ? null : activeOrder ?? this.activeOrder,
       stats: stats ?? this.stats,
       isLoading: isLoading ?? this.isLoading,
@@ -67,9 +69,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
     required Ref ref,
   })  : _driverRepository = driverRepository,
         _ref = ref,
-        super(const DriverState(
+        super(DriverState(
           workState: DriverWorkState.offline,
-          availableOrders: <AvailableOrder>[],
+          availableOrders: const <AvailableOrder>[],
           stats: DriverStats.mock,
         )) {
     unawaited(_initializeDriver());

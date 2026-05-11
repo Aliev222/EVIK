@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/promaps_service.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../../../core/services/realtime_location_service.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../map/presentation/widgets/animated_driver_marker.dart';
@@ -19,7 +20,7 @@ class RealTimeDriverState {
   });
 
   final LocationModel? driverLocation;
-  final ProMapsRoute? route;
+  final RoutePreview? route;
   final DateTime? estimatedArrival;
   final DriverMarkerStatus status;
   final bool isTracking;
@@ -27,7 +28,7 @@ class RealTimeDriverState {
 
   RealTimeDriverState copyWith({
     LocationModel? driverLocation,
-    ProMapsRoute? route,
+    RoutePreview? route,
     DateTime? estimatedArrival,
     DriverMarkerStatus? status,
     bool? isTracking,
@@ -45,7 +46,8 @@ class RealTimeDriverState {
 }
 
 class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
-  RealTimeDriverNotifier(this._realTimeService) : super(const RealTimeDriverState()) {
+  RealTimeDriverNotifier(this._realTimeService)
+      : super(const RealTimeDriverState()) {
     _initializeRealTimeConnection();
   }
 
@@ -54,6 +56,8 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
   String? _activeOrderId;
   StreamSubscription? _driverLocationSubscription;
   StreamSubscription? _orderUpdateSubscription;
+  LocationModel? _destination;
+  LocationModel? _lastRouteDriverLocation;
 
   @override
   void dispose() {
@@ -85,6 +89,7 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
         status: update.status,
         error: null,
       );
+      _refreshRoutePreviewIfNeeded(update.location);
     }
   }
 
@@ -99,6 +104,7 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
               status: update.driver!.status,
               error: null,
             );
+            _refreshRoutePreviewIfNeeded(update.driver!.location);
           }
           break;
         case OrderUpdateType.noDriversAvailable:
@@ -116,6 +122,8 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
   /// Start tracking driver for specific order
   Future<void> startTracking(String orderId, LocationModel destination) async {
     _activeOrderId = orderId;
+    _destination = destination;
+    _lastRouteDriverLocation = null;
 
     state = state.copyWith(
       isTracking: true,
@@ -147,6 +155,8 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
 
     // Отключаемся от WebSocket
     _realTimeService.disconnect();
+    _destination = null;
+    _lastRouteDriverLocation = null;
 
     state = state.copyWith(
       isTracking: false,
@@ -183,16 +193,60 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
   double? get distanceKm {
     return state.route?.distanceKm;
   }
+
+  Future<void> _refreshRoutePreviewIfNeeded(
+      LocationModel driverLocation) async {
+    final destination = _destination;
+    if (destination == null) return;
+
+    final last = _lastRouteDriverLocation;
+    if (last != null &&
+        _distanceMeters(last, driverLocation) <
+            AppConstants.clientRouteRefreshThresholdM) {
+      return;
+    }
+    _lastRouteDriverLocation = driverLocation;
+
+    final route = await OpenStreetMapService.getRoutePreview(
+      fromLat: driverLocation.lat,
+      fromLng: driverLocation.lng,
+      toLat: destination.lat,
+      toLng: destination.lng,
+    );
+    if (route == null || _activeOrderId == null) return;
+
+    state = state.copyWith(
+      route: route,
+      estimatedArrival: DateTime.now().add(
+        Duration(seconds: route.durationSeconds.round()),
+      ),
+    );
+  }
+
+  double _distanceMeters(LocationModel a, LocationModel b) {
+    const earthRadiusM = 6371000.0;
+    final dLat = _radians(b.lat - a.lat);
+    final dLng = _radians(b.lng - a.lng);
+    final lat1 = _radians(a.lat);
+    final lat2 = _radians(b.lat);
+    final h = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2);
+    return 2 * earthRadiusM * atan2(sqrt(h), sqrt(1 - h));
+  }
+
+  double _radians(double degrees) => degrees * pi / 180;
 }
 
 /// Provider for real-time driver tracking
-final realTimeDriverProvider = StateNotifierProvider<RealTimeDriverNotifier, RealTimeDriverState>((ref) {
+final realTimeDriverProvider =
+    StateNotifierProvider<RealTimeDriverNotifier, RealTimeDriverState>((ref) {
   final realTimeService = ref.read(realTimeLocationServiceProvider);
   return RealTimeDriverNotifier(realTimeService);
 });
 
 /// Provider for multiple drivers tracking (for admin)
-final adminDriversTrackingProvider = StreamProvider<List<DriverTrackingInfo>>((ref) {
+final adminDriversTrackingProvider =
+    StreamProvider<List<DriverTrackingInfo>>((ref) {
   return Stream.periodic(
     const Duration(seconds: 5),
     (_) => _generateMockDrivers(),

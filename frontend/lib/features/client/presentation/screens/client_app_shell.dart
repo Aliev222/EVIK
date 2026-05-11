@@ -25,20 +25,22 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        transitionBuilder: (child, animation) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.1, 0),
-              end: Offset.zero,
-            ).animate(animation),
-            child: FadeTransition(opacity: animation, child: child),
-          );
-        },
-        child: _buildCurrentScreen(),
+      body: RepaintBoundary(
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.05, 0),
+                end: Offset.zero,
+              ).animate(animation),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: RepaintBoundary(child: _buildCurrentScreen()),
+        ),
       ),
       bottomNavigationBar: ClientBottomNav(
         activeTab: _activeTab,

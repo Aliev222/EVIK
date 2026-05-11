@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 abstract class ApiClient {
   Future<Map<String, dynamic>> get(String path, {Map<String, String>? headers});
 
@@ -17,8 +15,7 @@ abstract class ApiClient {
 
 const defaultApiBaseUrl = String.fromEnvironment(
   'EVIK_API_BASE_URL',
-  defaultValue:
-      kDebugMode ? 'http://localhost:8080' : 'https://tow-truck.onrender.com',
+  defaultValue: 'https://tow-truck.onrender.com',
 );
 
 class ApiClientException implements Exception {

@@ -29,6 +29,8 @@ type YooKassaPaymentRequest struct {
 	Description    string
 	IdempotencyKey string
 	Metadata       map[string]string
+	Capture        bool
+	SaveMethod     bool
 }
 
 type YooKassaPaymentResponse struct {
@@ -76,13 +78,16 @@ func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentR
 			"value":    formatKopecks(req.Amount),
 			"currency": req.Currency,
 		},
-		"capture": true,
+		"capture": req.Capture,
 		"confirmation": map[string]string{
 			"type":       "redirect",
 			"return_url": c.returnURL,
 		},
 		"description": req.Description,
 		"metadata":    req.Metadata,
+	}
+	if req.SaveMethod {
+		payload["save_payment_method"] = true
 	}
 	var out struct {
 		ID           string `json:"id"`

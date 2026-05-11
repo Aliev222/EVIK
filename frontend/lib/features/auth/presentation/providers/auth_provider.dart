@@ -111,6 +111,69 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final BackendAuthApi _api;
   final KeyValueStorage _storage;
 
+  Future<void> signInForTesting(UserRole role) async {
+    final activeUser = state.user;
+    final activeToken = state.accessToken;
+    if (activeUser?.role == role &&
+        activeToken != null &&
+        activeToken.isNotEmpty) {
+      return;
+    }
+    if (state.isLoading) {
+      return;
+    }
+
+    state = state.copyWith(isLoading: true, clearError: true);
+
+    final now = DateTime.now();
+    final userID = role == UserRole.driver
+        ? 'test-driver-emulator'
+        : 'test-client-emulator';
+    final user = User(
+      id: userID,
+      phone: role == UserRole.driver ? '+70000000002' : '+70000000001',
+      fullName: role == UserRole.driver ? 'Test Driver' : 'Test Client',
+      role: role,
+      avatar: null,
+      isActive: true,
+      createdAt: now,
+      lastSeen: now,
+    );
+
+    try {
+      final authResult = await _api.registerOrLogin(
+        phone: user.phone,
+        fullName: user.fullName,
+        role: role,
+        password: 'dev-password',
+      );
+      final tokens = authResult.tokens;
+      final signedUser = user.copyWith(id: authResult.identity.userID);
+      if (role == UserRole.driver) {
+        try {
+          await _api.initializeDriverProfile(
+            userID: signedUser.id,
+            accessToken: tokens.accessToken,
+          );
+        } catch (error) {
+          debugPrint('Warning: Could not initialize test driver: $error');
+        }
+      }
+      await _saveSession(signedUser, tokens);
+      state = state.copyWith(
+        user: signedUser,
+        isLoading: false,
+        clearError: true,
+        clearPendingAuth: true,
+      );
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: _loginErrorMessage(error),
+      );
+    }
+  }
+
   Future<void> signInWithPhone(
     String rawPhoneNumber,
     String fullName, {
@@ -147,9 +210,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       codeSentAt: DateTime.now(),
     );
 
-    // OTP delivery is migrated later. For now we keep the same UX step and
-    // verify code client-side before requesting backend login.
-    state = state.copyWith(isLoading: false);
+    try {
+      await _api.requestOtp(phone: normalizedPhone, role: role);
+      state = state.copyWith(isLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: _loginErrorMessage(error),
+        clearPendingAuth: true,
+      );
+    }
   }
 
   Future<void> verifySmsCode(String code) async {
@@ -177,8 +247,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userID = _deriveUserID(phoneNumber);
       if (userID == null) {
         state = state.copyWith(
-          errorMessage:
-              'Не удалось сформировать идентификатор пользователя.',
+          errorMessage: 'Не удалось сформировать идентификатор пользователя.',
         );
         return;
       }
@@ -189,10 +258,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await Future.delayed(const Duration(milliseconds: 800));
 
       try {
-        final tokens = await _api.login(userID: userID, role: role);
+        final authResult = await _api.verifyOtp(
+          phone: phoneNumber,
+          code: sanitizedCode,
+          fullName: fullName,
+          role: role,
+        );
+        final tokens = authResult.tokens;
         final now = DateTime.now();
         final user = User(
-          id: userID,
+          id: authResult.identity.userID,
           phone: phoneNumber,
           fullName: fullName,
           role: role,
@@ -205,7 +280,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         if (role == UserRole.driver) {
           try {
             await _api.initializeDriverProfile(
-              userID: userID,
+              userID: user.id,
               accessToken: tokens.accessToken,
             );
           } catch (error) {
@@ -221,7 +296,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
           clearPendingAuth: true,
         );
 
-        debugPrint('[MOCK AUTH] User logged in successfully: ${user.fullName} (${role.name})');
+        debugPrint(
+            '[MOCK AUTH] User logged in successfully: ${user.fullName} (${role.name})');
         return;
       } catch (error) {
         state = state.copyWith(
@@ -244,10 +320,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final tokens = await _api.login(userID: userID, role: role);
+      final authResult = await _api.verifyOtp(
+        phone: phoneNumber,
+        code: sanitizedCode,
+        fullName: fullName,
+        role: role,
+      );
+      final tokens = authResult.tokens;
       final now = DateTime.now();
       final user = User(
-        id: userID,
+        id: authResult.identity.userID,
         phone: phoneNumber,
         fullName: fullName,
         role: role,
@@ -259,7 +341,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (role == UserRole.driver) {
         try {
           await _api.initializeDriverProfile(
-            userID: userID,
+            userID: user.id,
             accessToken: tokens.accessToken,
           );
         } catch (error) {
@@ -300,6 +382,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       verificationId: 'backend-otp-pending',
       codeSentAt: DateTime.now(),
     );
+    unawaited(_api.requestOtp(phone: phoneNumber, role: role));
   }
 
   Future<void> updateUserRole(UserRole role) async {
@@ -309,13 +392,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final tokens = await _api.login(userID: currentUser.id, role: role);
-      final updated =
-          currentUser.copyWith(role: role, lastSeen: DateTime.now());
+      final authResult = await _api.registerOrLogin(
+        phone: currentUser.phone,
+        fullName: currentUser.fullName,
+        role: role,
+        password: 'dev-password',
+      );
+      final tokens = authResult.tokens;
+      final updated = currentUser.copyWith(
+          id: authResult.identity.userID, role: role, lastSeen: DateTime.now());
       if (role == UserRole.driver) {
         try {
           await _api.initializeDriverProfile(
-            userID: currentUser.id,
+            userID: updated.id,
             accessToken: tokens.accessToken,
           );
         } catch (error) {
@@ -502,17 +591,54 @@ class BackendAuthApi {
 
   final ApiClient _apiClient;
 
-  Future<AuthTokens> login({
-    required String userID,
+  Future<AuthResult> registerOrLogin({
+    required String phone,
+    required String fullName,
+    required UserRole role,
+    required String password,
+  }) async {
+    try {
+      final json = await _apiClient.post('/api/v1/auth/register', {
+        'phone': phone,
+        'full_name': fullName,
+        'role': role.name,
+        'password': password,
+      });
+      return AuthResult.fromJson(json);
+    } on ApiClientException catch (error) {
+      if (error.statusCode != 409) rethrow;
+      final json = await _apiClient.post('/api/v1/auth/login', {
+        'phone': phone,
+        'role': role.name,
+        'password': password,
+      });
+      return AuthResult.fromJson(json);
+    }
+  }
+
+  Future<void> requestOtp({
+    required String phone,
     required UserRole role,
   }) async {
-    debugPrint('Calling login API: $userID, $role');
-    final json = await _apiClient.post('/api/v1/auth/login', {
-      'user_id': userID,
+    await _apiClient.post('/api/v1/auth/otp/request', {
+      'phone': phone,
       'role': role.name,
     });
-    debugPrint('Login response: $json');
-    return AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>);
+  }
+
+  Future<AuthResult> verifyOtp({
+    required String phone,
+    required String code,
+    required String fullName,
+    required UserRole role,
+  }) async {
+    final json = await _apiClient.post('/api/v1/auth/otp/verify', {
+      'phone': phone,
+      'code': code,
+      'full_name': fullName,
+      'role': role.name,
+    });
+    return AuthResult.fromJson(json);
   }
 
   Future<AuthTokens> refresh({required String refreshToken}) async {
@@ -572,6 +698,23 @@ class AuthTokens {
     return AuthTokens(
       accessToken: json['access_token']?.toString() ?? '',
       refreshToken: json['refresh_token']?.toString() ?? '',
+    );
+  }
+}
+
+class AuthResult {
+  const AuthResult({
+    required this.tokens,
+    required this.identity,
+  });
+
+  final AuthTokens tokens;
+  final Identity identity;
+
+  factory AuthResult.fromJson(Map<String, dynamic> json) {
+    return AuthResult(
+      tokens: AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>),
+      identity: Identity.fromJson(json['user'] as Map<String, dynamic>),
     );
   }
 }

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/evik_colors.dart';
+import '../../domain/entities/payment_wallet.dart';
 import '../../../order/domain/entities/order.dart';
+import '../providers/client_payment_methods_provider.dart';
 import '../providers/client_order_provider.dart';
+import '../screens/client_wallet_screen.dart';
 
 class OrderFormSheet extends ConsumerStatefulWidget {
   const OrderFormSheet({
@@ -47,6 +50,13 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(clientOrderProvider);
+    final cardsState = ref.watch(clientPaymentMethodsProvider);
+    final cards = cardsState.valueOrNull ?? const [];
+    final defaultCard = _firstDefaultCard(cards);
+    final fallbackCard = cards.isEmpty ? null : cards.first;
+    final selectedCard = defaultCard ?? fallbackCard;
+    final needsCard = _paymentMethod == PaymentMethod.card &&
+        (cardsState.isLoading || selectedCard == null);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -134,6 +144,65 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                 );
               }).toList(),
             ),
+            if (_paymentMethod == PaymentMethod.card) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: EvikColors.primaryWhite,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: EvikColors.gray200),
+                ),
+                child: cardsState.isLoading
+                    ? const Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text('Загружаем способы оплаты...'),
+                          ),
+                        ],
+                      )
+                    : selectedCard == null
+                        ? Row(
+                            children: [
+                              const Icon(Icons.credit_card_off_rounded,
+                                  color: EvikColors.accentOrange),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                child: Text('Добавьте карту для оплаты заказа'),
+                              ),
+                              TextButton(
+                                onPressed: _openWallet,
+                                child: const Text('Добавить'),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              const Icon(Icons.credit_card_rounded,
+                                  color: EvikColors.accentOrange),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  '${selectedCard.displayBrand} •••• ${selectedCard.last4}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _openWallet,
+                                child: const Text('Сменить'),
+                              ),
+                            ],
+                          ),
+              ),
+            ],
             const SizedBox(height: 16),
             if (state.estimatedPrice != null)
               Container(
@@ -156,7 +225,8 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: state.isLoading ? null : widget.onSubmit,
+                  onPressed:
+                      state.isLoading || needsCard ? null : widget.onSubmit,
                   child: state.isLoading
                       ? const SizedBox(
                           width: 18,
@@ -198,6 +268,20 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
             description: _notesController.text.trim(),
           ),
         );
+  }
+
+  Future<void> _openWallet() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const ClientWalletScreen()),
+    );
+    await ref.read(clientPaymentMethodsProvider.notifier).load();
+  }
+
+  PaymentCard? _firstDefaultCard(List<PaymentCard> cards) {
+    for (final card in cards) {
+      if (card.isDefault) return card;
+    }
+    return null;
   }
 
   String _vehicleLabel(VehicleType type) {

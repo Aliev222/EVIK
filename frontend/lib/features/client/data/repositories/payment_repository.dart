@@ -25,20 +25,19 @@ class PaymentRepository {
     return PaymentWallet.fromJson(json);
   }
 
-  Future<PaymentCard> addCard(AddPaymentCardCommand command) async {
+  Future<AddCardInitResponse> initAddCard() async {
     final json = await _apiClient.post(
-      '/api/v1/payments/cards',
-      <String, dynamic>{
-        'card_number': command.cardNumber,
-        'exp_month': command.expMonth,
-        'exp_year': command.expYear,
-        'holder': command.holder,
-        'cvv': command.cvv,
-        'set_default': command.setDefault,
-      },
+      '/api/v1/client/payment-methods/init',
+      const <String, dynamic>{},
       headers: _authHeaders,
     );
-    return PaymentCard.fromJson(json['card'] as Map<String, dynamic>);
+    return AddCardInitResponse.fromJson(json);
+  }
+
+  Future<PaymentCard> addCard(AddPaymentCardCommand command) async {
+    throw UnsupportedError(
+      'Direct card entry is disabled. Use initAddCard hosted YooKassa flow.',
+    );
   }
 
   Future<PaymentCard> setDefaultCard(String cardId) async {

@@ -39,6 +39,26 @@ CREATE INDEX IF NOT EXISTS idx_payments_order_id_created_at ON payments (order_i
 CREATE INDEX IF NOT EXISTS idx_payments_user_id_created_at ON payments (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payments_status_created_at ON payments (status, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS payment_methods (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	brand TEXT NOT NULL,
+	last4 TEXT NOT NULL,
+	exp_month INTEGER NOT NULL,
+	exp_year INTEGER NOT NULL,
+	holder TEXT NOT NULL,
+	is_default BOOLEAN NOT NULL DEFAULT FALSE,
+	created_at TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'yookassa';
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider_payment_method_id TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
+ALTER TABLE payment_methods ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods (user_id, is_default DESC, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_methods_provider_method_id ON payment_methods (provider, provider_payment_method_id) WHERE provider_payment_method_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payment_methods_provider_payment_id ON payment_methods (provider_payment_id) WHERE provider_payment_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS driver_wallets (
 	id TEXT PRIMARY KEY,
 	driver_id TEXT NOT NULL UNIQUE,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../map/domain/entities/map_location.dart';
-import 'promaps_location_picker.dart';
+import 'osm_location_picker.dart';
 
 class LocationPickerBody extends ConsumerWidget {
   const LocationPickerBody({
@@ -24,7 +24,7 @@ class LocationPickerBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ProMapsLocationPicker(
+    return OsmLocationPicker(
       title: title,
       addressLabel: addressLabel,
       initialLocation: initialLocation,

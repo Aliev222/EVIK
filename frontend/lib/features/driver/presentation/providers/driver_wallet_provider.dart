@@ -119,6 +119,35 @@ class DriverWalletNotifier extends StateNotifier<DriverWalletState> {
     }
   }
 
+  Future<void> addPayoutMethod({
+    required String type,
+    required String providerRecipientId,
+    required String maskedValue,
+    required bool isDefault,
+  }) async {
+    state = state.copyWith(isSubmitting: true, clearError: true);
+    try {
+      await _repository.addPayoutMethod(
+        type: type,
+        providerRecipientId: providerRecipientId,
+        maskedValue: maskedValue,
+        isDefault: isDefault,
+      );
+      final methods = await _repository.getPayoutMethods();
+      state = state.copyWith(
+        payoutMethods: methods,
+        isSubmitting: false,
+        lastUpdated: DateTime.now(),
+      );
+    } catch (error) {
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: _messageFor(error),
+      );
+      rethrow;
+    }
+  }
+
   Future<String?> createSubscriptionPayment(String planId) async {
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {

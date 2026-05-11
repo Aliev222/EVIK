@@ -9,7 +9,7 @@ abstract class WebSocketClient {
 
 const defaultWsUrl = String.fromEnvironment(
   'EVIK_WS_URL',
-  defaultValue: 'ws://localhost:8080/ws/orders',
+  defaultValue: 'wss://tow-truck.onrender.com/ws/orders',
 );
 
 class InMemoryWebSocketClient implements WebSocketClient {

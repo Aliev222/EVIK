@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AppConstants {
   static const String appName = 'Tow Truck';
   static const String appVersion = '1.0.0';
@@ -11,25 +13,30 @@ class AppConstants {
 
   // Режим быстрого тестирования - пропуск авторизации
   static const bool skipAuth =
-      bool.fromEnvironment('SKIP_AUTH', defaultValue: false);
+      bool.fromEnvironment('SKIP_AUTH', defaultValue: kDebugMode);
 
-  // ProMaps API keys.
-  static const String promapsMapsApiKey = String.fromEnvironment(
-    'PROMAPS_MAPS_API_KEY',
-    defaultValue: 'pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5',
+  static const String openStreetMapTileUrl = String.fromEnvironment(
+    'OSM_TILE_URL',
+    defaultValue: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
   );
 
-  static const String promapsRoadApiKey = String.fromEnvironment(
-    'PROMAPS_ROAD_API_KEY',
-    defaultValue: 'pk_live_26bf2e35cc95c1af08299b1681c8321db809acb1a2e43e10',
+  static const String openStreetMapAttribution = String.fromEnvironment(
+    'OSM_ATTRIBUTION',
+    defaultValue: '© OpenStreetMap © CARTO',
   );
 
-  static const String promapsSdkApiKey = String.fromEnvironment(
-    'PROMAPS_SDK_API_KEY',
-    defaultValue: 'pk_live_16a7094708ceae689162d22b0d541421236a609a1bd436a0',
+  static const String osrmBaseUrl = String.fromEnvironment(
+    'OSRM_BASE_URL',
+    defaultValue: 'https://router.project-osrm.org',
   );
 
-  static const String promapsBaseUrl = 'https://api.promaps.online';
+  static const String nominatimBaseUrl = String.fromEnvironment(
+    'NOMINATIM_BASE_URL',
+    defaultValue: 'https://nominatim.openstreetmap.org',
+  );
+
+  static const Duration clientLocationUpdateInterval = Duration(seconds: 5);
+  static const double clientRouteRefreshThresholdM = 75.0;
 
   static const Duration locationUpdateInterval = Duration(seconds: 10);
   static const Duration orderTimeoutDuration = Duration(minutes: 30);

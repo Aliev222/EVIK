@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-import '../../../../core/services/promaps_service.dart';
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../../order/domain/entities/order.dart';
 
-/// Animated driver marker that smoothly moves along ProMaps route
+/// Animated driver marker that smoothly moves along an OSRM route preview.
 class AnimatedDriverMarker extends StatefulWidget {
   const AnimatedDriverMarker({
     super.key,
@@ -66,8 +66,7 @@ class _AnimatedDriverMarkerState extends State<AnimatedDriverMarker>
 
   Future<void> _initializeRoute() async {
     try {
-      // Get route from ProMaps
-      final route = await ProMapsService.getRoute(
+      final route = await OpenStreetMapService.getRoutePreview(
         fromLat: widget.driverLocation.lat,
         fromLng: widget.driverLocation.lng,
         toLat: widget.destination.lat,
@@ -75,36 +74,36 @@ class _AnimatedDriverMarkerState extends State<AnimatedDriverMarker>
         profile: 'driving',
       );
 
-      if (route?.polyline != null) {
-        // Decode polyline into points (simplified)
-        _routePoints = _decodePolyline(route!.polyline!);
-        _startAnimation();
-      } else {
-        // Fallback: direct line movement
-        _routePoints = [widget.driverLocation, widget.destination];
-        _startAnimation();
-      }
+      _routePoints = route?.points
+              .map((point) => LocationModel(
+                    lat: point.latitude,
+                    lng: point.longitude,
+                    address: 'Route point',
+                  ))
+              .toList(growable: false) ??
+          [widget.driverLocation, widget.destination];
+      _startAnimation();
     } catch (e) {
-      // Fallback on error
       _routePoints = [widget.driverLocation, widget.destination];
       _startAnimation();
     }
 
-    // Update route every 30 seconds
-    _routeUpdateTimer = Timer.periodic(
+    _routeUpdateTimer ??= Timer.periodic(
       const Duration(seconds: 30),
-      (_) => _initializeRoute(),
+      (_) => _refreshRoute(),
     );
+  }
+
+  Future<void> _refreshRoute() async {
+    await _initializeRoute();
   }
 
   void _startAnimation() {
     if (_routePoints.length < 2) return;
-
-    _moveController.addListener(() {
-      _updatePosition();
-    });
-
-    _moveController.repeat();
+    if (!_moveController.isAnimating) {
+      _moveController.addListener(_updatePosition);
+      _moveController.repeat();
+    }
   }
 
   void _updatePosition() {
@@ -150,29 +149,6 @@ class _AnimatedDriverMarkerState extends State<AnimatedDriverMarker>
     final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(deltaLng);
 
     return atan2(y, x) * 180 / pi;
-  }
-
-  List<LocationModel> _decodePolyline(String polyline) {
-    // Simplified polyline decoder (in real app, use proper decoder)
-    // For now, create intermediate points between start and end
-    final points = <LocationModel>[];
-    const steps = 10; // 10 intermediate points
-
-    for (int i = 0; i <= steps; i++) {
-      final ratio = i / steps;
-      final lat = widget.driverLocation.lat +
-          (widget.destination.lat - widget.driverLocation.lat) * ratio;
-      final lng = widget.driverLocation.lng +
-          (widget.destination.lng - widget.driverLocation.lng) * ratio;
-
-      points.add(LocationModel(
-        lat: lat,
-        lng: lng,
-        address: 'Route point $i',
-      ));
-    }
-
-    return points;
   }
 
   @override

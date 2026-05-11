@@ -18,22 +18,28 @@ class ClientBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-
-    return Container(
-      height: 80 + bottomInset,
-      decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: EvikColors.primaryWhite,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, -1),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
             _NavItem(
@@ -93,24 +99,26 @@ class _NavItem extends StatelessWidget {
 
     return Expanded(
       child: SizedBox(
-        height: 80,
+        height: 72,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
             onTap: () {
               HapticFeedback.selectionClick();
               onTap(tab);
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 24, color: color),
+                  Icon(icon, size: 23, color: color),
                   const SizedBox(height: 4),
                   Text(
                     label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.manrope(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,

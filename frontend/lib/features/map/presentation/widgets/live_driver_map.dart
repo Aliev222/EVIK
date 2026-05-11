@@ -6,9 +6,9 @@ import '../../../../core/theme/evik_colors.dart';
 import '../../../map/domain/entities/map_location.dart';
 import '../../../order/domain/entities/order.dart';
 import 'animated_driver_marker.dart';
-import 'promaps_view_simple.dart';
+import 'evik_osm_map_view.dart';
 
-/// Live map showing real-time driver locations with ProMaps
+/// Live map showing real-time driver locations with OSM
 class LiveDriverMap extends ConsumerStatefulWidget {
   const LiveDriverMap({
     super.key,
@@ -19,6 +19,7 @@ class LiveDriverMap extends ConsumerStatefulWidget {
     this.driverLocation,
     this.adminMode = false,
     this.activeDrivers = const [],
+    this.controlsBottomOffset = 42,
   });
 
   final MapLocation? pickupLocation;
@@ -28,6 +29,7 @@ class LiveDriverMap extends ConsumerStatefulWidget {
   final DriverLocationUpdate? driverLocation;
   final bool adminMode;
   final List<DriverLocationUpdate> activeDrivers;
+  final double controlsBottomOffset;
 
   @override
   ConsumerState<LiveDriverMap> createState() => _LiveDriverMapState();
@@ -50,12 +52,15 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
 
     return Stack(
       children: [
-        // Base ProMaps view
+        // Base OSM view
         Positioned.fill(
-          child: ProMapsViewSimple(
+          child: EvikOsmMapView(
             initialLat: centerLat,
             initialLng: centerLng,
             initialZoom: zoom,
+            controlsBottomOffset: widget.controlsBottomOffset,
+            controlsBackgroundColor: EvikColors.primaryWhite,
+            controlsIconColor: EvikColors.accentOrange,
             onTap: (lat, lng) {
               // Handle map tap if needed
             },

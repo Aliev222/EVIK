@@ -1,13 +1,15 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../../../core/performance/rebuild_tracker.dart';
+
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../../domain/entities/available_order.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
@@ -20,14 +22,17 @@ class NewDriverHomeScreen extends ConsumerStatefulWidget {
       _NewDriverHomeScreenState();
 }
 
-class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
+class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
+    with TickerProviderStateMixin {
   bool _isAppInForeground = true;
   late final _DriverLifecycleObserver _lifecycleObserver;
-  Timer? _offerTimer;
-  double _offerProgress = 1;
+  AnimationController? _offerAnimationController;
+  Animation<double>? _offerProgressAnimation;
   String? _visibleOfferId;
+  String? _routePreviewOrderId;
+  RoutePreview? _routePreview;
+  bool _routePreviewFailed = false;
   static const Duration _offerLifetime = Duration(seconds: 10);
-  static const Duration _offerTick = Duration(milliseconds: 50);
 
   // Координаты Москвы по умолчанию
   static const double _moscowLat = 55.7558;
@@ -51,69 +56,93 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
 
   @override
   void dispose() {
-    _offerTimer?.cancel();
+    _offerAnimationController?.dispose();
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final driverState = ref.watch(newDriverProvider);
+    RebuildTracker.trackRebuild('NewDriverHomeScreen');
+
+    final workState =
+        ref.watch(newDriverProvider.select((state) => state.workState));
+    final availableOrders =
+        ref.watch(newDriverProvider.select((state) => state.availableOrders));
+    final isLoading =
+        ref.watch(newDriverProvider.select((state) => state.isLoading));
+    final stats = ref.watch(newDriverProvider.select((state) => state.stats));
+
     ref.listen<DriverState>(newDriverProvider, (previous, next) {
       final message = next.error;
       if (message == null || message == previous?.error) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: EvikColors.errorRed),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(message), backgroundColor: EvikColors.errorRed),
+        );
+      }
     });
+
+    // Create minimal state object for methods that need full state
+    final driverState = DriverState(
+      workState: workState,
+      availableOrders: availableOrders,
+      isLoading: isLoading,
+      stats: stats,
+      activeOrder: null,
+      error: null,
+    );
 
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
-      body: driverState.workState == DriverWorkState.offline
+      body: workState == DriverWorkState.offline
           ? SafeArea(child: _buildOfflineView(driverState))
           : _BackgroundOptimizer(
-              isDriverWaiting:
-                  driverState.workState == DriverWorkState.online &&
-                      driverState.activeOrder == null,
+              isDriverWaiting: workState == DriverWorkState.online,
               isAppInForeground: _isAppInForeground,
               child: _buildOnlineView(driverState),
             ),
     );
   }
 
-  void _syncIncomingOffer(DriverState driverState) {
-    if (driverState.workState != DriverWorkState.online ||
-        driverState.availableOrders.isEmpty) {
-      _offerTimer?.cancel();
+  void _syncIncomingOffer(DriverWorkState workState, List availableOrders) {
+    if (workState != DriverWorkState.online || availableOrders.isEmpty) {
+      _offerAnimationController?.stop();
       _visibleOfferId = null;
-      _offerProgress = 1;
       return;
     }
 
-    final incoming = driverState.availableOrders.first;
+    final incoming = availableOrders.first;
     if (_visibleOfferId == incoming.id) return;
 
-    _offerTimer?.cancel();
+    _offerAnimationController?.dispose();
     _visibleOfferId = incoming.id;
-    _offerProgress = 1;
-    final expiresAt = DateTime.now().add(_offerLifetime);
-    _offerTimer = Timer.periodic(_offerTick, (timer) {
-      if (!mounted) return;
-      final remaining = expiresAt.difference(DateTime.now());
-      if (remaining <= Duration.zero) {
-        timer.cancel();
+
+    // Create new animation controller for this offer
+    _offerAnimationController = AnimationController(
+      duration: _offerLifetime,
+      vsync: this,
+    );
+
+    _offerProgressAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _offerAnimationController!,
+      curve: Curves.linear,
+    ));
+
+    _offerAnimationController!.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
         ref.read(newDriverProvider.notifier).declineOrder(incoming.id);
         setState(() {
           _visibleOfferId = null;
-          _offerProgress = 1;
         });
-        return;
       }
-      setState(() {
-        _offerProgress =
-            remaining.inMilliseconds / _offerLifetime.inMilliseconds;
-      });
     });
+
+    _offerAnimationController!.forward();
   }
 
   Widget _buildOfflineView(DriverState driverState) {
@@ -277,23 +306,37 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
   }
 
   Widget _buildOnlineView(DriverState driverState) {
-    _syncIncomingOffer(driverState);
+    _syncIncomingOffer(driverState.workState, driverState.availableOrders);
     final incomingOrder = driverState.availableOrders.isEmpty
         ? null
         : driverState.availableOrders.first;
+    _syncRoutePreview(incomingOrder);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Stack(
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: ProMapsViewSimple(
+            child: EvikOsmMapView(
               initialLat: incomingOrder?.pickupLat ?? _moscowLat,
               initialLng: incomingOrder?.pickupLng ?? _moscowLng,
               initialZoom: incomingOrder == null ? 12.2 : 13.5,
               markers: _mapMarkers(incomingOrder),
+              routePoints: _routePreview?.points ?? const <LatLng>[],
+              controlsBottomOffset:
+                  bottomInset + (incomingOrder == null ? 128 : 330),
+              controlsBackgroundColor: EvikColors.primaryWhite,
+              controlsIconColor: EvikColors.accentOrange,
             ),
           ),
         ),
+        if (incomingOrder != null && _routePreviewFailed)
+          Positioned(
+            left: 16,
+            right: 16,
+            top: MediaQuery.paddingOf(context).top + 74,
+            child: const _RouteUnavailableBadge(),
+          ),
         Positioned(
           top: MediaQuery.paddingOf(context).top + 8,
           left: 16,
@@ -320,27 +363,32 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
             left: 14,
             right: 14,
             bottom: MediaQuery.paddingOf(context).bottom + 20,
-            child: _IncomingOrderSheet(
-              order: incomingOrder,
-              progress: _offerProgress,
-              isLoading: driverState.isLoading,
-              onDecline: () {
-                HapticFeedback.lightImpact();
-                _offerTimer?.cancel();
-                setState(() {
-                  _visibleOfferId = null;
-                  _offerProgress = 1;
-                });
-                ref
-                    .read(newDriverProvider.notifier)
-                    .declineOrder(incomingOrder.id);
-              },
-              onAccept: () {
-                HapticFeedback.heavyImpact();
-                _offerTimer?.cancel();
-                ref
-                    .read(newDriverProvider.notifier)
-                    .acceptOrder(incomingOrder.id);
+            child: AnimatedBuilder(
+              animation:
+                  _offerProgressAnimation ?? const AlwaysStoppedAnimation(1.0),
+              builder: (context, child) {
+                return _IncomingOrderSheet(
+                  order: incomingOrder,
+                  progress: _offerProgressAnimation?.value ?? 1.0,
+                  isLoading: driverState.isLoading,
+                  onDecline: () {
+                    HapticFeedback.lightImpact();
+                    _offerAnimationController?.stop();
+                    setState(() {
+                      _visibleOfferId = null;
+                    });
+                    ref
+                        .read(newDriverProvider.notifier)
+                        .declineOrder(incomingOrder.id);
+                  },
+                  onAccept: () {
+                    HapticFeedback.heavyImpact();
+                    _offerAnimationController?.stop();
+                    ref
+                        .read(newDriverProvider.notifier)
+                        .acceptOrder(incomingOrder.id);
+                  },
+                );
               },
             ),
           ),
@@ -371,22 +419,95 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen> {
     );
   }
 
-  List<ProMapMarker> _mapMarkers(AvailableOrder? incoming) {
+  List<EvikMapMarker> _mapMarkers(AvailableOrder? incoming) {
     return [
-      const ProMapMarker(
+      const EvikMapMarker(
         lat: _moscowLat,
         lng: _moscowLng,
         title: 'Вы',
         color: EvikColors.successGreen,
       ),
       if (incoming != null)
-        ProMapMarker(
+        EvikMapMarker(
           lat: incoming.pickupLat,
           lng: incoming.pickupLng,
           title: incoming.pickupAddress,
           color: EvikColors.accentOrange,
         ),
     ];
+  }
+
+  void _syncRoutePreview(AvailableOrder? incoming) {
+    if (incoming == null) {
+      if (_routePreviewOrderId != null) {
+        _routePreviewOrderId = null;
+        _routePreview = null;
+        _routePreviewFailed = false;
+      }
+      return;
+    }
+    if (_routePreviewOrderId == incoming.id) return;
+    _routePreviewOrderId = incoming.id;
+    _routePreview = null;
+    _routePreviewFailed = false;
+    OpenStreetMapService.getRoutePreview(
+      fromLat: _moscowLat,
+      fromLng: _moscowLng,
+      toLat: incoming.pickupLat,
+      toLng: incoming.pickupLng,
+    ).then((preview) {
+      if (!mounted || _routePreviewOrderId != incoming.id) return;
+      setState(() {
+        _routePreview = preview;
+        _routePreviewFailed = preview == null;
+      });
+    });
+  }
+}
+
+class _RouteUnavailableBadge extends StatelessWidget {
+  const _RouteUnavailableBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: EvikColors.gray200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.route_outlined,
+                size: 18,
+                color: EvikColors.accentOrange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Маршрут недоступен',
+                style: EvikTypography.bodySmall.copyWith(
+                  color: EvikColors.primaryBlack,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

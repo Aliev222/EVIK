@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
-import 'new_driver_home_screen.dart';
 import 'active_order_screen.dart';
-import 'driver_orders_history_screen.dart';
 import 'driver_earnings_screen.dart';
+import 'driver_orders_history_screen.dart';
 import 'driver_profile_screen.dart';
+import 'new_driver_home_screen.dart';
 
 class DriverMainScreen extends ConsumerStatefulWidget {
   const DriverMainScreen({super.key});
@@ -23,78 +23,89 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
   @override
   Widget build(BuildContext context) {
     final driverState = ref.watch(newDriverProvider);
-
-    // Если есть активный заказ, показываем экран активного заказа вместо главной
     final hasActiveOrder = driverState.workState.hasActiveOrder;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          hasActiveOrder
-              ? const ActiveOrderScreen()
-              : const NewDriverHomeScreen(),
-          DriverOrdersHistoryScreen(
-            onGoHome: () => setState(() => _currentIndex = 0),
-          ),
-          const DriverEarningsScreen(),
-          const DriverProfileScreen(),
-        ],
+      body: RepaintBoundary(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            RepaintBoundary(
+              child: hasActiveOrder
+                  ? const ActiveOrderScreen()
+                  : const NewDriverHomeScreen(),
+            ),
+            RepaintBoundary(
+              child: DriverOrdersHistoryScreen(
+                onGoHome: () => setState(() => _currentIndex = 0),
+              ),
+            ),
+            const RepaintBoundary(child: DriverEarningsScreen()),
+            const RepaintBoundary(child: DriverProfileScreen()),
+          ],
+        ),
       ),
       bottomNavigationBar: _buildBottomNavigation(hasActiveOrder),
     );
   }
 
   Widget _buildBottomNavigation(bool hasActiveOrder) {
-    return Container(
-      decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Container(
-          height: 80,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                icon: hasActiveOrder ? Icons.drive_eta : Icons.home_outlined,
-                activeIcon: hasActiveOrder ? Icons.drive_eta : Icons.home,
-                label: hasActiveOrder ? 'Заказ' : 'Главная',
-                index: 0,
-                isActive: _currentIndex == 0,
-                badge: hasActiveOrder ? '1' : null,
-              ),
-              _buildNavItem(
-                icon: Icons.history_outlined,
-                activeIcon: Icons.history,
-                label: 'Заказы',
-                index: 1,
-                isActive: _currentIndex == 1,
-              ),
-              _buildNavItem(
-                icon: Icons.attach_money,
-                activeIcon: Icons.monetization_on,
-                label: 'Доходы',
-                index: 2,
-                isActive: _currentIndex == 2,
-              ),
-              _buildNavItem(
-                icon: Icons.person_outline,
-                activeIcon: Icons.person,
-                label: 'Профиль',
-                index: 3,
-                isActive: _currentIndex == 3,
-              ),
-            ],
-          ),
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+      child: Container(
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: EvikColors.primaryWhite,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.14),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, -1),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildNavItem(
+              icon: hasActiveOrder ? Icons.drive_eta : Icons.home_outlined,
+              activeIcon: hasActiveOrder ? Icons.drive_eta : Icons.home,
+              label: hasActiveOrder ? 'Заказ' : 'Главная',
+              index: 0,
+              isActive: _currentIndex == 0,
+              badge: hasActiveOrder ? '1' : null,
+            ),
+            _buildNavItem(
+              icon: Icons.history_outlined,
+              activeIcon: Icons.history,
+              label: 'Заказы',
+              index: 1,
+              isActive: _currentIndex == 1,
+            ),
+            _buildNavItem(
+              icon: Icons.attach_money,
+              activeIcon: Icons.monetization_on,
+              label: 'Доходы',
+              index: 2,
+              isActive: _currentIndex == 2,
+            ),
+            _buildNavItem(
+              icon: Icons.person_outline,
+              activeIcon: Icons.person,
+              label: 'Профиль',
+              index: 3,
+              isActive: _currentIndex == 3,
+            ),
+          ],
         ),
       ),
     );
@@ -113,13 +124,14 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => setState(() => _currentIndex = index),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            height: 72,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Stack(
+                  clipBehavior: Clip.none,
                   children: [
                     Icon(
                       isActive ? activeIcon : icon,
@@ -130,8 +142,8 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                     ),
                     if (badge != null)
                       Positioned(
-                        right: -2,
-                        top: -2,
+                        right: -7,
+                        top: -5,
                         child: Container(
                           width: 16,
                           height: 16,
@@ -156,6 +168,8 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                 const SizedBox(height: 4),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,

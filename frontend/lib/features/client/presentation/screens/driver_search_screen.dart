@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/location_service.dart';
 import '../../../../core/services/realtime_location_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
@@ -20,6 +24,7 @@ class DriverSearchScreen extends ConsumerStatefulWidget {
 
 class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   bool _isNavigatingToDriverInfo = false;
+  Timer? _clientLocationTimer;
 
   @override
   void initState() {
@@ -67,15 +72,44 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
           vehicleType: VehicleType.light, // Based on selected vehicle
           notes: 'Order from client app',
         );
+        _startClientLocationUpdates(realTimeService);
       }
     }
   }
 
   @override
   void dispose() {
+    _clientLocationTimer?.cancel();
     // Disconnect from real-time service
     ref.read(realTimeLocationServiceProvider).disconnect();
     super.dispose();
+  }
+
+  void _startClientLocationUpdates(RealTimeLocationService realTimeService) {
+    _clientLocationTimer?.cancel();
+    Future<void> sendCurrentLocation() async {
+      try {
+        final location = await LocationService.instance.getCurrentLocation();
+        if (location == null) return;
+        await realTimeService.sendClientLocation(
+          lat: location.lat,
+          lng: location.lng,
+        );
+      } catch (_) {
+        final pickup = ref.read(orderFlowProvider).pickupLocation;
+        if (pickup == null) return;
+        await realTimeService.sendClientLocation(
+          lat: pickup.latitude,
+          lng: pickup.longitude,
+        );
+      }
+    }
+
+    unawaited(sendCurrentLocation());
+    _clientLocationTimer = Timer.periodic(
+      AppConstants.clientLocationUpdateInterval,
+      (_) => unawaited(sendCurrentLocation()),
+    );
   }
 
   void _cancelSearch() {
@@ -146,7 +180,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
           // fallback map states never compete with markers or pulse overlays.
           if (orderFlowState.pickupLocation != null)
             Positioned.fill(
-              child: ProMapsViewSimple(
+              child: EvikOsmMapView(
                 initialLat: orderFlowState.pickupLocation!.latitude,
                 initialLng: orderFlowState.pickupLocation!.longitude,
                 initialZoom: 15,

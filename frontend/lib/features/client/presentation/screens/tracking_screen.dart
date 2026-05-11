@@ -90,6 +90,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
               showRoute: true,
               showSearchAnimation: false,
               driverLocation: _latestDriverLocation,
+              controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 330,
             ),
           ),
           Positioned(
@@ -100,16 +101,6 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
               vehicleNumber: driver?.vehicleNumber ?? 'А923АА 777',
               eta: _estimatedArrival ?? 'уточняется',
               onBackToOrder: () => context.go('/order/driver-info'),
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: 376,
-            child: _FocusDriverButton(
-              onPressed: () {
-                // Focus on driver location in the live map
-                // This would be handled by the LiveDriverMap widget
-              },
             ),
           ),
           Positioned(
@@ -130,7 +121,6 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
       ),
     );
   }
-
 }
 
 class _TopStatusCard extends StatelessWidget {
@@ -206,33 +196,6 @@ class _TopStatusCard extends StatelessWidget {
               color: EvikColors.primaryBlack,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FocusDriverButton extends StatelessWidget {
-  const _FocusDriverButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Material(
-        color: EvikColors.primaryWhite,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 4,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: const Icon(
-            Icons.my_location_rounded,
-            color: EvikColors.accentOrange,
-          ),
         ),
       ),
     );

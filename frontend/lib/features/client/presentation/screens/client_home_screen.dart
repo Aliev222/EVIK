@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
-import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../providers/order_flow_provider.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
@@ -36,8 +36,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orderFlowState = ref.watch(orderFlowProvider);
-    final location = orderFlowState.pickupLocation;
+    final location =
+        ref.watch(orderFlowProvider.select((state) => state.pickupLocation));
+    final isLoading =
+        ref.watch(orderFlowProvider.select((state) => state.isLoading));
     final address = _cleanAddress(location?.displayAddress);
     final lat = location?.latitude ?? AppConstants.moscowLat;
     final lng = location?.longitude ?? AppConstants.moscowLng;
@@ -47,19 +49,22 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: ProMapsViewSimple(
-              key: ValueKey<String>('$lat,$lng'),
+            child: EvikOsmMapView(
+              key: const ValueKey('client_home_map'),
               initialLat: lat,
               initialLng: lng,
               initialZoom: 15.5,
               markers: [
-                ProMapMarker(
+                EvikMapMarker(
                   lat: lat,
                   lng: lng,
                   title: address,
                   color: EvikColors.accentOrange,
                 ),
               ],
+              controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 168,
+              controlsBackgroundColor: EvikColors.primaryWhite,
+              controlsIconColor: EvikColors.accentOrange,
             ),
           ),
           Positioned(
@@ -68,7 +73,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             right: 72,
             child: _AddressBadge(
               address: address,
-              isLoading: orderFlowState.isLoading,
+              isLoading: isLoading,
             ),
           ),
           Positioned(
@@ -76,15 +81,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             right: 18,
             child: _ProfileButton(
               onPressed: widget.onProfilePressed,
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: 92,
-            child: _LocateButton(
-              onPressed: () {
-                ref.read(orderFlowProvider.notifier).detectCurrentLocation();
-              },
             ),
           ),
           Positioned(
@@ -134,31 +130,38 @@ class _AddressBadge extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: const BoxDecoration(
-              color: EvikColors.accentOrange,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isLoading ? 'Определяем адрес...' : address,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.primaryBlack,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showMarker = constraints.maxWidth >= 64;
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showMarker) ...[
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: EvikColors.accentOrange,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  isLoading ? 'Определяем адрес...' : address,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: EvikTypography.bodyMedium.copyWith(
+                    color: EvikColors.primaryBlack,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -196,35 +199,6 @@ class _ProfileButton extends StatelessWidget {
   }
 }
 
-class _LocateButton extends StatelessWidget {
-  const _LocateButton({required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Material(
-        color: EvikColors.primaryWhite,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 4,
-        shadowColor: Colors.black.withValues(alpha: 0.18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: const Icon(
-            Icons.near_me_rounded,
-            color: EvikColors.accentOrange,
-            size: 24,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CallTowTruckButton extends StatelessWidget {
   const _CallTowTruckButton({required this.onPressed});
 
@@ -242,43 +216,52 @@ class _CallTowTruckButton extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.local_shipping_rounded,
-                  color: EvikColors.primaryWhite,
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Вызвать эвакуатор',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: EvikTypography.buttonText.copyWith(
-                      color: EvikColors.primaryWhite,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 220;
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 18),
+                child: Row(
+                  children: [
+                    if (!compact) ...[
+                      const Icon(
+                        Icons.local_shipping_rounded,
+                        color: EvikColors.primaryWhite,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(
+                        'Вызвать эвакуатор',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: EvikTypography.buttonText.copyWith(
+                          color: EvikColors.primaryWhite,
+                          fontSize: compact ? 13 : 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (!compact)
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color:
+                              EvikColors.primaryWhite.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: EvikColors.primaryWhite,
+                          size: 22,
+                        ),
+                      ),
+                  ],
                 ),
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: EvikColors.primaryWhite.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_rounded,
-                    color: EvikColors.primaryWhite,
-                    size: 22,
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),

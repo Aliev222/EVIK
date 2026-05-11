@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../map/presentation/widgets/animated_driver_marker.dart';
-import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../../../order/domain/entities/order.dart';
 import '../providers/real_time_driver_provider.dart';
 
@@ -59,26 +59,27 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
           // Base map
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: ProMapsViewSimple(
+            child: EvikOsmMapView(
               initialLat: widget.pickupLocation.lat,
               initialLng: widget.pickupLocation.lng,
               initialZoom: 13,
               markers: [
                 // Pickup location marker
-                ProMapMarker(
+                EvikMapMarker(
                   lat: widget.pickupLocation.lat,
                   lng: widget.pickupLocation.lng,
                   title: 'Место погрузки',
                   color: Colors.green,
                 ),
                 // Destination marker if available
-                ProMapMarker(
+                EvikMapMarker(
                   lat: widget.order.dropoffLocation.lat,
                   lng: widget.order.dropoffLocation.lng,
                   title: 'Место назначения',
                   color: Colors.blue,
                 ),
               ],
+              routePoints: driverState.route?.points ?? const [],
             ),
           ),
 

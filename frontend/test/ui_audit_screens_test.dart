@@ -50,7 +50,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Клиент'), findsOneWidget);
+    expect(find.byType(ClientHomeScreen), findsOneWidget);
     expect(find.text('Вызвать эвакуатор'), findsOneWidget);
   });
 
@@ -120,7 +120,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.text('Водитель'), findsOneWidget);
+    expect(find.byType(DriverMainScreen), findsOneWidget);
     expect(find.text('Начать работу'), findsOneWidget);
   });
 }

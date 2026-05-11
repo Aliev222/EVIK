@@ -6,6 +6,7 @@ class PaymentCard {
     required this.expMonth,
     required this.expYear,
     required this.holder,
+    required this.status,
     required this.isDefault,
     required this.createdAt,
   });
@@ -16,6 +17,7 @@ class PaymentCard {
   final int expMonth;
   final int expYear;
   final String holder;
+  final String status;
   final bool isDefault;
   final DateTime createdAt;
 
@@ -44,13 +46,14 @@ class PaymentCard {
       expMonth: (json['exp_month'] as num?)?.toInt() ?? 1,
       expYear: (json['exp_year'] as num?)?.toInt() ?? 2000,
       holder: json['holder']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'active',
       isDefault: json['is_default'] == true,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
           DateTime.now(),
     );
   }
 
-  PaymentCard copyWith({bool? isDefault}) {
+  PaymentCard copyWith({bool? isDefault, String? status}) {
     return PaymentCard(
       id: id,
       brand: brand,
@@ -58,8 +61,26 @@ class PaymentCard {
       expMonth: expMonth,
       expYear: expYear,
       holder: holder,
+      status: status ?? this.status,
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt,
+    );
+  }
+}
+
+class AddCardInitResponse {
+  const AddCardInitResponse({
+    required this.confirmationUrl,
+    required this.paymentMethodId,
+  });
+
+  final String confirmationUrl;
+  final String paymentMethodId;
+
+  factory AddCardInitResponse.fromJson(Map<String, dynamic> json) {
+    return AddCardInitResponse(
+      confirmationUrl: json['confirmation_url']?.toString() ?? '',
+      paymentMethodId: json['payment_method_id']?.toString() ?? '',
     );
   }
 }

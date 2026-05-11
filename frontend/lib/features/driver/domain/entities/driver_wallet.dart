@@ -124,16 +124,37 @@ class DriverPayoutMethod {
 class DriverSubscriptionStatus {
   const DriverSubscriptionStatus({
     required this.status,
+    this.plan,
+    this.amount = 0,
+    this.currency = 'RUB',
+    this.periodEnd,
     this.endsAt,
+    this.daysLeft = 0,
+    this.canAcceptOrders = false,
   });
 
   final String status;
+  final String? plan;
+  final int amount;
+  final String currency;
+  final DateTime? periodEnd;
   final DateTime? endsAt;
+  final int daysLeft;
+  final bool canAcceptOrders;
 
   factory DriverSubscriptionStatus.fromJson(Map<String, dynamic> json) {
+    final periodEnd = _readDate(json, 'period_end', 'PeriodEnd') ??
+        _readDate(json, 'ends_at', 'EndsAt');
     return DriverSubscriptionStatus(
       status: _readString(json, 'status', 'Status', fallback: 'unknown'),
-      endsAt: _readDate(json, 'ends_at', 'EndsAt'),
+      plan: (json['plan'] ?? json['Plan'])?.toString(),
+      amount: _readMoney(json, 'amount', 'Amount'),
+      currency: _readString(json, 'currency', 'Currency', fallback: 'RUB'),
+      periodEnd: periodEnd,
+      endsAt: periodEnd,
+      daysLeft: _readInt(json, 'days_left', 'DaysLeft'),
+      canAcceptOrders:
+          (json['can_accept_orders'] ?? json['CanAcceptOrders']) == true,
     );
   }
 }
@@ -161,6 +182,13 @@ String _readString(
 }
 
 int _readMoney(Map<String, dynamic> json, String snakeKey, String pascalKey) {
+  final value = json[snakeKey] ?? json[pascalKey] ?? 0;
+  if (value is int) return value;
+  if (value is double) return value.round();
+  return int.tryParse(value.toString()) ?? 0;
+}
+
+int _readInt(Map<String, dynamic> json, String snakeKey, String pascalKey) {
   final value = json[snakeKey] ?? json[pascalKey] ?? 0;
   if (value is int) return value;
   if (value is double) return value.round();

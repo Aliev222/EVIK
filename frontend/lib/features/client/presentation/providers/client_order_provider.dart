@@ -281,13 +281,21 @@ final clientOrderProvider =
 });
 
 final clientUIStateProvider = Provider<ClientHomeUIState>((ref) {
-  return ref.watch(clientOrderProvider).uiState;
+  return ref.watch(clientOrderProvider.select((state) => state.uiState));
 });
 
 final estimatedPriceProvider = Provider<double?>((ref) {
-  return ref.watch(clientOrderProvider).estimatedPrice;
+  return ref.watch(clientOrderProvider.select((state) => state.estimatedPrice));
 });
 
 final canCreateOrderProvider = Provider<bool>((ref) {
-  return ref.watch(clientOrderProvider).canCreateOrder;
+  return ref.watch(clientOrderProvider.select((state) => state.canCreateOrder));
+});
+
+final pickupLocationProvider = Provider<MapLocation?>((ref) {
+  return ref.watch(clientOrderProvider.select((state) => state.pickupLocation));
+});
+
+final dropoffLocationProvider = Provider<MapLocation?>((ref) {
+  return ref.watch(clientOrderProvider.select((state) => state.dropoffLocation));
 });

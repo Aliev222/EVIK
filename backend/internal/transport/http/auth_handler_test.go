@@ -1,0 +1,191 @@
+package http
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"evik/backend/internal/auth"
+	userdomain "evik/backend/internal/domain/user"
+)
+
+func TestAuthRegisterIssuesRealUserSubjectAndRefreshSession(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{
+		"phone":"+79990000001",
+		"full_name":"Client One",
+		"role":"client",
+		"password":"password1"
+	}`))
+	handler.Register(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	userPayload := payload["user"].(map[string]any)
+	if userPayload["id"] == "" {
+		t.Fatal("expected real user id in response")
+	}
+	if len(repo.sessions) != 1 {
+		t.Fatalf("sessions = %d, want 1", len(repo.sessions))
+	}
+}
+
+func TestAuthRefreshRotatesStoredSession(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+	_, refreshToken, err := handler.issueTokens(context.Background(), "user-1", auth.RoleClient)
+	if err != nil {
+		t.Fatalf("issue tokens: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", bytes.NewBufferString(`{"refresh_token":"`+refreshToken+`"}`))
+	handler.Refresh(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	revoked := 0
+	for _, session := range repo.sessions {
+		if session.RevokedAt != nil {
+			revoked++
+		}
+	}
+	if revoked != 1 || len(repo.sessions) != 2 {
+		t.Fatalf("expected one revoked old session and one new session, sessions=%d revoked=%d", len(repo.sessions), revoked)
+	}
+}
+
+type fixedHTTPClock struct{ now time.Time }
+
+func (c fixedHTTPClock) Now() time.Time { return c.now }
+
+type seqID struct{ n int }
+
+func (g *seqID) NewID() string {
+	g.n++
+	return "id-" + string(rune('0'+g.n))
+}
+
+type fakeUserRepository struct {
+	users    map[string]*userdomain.User
+	sessions map[string]*userdomain.RefreshSession
+	otps     map[string]*userdomain.PhoneOTP
+}
+
+func newFakeUserRepository() *fakeUserRepository {
+	return &fakeUserRepository{
+		users:    map[string]*userdomain.User{},
+		sessions: map[string]*userdomain.RefreshSession{},
+		otps:     map[string]*userdomain.PhoneOTP{},
+	}
+}
+
+func (r *fakeUserRepository) GetByID(_ context.Context, id string) (*userdomain.User, error) {
+	user := r.users[id]
+	if user == nil {
+		return nil, userdomain.ErrUserNotFound
+	}
+	return user, nil
+}
+
+func (r *fakeUserRepository) GetByPhoneAndRole(_ context.Context, phone string, role string) (*userdomain.User, error) {
+	for _, user := range r.users {
+		if user.Phone == phone && string(user.Role) == role {
+			return user, nil
+		}
+	}
+	return nil, userdomain.ErrUserNotFound
+}
+
+func (r *fakeUserRepository) Create(_ context.Context, user *userdomain.User) error {
+	for _, existing := range r.users {
+		if existing.Phone == user.Phone && existing.Role == user.Role {
+			return userdomain.ErrUserAlreadyExists
+		}
+	}
+	r.users[user.ID] = user
+	return nil
+}
+
+func (r *fakeUserRepository) UpdatePasswordHash(_ context.Context, userID string, passwordHash string) error {
+	if r.users[userID] == nil {
+		return userdomain.ErrUserNotFound
+	}
+	r.users[userID].PasswordHash = &passwordHash
+	return nil
+}
+
+func (r *fakeUserRepository) CreateRefreshSession(_ context.Context, session *userdomain.RefreshSession) error {
+	cp := *session
+	r.sessions[session.ID] = &cp
+	return nil
+}
+
+func (r *fakeUserRepository) GetActiveRefreshSessionByHash(_ context.Context, tokenHash string) (*userdomain.RefreshSession, error) {
+	for _, session := range r.sessions {
+		if session.TokenHash == tokenHash && session.RevokedAt == nil {
+			return session, nil
+		}
+	}
+	return nil, userdomain.ErrSessionNotFound
+}
+
+func (r *fakeUserRepository) RevokeRefreshSession(_ context.Context, sessionID string, revokedAt time.Time) error {
+	if r.sessions[sessionID] != nil {
+		r.sessions[sessionID].RevokedAt = &revokedAt
+	}
+	return nil
+}
+
+func (r *fakeUserRepository) CreatePhoneOTP(_ context.Context, otp *userdomain.PhoneOTP) error {
+	cp := *otp
+	r.otps[otp.ID] = &cp
+	return nil
+}
+
+func (r *fakeUserRepository) ConsumePhoneOTP(_ context.Context, phone string, role string, codeHash string, now time.Time) (*userdomain.PhoneOTP, error) {
+	for _, otp := range r.otps {
+		if otp.Phone == phone && string(otp.Role) == role && otp.CodeHash == codeHash && otp.ConsumedAt == nil && otp.ExpiresAt.After(now) {
+			otp.ConsumedAt = &now
+			return otp, nil
+		}
+	}
+	return nil, userdomain.ErrOTPNotFound
+}
+
+func (r *fakeUserRepository) UpsertTaxProfile(context.Context, *userdomain.TaxProfile) error {
+	return nil
+}
+
+func (r *fakeUserRepository) GetTaxProfile(context.Context, string) (*userdomain.TaxProfile, error) {
+	return nil, userdomain.ErrTaxProfileNotFound
+}
+
+func (r *fakeUserRepository) IsDriverTaxVerified(context.Context, string) (bool, error) {
+	return true, nil
+}
+
+func (r *fakeUserRepository) IsDriverDocumentsApproved(context.Context, string) (bool, error) {
+	return true, nil
+}
+
+func (r *fakeUserRepository) IsDriverSubscriptionActive(context.Context, string, time.Time) (bool, error) {
+	return true, nil
+}

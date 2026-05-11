@@ -62,6 +62,24 @@ class DriverWalletRepository {
         .toList();
   }
 
+  Future<void> addPayoutMethod({
+    required String type,
+    required String providerRecipientId,
+    required String maskedValue,
+    required bool isDefault,
+  }) async {
+    await _apiClient.post(
+      '/api/v1/driver/payout-methods',
+      <String, dynamic>{
+        'type': type,
+        'provider_recipient_id': providerRecipientId,
+        'masked_value': maskedValue,
+        'is_default': isDefault,
+      },
+      headers: _authHeaders,
+    );
+  }
+
   Future<void> requestPayout(int amount) async {
     await _apiClient.post(
       '/api/v1/driver/payouts/request',

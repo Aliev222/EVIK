@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../domain/entities/map_location.dart';
 import '../../presentation/providers/map_provider.dart';
-import 'promaps_view_simple.dart';
+import 'evik_osm_map_view.dart';
 
 class EvikMapWidget extends ConsumerWidget {
   const EvikMapWidget({
@@ -40,7 +40,7 @@ class EvikMapWidget extends ConsumerWidget {
                   mapState.cameraPosition ?? mapState.currentPosition;
               if (current != null) onMapLongPress?.call(current);
             },
-            child: ProMapsViewSimple(
+            child: EvikOsmMapView(
               initialLat: mapState.cameraPosition?.latitude ??
                   mapState.currentPosition?.latitude,
               initialLng: mapState.cameraPosition?.longitude ??

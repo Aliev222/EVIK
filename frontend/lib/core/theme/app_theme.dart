@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'evik_colors.dart';
 import 'evik_tokens.dart';
 import 'evik_typography.dart';
 
 class AppTheme {
+  static const String _fontFamily = 'Manrope';
+
   static ThemeData light() {
     const scheme = ColorScheme.light(
       primary: EvikColors.accentOrange,
@@ -20,7 +21,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      fontFamily: GoogleFonts.manrope().fontFamily,
+      fontFamily: _fontFamily,
       scaffoldBackgroundColor: EvikColors.gray50,
       textTheme: TextTheme(
         displayLarge: EvikTypography.h1,

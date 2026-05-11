@@ -11,9 +11,7 @@ import 'websocket_client.dart';
 
 const defaultWsUrl = String.fromEnvironment(
   'EVIK_WS_URL',
-  defaultValue: kDebugMode
-      ? 'ws://localhost:8080/ws/orders'
-      : 'wss://tow-truck.onrender.com/ws/orders',
+  defaultValue: 'wss://tow-truck.onrender.com/ws/orders',
 );
 
 WebSocketClient createPlatformWebSocketClient() {

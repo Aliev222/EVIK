@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/navigation_service.dart';
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/promaps_view_simple.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../../domain/entities/active_order.dart';
 import '../providers/new_driver_provider.dart';
 
@@ -21,6 +23,9 @@ class ActiveOrderScreen extends ConsumerStatefulWidget {
 class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
   static const double _driverLat = 55.7558;
   static const double _driverLng = 37.6173;
+  String? _routeKey;
+  RoutePreview? _routePreview;
+  bool _routePreviewFailed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -44,32 +49,36 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
         body: Center(child: Text('Нет активного заказа')),
       );
     }
+    _syncRoutePreview(order);
 
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
       body: Stack(
         children: [
           Positioned.fill(
-            child: ProMapsViewSimple(
+            child: EvikOsmMapView(
               initialLat: _driverLat,
               initialLng: _driverLng,
               initialZoom: 13.4,
               markers: _mapMarkers(order),
+              routePoints: _routePreview?.points ?? const <LatLng>[],
+              controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 246,
+              controlsBackgroundColor: EvikColors.primaryWhite,
+              controlsIconColor: EvikColors.accentOrange,
             ),
           ),
+          if (_routePreviewFailed)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: MediaQuery.paddingOf(context).top + 78,
+              child: const _RouteUnavailableBadge(),
+            ),
           Positioned(
             top: MediaQuery.paddingOf(context).top + 12,
             left: 16,
             right: 16,
             child: _ActiveOrderTopBar(order: order),
-          ),
-          Positioned(
-            right: 16,
-            bottom: MediaQuery.paddingOf(context).bottom + 246,
-            child: _MapActionButton(
-              icon: Icons.navigation_rounded,
-              onTap: () => _openNavigation(order),
-            ),
           ),
           Positioned(
             left: 0,
@@ -80,6 +89,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
               isLoading: driverState.isLoading,
               onCall: () => _makePhoneCall(order.clientPhone),
               onMessage: () => _openSMS(order.clientPhone),
+              onNavigation: () => _openNavigation(order),
               onPrimaryAction: () => _handlePrimaryAction(order),
             ),
           ),
@@ -88,21 +98,21 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
     );
   }
 
-  List<ProMapMarker> _mapMarkers(ActiveOrder order) {
+  List<EvikMapMarker> _mapMarkers(ActiveOrder order) {
     return [
-      const ProMapMarker(
+      const EvikMapMarker(
         lat: _driverLat,
         lng: _driverLng,
         title: 'Водитель',
         color: EvikColors.infoBlue,
       ),
-      ProMapMarker(
+      EvikMapMarker(
         lat: order.pickupLat,
         lng: order.pickupLng,
         title: order.pickupAddress,
         color: EvikColors.accentOrange,
       ),
-      ProMapMarker(
+      EvikMapMarker(
         lat: order.dropoffLat,
         lng: order.dropoffLng,
         title: order.dropoffAddress,
@@ -148,10 +158,82 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
 
   Future<void> _openNavigation(ActiveOrder order) async {
     final target = _targetPoint(order);
-    final uri = Uri.parse(
-      'https://api.promaps.online/embed?lat=${target.lat}&lng=${target.lng}&zoom=16&key=${AppConstants.promapsSdkApiKey}',
+    if (!mounted) return;
+    await NavigationLauncher.openPreferredOrChoose(
+      context: context,
+      toLat: target.lat,
+      toLng: target.lng,
+      destinationName: order.status == ActiveOrderStatus.drivingToDestination
+          ? order.dropoffAddress
+          : order.pickupAddress,
     );
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  void _syncRoutePreview(ActiveOrder order) {
+    final target = _targetPoint(order);
+    final nextKey = '${order.id}:${order.status}:${target.lat}:${target.lng}';
+    if (_routeKey == nextKey) return;
+    _routeKey = nextKey;
+    _routePreview = null;
+    _routePreviewFailed = false;
+    OpenStreetMapService.getRoutePreview(
+      fromLat: _driverLat,
+      fromLng: _driverLng,
+      toLat: target.lat,
+      toLng: target.lng,
+    ).then((preview) {
+      if (!mounted || _routeKey != nextKey) return;
+      setState(() {
+        _routePreview = preview;
+        _routePreviewFailed = preview == null;
+      });
+    });
+  }
+}
+
+class _RouteUnavailableBadge extends StatelessWidget {
+  const _RouteUnavailableBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: EvikColors.gray200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.route_outlined,
+                size: 18,
+                color: EvikColors.accentOrange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Маршрут недоступен',
+                style: EvikTypography.bodySmall.copyWith(
+                  color: EvikColors.primaryBlack,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -222,6 +304,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
     required this.isLoading,
     required this.onCall,
     required this.onMessage,
+    required this.onNavigation,
     required this.onPrimaryAction,
   });
 
@@ -229,6 +312,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onCall;
   final VoidCallback onMessage;
+  final VoidCallback onNavigation;
   final VoidCallback onPrimaryAction;
 
   @override
@@ -321,12 +405,30 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                 onCompleted: onPrimaryAction,
               )
             else
-              EvikButton(
-                text: _primaryText(order.status),
-                onPressed: isLoading ? null : onPrimaryAction,
-                isLoading: isLoading,
-                width: double.infinity,
-                variant: EvikButtonVariant.green,
+              Row(
+                children: [
+                  Expanded(
+                    child: EvikButton(
+                      text: 'Построить маршрут',
+                      onPressed: isLoading ? null : onNavigation,
+                      icon: const Icon(Icons.route_rounded, size: 18),
+                      small: true,
+                      width: double.infinity,
+                      variant: EvikButtonVariant.secondary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: EvikButton(
+                      text: _primaryText(order.status),
+                      onPressed: isLoading ? null : onPrimaryAction,
+                      isLoading: isLoading,
+                      small: true,
+                      width: double.infinity,
+                      variant: EvikButtonVariant.green,
+                    ),
+                  ),
+                ],
               ),
           ],
         ),
@@ -502,32 +604,6 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
           ),
         );
       },
-    );
-  }
-}
-
-class _MapActionButton extends StatelessWidget {
-  const _MapActionButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Material(
-        color: EvikColors.primaryWhite,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 4,
-        shadowColor: Colors.black.withValues(alpha: 0.14),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Icon(icon, color: EvikColors.accentOrange),
-        ),
-      ),
     );
   }
 }

@@ -29,18 +29,20 @@ class _AnimatedButtonState extends State<AnimatedButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) {
-        HapticFeedback.lightImpact();
-        _setPressed(true);
-      },
-      onPointerUp: (_) => _setPressed(false),
-      onPointerCancel: (_) => _setPressed(false),
-      child: AnimatedScale(
-        scale: _isPressed ? widget.scaleValue : 1,
-        duration: widget.duration,
-        curve: _isPressed ? Curves.easeInOut : Curves.bounceOut,
-        child: widget.child,
+    return RepaintBoundary(
+      child: Listener(
+        onPointerDown: (_) {
+          HapticFeedback.lightImpact();
+          _setPressed(true);
+        },
+        onPointerUp: (_) => _setPressed(false),
+        onPointerCancel: (_) => _setPressed(false),
+        child: AnimatedScale(
+          scale: _isPressed ? widget.scaleValue : 1,
+          duration: widget.duration,
+          curve: _isPressed ? Curves.easeInOut : Curves.elasticOut,
+          child: widget.child,
+        ),
       ),
     );
   }

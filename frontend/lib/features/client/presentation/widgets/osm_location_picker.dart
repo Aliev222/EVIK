@@ -1,16 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/promaps_service.dart';
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
 import '../../../map/domain/entities/map_location.dart';
-import '../../../map/presentation/widgets/promaps_view.dart';
+import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 
-class ProMapsLocationPicker extends ConsumerStatefulWidget {
-  const ProMapsLocationPicker({
+class OsmLocationPicker extends ConsumerStatefulWidget {
+  const OsmLocationPicker({
     super.key,
     required this.title,
     required this.addressLabel,
@@ -28,17 +30,17 @@ class ProMapsLocationPicker extends ConsumerStatefulWidget {
   final ValueChanged<MapLocation> onLocationConfirmed;
 
   @override
-  ConsumerState<ProMapsLocationPicker> createState() =>
-      _ProMapsLocationPickerState();
+  ConsumerState<OsmLocationPicker> createState() => _OsmLocationPickerState();
 }
 
-class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
+class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   late final TextEditingController _addressController;
   late double _selectedLat;
   late double _selectedLng;
   late String _selectedAddress;
   bool _isLoading = false;
   bool _hasSelection = false;
+  Timer? _cameraReverseGeocodeTimer;
 
   @override
   void initState() {
@@ -60,6 +62,7 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
 
   @override
   void dispose() {
+    _cameraReverseGeocodeTimer?.cancel();
     _addressController.dispose();
     super.dispose();
   }
@@ -75,9 +78,25 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
     _reverseGeocode(lat, lng);
   }
 
+  void _onCameraMove(double lat, double lng) {
+    _cameraReverseGeocodeTimer?.cancel();
+    setState(() {
+      _selectedLat = lat;
+      _selectedLng = lng;
+      _selectedAddress =
+          'Точка на карте: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+      _hasSelection = true;
+    });
+    _cameraReverseGeocodeTimer = Timer(
+      const Duration(milliseconds: 700),
+      () => _reverseGeocode(lat, lng),
+    );
+  }
+
   Future<void> _reverseGeocode(double lat, double lng) async {
     try {
-      final address = await ProMapsService.reverseGeocode(lat: lat, lng: lng);
+      final address =
+          await OpenStreetMapService.reverseGeocode(lat: lat, lng: lng);
       if (address != null && mounted) {
         setState(() {
           _selectedAddress = address;
@@ -94,7 +113,7 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
     setState(() => _isLoading = true);
 
     try {
-      final location = await ProMapsService.getCurrentLocation();
+      final location = await OpenStreetMapService.getCurrentLocation();
       if (!mounted || location == null) return;
 
       setState(() {
@@ -124,7 +143,7 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
 
     setState(() => _isLoading = true);
     try {
-      final location = await ProMapsService.searchLocation(query);
+      final location = await OpenStreetMapService.searchLocation(query);
       if (!mounted || location == null) {
         _showError('Адрес не найден. Уточните запрос.');
         return;
@@ -168,12 +187,23 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: ProMapsView(
+            child: EvikOsmMapView(
               initialLat: _selectedLat,
               initialLng: _selectedLng,
               initialZoom: 16,
               onTap: _onMapTap,
+              onCameraMove: _onCameraMove,
+              onLocationButtonPressed: (lat, lng, address) {
+                setState(() {
+                  _selectedLat = lat;
+                  _selectedLng = lng;
+                  _selectedAddress = address;
+                  _hasSelection = true;
+                });
+              },
+              fitToMarkers: false,
               showUserLocation: false, // We handle location separately
+              controlsBottomOffset: 234,
             ),
           ),
           const Center(
@@ -190,14 +220,6 @@ class _ProMapsLocationPickerState extends ConsumerState<ProMapsLocationPicker> {
               onBack: () => Navigator.of(context).pop(),
               onSearch: _searchAddress,
               onUseCurrentLocation: _detectCurrentLocation,
-            ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: 182,
-            child: _MapLocationButton(
-              isLoading: _isLoading,
-              onPressed: _detectCurrentLocation,
             ),
           ),
           Positioned(
@@ -267,7 +289,7 @@ class _TopPanel extends StatelessWidget {
                 IconButton(
                   onPressed: isLoading ? null : onUseCurrentLocation,
                   icon: const Icon(
-                    Icons.my_location_rounded,
+                    Icons.navigation_rounded,
                     color: EvikColors.accentOrange,
                   ),
                 ),
@@ -367,42 +389,6 @@ class _BottomPanel extends StatelessWidget {
                   : EvikButtonVariant.ghost,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapLocationButton extends StatelessWidget {
-  const _MapLocationButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
-
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Material(
-        color: EvikColors.primaryWhite,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 4,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: isLoading ? null : onPressed,
-          child: isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(
-                  Icons.near_me_rounded,
-                  color: EvikColors.accentOrange,
-                ),
         ),
       ),
     );

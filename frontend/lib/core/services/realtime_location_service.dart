@@ -9,7 +9,10 @@ import '../../../features/map/presentation/widgets/animated_driver_marker.dart';
 
 /// Real-time сервис для WebSocket связи с сервером местоположений
 class RealTimeLocationService {
-  static const String _wsUrl = 'ws://localhost:8766';
+  static const String _wsUrl = String.fromEnvironment(
+    'EVIK_LOCATION_WS_URL',
+    defaultValue: 'wss://tow-truck.onrender.com/ws/orders',
+  );
 
   WebSocketChannel? _channel;
   bool _isConnected = false;
@@ -21,6 +24,8 @@ class RealTimeLocationService {
       StreamController<DriverLocationUpdate>.broadcast();
   final StreamController<OrderUpdate> _orderUpdateController =
       StreamController<OrderUpdate>.broadcast();
+  final StreamController<ClientLocationUpdate> _clientLocationController =
+      StreamController<ClientLocationUpdate>.broadcast();
   final StreamController<String> _connectionController =
       StreamController<String>.broadcast();
 
@@ -28,6 +33,8 @@ class RealTimeLocationService {
   Stream<DriverLocationUpdate> get driverLocationStream =>
       _driverLocationController.stream;
   Stream<OrderUpdate> get orderUpdateStream => _orderUpdateController.stream;
+  Stream<ClientLocationUpdate> get clientLocationStream =>
+      _clientLocationController.stream;
   Stream<String> get connectionStream => _connectionController.stream;
 
   bool get isConnected => _isConnected;
@@ -105,6 +112,27 @@ class RealTimeLocationService {
     _sendMessage(message);
   }
 
+  Future<void> sendClientLocation({
+    required double lat,
+    required double lng,
+    String? orderId,
+  }) async {
+    if (!_isConnected || _userType != 'client') return;
+
+    final message = {
+      'type': 'client_location_update',
+      'client_id': _userId,
+      'data': {
+        'lat': lat,
+        'lng': lng,
+        'order_id': orderId,
+      },
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    _sendMessage(message);
+  }
+
   /// Создание заказа клиентом
   Future<void> createOrder({
     required double pickupLat,
@@ -146,6 +174,11 @@ class RealTimeLocationService {
 
         case 'driver_location_update':
           _handleDriverLocationUpdate(message);
+          break;
+
+        case 'client.location.updated':
+        case 'client_location_update':
+          _handleClientLocationUpdate(message);
           break;
 
         case 'driver_found':
@@ -190,6 +223,30 @@ class RealTimeLocationService {
       _driverLocationController.add(update);
     } catch (e) {
       debugPrint('Error parsing driver location: $e');
+    }
+  }
+
+  void _handleClientLocationUpdate(Map<String, dynamic> message) {
+    try {
+      final location = message['location'] ?? message['data'];
+      if (location == null) return;
+
+      _clientLocationController.add(
+        ClientLocationUpdate(
+          clientId: message['client_id'] ?? location['client_id'] ?? '',
+          lat: location['lat']?.toDouble() ?? 0.0,
+          lng: location['lng']?.toDouble() ?? 0.0,
+          orderId: message['order_id'] ?? location['order_id'],
+          timestamp: DateTime.tryParse(
+                location['last_update']?.toString() ??
+                    message['timestamp']?.toString() ??
+                    '',
+              ) ??
+              DateTime.now(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error parsing client location: $e');
     }
   }
 
@@ -322,6 +379,7 @@ class RealTimeLocationService {
     disconnect();
     _driverLocationController.close();
     _orderUpdateController.close();
+    _clientLocationController.close();
     _connectionController.close();
   }
 }
@@ -352,6 +410,28 @@ class DriverLocationUpdate {
         lat: lat,
         lng: lng,
         address: 'Driver $driverId',
+      );
+}
+
+class ClientLocationUpdate {
+  const ClientLocationUpdate({
+    required this.clientId,
+    required this.lat,
+    required this.lng,
+    required this.timestamp,
+    this.orderId,
+  });
+
+  final String clientId;
+  final double lat;
+  final double lng;
+  final DateTime timestamp;
+  final String? orderId;
+
+  LocationModel get location => LocationModel(
+        lat: lat,
+        lng: lng,
+        address: 'Client $clientId',
       );
 }
 

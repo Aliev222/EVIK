@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type Role string
@@ -86,6 +87,7 @@ func (m *TokenManager) sign(userID string, role Role, tokenType string, expiresA
 		Type:   tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
+			ID:        uuid.NewString(),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(m.now()),
 			NotBefore: jwt.NewNumericDate(m.now()),

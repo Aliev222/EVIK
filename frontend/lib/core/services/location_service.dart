@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
 import '../../features/order/domain/entities/order.dart';
-import 'promaps_service.dart';
+import 'openstreetmap_service.dart';
 
 class LocationService {
   static LocationService? _instance;
@@ -49,7 +49,7 @@ class LocationService {
     if (address.trim().isEmpty) return null;
 
     try {
-      final location = await ProMapsService.searchLocation(address);
+      final location = await OpenStreetMapService.searchLocation(address);
       if (location != null) {
         return LocationModel(
           lat: location.latitude,
@@ -69,7 +69,7 @@ class LocationService {
     required LocationModel to,
   }) async {
     try {
-      final route = await ProMapsService.getRoute(
+      final route = await OpenStreetMapService.getRoutePreview(
         fromLat: from.lat,
         fromLng: from.lng,
         toLat: to.lat,
@@ -110,7 +110,7 @@ class LocationService {
     required LocationModel to,
   }) async {
     try {
-      final route = await ProMapsService.getRoute(
+      final route = await OpenStreetMapService.getRoutePreview(
         fromLat: from.lat,
         fromLng: from.lng,
         toLat: to.lat,
@@ -142,7 +142,7 @@ class LocationService {
 
   Future<String?> _getAddressByCoordinates(double lat, double lng) async {
     try {
-      return await ProMapsService.reverseGeocode(lat: lat, lng: lng) ??
+      return await OpenStreetMapService.reverseGeocode(lat: lat, lng: lng) ??
           _coordinatesAddress(lat, lng);
     } catch (e) {
       return _coordinatesAddress(lat, lng);

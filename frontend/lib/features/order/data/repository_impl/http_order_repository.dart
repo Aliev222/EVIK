@@ -32,6 +32,7 @@ class HttpOrderRepository implements OrderRepository {
       'pickup_lng': command.pickupLocation.lng,
       'dropoff_lat': command.dropoffLocation.lat,
       'dropoff_lng': command.dropoffLocation.lng,
+      'payment_method': command.paymentMethod.name,
       'auto_dispatch': true,
     };
 
@@ -45,7 +46,13 @@ class HttpOrderRepository implements OrderRepository {
       body,
       headers: _authHeaders,
     );
-    return Order.fromMap(response['order'] as Map<String, dynamic>);
+    final order = Order.fromMap(response['order'] as Map<String, dynamic>);
+    await _apiClient.post(
+      '/api/v1/orders/${order.id}/payments',
+      <String, dynamic>{'payment_method': command.paymentMethod.name},
+      headers: _authHeaders,
+    );
+    return order;
   }
 
   Future<List<Order>> getOrders() async {

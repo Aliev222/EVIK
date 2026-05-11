@@ -23,11 +23,16 @@ func main() {
 	}
 	defer container.Close()
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           container.Router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+
+	go container.Scheduler.Run(ctx)
 
 	go func() {
 		logger.Printf("http server started on %s", cfg.HTTPAddr)
@@ -36,14 +41,13 @@ func main() {
 		}
 	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	<-ctx.Done()
+	stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Printf("shutdown error: %v", err)
 	}
 }

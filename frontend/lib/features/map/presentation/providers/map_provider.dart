@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../../../core/services/promaps_service.dart';
+import '../../../../core/services/openstreetmap_service.dart';
 import '../../domain/entities/map_location.dart';
 
 class MapState {
@@ -163,7 +163,7 @@ class MapNotifier extends StateNotifier<MapState> {
 
   Future<String> reverseGeocode(double latitude, double longitude) async {
     try {
-      return await ProMapsService.reverseGeocode(
+      return await OpenStreetMapService.reverseGeocode(
             lat: latitude,
             lng: longitude,
           ) ??

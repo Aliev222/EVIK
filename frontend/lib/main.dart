@@ -5,8 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/constants/app_constants.dart';
 import 'core/error/global_error_handler.dart';
+import 'core/performance/frame_timing_monitor.dart';
+import 'core/performance/rebuild_tracker.dart';
 import 'core/theme/app_theme.dart';
-import 'core/theme/evik_tokens.dart';
 import 'features/auth/domain/entities/user.dart';
 import 'features/auth/presentation/auth_screen.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
@@ -25,12 +26,14 @@ import 'features/client/presentation/screens/order_completion_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized().deferFirstFrame();
-
-  // Debug info removed for clean testing
+  WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize global error handler
   GlobalErrorHandler.initialize();
+
+  // Initialize performance monitoring
+  FrameTimingMonitor.initialize();
+  RebuildTracker.initialize();
 
   runApp(
     ProviderScope(
@@ -98,32 +101,17 @@ class _LaunchScreenState extends State<_LaunchScreen> {
   static bool _didShowLaunchSplash = false;
 
   late bool _showSplash = !_didShowLaunchSplash;
-  bool _didPrepareSplash = false;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_didPrepareSplash) return;
-    _didPrepareSplash = true;
-    _prepareSplash();
+  void initState() {
+    super.initState();
+    if (_showSplash) {
+      _finishSplash();
+    }
   }
 
-  Future<void> _prepareSplash() async {
-    if (_didShowLaunchSplash) {
-      WidgetsBinding.instance.allowFirstFrame();
-      return;
-    }
-
-    try {
-      await precacheImage(
-        const AssetImage('assets/img/load.png'),
-        context,
-      );
-    } finally {
-      WidgetsBinding.instance.allowFirstFrame();
-    }
-
-    await Future<void>.delayed(const Duration(milliseconds: 1400));
+  Future<void> _finishSplash() async {
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
     _didShowLaunchSplash = true;
     setState(() => _showSplash = false);
@@ -131,24 +119,21 @@ class _LaunchScreenState extends State<_LaunchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: EvikDurations.slow,
-      switchInCurve: EvikCurves.enter,
-      switchOutCurve: EvikCurves.exit,
-      transitionBuilder: (child, animation) {
-        final offsetAnimation = Tween<Offset>(
-          begin: const Offset(0, 0.03),
-          end: Offset.zero,
-        ).animate(animation);
-
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: offsetAnimation, child: child),
-        );
-      },
-      child: _showSplash
-          ? const _SplashScreen(key: ValueKey<String>('launch-splash'))
-          : const _AppRouter(key: ValueKey<String>('app-router')),
+    return RepaintBoundary(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+        child: _showSplash
+            ? const _SplashScreen(key: ValueKey<String>('launch-splash'))
+            : const _AppRouter(key: ValueKey<String>('app-router')),
+      ),
     );
   }
 }
@@ -310,17 +295,10 @@ class _SplashScreenState extends State<_SplashScreen>
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(0xFFFF6B35).withValues(
-                                    alpha: 0.4 * _blinkOpacity.value),
-                                blurRadius: 120,
-                                offset: const Offset(0, 40),
-                                spreadRadius: 20,
-                              ),
-                              BoxShadow(
-                                color: const Color(0xFFFF6B35).withValues(
-                                    alpha: 0.2 * _blinkOpacity.value),
-                                blurRadius: 240,
-                                offset: const Offset(0, 0),
-                                spreadRadius: 60,
+                                    alpha: 0.25 * _blinkOpacity.value),
+                                blurRadius: 60,
+                                offset: const Offset(0, 20),
+                                spreadRadius: 10,
                               ),
                             ],
                           ),
@@ -404,14 +382,16 @@ class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.06)
+      ..color = Colors.black.withValues(alpha: 0.04)
       ..strokeWidth = 1;
 
-    const spacing = 24.0;
+    const spacing = 32.0;
+    final maxDots = ((size.width / spacing) * (size.height / spacing)).round();
+    if (maxDots > 100) return; // Skip if too many dots
 
     for (double x = 0; x < size.width; x += spacing) {
       for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x + 1, y + 1), 1, paint);
+        canvas.drawCircle(Offset(x + 1, y + 1), 0.8, paint);
       }
     }
   }
@@ -493,15 +473,33 @@ class _AppRouter extends ConsumerWidget {
     // Быстрый режим тестирования - пропуск авторизации
     if (AppConstants.skipAuth) {
       final selectedRole = ref.watch(selectedOnboardingRoleProvider);
+      final authState = ref.watch(authProvider);
+      final currentUser = ref.watch(currentUserProvider);
 
-      if (selectedRole == UserRole.driver) {
-        return const DriverScreen(); // Водительский интерфейс
-      } else if (selectedRole == UserRole.client) {
-        return const ClientAppShell(); // Клиентский интерфейс
+      if (selectedRole == null) {
+        return const RoleSelectionScreen();
       }
 
-      // Показать выбор роли для тестирования
-      return const RoleSelectionScreen();
+      final hasActiveTestSession = currentUser?.role == selectedRole &&
+          authState.accessToken != null &&
+          authState.accessToken!.isNotEmpty;
+      if (!hasActiveTestSession) {
+        if (!authState.isLoading) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ref.read(authProvider.notifier).signInForTesting(selectedRole);
+          });
+        }
+        return _TestAuthScreen(
+          errorMessage: authState.errorMessage,
+          onRetry: () =>
+              ref.read(authProvider.notifier).signInForTesting(selectedRole),
+        );
+      }
+
+      if (selectedRole == UserRole.driver) {
+        return const DriverScreen();
+      }
+      return const ClientAppShell();
     }
 
     // Обычная логика авторизации
@@ -525,5 +523,60 @@ class _AppRouter extends ConsumerWidget {
     }
 
     return AuthScreen(initialRole: selectedRole);
+  }
+}
+
+class _TestAuthScreen extends StatelessWidget {
+  const _TestAuthScreen({
+    this.errorMessage,
+    required this.onRetry,
+  });
+
+  final String? errorMessage;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (errorMessage == null) ...[
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Готовим тестовый профиль',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ] else ...[
+                  Text(
+                    'Не удалось войти в тестовый профиль',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: onRetry,
+                    child: const Text('Повторить'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
