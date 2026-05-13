@@ -414,7 +414,7 @@ async function pageOrders(main) {
       <div class="form-group"><label>С</label><input name="from" type="date" /></div>
       <div class="form-group"><label>По</label><input name="to" type="date" /></div>
       <button class="btn btn-primary" id="orders-apply">Применить</button>
-      <button class="btn" id="orders-reset">Сбросить</button>
+      <button class="btn btn-secondary" id="orders-reset">Сбросить</button>
     </div>
     <div id="orders-table">${LoadingState()}</div>
   `;
@@ -647,10 +647,10 @@ function openVerificationDrawer(v) {
     ${signals ? `<div class="drawer-section"><h3>Сигналы</h3>${signals}</div>` : ''}
     ${v.decision_reason ? `<div class="drawer-section"><h3>Причина решения</h3><div>${escapeHtml(v.decision_reason)}</div></div>` : ''}`;
   const footer = `
-    <button class="btn btn-success" id="vbtn-approve">Approve</button>
-    <button class="btn btn-warning" id="vbtn-changes">Request changes</button>
-    <button class="btn btn-danger"  id="vbtn-reject">Reject</button>
-    <button class="btn btn-danger"  id="vbtn-block">Block</button>`;
+    <button class="btn btn-success" id="vbtn-approve">Одобрить</button>
+    <button class="btn btn-warning" id="vbtn-changes">Запросить правки</button>
+    <button class="btn btn-danger"  id="vbtn-reject">Отклонить</button>
+    <button class="btn btn-danger"  id="vbtn-block">Заблокировать</button>`;
   openDrawer('Верификация ' + shortId(v.id), body, footer);
   $('#vbtn-approve').onclick  = () => moderationApproveModal(v.id);
   $('#vbtn-changes').onclick  = () => moderationReasonModal(v.id, 'request-changes', 'Запросить правки');
@@ -790,8 +790,8 @@ async function pagePayouts(main) {
       <div class="card-header"><div class="card-title">Действия по payout</div></div>
       <div class="row">
         <div class="form-group" style="flex:1 1 240px"><label>Payout ID</label><input name="pid" /></div>
-        <button class="btn btn-success" id="po-appr">Approve</button>
-        <button class="btn btn-danger"  id="po-rej">Reject…</button>
+        <button class="btn btn-success" id="po-appr">Одобрить</button>
+        <button class="btn btn-danger"  id="po-rej">Отклонить</button>
       </div>
     </div>`;
   loadFinanceReport('payouts', $('#rep', main));
@@ -862,7 +862,7 @@ async function pageRefunds(main) {
       <div class="form-group"><label>С</label><input name="from" type="date" /></div>
       <div class="form-group"><label>По</label><input name="to" type="date" /></div>
       <button class="btn btn-primary" id="rf-apply">Применить</button>
-      <button class="btn btn-success" id="rf-new">Создать refund</button>
+      <button class="btn btn-secondary" id="rf-new">Создать возврат</button>
     </div>
     <div id="rf-table">${LoadingState()}</div>`;
   for (const k of ['status','payment_id','order_id','from','to']) {
@@ -923,7 +923,7 @@ function pageReports(main) {
         <div class="form-group" style="max-width:240px"><label>Тип отчёта</label>
           <select name="type">${types.map(t => `<option>${t}</option>`).join('')}</select>
         </div>
-        <button class="btn btn-primary" id="rp-dl">Скачать CSV</button>
+        <button class="btn btn-secondary" id="rp-dl">Скачать CSV</button>
       </div>
       <p class="muted" style="margin-top:8px">Endpoint: <code>POST /api/v1/admin/finance/export?type=…</code>. Поддерживается также <code>GET /api/v1/admin/finance/{type}</code> для просмотра в таблице (вкладки Финансы).</p>
     </div>`;

@@ -2,41 +2,43 @@
    Tow Truck Admin — Design tokens
    ============================================================ */
 :root {
-  --bg: #F8FAFC;
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
-  --surface-2: #F8FAFC;
-  --border: #E2E8F0;
-  --text: #1E293B;
-  --muted: #64748B;
-  --primary: #059669;
-  --primary-hover: #047857;
+  --surface-2: #FAFAFA;
+  --border: #E5E5E5;
+  --text: #000000;
+  --muted: #666666;
+  --primary: #7D39EB;
+  --primary-hover: #6B2FBD;
+  --secondary: #C6FF33;
+  --secondary-hover: #B3E629;
   --success: #10B981;
   --warning: #F59E0B;
   --danger: #EF4444;
-  --info: #3B82F6;
+  --info: #7D39EB;
   --radius: 8px;
   --radius-sm: 4px;
-  --shadow: 0 2px 8px rgba(15,23,42,0.08);
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', monospace;
 }
 [data-theme="light"] {
-  --bg: #F8FAFC;
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
-  --surface-2: #F8FAFC;
-  --border: #E2E8F0;
-  --text: #1E293B;
-  --muted: #64748B;
-  --shadow: 0 2px 8px rgba(15,23,42,0.08);
+  --surface-2: #FAFAFA;
+  --border: #E5E5E5;
+  --text: #000000;
+  --muted: #666666;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 [data-theme="dark"] {
-  --bg: #0F172A;
-  --surface: #1E293B;
-  --surface-2: #334155;
-  --border: #334155;
-  --text: #F1F5F9;
-  --muted: #94A3B8;
-  --shadow: 0 4px 16px rgba(0,0,0,0.4);
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1A1A1A;
+  --border: #333333;
+  --text: #FFFFFF;
+  --muted: #888888;
+  --shadow: 0 4px 16px rgba(0,0,0,0.6);
 }
 
 * { box-sizing: border-box; }
@@ -132,9 +134,11 @@ input:focus, select:focus, textarea:focus {
 .btn:hover { background: var(--border); }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-secondary { background: var(--secondary); border-color: var(--secondary); color: #000; font-weight: 600; }
+.btn-secondary:hover { background: var(--secondary-hover); border-color: var(--secondary-hover); }
 .btn-success { background: var(--success); border-color: var(--success); color: #fff; }
 .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn-warning { background: var(--warning); border-color: var(--warning); color: #0F172A; }
+.btn-warning { background: var(--warning); border-color: var(--warning); color: #000; }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 4px 10px; font-size: 12px; min-height: 28px; }
@@ -154,7 +158,7 @@ input:focus, select:focus, textarea:focus {
 }
 .sidebar {
   grid-area: sidebar;
-  background: var(--surface);
+  background: var(--surface-2);
   border-right: 1px solid var(--border);
   padding: 16px 0;
   overflow-y: auto;
@@ -187,9 +191,10 @@ input:focus, select:focus, textarea:focus {
 }
 .sidebar-link:hover { background: var(--surface-2); text-decoration: none; }
 .sidebar-link.active {
-  background: var(--surface-2);
+  background: var(--primary);
   border-left-color: var(--primary);
   color: #fff;
+  font-weight: 600;
 }
 .topbar {
   grid-area: topbar;
@@ -334,10 +339,11 @@ tbody tr.no-hover:hover { background: transparent; cursor: default; }
   border: 1px solid var(--border);
   white-space: nowrap;
 }
-.badge-success { background: rgba(22,163,74,0.15); color: var(--success); border-color: rgba(22,163,74,0.3); }
+.badge-success { background: rgba(16,185,129,0.15); color: var(--success); border-color: rgba(16,185,129,0.3); }
 .badge-warning { background: rgba(245,158,11,0.15); color: var(--warning); border-color: rgba(245,158,11,0.3); }
-.badge-danger  { background: rgba(220,38,38,0.15); color: var(--danger);  border-color: rgba(220,38,38,0.3); }
-.badge-info    { background: rgba(14,165,233,0.15); color: var(--info);   border-color: rgba(14,165,233,0.3); }
+.badge-danger  { background: rgba(239,68,68,0.15); color: var(--danger);  border-color: rgba(239,68,68,0.3); }
+.badge-info    { background: rgba(125,57,235,0.15); color: var(--primary);   border-color: rgba(125,57,235,0.3); }
+.badge-primary { background: rgba(125,57,235,0.15); color: var(--primary); border-color: rgba(125,57,235,0.3); }
 .badge-muted   { background: var(--surface-2); color: var(--muted); }
 
 /* ============================================================
