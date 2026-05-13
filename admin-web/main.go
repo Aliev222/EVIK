@@ -2,8 +2,6 @@ package main
 
 import (
 	"embed"
-	"encoding/json"
-	"errors"
 	"io/fs"
 	"log"
 	"net/http"
@@ -11,138 +9,83 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 //go:embed static/*
-var staticFiles embed.FS
+var staticFS embed.FS
 
-type config struct {
-	addr          string
-	apiBaseURL    string
-	promapsAPIKey string
-}
+const defaultAddr = ":5174"
+const defaultBackend = "http://localhost:8080"
 
 func main() {
-	cfg := config{
-		addr:          getEnv("ADMIN_WEB_ADDR", ":5174"),
-		apiBaseURL:    strings.TrimRight(getEnv("EVIK_API_BASE_URL", "https://tow-truck.onrender.com"), "/"),
-		promapsAPIKey: getEnv("PROMAPS_API_KEY", "pk_live_d44618284239626c98dc23cd909b2b6eff001df7cdecbc5"),
-	}
+	addr := envOr("ADMIN_WEB_ADDR", defaultAddr)
+	backendRaw := envOr("ADMIN_API_BASE_URL", defaultBackend)
 
-	apiURL, err := url.Parse(cfg.apiBaseURL)
+	target, err := url.Parse(backendRaw)
 	if err != nil {
-		log.Fatalf("invalid EVIK_API_BASE_URL: %v", err)
+		log.Fatalf("invalid ADMIN_API_BASE_URL %q: %v", backendRaw, err)
+	}
+	if target.Scheme == "" || target.Host == "" {
+		log.Fatalf("ADMIN_API_BASE_URL must include scheme and host, got %q", backendRaw)
 	}
 
-	staticRoot, err := fs.Sub(staticFiles, "static")
-	if err != nil {
-		log.Fatalf("static files unavailable: %v", err)
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/admin-api/config", handleConfig(cfg))
-	mux.Handle("/api/", newProxy(apiURL))
-	mux.Handle("/", spaHandler(staticRoot))
-
-	server := &http.Server{
-		Addr:              cfg.addr,
-		Handler:           securityHeaders(mux),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	log.Printf("EVIK admin web started on http://127.0.0.1%s", cfg.addr)
-	log.Printf("proxying app API to %s", cfg.apiBaseURL)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("admin web failed: %v", err)
-	}
-}
-
-func getEnv(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("Referrer-Policy", "same-origin")
-		w.Header().Set("X-Frame-Options", "DENY")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func handleConfig(cfg config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"api_base_url":     cfg.apiBaseURL,
-			"admin_api_prefix": "/api/v1/admin",
-			"promaps_api_key":  cfg.promapsAPIKey,
-		})
-	}
-}
-
-func newProxy(target *url.URL) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := proxy.Director
-	proxy.Director = func(r *http.Request) {
-		requestTarget := target
-		if headerTarget, err := parseRequestTarget(r.Header.Get("X-Evik-Api-Base-Url")); err == nil && headerTarget != nil {
-			requestTarget = headerTarget
-		}
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Host = target.Host
+		req.Header.Del("X-Evik-Api-Base-Url")
+	}
 
-		originalDirector(r)
-		r.Host = requestTarget.Host
-		r.URL.Scheme = requestTarget.Scheme
-		r.URL.Host = requestTarget.Host
-		r.Header.Del("X-Evik-Api-Base-Url")
-	}
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"error": "app backend unavailable",
-		})
-	}
-	return proxy
-}
-
-func parseRequestTarget(raw string) (*url.URL, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, nil
-	}
-	parsed, err := url.Parse(raw)
+	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
-		return nil, err
+		log.Fatalf("embed static: %v", err)
 	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, errors.New("unsupported api url scheme")
-	}
-	if parsed.Host == "" {
-		return nil, errors.New("api url host is required")
-	}
-	return parsed, nil
-}
+	fileServer := http.FileServer(http.FS(sub))
 
-func spaHandler(root fs.FS) http.Handler {
-	fileServer := http.FileServer(http.FS(root))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
-		}
-		if _, err := fs.Stat(root, path); err == nil {
-			fileServer.ServeHTTP(w, r)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
+		proxy.ServeHTTP(w, r)
+	})
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
 			return
 		}
-		r.URL.Path = "/index.html"
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			serveIndex(w, r, sub)
+			return
+		}
+		if _, err := fs.Stat(sub, path); err != nil {
+			serveIndex(w, r, sub)
+			return
+		}
 		fileServer.ServeHTTP(w, r)
 	})
+
+	log.Printf("admin-web listening on %s, proxying /api/v1/* -> %s", addr, target)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+func serveIndex(w http.ResponseWriter, r *http.Request, sub fs.FS) {
+	data, err := fs.ReadFile(sub, "index.html")
+	if err != nil {
+		http.Error(w, "index.html missing", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(data)
+}
+
+func envOr(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
 }
