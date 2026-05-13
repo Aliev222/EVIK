@@ -145,13 +145,13 @@ const api = {
     } catch (e) {
       state.backendOk = false;
       renderBackendStatus();
-      throw new Error('Сетевая ошибка: ' + e.message);
+      throw new Error('Ошибка сети: ' + e.message);
     }
     state.backendOk = true;
     renderBackendStatus();
     if (res.status === 401) {
       logout();
-      throw new Error('Unauthorized');
+      throw new Error('Неавторизован - войдите снова');
     }
     if (raw) return res;
     let data = null;
@@ -192,7 +192,7 @@ function logout() {
 async function login(username, password) {
   const data = await api.post('/api/v1/auth/admin/login', { username, password });
   const token = data.access_token || data.token || (data.tokens && data.tokens.access_token);
-  if (!token) throw new Error('Сервер не вернул access_token');
+  if (!token) throw new Error('Сервер не вернул токен доступа');
   saveToken(token);
   state.user = data.user || { username };
 }
@@ -236,10 +236,10 @@ function ErrorState(msg, retryFn) {
     const el = document.getElementById(id);
     if (el && retryFn) el.onclick = retryFn;
   }, 0);
-  return `<div class="state error"><strong>Ошибка</strong>${escapeHtml(msg)}<div style="margin-top:12px"><button id="${id}" class="btn btn-sm">Повторить</button></div></div>`;
+  return `<div class="state error"><strong>Ошибка:</strong> ${escapeHtml(msg)}<div style="margin-top:12px"><button id="${id}" class="btn btn-sm">Повторить попытку</button></div></div>`;
 }
-function MissingEndpointState(label = 'Backend endpoint отсутствует') {
-  return `<div class="state missing"><strong>${escapeHtml(label)}</strong>Серверный endpoint для этого раздела пока не реализован.</div>`;
+function MissingEndpointState(label = 'Серверный endpoint отсутствует') {
+  return `<div class="state missing"><strong>${escapeHtml(label)}</strong><div style="margin-top:8px">Этот раздел будет доступен после реализации соответствующего API на сервере.</div></div>`;
 }
 
 function KpiCard(label, value, sub) {
@@ -743,20 +743,29 @@ function pageServiceAreas(main) {
 
 /* ---------- Helpers for finance report-shaped tabs ---------- */
 async function loadFinanceReport(reportType, container) {
-  container.innerHTML = LoadingState();
+  container.innerHTML = LoadingState(`Загрузка отчёта "${reportType}"...`);
   try {
     const data = await api.get('/api/v1/admin/finance/' + reportType);
     const rows = data.rows || [];
-    if (rows.length === 0) { container.innerHTML = EmptyState('Нет данных'); return null; }
+    if (rows.length === 0) {
+      container.innerHTML = EmptyState(`Нет данных в отчёте "${reportType}"`);
+      return null;
+    }
     const header = rows[0] || [];
     const body = rows.slice(1);
+    if (header.length === 0) {
+      container.innerHTML = EmptyState('Отчёт пуст - нет заголовков');
+      return null;
+    }
     container.innerHTML = `<div class="table-wrap"><table>
       <thead><tr>${header.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
-      <tbody>${body.map(r => `<tr class="no-hover">${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
-    </table></div>`;
+      <tbody>${body.map(r => `<tr class="no-hover">${r.map(c => `<td>${escapeHtml(c || '—')}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table></div>
+    <div style="margin-top:8px" class="muted">Записей: ${body.length}</div>`;
     return { header, body };
   } catch (e) {
-    container.innerHTML = ErrorState(e.message, () => loadFinanceReport(reportType, container));
+    console.error(`Finance report ${reportType} error:`, e);
+    container.innerHTML = ErrorState(`Ошибка загрузки отчёта "${reportType}": ${e.message}`, () => loadFinanceReport(reportType, container));
     return null;
   }
 }
@@ -764,7 +773,10 @@ async function loadFinanceReport(reportType, container) {
 /* ---------- 7.7 Payments ---------- */
 function pagePayments(main) {
   main.innerHTML = `
-    <p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/payments</code>. Структурированные фильтры backend пока не поддерживает.</p>
+    <div class="card mb-16">
+      <div class="card-header"><div class="card-title">Платежи</div></div>
+      <p style="margin:0">Источник данных: отчёт сервера. Структурированные фильтры пока не поддерживаются.</p>
+    </div>
     <div id="rep"></div>`;
   loadFinanceReport('payments', $('#rep', main));
 }
@@ -808,19 +820,34 @@ async function pagePayouts(main) {
 
 /* ---------- 7.9 Wallets ---------- */
 function pageWallets(main) {
-  main.innerHTML = `<p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/wallets</code>. Поле «Расчёты с Tow Truck» — задолженность водителя по комиссии.</p><div id="rep"></div>`;
+  main.innerHTML = `
+    <div class="card mb-16">
+      <div class="card-header"><div class="card-title">Кошельки водителей</div></div>
+      <p style="margin:0">Балансы и задолженности по комиссии. Поле «Расчёты с Tow Truck» показывает долг водителя.</p>
+    </div>
+    <div id="rep"></div>`;
   loadFinanceReport('wallets', $('#rep', main));
 }
 
 /* ---------- 7.10 Transactions ---------- */
 function pageTransactions(main) {
-  main.innerHTML = `<p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/transactions</code>.</p><div id="rep"></div>`;
+  main.innerHTML = `
+    <div class="card mb-16">
+      <div class="card-header"><div class="card-title">Транзакции по кошелькам</div></div>
+      <p style="margin:0">Все операции по кошелькам водителей: доходы, удержания, выплаты.</p>
+    </div>
+    <div id="rep"></div>`;
   loadFinanceReport('transactions', $('#rep', main));
 }
 
 /* ---------- 7.11 Subscriptions ---------- */
 function pageSubscriptions(main) {
-  main.innerHTML = `<p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/subscriptions</code>. Подписка не является обязательной для всех водителей.</p><div id="rep"></div>`;
+  main.innerHTML = `
+    <div class="card mb-16">
+      <div class="card-header"><div class="card-title">Подписки водителей</div></div>
+      <p style="margin:0">Подписки водителей на премиум-функции. Подписка не обязательна для работы в сервисе.</p>
+    </div>
+    <div id="rep"></div>`;
   loadFinanceReport('subscriptions', $('#rep', main));
 }
 
@@ -1095,7 +1122,8 @@ function renderShell() {
           <div class="topbar-title">${escapeHtml(title)}</div>
         </div>
         <div class="topbar-actions">
-          <span class="backend-status" id="backend-status"><span class="dot"></span><span>backend</span></span>
+          <span class="backend-status" id="backend-status"><span class="dot"></span><span>сервер</span></span>
+          <button class="btn btn-sm" id="theme-btn">🌙 Тёмная</button>
           <button class="btn btn-sm" id="refresh-btn">↻ Обновить</button>
           <button class="btn btn-sm" id="logout-btn">Выйти</button>
         </div>
@@ -1104,6 +1132,7 @@ function renderShell() {
     </div>`;
   $('#refresh-btn').onclick = () => renderApp();
   $('#logout-btn').onclick = () => logout();
+  $('#theme-btn').onclick = toggleTheme;
   $('#menu-toggle').onclick = () => $('.sidebar').classList.toggle('open');
   renderBackendStatus();
 }
@@ -1114,7 +1143,16 @@ function renderBackendStatus() {
   el.classList.remove('ok', 'err');
   if (state.backendOk === true) el.classList.add('ok');
   else if (state.backendOk === false) el.classList.add('err');
-  el.lastElementChild.textContent = state.backendOk === false ? 'нет связи' : (state.backendOk === true ? 'online' : 'backend');
+  el.lastElementChild.textContent = state.backendOk === false ? 'нет связи' : (state.backendOk === true ? 'подключен' : 'сервер');
+}
+
+function toggleTheme() {
+  const body = document.body;
+  const btn = $('#theme-btn');
+  const isDark = body.getAttribute('data-theme') === 'dark';
+  body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  btn.textContent = isDark ? '🌙 Тёмная' : '☀️ Светлая';
+  try { localStorage.setItem('admin_theme', isDark ? 'light' : 'dark'); } catch (_) {}
 }
 
 /* ============================================================
@@ -1123,6 +1161,14 @@ function renderBackendStatus() {
 window.addEventListener('hashchange', routeChanged);
 window.addEventListener('DOMContentLoaded', () => {
   loadToken();
+  loadTheme();
   state.route = parseHash();
   renderApp();
 });
+
+function loadTheme() {
+  try {
+    const saved = localStorage.getItem('admin_theme') || 'light';
+    document.body.setAttribute('data-theme', saved);
+  } catch (_) {}
+}

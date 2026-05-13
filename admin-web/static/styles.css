@@ -2,32 +2,41 @@
    Tow Truck Admin — Design tokens
    ============================================================ */
 :root {
-  --bg: #0F172A;
-  --surface: #111827;
-  --surface-2: #1F2937;
-  --border: #1F2937;
-  --text: #E5E7EB;
-  --muted: #94A3B8;
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
-  --success: #16A34A;
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAFC;
+  --border: #E2E8F0;
+  --text: #1E293B;
+  --muted: #64748B;
+  --primary: #059669;
+  --primary-hover: #047857;
+  --success: #10B981;
   --warning: #F59E0B;
-  --danger: #DC2626;
-  --info: #0EA5E9;
+  --danger: #EF4444;
+  --info: #3B82F6;
   --radius: 8px;
   --radius-sm: 4px;
-  --shadow: 0 4px 16px rgba(0,0,0,0.35);
+  --shadow: 0 2px 8px rgba(15,23,42,0.08);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Cascadia Mono', monospace;
 }
 [data-theme="light"] {
   --bg: #F8FAFC;
   --surface: #FFFFFF;
-  --surface-2: #F1F5F9;
+  --surface-2: #F8FAFC;
   --border: #E2E8F0;
-  --text: #0F172A;
+  --text: #1E293B;
   --muted: #64748B;
-  --shadow: 0 4px 16px rgba(15,23,42,0.08);
+  --shadow: 0 2px 8px rgba(15,23,42,0.08);
+}
+[data-theme="dark"] {
+  --bg: #0F172A;
+  --surface: #1E293B;
+  --surface-2: #334155;
+  --border: #334155;
+  --text: #F1F5F9;
+  --muted: #94A3B8;
+  --shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 
 * { box-sizing: border-box; }
