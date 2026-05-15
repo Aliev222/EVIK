@@ -132,7 +132,7 @@ frontend/lib/
 │   │   ├── data/repository_impl/http_order_repository.dart # 🌐 API calls
 │   │   └── presentation/providers/order_provider.dart # 🔄 Order state
 │   └── map/                          # 🗺️ Maps integration
-│       ├── presentation/widgets/promaps_view_simple.dart # 🗺️ ProMaps
+│       ├── presentation/widgets/promaps_view_simple.dart # 🗺️ flutter_map (OSM)
 │       └── domain/entities/map_location.dart # 📍 Location model
 ├── shared/                           # 🤝 Shared components
 │   ├── widgets/                      # 🧩 Reusable UI components
@@ -147,7 +147,7 @@ frontend/lib/
 
 | **Component** | **Location** | **Purpose** |
 |---------------|--------------|-------------|
-| **ProMaps** | `frontend/lib/features/map/` | Map display, geocoding & routing |
+| **flutter_map (OSM)** | `frontend/lib/features/map/` | Map display via flutter_map ^8.3.0 (OpenStreetMap tiles), geocoding & routing |
 | **JWT Auth** | `backend/internal/auth/` + `frontend/lib/features/auth/` | User authentication |
 | **PostgreSQL** | `backend/internal/infrastructure/postgres/` | Primary database |
 | **Redis** | `backend/internal/infrastructure/redis/` | Caching & pub/sub |
@@ -172,7 +172,7 @@ frontend/lib/
 **Active Architecture: Flutter + Custom Go Backend**
 - Frontend: Flutter with Riverpod state management  
 - Backend: Go server with PostgreSQL + Redis
-- Maps: ProMaps tiles, geocoding, and routing
+- Maps: flutter_map ^8.3.0 (OpenStreetMap-based, not Google Maps), geocoding, and routing
 - Authentication: JWT-based phone authentication
 - Real-time: WebSocket communication
 - Deployment: Render.com hosting
@@ -278,7 +278,7 @@ internal/
 
 **Client Flow:**
 1. Role Selection → Phone Auth → SMS Verification
-2. Client Home Screen with ProMaps map
+2. Client Home Screen with flutter_map (OpenStreetMap) map
 3. Order Creation: pickup/dropoff selection, vehicle type, pricing
 4. Real-time order tracking (searching → assigned → arriving → evacuating → completed)
 
@@ -302,9 +302,10 @@ internal/
 
 ## Maps Integration
 
-**ProMaps Setup:**
-- API key configuration: `PROMAPS_MAPS_API_KEY`, `PROMAPS_ROAD_API_KEY`, `PROMAPS_SDK_API_KEY`
-- Custom wrapper: `ProMapsViewSimple` with EVIK-specific markers
+**flutter_map Setup:**
+- Library: `flutter_map: ^8.3.0` (OpenStreetMap-based, not Google Maps) + `flutter_map_animations: ^0.10.0`
+- No proprietary API key required for base OSM tiles
+- Custom wrapper: `ProMapsViewSimple` (legacy file name) with EVIK-specific markers
 - Features: location tracking, address search, route metadata, custom markers
 - Android integration: pure Flutter plugin stack, no native map platform view
 
@@ -329,7 +330,7 @@ internal/
 ## Common Issues
 
 **Dependencies:**
-- ProMaps keys must be configured for production maps and routing
+- flutter_map uses OpenStreetMap tiles; no proprietary map API key required (respect OSM tile usage policy in production)
 - HTTP client configured with 30-second timeouts and retry logic
 
 **State Management:**  
