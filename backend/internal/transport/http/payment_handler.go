@@ -129,6 +129,22 @@ func (h *PaymentHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CreateOrderPayment creates a payment for an existing order. Cash payments are
+// recorded immediately as succeeded; card payments are routed through YooKassa
+// and start in pending status with a confirmation_url.
+//
+// @Summary      Create payment for order
+// @Tags         payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string                     true  "Order ID"
+// @Param        body     body      CreateOrderPaymentRequest  true  "Payment payload"
+// @Success      201      {object}  CreatePaymentResponse
+// @Failure      400      {object}  ErrorResponse  "invalid payment_method or validation failed"
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "order does not belong to caller"
+// @Router       /orders/{orderID}/payments [post]
 func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -236,6 +252,20 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// HandleYooKassaWebhook receives asynchronous payment events from YooKassa.
+// Idempotent: replayed webhooks are stored and acknowledged without re-running
+// side effects. The request body is the raw YooKassa notification payload.
+//
+// @Summary      YooKassa webhook
+// @Description  Public webhook receiver. Verified via HMAC-SHA256 signature in the configured header. No bearer auth.
+// @Tags         webhooks
+// @Accept       json
+// @Produce      json
+// @Param        body  body      YooKassaWebhookRequest  true  "YooKassa event"
+// @Success      200   {object}  EmptyResponse
+// @Failure      400   {object}  ErrorResponse  "malformed payload"
+// @Failure      401   {object}  ErrorResponse  "invalid signature"
+// @Router       /webhooks/yookassa [post]
 func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {

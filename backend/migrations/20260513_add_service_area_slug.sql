@@ -10,7 +10,7 @@ ADD COLUMN slug VARCHAR(255);
 CREATE INDEX idx_service_areas_slug ON service_areas(slug);
 
 -- Add some example data if service_areas table is empty
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active)
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
 SELECT
   gen_random_uuid()::text,
   'Махачкала',
@@ -19,10 +19,12 @@ SELECT
   47.58,
   42.93,
   47.68,
-  true
+  true,
+  NOW(),
+  NOW()
 WHERE NOT EXISTS (SELECT 1 FROM service_areas);
 
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active)
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
 SELECT
   gen_random_uuid()::text,
   'Каспийск',
@@ -31,10 +33,12 @@ SELECT
   47.60,
   42.88,
   47.65,
-  true
+  true,
+  NOW(),
+  NOW()
 WHERE (SELECT COUNT(*) FROM service_areas) = 1;
 
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active)
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
 SELECT
   gen_random_uuid()::text,
   'Дербент',
@@ -43,7 +47,9 @@ SELECT
   48.0,
   42.1,
   48.1,
-  false
+  false,
+  NOW(),
+  NOW()
 WHERE (SELECT COUNT(*) FROM service_areas) = 2;
 
 -- +goose Down

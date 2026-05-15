@@ -101,7 +101,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	if err := ensureSchema(db); err != nil {
+	if err := EnsureSchema(db); err != nil {
 		return nil, err
 	}
 	if err := ensureDefaultTariffs(db); err != nil {
@@ -196,11 +196,11 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, wsHandler, tokenManager, cfg.AllowedOrigins)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
 	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
 }
 
-func ensureSchema(db *sql.DB) error {
+func EnsureSchema(db *sql.DB) error {
 	const schema = `
 CREATE TABLE IF NOT EXISTS users (
 	id TEXT PRIMARY KEY,

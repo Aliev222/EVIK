@@ -41,6 +41,7 @@ type Config struct {
 	MinimumWithdrawalKopecks   int64
 	BalanceReleaseInterval     time.Duration
 	DriverSubscriptionRequired bool
+	ExposeSwagger              bool
 }
 
 func MustLoad() Config {
@@ -80,6 +81,7 @@ func MustLoad() Config {
 		MinimumWithdrawalKopecks:   int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
 		BalanceReleaseInterval:     getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
+		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 	}
 	validateProductionConfig(cfg)
 	return cfg

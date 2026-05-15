@@ -1,0 +1,455 @@
+basePath: /api/v1
+definitions:
+  http.AuthTokens:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      token_type:
+        example: Bearer
+        type: string
+    type: object
+  http.AuthUser:
+    properties:
+      full_name:
+        example: Ivan Ivanov
+        type: string
+      id:
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        example: client
+        type: string
+    type: object
+  http.CoordinateDTO:
+    properties:
+      lat:
+        example: 55.7522
+        type: number
+      lng:
+        example: 37.6156
+        type: number
+    type: object
+  http.CreateOrderPaymentRequest:
+    properties:
+      payment_method:
+        enum:
+        - cash
+        - card
+        example: card
+        type: string
+    type: object
+  http.CreateOrderRequest:
+    properties:
+      auto_dispatch:
+        example: false
+        type: boolean
+      dropoff_lat:
+        example: 55.76
+        type: number
+      dropoff_lng:
+        example: 37.62
+        type: number
+      payment_method:
+        enum:
+        - cash
+        - card
+        example: card
+        type: string
+      pickup_lat:
+        example: 55.7522
+        type: number
+      pickup_lng:
+        example: 37.6156
+        type: number
+      tow_truck_type:
+        enum:
+        - winch
+        - platform
+        - manipulator
+        example: winch
+        type: string
+    type: object
+  http.CreatePaymentResponse:
+    properties:
+      payment:
+        $ref: '#/definitions/http.PaymentDTO'
+    type: object
+  http.EmptyResponse:
+    properties:
+      ok:
+        example: true
+        type: boolean
+    type: object
+  http.ErrorResponse:
+    properties:
+      error:
+        example: invalid request body
+        type: string
+    type: object
+  http.LoginRequest:
+    properties:
+      password:
+        example: secret123
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - client
+        - driver
+        example: client
+        type: string
+    type: object
+  http.LoginResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/http.AuthTokens'
+      user:
+        $ref: '#/definitions/http.AuthUser'
+    type: object
+  http.OrderDTO:
+    properties:
+      cancelled_at:
+        type: string
+      created_at:
+        type: string
+      driver_id:
+        type: string
+      dropoff:
+        $ref: '#/definitions/http.CoordinateDTO'
+      dropoff_lat:
+        type: number
+      dropoff_lng:
+        type: number
+      id:
+        type: string
+      pickup:
+        $ref: '#/definitions/http.CoordinateDTO'
+      pickup_lat:
+        type: number
+      pickup_lng:
+        type: number
+      status:
+        example: searching
+        type: string
+      tow_truck_type:
+        example: winch
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  http.OrderListResponse:
+    properties:
+      orders:
+        items:
+          $ref: '#/definitions/http.OrderDTO'
+        type: array
+    type: object
+  http.PaymentDTO:
+    properties:
+      amount:
+        example: 800000
+        type: integer
+      confirmation_url:
+        type: string
+      created_at:
+        type: string
+      currency:
+        example: RUB
+        type: string
+      id:
+        type: string
+      order_id:
+        type: string
+      payment_method:
+        example: card
+        type: string
+      provider:
+        example: yookassa
+        type: string
+      purpose:
+        example: order
+        type: string
+      status:
+        example: pending
+        type: string
+      user_id:
+        type: string
+    type: object
+  http.SingleOrderResponse:
+    properties:
+      order:
+        $ref: '#/definitions/http.OrderDTO'
+    type: object
+  http.YooKassaWebhookObject:
+    properties:
+      id:
+        example: 22e12f66-000f-5000-8000-18db351245c7
+        type: string
+      metadata:
+        additionalProperties:
+          type: string
+        type: object
+      paid:
+        example: true
+        type: boolean
+      status:
+        example: succeeded
+        type: string
+    type: object
+  http.YooKassaWebhookRequest:
+    properties:
+      event:
+        example: payment.succeeded
+        type: string
+      object:
+        $ref: '#/definitions/http.YooKassaWebhookObject'
+      type:
+        example: notification
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Tow truck marketplace API — orders, drivers, payments, payouts, admin.
+  title: EVIK Backend API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a non-admin user (client or driver) and issues JWT
+        tokens. Admin must use /auth/admin/login.
+      parameters:
+      - description: Login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: missing or malformed fields
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: invalid credentials
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: admin login is not allowed on this endpoint
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Login by phone + password
+      tags:
+      - auth
+  /orders:
+    get:
+      description: Returns orders filtered by status. Clients see their own orders;
+        drivers see searching orders or their own assigned orders; admins see all.
+      parameters:
+      - description: Order status filter
+        enum:
+        - searching
+        - accepted
+        - arrived
+        - in_progress
+        - completed
+        - cancelled
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Max items (1..100, default 20)
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.OrderListResponse'
+        "400":
+          description: invalid limit
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden role or driver gate failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List orders
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      description: Creates a tow truck order. Pickup and dropoff coordinates must
+        be inside an active service area.
+      parameters:
+      - description: Order payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: service area not allowed or wrong role
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create order
+      tags:
+      - orders
+  /orders/{orderID}:
+    get:
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order by ID
+      tags:
+      - orders
+  /orders/{orderID}/payments:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Payment payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CreateOrderPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.CreatePaymentResponse'
+        "400":
+          description: invalid payment_method or validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: order does not belong to caller
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create payment for order
+      tags:
+      - payments
+  /webhooks/yookassa:
+    post:
+      consumes:
+      - application/json
+      description: Public webhook receiver. Verified via HMAC-SHA256 signature in
+        the configured header. No bearer auth.
+      parameters:
+      - description: YooKassa event
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.YooKassaWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.EmptyResponse'
+        "400":
+          description: malformed payload
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: invalid signature
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: YooKassa webhook
+      tags:
+      - webhooks
+securityDefinitions:
+  BearerAuth:
+    description: 'JWT access token. Format: "Bearer {token}"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

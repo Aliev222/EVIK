@@ -14,9 +14,21 @@ import (
 	"evik/backend/internal/app"
 	"evik/backend/internal/config"
 
+	_ "evik/backend/docs"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
+
+// @title           EVIK Backend API
+// @version         1.0
+// @description     Tow truck marketplace API — orders, drivers, payments, payouts, admin.
+// @BasePath        /api/v1
+//
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 JWT access token. Format: "Bearer {token}"
 
 func main() {
 	cfg := config.MustLoad()
@@ -79,6 +91,12 @@ func runMigrations(dsn string, logger *log.Logger) error {
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
+
+	logger.Printf("ensuring base schema (ensureSchema) before goose migrations...")
+	if err := app.EnsureSchema(db); err != nil {
+		return err
+	}
+	logger.Printf("base schema ensured")
 
 	logger.Printf("running database migrations...")
 	if err := goose.Up(db, "migrations"); err != nil {

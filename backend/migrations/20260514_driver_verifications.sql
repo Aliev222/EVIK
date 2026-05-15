@@ -1,32 +1,26 @@
 -- +goose Up
 -- Phase 7: Driver document verification system
--- Creates tables to track driver document uploads, admin moderation decisions,
--- and the audit trail for verification status changes.
+-- driver_verifications and moderation_audit_log are already created by ensureSchema()
+-- with the extended (current) structure. This migration only adds objects and
+-- constraints that are not already provided by ensureSchema.
 
--- Driver document verifications: tracks the overall verification status
--- and metadata for a driver's document submission
-CREATE TABLE IF NOT EXISTS driver_verifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    driver_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    admin_comments TEXT DEFAULT '',
-    FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
-);
+-- driver_verifications table is created by ensureSchema with an extended schema
+-- (user_id, full_name, vehicle_model, etc.). Do NOT recreate it here.
 
--- Ensure only one verification record per driver
-CREATE UNIQUE INDEX IF NOT EXISTS idx_driver_verifications_driver_id
-    ON driver_verifications (driver_id);
+-- Ensure only one verification record per user (ensureSchema only provides a
+-- non-unique idx_driver_verifications_user_id).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_driver_verifications_user_id_unique
+    ON driver_verifications (user_id);
 
 -- Index for admin queries by status and submission time
 CREATE INDEX IF NOT EXISTS idx_driver_verifications_status_submitted
     ON driver_verifications (status, submitted_at DESC);
 
 -- Driver uploaded documents: individual files uploaded by drivers
+-- (not present in ensureSchema — keep CREATE TABLE here)
 CREATE TABLE IF NOT EXISTS driver_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    verification_id UUID NOT NULL,
+    verification_id TEXT NOT NULL,
     document_type TEXT NOT NULL,
     storage_key TEXT NOT NULL,
     public_url TEXT NOT NULL,
@@ -40,22 +34,10 @@ CREATE TABLE IF NOT EXISTS driver_documents (
 CREATE INDEX IF NOT EXISTS idx_driver_documents_verification_type
     ON driver_documents (verification_id, document_type);
 
--- Moderation audit log: tracks all admin decisions and status changes
-CREATE TABLE IF NOT EXISTS moderation_audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    verification_id UUID NOT NULL,
-    admin_user_id TEXT,
-    action TEXT NOT NULL, -- 'approve', 'reject', 'request_changes', 'block'
-    previous_status TEXT NOT NULL,
-    new_status TEXT NOT NULL,
-    comments TEXT DEFAULT '',
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    FOREIGN KEY (verification_id) REFERENCES driver_verifications(id) ON DELETE CASCADE
-);
-
--- Index for audit trail queries
-CREATE INDEX IF NOT EXISTS idx_moderation_audit_log_verification_timestamp
-    ON moderation_audit_log (verification_id, timestamp DESC);
+-- moderation_audit_log table is already created by ensureSchema with a different
+-- column layout (entity_type/entity_id/action/reason/moderator_id/created_at).
+-- We don't recreate it, and we skip the verification_id/timestamp index because
+-- those columns don't exist in the ensureSchema version of the table.
 
 -- Add constraint for valid verification statuses
 ALTER TABLE driver_verifications
@@ -73,7 +55,7 @@ ALTER TABLE driver_documents
     ADD CONSTRAINT driver_documents_type_check
     CHECK (document_type IN ('passport', 'license', 'vehicleDocs', 'vehiclePhoto', 'selfie'));
 
--- Add constraint for valid audit actions
+-- Add constraint for valid audit actions (action column exists in ensureSchema version too)
 ALTER TABLE moderation_audit_log
     DROP CONSTRAINT IF EXISTS moderation_audit_log_action_check;
 

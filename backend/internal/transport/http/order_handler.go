@@ -97,6 +97,21 @@ type orderResponse struct {
 	CancelledAt  *string            `json:"cancelled_at"`
 }
 
+// CreateOrder creates a new tow truck order on behalf of the authenticated client.
+//
+// @Summary      Create order
+// @Description  Creates a tow truck order. Pickup and dropoff coordinates must be inside an active service area.
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      CreateOrderRequest  true  "Order payload"
+// @Success      201   {object}  SingleOrderResponse
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Failure      403   {object}  ErrorResponse  "service area not allowed or wrong role"
+// @Failure      500   {object}  ErrorResponse  "internal error"
+// @Router       /orders [post]
 func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var req createOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -144,6 +159,20 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusCreated, map[string]any{"order": newOrderResponse(ord)})
 }
 
+// ListOrders returns a status-filtered list of orders visible to the caller.
+//
+// @Summary      List orders
+// @Description  Returns orders filtered by status. Clients see their own orders; drivers see searching orders or their own assigned orders; admins see all.
+// @Tags         orders
+// @Produce      json
+// @Security     BearerAuth
+// @Param        status  query     string  false  "Order status filter"  Enums(searching,accepted,arrived,in_progress,completed,cancelled)
+// @Param        limit   query     int     false  "Max items (1..100, default 20)"  default(20) minimum(1) maximum(100)
+// @Success      200     {object}  OrderListResponse
+// @Failure      400     {object}  ErrorResponse  "invalid limit"
+// @Failure      401     {object}  ErrorResponse  "unauthorized"
+// @Failure      403     {object}  ErrorResponse  "forbidden role or driver gate failed"
+// @Router       /orders [get]
 func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	status := orderdomain.Status(r.URL.Query().Get("status"))
 	if status == "" {
@@ -204,6 +233,18 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"orders": payload})
 }
 
+// GetOrder returns a single order by ID. Access is restricted to the owner client, the assigned driver, or an admin.
+//
+// @Summary      Get order by ID
+// @Tags         orders
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string  true  "Order ID"
+// @Success      200      {object}  SingleOrderResponse
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "forbidden"
+// @Failure      404      {object}  ErrorResponse  "order not found"
+// @Router       /orders/{orderID} [get]
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	ord, err := h.orderRepo.GetByID(r.Context(), orderID)

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 func NewRouter(
@@ -22,6 +23,7 @@ func NewRouter(
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
+	exposeSwagger bool,
 ) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -131,6 +133,9 @@ func NewRouter(
 			})
 		})
 	})
+	if exposeSwagger {
+		r.Get("/swagger/*", httpSwagger.WrapHandler)
+	}
 	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		w.WriteHeader(nethttp.StatusOK)
 		_, _ = w.Write([]byte("ok"))

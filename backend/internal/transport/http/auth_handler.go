@@ -80,6 +80,20 @@ type authTokensResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
+// Login authenticates a client or driver by phone + password and returns
+// an access/refresh token pair plus the user summary.
+//
+// @Summary      Login by phone + password
+// @Description  Authenticates a non-admin user (client or driver) and issues JWT tokens. Admin must use /auth/admin/login.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      LoginRequest  true  "Login payload"
+// @Success      200   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse  "missing or malformed fields"
+// @Failure      401   {object}  ErrorResponse  "invalid credentials"
+// @Failure      403   {object}  ErrorResponse  "admin login is not allowed on this endpoint"
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
