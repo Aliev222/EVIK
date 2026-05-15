@@ -353,7 +353,7 @@ class RealTimeLocationService {
   }
 
   /// Обработка ошибок WebSocket
-  void _handleError(error) {
+  void _handleError(Object error) {
     debugPrint('WebSocket error: $error');
     _isConnected = false;
     _connectionController.add('error');
