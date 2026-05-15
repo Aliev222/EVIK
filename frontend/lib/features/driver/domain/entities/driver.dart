@@ -55,6 +55,8 @@ class DriverLocation {
 class Driver {
   const Driver({
     required this.userId,
+    this.fullName,
+    this.phone,
     required this.vehicleModel,
     required this.vehicleNumber,
     required this.vehicleType,
@@ -67,6 +69,8 @@ class Driver {
   });
 
   final String userId; // ссылка на users collection
+  final String? fullName; // Real driver full name from backend
+  final String? phone; // Real driver phone number from backend
   final String vehicleModel;
   final String vehicleNumber;
   final VehicleType vehicleType;
@@ -79,6 +83,8 @@ class Driver {
 
   Driver copyWith({
     String? userId,
+    String? fullName,
+    String? phone,
     String? vehicleModel,
     String? vehicleNumber,
     VehicleType? vehicleType,
@@ -91,6 +97,8 @@ class Driver {
   }) {
     return Driver(
       userId: userId ?? this.userId,
+      fullName: fullName ?? this.fullName,
+      phone: phone ?? this.phone,
       vehicleModel: vehicleModel ?? this.vehicleModel,
       vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       vehicleType: vehicleType ?? this.vehicleType,
@@ -104,15 +112,40 @@ class Driver {
   }
 
   factory Driver.fromMap(Map<String, dynamic> map) {
+    // Handle new backend profile API response format
     if (map.containsKey('user_id') || map.containsKey('current_order_id')) {
       final status = map['status']?.toString();
+
+      // Map vehicle_type from backend to VehicleType enum
+      VehicleType vehicleType = VehicleType.light; // default
+      final vehicleTypeStr = map['vehicle_type']?.toString();
+      if (vehicleTypeStr != null) {
+        switch (vehicleTypeStr) {
+          case 'winch':
+            vehicleType = VehicleType.light;
+            break;
+          case 'platform':
+            vehicleType = VehicleType.truck;
+            break;
+          case 'manipulator':
+            vehicleType = VehicleType.suv;
+            break;
+        }
+      }
+
       return Driver(
         userId: map['user_id']?.toString() ?? map['id']?.toString() ?? '',
-        vehicleModel: map['vehicle_model']?.toString() ?? 'Эвакуатор EVIK',
-        vehicleNumber: map['vehicle_number']?.toString() ?? '',
-        vehicleType: VehicleType.light,
-        rating: (map['rating'] as num?)?.toDouble() ?? 5.0,
-        totalOrders: map['total_orders'] as int? ?? 0,
+        fullName: map['full_name']?.toString(),
+        phone: map['phone']?.toString(),
+        vehicleModel: map['vehicle_model']?.toString().isNotEmpty == true
+            ? map['vehicle_model']!.toString()
+            : '',
+        vehicleNumber: map['vehicle_plate']?.toString() ?? map['vehicle_number']?.toString() ?? '',
+        vehicleType: vehicleType,
+        rating: (map['rating_average'] as num?)?.toDouble() ??
+                (map['rating'] as num?)?.toDouble() ??
+                0.0,
+        totalOrders: (map['total_orders'] as int?) ?? 0,
         isOnline: status == 'online' || status == 'busy',
         currentLocation: map['current_location'] != null
             ? DriverLocation.fromMap(
@@ -126,8 +159,11 @@ class Driver {
       );
     }
 
+    // Handle legacy format
     return Driver(
       userId: map['userId'] as String,
+      fullName: map['fullName'] as String?,
+      phone: map['phone'] as String?,
       vehicleModel: map['vehicleModel'] as String,
       vehicleNumber: map['vehicleNumber'] as String,
       vehicleType: VehicleType.values.byName(map['vehicleType'] as String),
@@ -146,6 +182,8 @@ class Driver {
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
+      'fullName': fullName,
+      'phone': phone,
       'vehicleModel': vehicleModel,
       'vehicleNumber': vehicleNumber,
       'vehicleType': vehicleType.name,

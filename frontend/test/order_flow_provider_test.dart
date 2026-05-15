@@ -1,12 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 
 void main() {
-  test('order flow stores route and recalculates estimated price', () {
+  test('order flow stores route without local tariff fallback', () {
+    SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
@@ -37,6 +39,6 @@ void main() {
     expect(state.pickupLocation?.displayAddress, 'Москва, центр');
     expect(state.destinationLocation?.displayAddress, 'Проспект Мира');
     expect(state.distance, greaterThan(0));
-    expect(state.estimatedPrice, greaterThan(1800));
+    expect(state.estimatedPrice, 0);
   });
 }

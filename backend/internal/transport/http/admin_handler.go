@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	admindomain "evik/backend/internal/domain/admin"
 	driverdomain "evik/backend/internal/domain/driver"
+	"evik/backend/internal/infrastructure/storage"
 	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	"github.com/go-chi/chi/v5"
@@ -26,6 +28,26 @@ type AdminRepository interface {
 	ListUsers(ctx context.Context, limit int) ([]admindomain.User, error)
 	ListReviews(ctx context.Context, limit int) ([]admindomain.Review, error)
 	CreateReview(ctx context.Context, item admindomain.Review) error
+	GetDriverReviews(ctx context.Context, driverID string, limit int) ([]admindomain.Review, DriverReviewsStats, error)
+	GetOrderReview(ctx context.Context, orderID string) (*admindomain.Review, error)
+	ListTaxProfiles(ctx context.Context, limit int) ([]AdminTaxProfile, error)
+	UpdateTaxProfileStatus(ctx context.Context, driverID, status, adminComments string) error
+}
+
+type AdminTaxProfile struct {
+	DriverID           string    `json:"driver_id"`
+	INN                string    `json:"inn"`
+	TaxpayerType       string    `json:"taxpayer_type"`
+	VerificationStatus string    `json:"verification_status"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	FullName           string    `json:"full_name,omitempty"`
+}
+
+type DriverReviewsStats struct {
+	Total         int     `json:"total"`
+	RatingAverage float64 `json:"rating_average"`
+	RatingCount   int     `json:"rating_count"`
 }
 
 // AdminOrderRepository is the narrow contract the admin handler uses to
@@ -53,11 +75,12 @@ type AdminClock interface {
 }
 
 type DocumentStorageConfig struct {
-	Endpoint  string
-	Region    string
-	Bucket    string
-	AccessKey string
-	SecretKey string
+	Endpoint      string
+	Region        string
+	Bucket        string
+	AccessKey     string
+	SecretKey     string
+	PublicBaseURL string
 }
 
 type AdminHandler struct {
@@ -68,6 +91,7 @@ type AdminHandler struct {
 	idGen        AdminIDGenerator
 	clock        AdminClock
 	storage      DocumentStorageConfig
+	docStorage   *storage.DocumentStorage
 }
 
 func NewAdminHandler(
@@ -77,8 +101,24 @@ func NewAdminHandler(
 	orderRepo AdminOrderRepository,
 	idGen AdminIDGenerator,
 	clock AdminClock,
-	storage DocumentStorageConfig,
+	storageConfig DocumentStorageConfig,
 ) *AdminHandler {
+	var docStorage *storage.DocumentStorage
+	if storageConfig.Endpoint != "" && storageConfig.Bucket != "" && storageConfig.AccessKey != "" && storageConfig.SecretKey != "" {
+		var err error
+		docStorage, err = storage.NewDocumentStorage(
+			storageConfig.Endpoint,
+			storageConfig.AccessKey,
+			storageConfig.SecretKey,
+			storageConfig.Bucket,
+			storageConfig.Region,
+			storageConfig.PublicBaseURL,
+		)
+		if err != nil {
+			log.Printf("Failed to initialize document storage: %v", err)
+		}
+	}
+
 	return &AdminHandler{
 		repo:         repo,
 		driverRepo:   driverRepo,
@@ -86,7 +126,8 @@ func NewAdminHandler(
 		orderRepo:    orderRepo,
 		idGen:        idGen,
 		clock:        clock,
-		storage:      storage,
+		storage:      storageConfig,
+		docStorage:   docStorage,
 	}
 }
 
@@ -361,6 +402,35 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate order exists and get its details
+	orderDetails, err := h.orderRepo.GetAdminOrderDetails(r.Context(), orderID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch order details"})
+		return
+	}
+
+	// Validate order belongs to the authenticated client
+	if orderDetails.Order.ClientID != clientID {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "you can only review your own orders"})
+		return
+	}
+
+	// Validate order is completed
+	if orderDetails.Order.Status != "completed" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "you can only review completed orders"})
+		return
+	}
+
+	// Validate driver_id matches the order's driver
+	if orderDetails.Order.DriverID != driverID {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "driver_id does not match the order driver"})
+		return
+	}
+
 	item := admindomain.Review{
 		ID:        h.idGen.NewID(),
 		OrderID:   orderID,
@@ -371,6 +441,13 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: h.clock.Now(),
 	}
 	if err := h.repo.CreateReview(r.Context(), item); err != nil {
+		// Check for duplicate review (unique constraint violation)
+		if strings.Contains(err.Error(), "idx_driver_reviews_order_id") ||
+		   strings.Contains(err.Error(), "duplicate key") ||
+		   strings.Contains(err.Error(), "UNIQUE constraint") {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "you have already reviewed this order"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -388,21 +465,83 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) {
+	driverID := chi.URLParam(r, "driverID")
+	if driverID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "driver_id is required"})
+		return
+	}
+
+	limit := parseAdminLimit(r, 50, 100)
+	reviews, stats, err := h.repo.GetDriverReviews(r.Context(), driverID, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	payload := make([]map[string]any, 0, len(reviews))
+	for _, review := range reviews {
+		payload = append(payload, map[string]any{
+			"id":          review.ID,
+			"order_id":    review.OrderID,
+			"stars":       review.Stars,
+			"text":        review.Text,
+			"client_id":   review.ClientID,
+			"client_name": review.ClientName,
+			"created_at":  review.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":          payload,
+		"total":          stats.Total,
+		"rating_average": stats.RatingAverage,
+		"rating_count":   stats.RatingCount,
+	})
+}
+
+func (h *AdminHandler) GetOrderReview(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	if orderID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "order_id is required"})
+		return
+	}
+
+	review, err := h.repo.GetOrderReview(r.Context(), orderID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	if review == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "review not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"review": map[string]any{
+			"id":          review.ID,
+			"order_id":    review.OrderID,
+			"driver_id":   review.DriverID,
+			"client_id":   review.ClientID,
+			"stars":       review.Stars,
+			"text":        review.Text,
+			"driver_name": review.DriverName,
+			"client_name": review.ClientName,
+			"created_at":  review.CreatedAt.Format(time.RFC3339),
+		},
+	})
+}
+
 func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Request) {
-	if h.storage.Endpoint == "" || h.storage.Bucket == "" || h.storage.AccessKey == "" || h.storage.SecretKey == "" {
+	if h.docStorage == nil {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "document storage is not configured"})
 		return
 	}
 
-	var req documentUploadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	fileName := strings.TrimSpace(req.FileName)
-	contentType := strings.TrimSpace(req.ContentType)
-	if fileName == "" || contentType == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file_name and content_type are required"})
+	// Parse multipart form with 32MB max memory
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to parse multipart form"})
 		return
 	}
 
@@ -412,13 +551,76 @@ func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	objectKey := "driver-documents/" + userID + "/" + h.idGen.NewID() + "-" + sanitizeObjectName(fileName)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"bucket":      h.storage.Bucket,
-		"object_key":  objectKey,
-		"public_url":  strings.TrimRight(h.storage.Endpoint, "/") + "/" + h.storage.Bucket + "/" + objectKey,
-		"upload_mode": "server_presign_required",
-		"message":     "S3 is configured. Add presigned PUT signing before uploading real files from mobile clients.",
+	// Extract document type
+	documentType := strings.TrimSpace(r.FormValue("document_type"))
+	if !storage.IsAllowedDocumentType(documentType) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid document_type. allowed: passport, license, vehicleDocs, vehiclePhoto, selfie",
+		})
+		return
+	}
+
+	// Get the uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing file in multipart form"})
+		return
+	}
+	defer file.Close()
+
+	// Validate content type
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	if !storage.IsAllowedContentType(contentType) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid content type. allowed: image/jpeg, image/png, image/webp, application/pdf",
+		})
+		return
+	}
+
+	// Validate file size (10MB limit)
+	const maxFileSize = 10 << 20
+	if header.Size > maxFileSize {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("file too large. max size: %d bytes", maxFileSize),
+		})
+		return
+	}
+
+	// Ensure bucket exists
+	if err := h.docStorage.EnsureBucket(r.Context()); err != nil {
+		log.Printf("Failed to ensure bucket: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "storage setup failed"})
+		return
+	}
+
+	// Upload the document
+	uploadedDoc, err := h.docStorage.UploadDocument(
+		r.Context(),
+		userID,
+		documentType,
+		file,
+		header.Size,
+		contentType,
+	)
+	if err != nil {
+		log.Printf("Failed to upload document: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "upload failed"})
+		return
+	}
+
+	// Return successful response
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"document": map[string]any{
+			"key":         uploadedDoc.Key,
+			"public_url":  uploadedDoc.PublicURL,
+			"size":        uploadedDoc.Size,
+			"content_type": contentType,
+			"document_type": documentType,
+		},
+		"message": "document uploaded successfully",
 	})
 }
 
@@ -689,6 +891,82 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 			"cash_commission_hold": details.FinancialBreakdown.CashCommissionHold,
 			"platform_net_amount":  details.FinancialBreakdown.PlatformNetAmount,
 		},
+	})
+}
+
+// ListTaxProfiles serves GET /admin/tax-profiles.
+// Returns all driver tax profiles for admin review and verification.
+func (h *AdminHandler) ListTaxProfiles(w http.ResponseWriter, r *http.Request) {
+	profiles, err := h.repo.ListTaxProfiles(r.Context(), parseAdminLimit(r, 50, 100))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	payload := make([]map[string]any, 0, len(profiles))
+	for _, profile := range profiles {
+		payload = append(payload, map[string]any{
+			"driver_id":             profile.DriverID,
+			"inn":                   profile.INN,
+			"taxpayer_type":         profile.TaxpayerType,
+			"verification_status":   profile.VerificationStatus,
+			"full_name":             profile.FullName,
+			"created_at":            profile.CreatedAt.Format(time.RFC3339),
+			"updated_at":            profile.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
+}
+
+// VerifyTaxProfile serves POST /admin/tax-profiles/{driverID}/verify.
+// Marks a driver's tax profile as verified by admin.
+func (h *AdminHandler) VerifyTaxProfile(w http.ResponseWriter, r *http.Request) {
+	h.updateTaxProfileStatus(w, r, "verified", false)
+}
+
+// RejectTaxProfile serves POST /admin/tax-profiles/{driverID}/reject.
+// Marks a driver's tax profile as rejected by admin with optional reason.
+func (h *AdminHandler) RejectTaxProfile(w http.ResponseWriter, r *http.Request) {
+	h.updateTaxProfileStatus(w, r, "rejected", true)
+}
+
+// RequestTaxProfileChanges serves POST /admin/tax-profiles/{driverID}/request-changes.
+// Requests changes to a driver's tax profile with admin comments.
+func (h *AdminHandler) RequestTaxProfileChanges(w http.ResponseWriter, r *http.Request) {
+	h.updateTaxProfileStatus(w, r, "changes_requested", true)
+}
+
+func (h *AdminHandler) updateTaxProfileStatus(w http.ResponseWriter, r *http.Request, status string, requireComments bool) {
+	driverID := strings.TrimSpace(chi.URLParam(r, "driverID"))
+	if driverID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "driver ID is required"})
+		return
+	}
+
+	var req struct {
+		Comments string `json:"comments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	comments := strings.TrimSpace(req.Comments)
+	if requireComments && comments == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "comments are required for this action"})
+		return
+	}
+
+	if err := h.repo.UpdateTaxProfileStatus(r.Context(), driverID, status, comments); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"driver_id": driverID,
+		"status":    status,
+		"message":   fmt.Sprintf("Tax profile %s successfully", status),
 	})
 }
 

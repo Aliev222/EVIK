@@ -7,6 +7,12 @@ abstract class ApiClient {
     Map<String, String>? headers,
   });
 
+  Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  });
+
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, String>? headers,

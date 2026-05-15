@@ -98,7 +98,9 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             left: 14,
             right: 14,
             child: _TopStatusCard(
-              vehicleNumber: driver?.vehicleNumber ?? 'А923АА 777',
+              vehicleNumber: driver?.vehicleNumber.isNotEmpty == true
+                  ? driver!.vehicleNumber
+                  : 'Номер уточняется',
               eta: _estimatedArrival ?? 'уточняется',
               onBackToOrder: () => context.go('/order/driver-info'),
             ),
@@ -430,13 +432,17 @@ class _DriverCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  'Водитель EVIK',
+                  driver?.fullName?.isNotEmpty == true
+                      ? driver!.fullName!
+                      : 'Водитель',
                   style: EvikTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
-                  driver?.vehicleNumber ?? 'А923АА 777',
+                  driver?.vehicleNumber.isNotEmpty == true
+                      ? driver!.vehicleNumber
+                      : 'Номер уточняется',
                   style: EvikTypography.bodySmall.copyWith(
                     color: EvikColors.gray600,
                   ),
@@ -445,7 +451,9 @@ class _DriverCard extends StatelessWidget {
             ),
           ),
           Text(
-            '★ ${driver?.rating.toStringAsFixed(1) ?? '4.7'}',
+            driver?.rating != null && driver?.rating != 0
+                ? '★ ${driver!.rating.toStringAsFixed(1)}'
+                : '★ —',
             style: EvikTypography.bodySmall.copyWith(
               color: EvikColors.accentOrange,
               fontWeight: FontWeight.w800,

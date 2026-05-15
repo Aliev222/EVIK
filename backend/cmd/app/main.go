@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -9,13 +10,21 @@ import (
 	"syscall"
 	"time"
 
+	evik "evik/backend"
 	"evik/backend/internal/app"
 	"evik/backend/internal/config"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
 
 func main() {
 	cfg := config.MustLoad()
 	logger := log.New(os.Stdout, "[evik] ", log.LstdFlags|log.Lshortfile)
+
+	if err := runMigrations(cfg.PostgresDSN, logger); err != nil {
+		logger.Fatalf("migrations failed: %v", err)
+	}
 
 	container, err := app.NewContainer(cfg, logger)
 	if err != nil {
@@ -50,4 +59,31 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		logger.Printf("shutdown error: %v", err)
 	}
+}
+
+func runMigrations(dsn string, logger *log.Logger) error {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		return err
+	}
+
+	goose.SetBaseFS(evik.EmbedMigrations)
+	goose.SetLogger(goose.NopLogger())
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+
+	logger.Printf("running database migrations...")
+	if err := goose.Up(db, "migrations"); err != nil {
+		return err
+	}
+	logger.Printf("migrations applied successfully")
+	return nil
 }

@@ -27,6 +27,12 @@ _$OrderFlowStateImpl _$$OrderFlowStateImplFromJson(Map<String, dynamic> json) =>
       clientComment: json['clientComment'] as String? ?? '',
       isLoading: json['isLoading'] as bool? ?? false,
       errorMessage: json['errorMessage'] as String?,
+      selectedPaymentMethod: $enumDecodeNullable(
+              _$PaymentMethodEnumMap, json['selectedPaymentMethod']) ??
+          PaymentMethod.cash,
+      isPaymentProcessing: json['isPaymentProcessing'] as bool? ?? false,
+      isReceiptLoading: json['isReceiptLoading'] as bool? ?? false,
+      receiptError: json['receiptError'] as String?,
       searchDurationSeconds:
           (json['searchDurationSeconds'] as num?)?.toInt() ?? 0,
       estimatedPrice: (json['estimatedPrice'] as num?)?.toDouble() ?? 0.0,
@@ -46,6 +52,11 @@ Map<String, dynamic> _$$OrderFlowStateImplToJson(
       'clientComment': instance.clientComment,
       'isLoading': instance.isLoading,
       'errorMessage': instance.errorMessage,
+      'selectedPaymentMethod':
+          _$PaymentMethodEnumMap[instance.selectedPaymentMethod]!,
+      'isPaymentProcessing': instance.isPaymentProcessing,
+      'isReceiptLoading': instance.isReceiptLoading,
+      'receiptError': instance.receiptError,
       'searchDurationSeconds': instance.searchDurationSeconds,
       'estimatedPrice': instance.estimatedPrice,
       'distance': instance.distance,
@@ -75,4 +86,9 @@ const _$TowTruckTypeEnumMap = {
   TowTruckType.winch: 'winch',
   TowTruckType.platform: 'platform',
   TowTruckType.manipulator: 'manipulator',
+};
+
+const _$PaymentMethodEnumMap = {
+  PaymentMethod.cash: 'cash',
+  PaymentMethod.card: 'card',
 };

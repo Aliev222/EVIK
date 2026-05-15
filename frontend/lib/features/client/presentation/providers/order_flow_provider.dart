@@ -1,35 +1,42 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/location_service.dart';
-import '../../../../core/services/price_calculator.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../driver/domain/entities/driver.dart';
+import '../../../driver/presentation/providers/new_driver_provider.dart';
 import '../../../map/domain/entities/map_location.dart';
+import '../../../order/data/repository_impl/http_order_repository.dart';
 import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../../../order/domain/repositories/order_repository.dart';
 import '../../../order/presentation/providers/order_provider.dart';
+import 'payment_wallet_provider.dart';
 
 final locationServiceProvider = Provider<LocationService>((ref) {
   return LocationService();
 });
 
-final priceCalculatorProvider = Provider<PriceCalculator>((ref) {
-  return PriceCalculator(locationService: ref.read(locationServiceProvider));
+final selectedOrderPaymentMethodProvider = StateProvider<PaymentMethod>((ref) {
+  return PaymentMethod.cash;
 });
 
 class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
-  OrderFlowNotifier(this._ref) : super(const OrderFlowState());
+  OrderFlowNotifier(this._ref) : super(const OrderFlowState()) {
+    unawaited(restoreActiveFlow());
+  }
 
   final Ref _ref;
   Timer? _searchTimer;
   Timer? _driverFoundTimer;
   Timer? _orderPollTimer;
+  Timer? _paymentPollTimer;
+
+  static const _activeOrderIdKey = 'client_active_order_id';
 
   void startOrderFlow() {
     state = state.copyWith(
@@ -72,12 +79,12 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     );
   }
 
-  void goToDriverSearch() {
+  Future<bool> goToDriverSearch() async {
     if (state.selectedTowTruckType == null) {
       state = state.copyWith(errorMessage: 'Выберите тип эвакуатора');
-      return;
+      return false;
     }
-    _startDriverSearch();
+    return _createOrderWithPaymentFlow();
   }
 
   void goToDriverFound() {
@@ -96,18 +103,6 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     );
   }
 
-  void goToCompletion() {
-    final order = state.activeOrder;
-    state = state.copyWith(
-      currentStep: OrderFlowStep.completion,
-      activeOrder: order?.copyWith(
-        status: OrderStatus.completed,
-        finalPrice: state.estimatedPrice,
-        completedAt: DateTime.now(),
-      ),
-    );
-  }
-
   void goToRating() {
     state = state.copyWith(currentStep: OrderFlowStep.rating);
   }
@@ -116,6 +111,8 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
     _orderPollTimer?.cancel();
+    _paymentPollTimer?.cancel();
+    unawaited(_clearPersistedActiveOrder());
     state = const OrderFlowState();
   }
 
@@ -133,7 +130,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       selectedVehicleType: vehicleType,
       errorMessage: null,
     );
-    _updatePrice();
+    unawaited(_updatePrice());
   }
 
   void selectTowTruckType(TowTruckType towTruckType) {
@@ -141,7 +138,16 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       selectedTowTruckType: towTruckType,
       errorMessage: null,
     );
-    _updatePrice();
+    unawaited(_updatePrice());
+  }
+
+  void selectPaymentMethod(PaymentMethod paymentMethod) {
+    _ref.read(selectedOrderPaymentMethodProvider.notifier).state =
+        paymentMethod;
+    state = state.copyWith(
+      selectedPaymentMethod: paymentMethod,
+      errorMessage: null,
+    );
   }
 
   void setBlockedWheelsCount(int count) {
@@ -206,45 +212,19 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     state = state.copyWith(errorMessage: null);
   }
 
-  void _startDriverSearch() {
-    _searchTimer?.cancel();
-    _driverFoundTimer?.cancel();
-
-    state = state.copyWith(
-      currentStep: OrderFlowStep.driverSearch,
-      isLoading: true,
-      searchDurationSeconds: 0,
-      errorMessage: null,
-    );
-
-    _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final seconds = state.searchDurationSeconds + 1;
-      state = state.copyWith(searchDurationSeconds: seconds);
-      if (seconds >= 120) {
-        _handleSearchTimeout();
-      }
-    });
-
-    unawaited(_createOrderWithFallback());
-    if (AppConstants.useMockData) {
-      _driverFoundTimer = Timer(const Duration(seconds: 4), _assignMockDriver);
-    }
-  }
-
-  Future<void> _createOrderWithFallback() async {
+  Future<bool> _createOrderWithPaymentFlow() async {
     if (state.pickupLocation == null ||
         state.destinationLocation == null ||
         state.selectedVehicleType == null) {
       _handleSearchError('Не заполнены обязательные параметры заказа');
-      return;
+      return false;
     }
 
     final auth = _ref.read(authProvider);
     final clientId = auth.user?.id;
     if (clientId == null || clientId.isEmpty) {
       _handleSearchError('Нужно войти в аккаунт, чтобы создать заказ.');
-      return;
+      return false;
     }
 
     final command = CreateOrderCommand(
@@ -254,38 +234,138 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       vehicleType: state.selectedVehicleType!,
       distance: state.distance,
       estimatedPrice: state.estimatedPrice,
-      paymentMethod: PaymentMethod.cash,
+      paymentMethod: _ref.read(selectedOrderPaymentMethodProvider),
       towTruckType: state.selectedTowTruckType,
       notes: _buildOrderNotes(),
     );
 
     try {
+      state = state.copyWith(
+        isLoading: true,
+        isPaymentProcessing: command.paymentMethod == PaymentMethod.card,
+        errorMessage: null,
+      );
       await _ref.read(orderProvider.notifier).createOrder(command);
       final created = _ref.read(orderProvider).currentOrder;
       if (created == null) {
-        if (AppConstants.useMockData) {
-          state = state.copyWith(activeOrder: _mockOrder(command));
-          return;
-        }
         _handleSearchError(
           _ref.read(orderProvider).errorMessage ??
-              'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р· РЅР° СЃРµСЂРІРµСЂРµ.',
+              'Не удалось создать заказ на сервере.',
         );
-        return;
+        return false;
       }
 
-      state = state.copyWith(activeOrder: created);
-      if (!AppConstants.useMockData) {
-        _startOrderPolling(created.id);
+      await _persistActiveOrder(created.id);
+      final repo = _ref.read(orderRepositoryProvider);
+      if (repo is! HttpOrderRepository) {
+        _handleSearchError(
+          'Backend payments недоступны для текущего репозитория.',
+        );
+        return false;
       }
+      final payment = await repo.createOrderPayment(
+        created.id,
+        command.paymentMethod,
+      );
+      final priceRub = payment.amount / 100;
+      final paidOrder = created.copyWith(
+        estimatedPrice: priceRub,
+        finalPrice: priceRub,
+        paymentMethod: payment.paymentMethod,
+        paymentId: payment.id,
+        paymentStatus: payment.status,
+        paymentConfirmationUrl: payment.confirmationUrl,
+      );
+
+      state = state.copyWith(
+        activeOrder: paidOrder,
+        estimatedPrice: priceRub,
+        payment: null,
+      );
+      if (command.paymentMethod == PaymentMethod.card) {
+        final confirmed = await _confirmCardPayment(paidOrder);
+        if (confirmed == null) return false;
+        state = state.copyWith(activeOrder: confirmed);
+        _beginDriverSearchTimers(confirmed.id);
+      } else {
+        _beginDriverSearchTimers(paidOrder.id);
+      }
+      return true;
     } catch (error) {
-      if (AppConstants.useMockData) {
-        state = state.copyWith(activeOrder: _mockOrder(command));
-        return;
-      }
-      _handleSearchError(
-          'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ Р·Р°РєР°Р·: $error');
+      _handleSearchError('Не удалось создать заказ: $error');
+      return false;
     }
+  }
+
+  Future<Order?> _confirmCardPayment(Order order) async {
+    final confirmationUrl = order.paymentConfirmationUrl;
+    if (confirmationUrl == null || confirmationUrl.isEmpty) {
+      _handleSearchError('Не удалось получить ссылку на оплату.');
+      return null;
+    }
+
+    final opened = await launchUrl(
+      Uri.parse(confirmationUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened) {
+      _handleSearchError('Не удалось открыть оплату YooKassa.');
+      return null;
+    }
+
+    final repo = _ref.read(orderRepositoryProvider);
+    if (repo is! HttpOrderRepository) {
+      _handleSearchError('Проверка оплаты недоступна.');
+      return null;
+    }
+
+    for (var attempt = 0; attempt < 60; attempt += 1) {
+      if (!mounted) return null;
+      final payment = await repo.getOrderPaymentStatus(order.id);
+      final updated = order.copyWith(
+        paymentId: payment.id,
+        paymentStatus: payment.status,
+        paymentConfirmationUrl: payment.confirmationUrl,
+        estimatedPrice: payment.amount / 100,
+        finalPrice: payment.amount / 100,
+      );
+      state = state.copyWith(activeOrder: updated);
+      if (payment.isSucceeded) {
+        state = state.copyWith(isPaymentProcessing: false, isLoading: false);
+        return updated;
+      }
+      if (payment.isFailed) {
+        _handleSearchError(
+          'Оплата не прошла. Повторите оплату или выберите наличные.',
+        );
+        return null;
+      }
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+
+    _handleSearchError(
+        'Оплата еще не подтверждена. Попробуйте проверить позже.');
+    return null;
+  }
+
+  void _beginDriverSearchTimers(String orderId) {
+    _searchTimer?.cancel();
+    state = state.copyWith(
+      currentStep: OrderFlowStep.driverSearch,
+      isLoading: true,
+      isPaymentProcessing: false,
+      searchDurationSeconds: 0,
+      errorMessage: null,
+    );
+    _searchTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final seconds = state.searchDurationSeconds + 1;
+      state = state.copyWith(searchDurationSeconds: seconds);
+      if (seconds >= 120) {
+        _handleSearchTimeout();
+      }
+    });
+    _startOrderPolling(orderId);
   }
 
   void _startOrderPolling(String orderId) {
@@ -312,7 +392,10 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     var assignedDriver = state.assignedDriver;
 
     if (order.driverId != null && order.driverId!.isNotEmpty) {
-      assignedDriver ??= _driverFromAcceptedOrder(order);
+      // If we don't have driver data yet, fetch it from the backend
+      if (assignedDriver == null || assignedDriver.userId != order.driverId) {
+        _fetchDriverProfile(order.driverId!);
+      }
       if (nextStep == OrderFlowStep.driverSearch) {
         _searchTimer?.cancel();
         nextStep = OrderFlowStep.driverFound;
@@ -353,23 +436,20 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     );
   }
 
-  Driver _driverFromAcceptedOrder(Order order) {
-    final driverId = order.driverId ?? 'driver';
-    return Driver(
-      userId: driverId,
-      vehicleModel: state.selectedTowTruckType?.displayName ?? 'EVIK tow truck',
-      vehicleNumber: 'EVIK',
-      vehicleType: VehicleType.light,
-      rating: 5,
-      totalOrders: 0,
-      isOnline: true,
-      currentLocation: DriverLocation(
-        lat: order.pickupLocation.lat + 0.012,
-        lng: order.pickupLocation.lng + 0.010,
-      ),
-      isVerified: true,
-      earnings: const DriverEarnings(today: 0, week: 0, month: 0),
-    );
+  /// Fetches real driver profile data from the backend API
+  Future<void> _fetchDriverProfile(String driverId) async {
+    try {
+      final driverRepository = _ref.read(httpDriverRepositoryProvider);
+      final driver = await driverRepository.getDriver(driverId);
+
+      if (mounted && driver != null) {
+        state = state.copyWith(assignedDriver: driver);
+      }
+    } catch (error) {
+      // If we can't fetch driver data, we'll continue without it
+      // Rather than showing synthetic data, we'll handle this gracefully in the UI
+      // Error is logged internally by the API client
+    }
   }
 
   String? _buildOrderNotes() {
@@ -381,55 +461,6 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       parts.add('Комментарий клиента: ${state.clientComment.trim()}');
     }
     return parts.isEmpty ? null : parts.join('\n');
-  }
-
-  Order _mockOrder(CreateOrderCommand command) {
-    return Order(
-      id: 'mock_${DateTime.now().millisecondsSinceEpoch}',
-      clientId: command.clientId,
-      status: OrderStatus.searching,
-      pickupLocation: command.pickupLocation,
-      dropoffLocation: command.dropoffLocation,
-      vehicleType: command.vehicleType,
-      distance: command.distance,
-      estimatedPrice: command.estimatedPrice,
-      paymentMethod: command.paymentMethod,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  void _assignMockDriver() {
-    if (!mounted || state.currentStep != OrderFlowStep.driverSearch) return;
-
-    final random = Random();
-    final driverId = 'driver_${1000 + random.nextInt(9000)}';
-    final activeOrder = state.activeOrder?.copyWith(
-      driverId: driverId,
-      status: OrderStatus.assigned,
-      assignedAt: DateTime.now(),
-    );
-
-    state = state.copyWith(
-      activeOrder: activeOrder,
-      assignedDriver: Driver(
-        userId: driverId,
-        vehicleModel:
-            state.selectedTowTruckType?.displayName ?? 'Эвакуатор EVIK',
-        vehicleNumber: 'А${100 + random.nextInt(900)}АА 777',
-        vehicleType: VehicleType.light,
-        rating: 4.7 + random.nextDouble() * 0.3,
-        totalOrders: 80 + random.nextInt(220),
-        isOnline: true,
-        currentLocation: const DriverLocation(
-          lat: AppConstants.moscowLat,
-          lng: AppConstants.moscowLng,
-        ),
-        isVerified: true,
-        earnings: const DriverEarnings(today: 0, week: 0, month: 0),
-      ),
-    );
-    _searchTimer?.cancel();
-    goToDriverFound();
   }
 
   void _handleSearchTimeout() {
@@ -447,8 +478,10 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
     _orderPollTimer?.cancel();
+    _paymentPollTimer?.cancel();
     state = state.copyWith(
       isLoading: false,
+      isPaymentProcessing: false,
       errorMessage: error,
     );
   }
@@ -467,31 +500,136 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         1000;
 
     state = state.copyWith(distance: distance);
-    _updatePrice();
+    unawaited(_updatePrice());
   }
 
-  void _updatePrice() {
-    final vehicleType = state.selectedVehicleType;
-    if (vehicleType == null) return;
+  Future<void> _updatePrice() async {
+    final pickup = state.pickupLocation;
+    final dropoff = state.destinationLocation;
+    final towTruckType = state.selectedTowTruckType;
+    if (pickup == null || dropoff == null || towTruckType == null) return;
 
-    final basePrice = switch (vehicleType) {
-      VehicleType.light => 1500.0,
-      VehicleType.suv => 1800.0,
-      VehicleType.minibus => 2200.0,
-      VehicleType.truck => 2800.0,
+    final repo = _ref.read(orderRepositoryProvider);
+    if (repo is! HttpOrderRepository) return;
+
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final quote = await repo.calculatePrice(
+        pickup: pickup.toLocationModel(),
+        dropoff: dropoff.toLocationModel(),
+        towTruckType: towTruckType,
+      );
+      if (!mounted) return;
+      state = state.copyWith(
+        distance: quote.distanceKm,
+        estimatedPrice: quote.totalPrice / 100,
+        isLoading: false,
+        errorMessage: null,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Не удалось рассчитать цену: $error',
+      );
+    }
+  }
+
+  Future<void> restoreActiveFlow() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final orderId = prefs.getString(_activeOrderIdKey);
+      if (orderId == null || orderId.isEmpty) return;
+
+      final repo = _ref.read(orderRepositoryProvider);
+      final order = await repo.getOrder(orderId);
+      if (!mounted || order == null) return;
+
+      state = state.copyWith(
+        activeOrder: order,
+        currentStep: order.status == OrderStatus.completed
+            ? OrderFlowStep.completion
+            : _stepForRestoredOrder(order),
+        estimatedPrice: order.finalPrice ?? order.estimatedPrice,
+        isLoading: false,
+      );
+
+      if (repo is HttpOrderRepository) {
+        try {
+          final payment = await repo.getOrderPaymentStatus(orderId);
+          final priceRub = payment.amount / 100;
+          state = state.copyWith(
+            activeOrder: order.copyWith(
+              estimatedPrice: priceRub,
+              finalPrice: priceRub,
+              paymentMethod: payment.paymentMethod,
+              paymentId: payment.id,
+              paymentStatus: payment.status,
+              paymentConfirmationUrl: payment.confirmationUrl,
+            ),
+            selectedPaymentMethod: payment.paymentMethod,
+            estimatedPrice: priceRub,
+          );
+          _ref.read(selectedOrderPaymentMethodProvider.notifier).state =
+              payment.paymentMethod;
+        } catch (_) {
+          // Order restore is still useful if the payment endpoint is transiently unavailable.
+        }
+      }
+
+      if (order.status == OrderStatus.completed) {
+        await loadReceipt(orderId);
+      } else {
+        _beginDriverSearchTimers(orderId);
+      }
+    } catch (_) {
+      // Restore is best-effort; a failed restore must not block a new order.
+    }
+  }
+
+  Future<void> loadReceipt([String? orderId]) async {
+    final id = orderId ?? state.activeOrder?.id;
+    if (id == null || id.isEmpty) return;
+    state = state.copyWith(isReceiptLoading: true, receiptError: null);
+    try {
+      final receipt =
+          await _ref.read(paymentRepositoryProvider).getOrderReceipt(id);
+      if (!mounted) return;
+      state = state.copyWith(
+        receipt: receipt,
+        isReceiptLoading: false,
+        receiptError: null,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isReceiptLoading: false,
+        receiptError: '�� ������� ��������� ���: $error',
+      );
+    }
+  }
+
+  OrderFlowStep _stepForRestoredOrder(Order order) {
+    return switch (order.status) {
+      OrderStatus.searching => OrderFlowStep.driverSearch,
+      OrderStatus.assigned => OrderFlowStep.driverFound,
+      OrderStatus.onWay ||
+      OrderStatus.arrived ||
+      OrderStatus.evacuating =>
+        OrderFlowStep.tracking,
+      OrderStatus.completed => OrderFlowStep.completion,
+      OrderStatus.cancelled => OrderFlowStep.idle,
     };
+  }
 
-    final towTruckMultiplier = switch (state.selectedTowTruckType) {
-      TowTruckType.winch => 1.0,
-      TowTruckType.platform => 1.2,
-      TowTruckType.manipulator => 1.5,
-      null => 1.0,
-    };
+  Future<void> _persistActiveOrder(String orderId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_activeOrderIdKey, orderId);
+  }
 
-    final distancePrice = max(state.distance, 1) * 50.0;
-    state = state.copyWith(
-      estimatedPrice: (basePrice + distancePrice) * towTruckMultiplier,
-    );
+  Future<void> _clearPersistedActiveOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_activeOrderIdKey);
   }
 
   @override

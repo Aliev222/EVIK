@@ -33,6 +33,9 @@ class InMemoryOrderRepository implements OrderRepository {
   Future<Order?> getOrder(String orderId) async => _orders[orderId];
 
   @override
+  Future<List<Order>> getOrders() async => _orders.values.toList();
+
+  @override
   Future<void> cancelOrder(String orderId, {String? reason}) async {
     final order = _orders[orderId];
     if (order == null) return;

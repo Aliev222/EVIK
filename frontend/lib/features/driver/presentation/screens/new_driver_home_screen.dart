@@ -9,10 +9,23 @@ import '../../../../core/services/openstreetmap_service.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../map/presentation/widgets/evik_osm_map_view.dart';
 import '../../domain/entities/available_order.dart';
+import '../../domain/entities/driver.dart';
 import '../../domain/entities/driver_work_state.dart';
 import '../providers/new_driver_provider.dart';
+
+// Provider for driver profile data (reused from profile screen)
+final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
+  final authState = ref.watch(authProvider);
+  final driverId = authState.user?.id;
+
+  if (driverId == null) return null;
+
+  final repository = ref.watch(httpDriverRepositoryProvider);
+  return await repository.getDriver(driverId);
+});
 
 class NewDriverHomeScreen extends ConsumerStatefulWidget {
   const NewDriverHomeScreen({super.key});
@@ -72,6 +85,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     final isLoading =
         ref.watch(newDriverProvider.select((state) => state.isLoading));
     final stats = ref.watch(newDriverProvider.select((state) => state.stats));
+    final driverProfile = ref.watch(driverProfileProvider);
 
     ref.listen<DriverState>(newDriverProvider, (previous, next) {
       final message = next.error;
@@ -97,11 +111,11 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
       body: workState == DriverWorkState.offline
-          ? SafeArea(child: _buildOfflineView(driverState))
+          ? SafeArea(child: _buildOfflineView(driverState, driverProfile))
           : _BackgroundOptimizer(
               isDriverWaiting: workState == DriverWorkState.online,
               isAppInForeground: _isAppInForeground,
-              child: _buildOnlineView(driverState),
+              child: _buildOnlineView(driverState, driverProfile),
             ),
     );
   }
@@ -145,7 +159,37 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     _offerAnimationController!.forward();
   }
 
-  Widget _buildOfflineView(DriverState driverState) {
+  /// Get driver display name from profile
+  String _getDriverDisplayName(AsyncValue<Driver?> driverProfile) {
+    return driverProfile.when(
+      data: (driver) {
+        if (driver?.fullName?.isNotEmpty == true) {
+          // Extract first name from full name
+          final firstName = driver!.fullName!.split(' ').first;
+          return firstName;
+        }
+        return 'Водитель';
+      },
+      loading: () => 'Водитель',
+      error: (_, __) => 'Водитель',
+    );
+  }
+
+  /// Get driver initial from profile
+  String _getDriverInitial(AsyncValue<Driver?> driverProfile) {
+    return driverProfile.when(
+      data: (driver) {
+        if (driver?.fullName?.isNotEmpty == true) {
+          return driver!.fullName!.characters.first.toUpperCase();
+        }
+        return 'В';
+      },
+      loading: () => 'В',
+      error: (_, __) => 'В',
+    );
+  }
+
+  Widget _buildOfflineView(DriverState driverState, AsyncValue<Driver?> driverProfile) {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
@@ -169,7 +213,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                     Row(
                       children: [
                         Text(
-                          'Михаил',
+                          _getDriverDisplayName(driverProfile),
                           style: EvikTypography.h2.copyWith(fontSize: 22),
                         ),
                         const SizedBox(width: 6),
@@ -185,10 +229,10 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                     color: EvikColors.primaryBlack,
                     shape: BoxShape.circle,
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      'М',
-                      style: TextStyle(
+                      _getDriverInitial(driverProfile),
+                      style: const TextStyle(
                         color: EvikColors.primaryWhite,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -305,7 +349,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
   }
 
-  Widget _buildOnlineView(DriverState driverState) {
+  Widget _buildOnlineView(DriverState driverState, AsyncValue<Driver?> driverProfile) {
     _syncIncomingOffer(driverState.workState, driverState.availableOrders);
     final incomingOrder = driverState.availableOrders.isEmpty
         ? null
@@ -788,6 +832,7 @@ class _IncomingOrderSheet extends StatelessWidget {
       ),
     );
   }
+
 }
 
 class _OrderActionButton extends StatelessWidget {

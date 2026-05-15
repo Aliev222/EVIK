@@ -72,7 +72,26 @@ class DriverNotifier extends StateNotifier<DriverState> {
         super(DriverState(
           workState: DriverWorkState.offline,
           availableOrders: const <AvailableOrder>[],
-          stats: DriverStats.mock,
+          stats: const DriverStats(
+            yesterday: YesterdayStats(
+              ordersCount: 0,
+              earnings: 0,
+              rating: 0,
+            ),
+            today: TodayStats(
+              ordersCount: 0,
+              earnings: 0,
+            ),
+            weekly: WeeklyStats(
+              totalEarnings: 0,
+              weeklyChange: 0,
+              ordersCount: 0,
+              averageOrder: 0,
+              hoursWorked: 0,
+              rating: 0,
+              availableForWithdrawal: 0,
+            ),
+          ),
         )) {
     unawaited(_initializeDriver());
     _startPeriodicRefresh();
@@ -309,7 +328,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         .length;
     final todayEarnings = completed * 2500.0;
     return DriverStats(
-      yesterday: const YesterdayStats(ordersCount: 0, earnings: 0, rating: 5),
+      yesterday: const YesterdayStats(ordersCount: 0, earnings: 0, rating: 0),
       today: TodayStats(ordersCount: completed, earnings: todayEarnings),
       weekly: WeeklyStats(
         totalEarnings: todayEarnings,
@@ -317,7 +336,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         ordersCount: completed,
         averageOrder: 2500,
         hoursWorked: 0,
-        rating: 4.9,
+        rating: 0.0, // будет обновлен из реальных отзывов
         availableForWithdrawal: todayEarnings,
       ),
     );

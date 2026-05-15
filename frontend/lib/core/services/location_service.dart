@@ -58,7 +58,8 @@ class LocationService {
         );
       }
 
-      return await _mockGeocode(address);
+      // No fallback to mock data - return null if real geocoding failed
+      return null;
     } catch (e) {
       throw LocationException('Ошибка геокодирования: $e');
     }

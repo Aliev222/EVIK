@@ -59,4 +59,7 @@ abstract class OrderRepository {
 
   /// Получить текущий заказ водителя
   Stream<Order?> watchDriverCurrentOrder(String driverId);
+
+  /// Получить историю заказов пользователя
+  Future<List<Order>> getOrders();
 }

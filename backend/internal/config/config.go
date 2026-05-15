@@ -28,6 +28,7 @@ type Config struct {
 	S3Bucket                   string
 	S3AccessKey                string
 	S3SecretKey                string
+	S3PublicBaseURL            string
 	OSRMBaseURL                string
 	YooKassaShopID             string
 	YooKassaSecret             string
@@ -66,6 +67,7 @@ func MustLoad() Config {
 		S3Bucket:                   getEnv("S3_BUCKET", ""),
 		S3AccessKey:                getEnv("S3_ACCESS_KEY", ""),
 		S3SecretKey:                getEnv("S3_SECRET_KEY", ""),
+		S3PublicBaseURL:            getEnv("S3_PUBLIC_BASE_URL", ""),
 		OSRMBaseURL:                getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
 		YooKassaShopID:             getEnv("YOOKASSA_SHOP_ID", ""),
 		YooKassaSecret:             getEnv("YOOKASSA_SECRET_KEY", ""),
@@ -104,8 +106,8 @@ func validateProductionConfig(cfg Config) {
 	if len(cfg.AdminPassword) < 12 {
 		missing = append(missing, "ADMIN_PASSWORD(>=12 chars)")
 	}
-	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" {
-		missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY")
+	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3PublicBaseURL == "" {
+		missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY/S3_PUBLIC_BASE_URL")
 	}
 	if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
 		missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")

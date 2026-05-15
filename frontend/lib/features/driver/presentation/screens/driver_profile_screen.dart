@@ -6,12 +6,141 @@ import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/presentation/screens/role_selection_screen.dart';
+import '../../../review/domain/entities/review.dart';
+import '../../../review/presentation/providers/review_provider.dart';
+import '../../domain/entities/driver.dart';
+import '../providers/new_driver_provider.dart';
+
+// Provider for driver profile data
+final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
+  final authState = ref.watch(authProvider);
+  final driverId = authState.user?.id;
+
+  if (driverId == null) return null;
+
+  final repository = ref.watch(httpDriverRepositoryProvider);
+  return await repository.getDriver(driverId);
+});
 
 class DriverProfileScreen extends ConsumerWidget {
   const DriverProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final driverProfileAsync = ref.watch(driverProfileProvider);
+
+    return driverProfileAsync.when(
+      data: (driver) => _buildProfileContent(context, ref, driver),
+      loading: () => _buildLoadingContent(context, ref),
+      error: (error, stack) => _buildErrorContent(context, ref, error),
+    );
+  }
+
+  static Widget _buildLoadingContent(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      backgroundColor: EvikColors.gray50,
+      appBar: AppBar(
+        title: Text(
+          'Профиль',
+          style: EvikTypography.h2.copyWith(fontSize: 24),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleSpacing: 16,
+        leading: IconButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+          },
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: EvikColors.primaryBlack,
+            size: 20,
+          ),
+          splashRadius: 24,
+          padding: const EdgeInsets.all(8),
+        ),
+      ),
+      body: const Center(
+        child: CircularProgressIndicator(
+          color: EvikColors.accentOrange,
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildErrorContent(BuildContext context, WidgetRef ref, Object error) {
+    return Scaffold(
+      backgroundColor: EvikColors.gray50,
+      appBar: AppBar(
+        title: Text(
+          'Профиль',
+          style: EvikTypography.h2.copyWith(fontSize: 24),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: false,
+        titleSpacing: 16,
+        leading: IconButton(
+          onPressed: () {
+            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+          },
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: EvikColors.primaryBlack,
+            size: 20,
+          ),
+          splashRadius: 24,
+          padding: const EdgeInsets.all(8),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              color: EvikColors.errorRed,
+              size: 64,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Ошибка загрузки профиля',
+              style: EvikTypography.h3.copyWith(
+                color: EvikColors.primaryBlack,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Попробуйте перезайти в приложение',
+              style: EvikTypography.bodyMedium.copyWith(
+                color: EvikColors.gray500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _getVehicleDisplayText(Driver? driver) {
+    if (driver == null) return 'Данные об автомобиле не указаны';
+
+    final hasModel = driver.vehicleModel.isNotEmpty == true;
+    final hasNumber = driver.vehicleNumber.isNotEmpty == true;
+
+    if (hasModel && hasNumber) {
+      return '${driver.vehicleModel} • ${driver.vehicleNumber}';
+    } else if (hasModel) {
+      return driver.vehicleModel;
+    } else if (hasNumber) {
+      return driver.vehicleNumber;
+    } else {
+      return 'Данные об автомобиле не указаны';
+    }
+  }
+
+  Widget _buildProfileContent(BuildContext context, WidgetRef ref, Driver? driver) {
     return Scaffold(
       backgroundColor: EvikColors.gray50,
       appBar: AppBar(
@@ -81,7 +210,9 @@ class DriverProfileScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Михаил Соколов',
+                          driver?.fullName?.isNotEmpty == true
+                              ? driver!.fullName!
+                              : 'Водитель',
                           style: EvikTypography.h3.copyWith(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -97,7 +228,9 @@ class DriverProfileScreen extends ConsumerWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '4.9',
+                              driver?.rating != null && driver!.rating > 0
+                                  ? driver.rating.toStringAsFixed(1)
+                                  : '—',
                               style: EvikTypography.bodyMedium.copyWith(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
@@ -105,7 +238,9 @@ class DriverProfileScreen extends ConsumerWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '• 148 заказов',
+                              driver?.totalOrders != null
+                                  ? '• ${driver!.totalOrders} заказов'
+                                  : '• Нет заказов',
                               style: EvikTypography.bodySmall.copyWith(
                                 color: EvikColors.gray500,
                                 fontSize: 12,
@@ -115,7 +250,9 @@ class DriverProfileScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '+7 (916) 234-56-78',
+                          driver?.phone?.isNotEmpty == true
+                              ? driver!.phone!
+                              : 'Телефон не указан',
                           style: EvikTypography.bodyMedium.copyWith(
                             color: EvikColors.gray500,
                             fontSize: 14,
@@ -152,7 +289,7 @@ class DriverProfileScreen extends ConsumerWidget {
               _ProfileMenuItem(
                 icon: Icons.local_shipping_outlined,
                 title: 'Мой эвакуатор',
-                subtitle: 'КАМАЗ 65117 • А 234 КО 77',
+                subtitle: _getVehicleDisplayText(driver),
                 onTap: () => _openVehicleInfo(context),
               ),
               const SizedBox(height: 12),
@@ -200,6 +337,13 @@ class DriverProfileScreen extends ConsumerWidget {
                   'Полис: ХХХ 1234567890',
                   'Страховая: АльфаСтрахование',
                 ]),
+              ),
+              const SizedBox(height: 12),
+              _ProfileMenuItem(
+                icon: Icons.star_outlined,
+                title: 'Отзывы',
+                subtitle: _getReviewsSubtitle(context, ref, driver?.userId),
+                onTap: () => _showDriverReviews(context, ref, driver?.userId),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
@@ -267,12 +411,28 @@ class DriverProfileScreen extends ConsumerWidget {
         context,
         'Мой эвакуатор',
         const [
-          'Модель: КАМАЗ 65117',
-          'Грузоподъемность: 8 тонн',
-          'Государственный номер: А 234 КО 77',
-          'Техосмотр до: 15.08.2025',
+          'Информация об автомобиле',
+          'Загружается из профиля...',
         ],
       );
+
+  String _getReviewsSubtitle(BuildContext context, WidgetRef ref, String? driverId) {
+    if (driverId == null) return 'Отзывы недоступны';
+
+    return 'Загрузка отзывов...';
+  }
+
+  void _showDriverReviews(BuildContext context, WidgetRef ref, String? driverId) {
+    if (driverId == null) return;
+
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _DriverReviewsSheet(driverId: driverId),
+    );
+  }
 
   void _showDriverFeature(
     BuildContext context,
@@ -434,5 +594,265 @@ class _ProfileMenuItem extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _DriverReviewsSheet extends ConsumerWidget {
+  const _DriverReviewsSheet({required this.driverId});
+
+  final String driverId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reviewsAsync = ref.watch(driverReviewsProvider(driverId));
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: EvikColors.primaryWhite,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Отзывы',
+                      style: EvikTypography.h3,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: EvikColors.gray200),
+
+            // Reviews content
+            Expanded(
+              child: reviewsAsync.when(
+                loading: () => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                error: (error, stack) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: EvikColors.errorRed,
+                        size: 64,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Ошибка загрузки отзывов',
+                        style: EvikTypography.h3.copyWith(
+                          color: EvikColors.primaryBlack,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Попробуйте позже',
+                        style: EvikTypography.bodyMedium.copyWith(
+                          color: EvikColors.gray500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                data: (reviews) {
+                  if (reviews.items.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.star_outline,
+                            color: EvikColors.gray400,
+                            size: 64,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Отзывов пока нет',
+                            style: EvikTypography.h3.copyWith(
+                              color: EvikColors.primaryBlack,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Первые отзывы появятся после завершения заказов',
+                            style: EvikTypography.bodyMedium.copyWith(
+                              color: EvikColors.gray500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      // Stats header
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _ReviewStat(
+                              label: 'Средний рейтинг',
+                              value: reviews.ratingAverage > 0
+                                  ? reviews.ratingAverage.toStringAsFixed(1)
+                                  : '—',
+                              icon: Icons.star,
+                            ),
+                            _ReviewStat(
+                              label: 'Всего отзывов',
+                              value: reviews.total.toString(),
+                              icon: Icons.reviews,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, color: EvikColors.gray200),
+
+                      // Reviews list
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: reviews.items.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            final review = reviews.items[index];
+                            return _ReviewCard(review: review);
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewStat extends StatelessWidget {
+  const _ReviewStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: EvikColors.accentOrange,
+          size: 24,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: EvikTypography.h2.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: EvikTypography.bodySmall.copyWith(
+            color: EvikColors.gray500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.review});
+
+  final Review review;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: EvikColors.gray50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: EvikColors.gray200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  review.clientName ?? 'Клиент',
+                  style: EvikTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < review.stars ? Icons.star : Icons.star_border,
+                    size: 16,
+                    color: EvikColors.accentOrange,
+                  );
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (review.text.isNotEmpty) ...[
+            Text(
+              review.text,
+              style: EvikTypography.bodyMedium.copyWith(
+                color: EvikColors.gray700,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            _formatDate(review.createdAt),
+            style: EvikTypography.bodySmall.copyWith(
+              color: EvikColors.gray400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }

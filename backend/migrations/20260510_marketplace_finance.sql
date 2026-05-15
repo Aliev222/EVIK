@@ -1,14 +1,19 @@
+-- +goose Up
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION cents_to_rub(cents BIGINT)
 RETURNS NUMERIC AS $$
 	SELECT ROUND((cents::NUMERIC / 100), 2);
 $$ LANGUAGE SQL IMMUTABLE;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION rub_to_cents(amount NUMERIC)
 RETURNS BIGINT AS $$
 	SELECT ROUND(amount * 100)::BIGINT;
 $$ LANGUAGE SQL IMMUTABLE;
+-- +goose StatementEnd
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS price_total NUMERIC(12,2) NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash';
@@ -194,3 +199,7 @@ CREATE TABLE IF NOT EXISTS wallet_transaction_locks (
 INSERT INTO commission_rules (id, name, percent, currency, is_active, starts_at, created_at)
 VALUES ('tow-truck-default-commission', 'Tow Truck default marketplace commission', 15.00, 'RUB', TRUE, NOW(), NOW())
 ON CONFLICT (id) DO UPDATE SET percent = EXCLUDED.percent, is_active = TRUE;
+
+-- +goose Down
+-- not implemented (forward-only migration)
+SELECT 1;

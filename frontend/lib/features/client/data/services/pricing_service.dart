@@ -1,47 +1,44 @@
-import 'dart:math' as math;
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/price_calculator.dart';
-import '../../../../shared/providers/tariff_provider.dart';
+import '../../../../core/network/api_client_stub.dart'
+    if (dart.library.io) '../../../../core/network/api_client_io.dart'
+    as platform_api;
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../map/domain/entities/map_location.dart';
 import '../../../order/domain/entities/order.dart';
+import '../../../order/domain/entities/order_flow_state.dart';
 
 class PricingService {
-  PricingService({
-    required this.priceCalculator,
-    required this.ref,
-  });
+  const PricingService({required String? accessToken})
+      : _accessToken = accessToken;
 
-  final PriceCalculator priceCalculator;
-  final Ref ref;
+  final String? _accessToken;
+
+  Map<String, String>? get _authHeaders {
+    final token = _accessToken;
+    if (token == null || token.isEmpty) return null;
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
 
   Future<double> calculatePrice({
     required MapLocation pickup,
     required MapLocation dropoff,
     required VehicleType vehicleType,
     required DateTime timeOfDay,
+    TowTruckType towTruckType = TowTruckType.winch,
   }) async {
-    try {
-      final tariff = await ref.read(currentTariffProvider.future);
-      final result = await priceCalculator.calculatePrice(
-        pickupLocation: pickup.toLocationModel(),
-        dropoffLocation: dropoff.toLocationModel(),
-        vehicleType: vehicleType,
-        tariff: tariff,
-      );
-
-      var finalPrice = result.estimatedPrice;
-      if (_isNightTime(timeOfDay)) {
-        finalPrice *= 1.3;
-      }
-      if (_isHoliday(timeOfDay)) {
-        finalPrice *= 1.15;
-      }
-      return finalPrice;
-    } catch (_) {
-      return _fallbackPriceCalculation(pickup, dropoff, vehicleType);
-    }
+    final json = await platform_api.createPlatformApiClient().post(
+          '/api/v1/pricing/calculate',
+          <String, dynamic>{
+            'pickup_lat': pickup.latitude,
+            'pickup_lng': pickup.longitude,
+            'dropoff_lat': dropoff.latitude,
+            'dropoff_lng': dropoff.longitude,
+            'tow_truck_type': towTruckType.name,
+          },
+          headers: _authHeaders,
+        );
+    return (json['total_price'] as num).toDouble() / 100;
   }
 
   Future<PriceRange> calculatePriceRange({
@@ -49,66 +46,21 @@ class PricingService {
     required MapLocation dropoff,
     required VehicleType vehicleType,
     required DateTime timeOfDay,
+    TowTruckType towTruckType = TowTruckType.winch,
   }) async {
-    final basePrice = await calculatePrice(
+    final price = await calculatePrice(
       pickup: pickup,
       dropoff: dropoff,
       vehicleType: vehicleType,
       timeOfDay: timeOfDay,
+      towTruckType: towTruckType,
     );
-
-    return PriceRange(
-      minPrice: basePrice * 0.85,
-      maxPrice: basePrice * 1.15,
-      basePrice: basePrice,
-    );
+    return PriceRange(minPrice: price, maxPrice: price, basePrice: price);
   }
 
-  double _fallbackPriceCalculation(
-    MapLocation pickup,
-    MapLocation dropoff,
-    VehicleType vehicleType,
-  ) {
-    final basePrice = switch (vehicleType) {
-      VehicleType.light => 2500.0,
-      VehicleType.suv => 3100.0,
-      VehicleType.minibus => 3800.0,
-      VehicleType.truck => 4500.0,
-    };
+  String formatPriceRange(PriceRange range) => formatPrice(range.basePrice);
 
-    final distance = _calculateStraightDistance(pickup, dropoff);
-    final distancePrice = distance > 5 ? (distance - 5) * 150 : 0;
-    return basePrice + distancePrice;
-  }
-
-  double _calculateStraightDistance(MapLocation from, MapLocation to) {
-    const earthRadius = 6371.0;
-    final lat1 = _toRadians(from.latitude);
-    final lat2 = _toRadians(to.latitude);
-    final dLat = _toRadians(to.latitude - from.latitude);
-    final dLng = _toRadians(to.longitude - from.longitude);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(lat1) *
-            math.cos(lat2) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadius * c * 1.2;
-  }
-
-  bool _isNightTime(DateTime dateTime) =>
-      dateTime.hour >= 22 || dateTime.hour <= 7;
-
-  bool _isHoliday(DateTime dateTime) =>
-      dateTime.weekday == DateTime.saturday ||
-      dateTime.weekday == DateTime.sunday;
-
-  String formatPrice(double price) => priceCalculator.formatPrice(price);
-
-  String formatPriceRange(PriceRange range) =>
-      '${formatPrice(range.minPrice)} - ${formatPrice(range.maxPrice)}';
-
-  double _toRadians(double degrees) => degrees * math.pi / 180;
+  String formatPrice(double price) => '${price.round()} ₽';
 }
 
 class PriceRange {
@@ -124,8 +76,6 @@ class PriceRange {
 }
 
 final pricingServiceProvider = Provider<PricingService>((ref) {
-  return PricingService(
-    priceCalculator: PriceCalculator(),
-    ref: ref,
-  );
+  final token = ref.watch(authProvider.select((state) => state.accessToken));
+  return PricingService(accessToken: token);
 });

@@ -28,10 +28,10 @@ class HttpDriverRepository implements DriverRepository {
 
   Future<Driver> getDriverProfile(String driverId) async {
     final response = await _apiClient.get(
-      '/api/v1/drivers/$driverId',
+      '/api/v1/drivers/$driverId/profile',
       headers: _authHeaders,
     );
-    return Driver.fromMap(response['driver'] as Map<String, dynamic>);
+    return Driver.fromMap(response['profile'] as Map<String, dynamic>);
   }
 
   @override
@@ -179,25 +179,43 @@ class HttpDriverRepository implements DriverRepository {
 
 AvailableOrder availableOrderFromBackend(Map<String, dynamic> map) {
   final order = Order.fromMap(map);
+
+  // Use real vehicle type text instead of generic text
+  String vehicleModel = '';
+  switch (order.vehicleType) {
+    case VehicleType.light:
+      vehicleModel = 'Легковой автомобиль';
+      break;
+    case VehicleType.suv:
+      vehicleModel = 'Внедорожник';
+      break;
+    case VehicleType.minibus:
+      vehicleModel = 'Минивэн';
+      break;
+    case VehicleType.truck:
+      vehicleModel = 'Грузовой автомобиль';
+      break;
+  }
+
   return AvailableOrder(
     id: order.id,
     vehicleType: order.vehicleType,
-    vehicleModel: 'Автомобиль клиента',
+    vehicleModel: vehicleModel,
     pickupAddress: order.pickupLocation.address,
     dropoffAddress: order.dropoffLocation.address,
     pickupLat: order.pickupLocation.lat,
     pickupLng: order.pickupLocation.lng,
     dropoffLat: order.dropoffLocation.lat,
     dropoffLng: order.dropoffLocation.lng,
-    distanceKm: order.distance == 0 ? 5.2 : order.distance,
-    estimatedMinutes: 15,
-    price: order.estimatedPrice == 0 ? 2500 : order.estimatedPrice,
+    distanceKm: order.distance > 0 ? order.distance : 0, // Use 0 if no distance instead of fake 5.2
+    estimatedMinutes: _estimateMinutes(order.distance),
+    price: order.estimatedPrice > 0 ? order.estimatedPrice : 0, // Use 0 if no price instead of fake 2500
     problemType: _problemTypeFromNotes(order.notes),
     blockedWheelsCount: _blockedWheelsFromNotes(order.notes),
-    severity: ProblemSeverity.medium,
+    severity: _severityFromNotes(order.notes), // Calculate severity from notes instead of hardcoded medium
     createdAt: order.createdAt,
-    clientName: 'Клиент EVIK',
-    clientPhone: '+7 900 000-00-00',
+    clientName: 'Клиент ${order.clientId.substring(0, 8)}', // Show partial client ID instead of fake name
+    clientPhone: '', // No phone available from order data
   );
 }
 
@@ -245,4 +263,41 @@ String _problemTypeFromNotes(String? notes) {
       .where((line) => !line.startsWith('Комментарий клиента:'))
       .toList();
   return lines.isEmpty ? 'Эвакуация' : lines.first;
+}
+
+/// Estimate minutes based on distance (real calculation instead of hardcoded)
+int _estimateMinutes(double distance) {
+  if (distance <= 0) return 0; // No estimate available
+
+  // Simple calculation: assume 40 km/h average speed in city
+  final hours = distance / 40;
+  final minutes = (hours * 60).round();
+
+  // Minimum 5 minutes, maximum 120 minutes
+  return minutes.clamp(5, 120);
+}
+
+/// Calculate severity from order notes (real logic instead of hardcoded medium)
+ProblemSeverity _severityFromNotes(String? notes) {
+  if (notes == null || notes.isEmpty) return ProblemSeverity.medium;
+
+  final lowerNotes = notes.toLowerCase();
+
+  // High priority keywords
+  if (lowerNotes.contains('срочно') ||
+      lowerNotes.contains('авария') ||
+      lowerNotes.contains('дтп') ||
+      lowerNotes.contains('поломка')) {
+    return ProblemSeverity.high;
+  }
+
+  // Low priority keywords
+  if (lowerNotes.contains('не спешу') ||
+      lowerNotes.contains('когда удобно') ||
+      lowerNotes.contains('планово')) {
+    return ProblemSeverity.low;
+  }
+
+  // Default to medium
+  return ProblemSeverity.medium;
 }

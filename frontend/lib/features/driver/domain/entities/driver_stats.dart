@@ -13,7 +13,7 @@ class DriverStats {
     yesterday: YesterdayStats(
       ordersCount: 0,
       earnings: 0,
-      rating: 5,
+      rating: 0,
     ),
     today: TodayStats(
       ordersCount: 0,
@@ -25,7 +25,7 @@ class DriverStats {
       ordersCount: 0,
       averageOrder: 0,
       hoursWorked: 0,
-      rating: 5,
+      rating: 0,
       availableForWithdrawal: 0,
     ),
   );

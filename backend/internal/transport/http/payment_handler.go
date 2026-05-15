@@ -192,25 +192,47 @@ func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Re
 }
 
 func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request) {
-	if !h.canAccessOrderPayment(r, chi.URLParam(r, "orderID")) {
+	orderID := chi.URLParam(r, "orderID")
+	if !h.canAccessOrderPayment(r, orderID) {
 		writeAuthError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	payment, err := h.repo.GetPaymentByOrderID(r.Context(), chi.URLParam(r, "orderID"))
+	payment, err := h.repo.GetPaymentByOrderID(r.Context(), orderID)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 		return
 	}
-	commission := payment.Amount * 15 / 100
+	details, err := h.orderRepo.GetAdminOrderDetails(r.Context(), orderID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	completedAt := any(nil)
+	if details.Order.CompletedAt != nil {
+		completedAt = details.Order.CompletedAt.Format(time.RFC3339)
+	}
+	paidAt := any(nil)
+	if payment.PaidAt != nil {
+		paidAt = payment.PaidAt.Format(time.RFC3339)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"order_id":      payment.OrderID,
-		"payment_id":    payment.ID,
-		"amount":        payment.Amount,
-		"currency":      payment.Currency,
-		"commission":    commission,
-		"driver_amount": payment.Amount - commission,
-		"status":        payment.Status,
-		"paid_at":       payment.PaidAt,
+		"order_id":          orderID,
+		"payment_id":        payment.ID,
+		"price_total":       payment.Amount,
+		"amount":            payment.Amount,
+		"currency":          payment.Currency,
+		"payment_method":    payment.PaymentMethod,
+		"payment_status":    payment.Status,
+		"status":            payment.Status,
+		"commission_amount": details.Order.CommissionAmount,
+		"commission":        details.Order.CommissionAmount,
+		"driver_amount":     details.Order.DriverAmount,
+		"created_at":        details.Order.CreatedAt.Format(time.RFC3339),
+		"completed_at":      completedAt,
+		"paid_at":           paidAt,
+		"driver_id":         details.Order.DriverID,
+		"driver_name":       details.Order.DriverName,
+		"driver_phone":      details.Order.DriverPhone,
 	})
 }
 

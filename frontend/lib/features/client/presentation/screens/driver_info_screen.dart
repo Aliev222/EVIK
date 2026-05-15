@@ -56,7 +56,14 @@ class DriverInfoScreen extends ConsumerWidget {
     final centerLng = driver.currentLocation?.lng ??
         pickup?.longitude ??
         AppConstants.moscowLng;
-    const phoneNumber = '+7(999)123-45-67';
+
+    // Use real driver data instead of hardcoded values
+    final driverName = driver.fullName?.isNotEmpty == true
+        ? driver.fullName!
+        : 'Водитель';
+    final phoneNumber = driver.phone?.isNotEmpty == true
+        ? driver.phone!
+        : null; // No fallback phone number
 
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
@@ -108,12 +115,12 @@ class DriverInfoScreen extends ConsumerWidget {
             right: 0,
             bottom: 0,
             child: _DriverCompactSheet(
-              driverName: 'Водитель EVIK',
+              driverName: driverName,
               vehicleNumber: driver.vehicleNumber,
               vehicleModel: driver.vehicleModel,
               rating: driver.rating,
-              onCall: () => _makePhoneCall(phoneNumber),
-              onMessage: () => _sendMessage(phoneNumber),
+              onCall: phoneNumber != null ? () => _makePhoneCall(phoneNumber) : () {},
+              onMessage: phoneNumber != null ? () => _sendMessage(phoneNumber) : () {},
               onTrack: () => _goToTracking(context, ref),
             ),
           ),

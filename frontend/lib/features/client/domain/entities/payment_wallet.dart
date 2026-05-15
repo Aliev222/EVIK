@@ -85,6 +85,104 @@ class AddCardInitResponse {
   }
 }
 
+class OrderPayment {
+  const OrderPayment({
+    required this.id,
+    required this.orderId,
+    required this.paymentMethod,
+    required this.amount,
+    required this.currency,
+    required this.status,
+    this.confirmationUrl,
+    this.createdAt,
+    this.paidAt,
+  });
+
+  final String id;
+  final String orderId;
+  final String paymentMethod;
+  final int amount;
+  final String currency;
+  final String status;
+  final String? confirmationUrl;
+  final DateTime? createdAt;
+  final DateTime? paidAt;
+
+  bool get isPending => status == 'pending' || status == 'waiting_for_capture';
+  bool get isSucceeded => status == 'succeeded';
+  bool get isFailed => status == 'failed' || status == 'canceled';
+
+  factory OrderPayment.fromJson(Map<String, dynamic> json) {
+    return OrderPayment(
+      id: json['id']?.toString() ?? '',
+      orderId: json['order_id']?.toString() ?? '',
+      paymentMethod: json['payment_method']?.toString() ?? 'cash',
+      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      currency: json['currency']?.toString() ?? 'RUB',
+      status: json['status']?.toString() ?? 'pending',
+      confirmationUrl: json['confirmation_url']?.toString(),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      paidAt: DateTime.tryParse(json['paid_at']?.toString() ?? ''),
+    );
+  }
+}
+
+class OrderReceipt {
+  const OrderReceipt({
+    required this.orderId,
+    required this.priceTotal,
+    required this.paymentMethod,
+    required this.paymentStatus,
+    required this.commissionAmount,
+    required this.driverAmount,
+    this.paymentId,
+    this.currency = 'RUB',
+    this.createdAt,
+    this.completedAt,
+    this.driverId,
+    this.driverName,
+    this.driverPhone,
+  });
+
+  final String orderId;
+  final String? paymentId;
+  final int priceTotal;
+  final String currency;
+  final String paymentMethod;
+  final String paymentStatus;
+  final int commissionAmount;
+  final int driverAmount;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+  final String? driverId;
+  final String? driverName;
+  final String? driverPhone;
+
+  factory OrderReceipt.fromJson(Map<String, dynamic> json) {
+    return OrderReceipt(
+      orderId: json['order_id']?.toString() ?? '',
+      paymentId: json['payment_id']?.toString(),
+      priceTotal: (json['price_total'] as num?)?.toInt() ??
+          (json['amount'] as num?)?.toInt() ??
+          0,
+      currency: json['currency']?.toString() ?? 'RUB',
+      paymentMethod: json['payment_method']?.toString() ?? 'cash',
+      paymentStatus: json['payment_status']?.toString() ??
+          json['status']?.toString() ??
+          'pending',
+      commissionAmount: (json['commission_amount'] as num?)?.toInt() ??
+          (json['commission'] as num?)?.toInt() ??
+          0,
+      driverAmount: (json['driver_amount'] as num?)?.toInt() ?? 0,
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      completedAt: DateTime.tryParse(json['completed_at']?.toString() ?? ''),
+      driverId: json['driver_id']?.toString(),
+      driverName: json['driver_name']?.toString(),
+      driverPhone: json['driver_phone']?.toString(),
+    );
+  }
+}
+
 class PaymentTransaction {
   const PaymentTransaction({
     required this.id,

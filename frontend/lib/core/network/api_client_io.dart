@@ -32,6 +32,15 @@ class IoApiClient implements ApiClient {
   }
 
   @override
+  Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) async {
+    return _makeRequest('PUT', path, body, headers);
+  }
+
+  @override
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, String>? headers,
@@ -60,12 +69,14 @@ class IoApiClient implements ApiClient {
             request = await client.getUrl(uri);
           } else if (method == 'POST') {
             request = await client.postUrl(uri);
+          } else if (method == 'PUT') {
+            request = await client.putUrl(uri);
           } else if (method == 'DELETE') {
             request = await client.deleteUrl(uri);
           }
 
           _applyHeaders(request, headers);
-          if (method == 'POST') {
+          if (method == 'POST' || method == 'PUT') {
             request.headers.contentType = ContentType.json;
             if (body != null) {
               request.write(jsonEncode(body));

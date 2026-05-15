@@ -78,6 +78,9 @@ class Order {
     this.arrivedAt,
     this.completedAt,
     this.notes,
+    this.paymentId,
+    this.paymentStatus,
+    this.paymentConfirmationUrl,
   });
 
   final String id;
@@ -96,6 +99,9 @@ class Order {
   final DateTime? arrivedAt;
   final DateTime? completedAt;
   final String? notes;
+  final String? paymentId;
+  final String? paymentStatus;
+  final String? paymentConfirmationUrl;
 
   String get userId => clientId;
   OrderState get state => _statusToState(status);
@@ -117,6 +123,9 @@ class Order {
     DateTime? arrivedAt,
     DateTime? completedAt,
     String? notes,
+    String? paymentId,
+    String? paymentStatus,
+    String? paymentConfirmationUrl,
   }) {
     return Order(
       id: id ?? this.id,
@@ -135,6 +144,10 @@ class Order {
       arrivedAt: arrivedAt ?? this.arrivedAt,
       completedAt: completedAt ?? this.completedAt,
       notes: notes ?? this.notes,
+      paymentId: paymentId ?? this.paymentId,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentConfirmationUrl:
+          paymentConfirmationUrl ?? this.paymentConfirmationUrl,
     );
   }
 
@@ -184,6 +197,9 @@ class Order {
         arrivedAt: _parseDateTimeOrNull(map['arrived_at']),
         completedAt: _parseDateTimeOrNull(map['completed_at']),
         notes: map['notes']?.toString(),
+        paymentId: map['payment_id']?.toString(),
+        paymentStatus: map['payment_status']?.toString(),
+        paymentConfirmationUrl: map['confirmation_url']?.toString(),
       );
     }
 
@@ -215,6 +231,9 @@ class Order {
           ? DateTime.fromMillisecondsSinceEpoch(map['completedAt'] as int)
           : null,
       notes: map['notes'] as String?,
+      paymentId: map['paymentId'] as String?,
+      paymentStatus: map['paymentStatus'] as String?,
+      paymentConfirmationUrl: map['paymentConfirmationUrl'] as String?,
     );
   }
 
@@ -236,6 +255,9 @@ class Order {
       'arrivedAt': arrivedAt?.millisecondsSinceEpoch,
       'completedAt': completedAt?.millisecondsSinceEpoch,
       'notes': notes,
+      'paymentId': paymentId,
+      'paymentStatus': paymentStatus,
+      'paymentConfirmationUrl': paymentConfirmationUrl,
     };
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../../core/network/api_client.dart';
 import '../../domain/entities/order.dart';
+import '../../domain/entities/order_flow_state.dart';
 import '../../domain/repositories/order_repository.dart';
 
 class HttpOrderRepository implements OrderRepository {
@@ -33,7 +34,7 @@ class HttpOrderRepository implements OrderRepository {
       'dropoff_lat': command.dropoffLocation.lat,
       'dropoff_lng': command.dropoffLocation.lng,
       'payment_method': command.paymentMethod.name,
-      'auto_dispatch': true,
+      'auto_dispatch': false,
     };
 
     // Add tow truck type if specified
@@ -46,15 +47,57 @@ class HttpOrderRepository implements OrderRepository {
       body,
       headers: _authHeaders,
     );
-    final order = Order.fromMap(response['order'] as Map<String, dynamic>);
-    await _apiClient.post(
-      '/api/v1/orders/${order.id}/payments',
-      <String, dynamic>{'payment_method': command.paymentMethod.name},
-      headers: _authHeaders,
-    );
-    return order;
+    return Order.fromMap(response['order'] as Map<String, dynamic>);
   }
 
+  Future<OrderPriceQuote> calculatePrice({
+    required LocationModel pickup,
+    required LocationModel dropoff,
+    required TowTruckType towTruckType,
+  }) async {
+    final response = await _apiClient.post(
+      '/api/v1/pricing/calculate',
+      <String, dynamic>{
+        'pickup_lat': pickup.lat,
+        'pickup_lng': pickup.lng,
+        'dropoff_lat': dropoff.lat,
+        'dropoff_lng': dropoff.lng,
+        'tow_truck_type': towTruckType.name,
+      },
+      headers: _authHeaders,
+    );
+    return OrderPriceQuote.fromJson(response);
+  }
+
+  Future<OrderPayment> createOrderPayment(
+    String orderId,
+    PaymentMethod paymentMethod,
+  ) async {
+    final response = await _apiClient.post(
+      '/api/v1/orders/$orderId/payments',
+      <String, dynamic>{'payment_method': paymentMethod.name},
+      headers: _authHeaders,
+    );
+    return OrderPayment.fromJson(response['payment'] as Map<String, dynamic>);
+  }
+
+  Future<OrderPayment> getOrderPaymentStatus(String orderId) async {
+    final response = await _apiClient.get(
+      '/api/v1/orders/$orderId/payment-status',
+      headers: _authHeaders,
+    );
+    return OrderPayment.fromJson(response['payment'] as Map<String, dynamic>);
+  }
+
+  Future<OrderReceipt> getOrderReceipt(String orderId) async {
+    final response = await _apiClient.get(
+      '/api/v1/orders/$orderId/receipt',
+      headers: _authHeaders,
+    );
+    return OrderReceipt.fromJson(response);
+  }
+
+  @override
   Future<List<Order>> getOrders() async {
     final response = await _apiClient.get(
       '/api/v1/orders',
@@ -196,5 +239,133 @@ class HttpOrderRepository implements OrderRepository {
       OrderStatus.completed => 'completed',
       OrderStatus.cancelled => 'cancelled',
     };
+  }
+}
+
+class OrderPriceQuote {
+  const OrderPriceQuote({
+    required this.distanceKm,
+    required this.totalPrice,
+    required this.currency,
+  });
+
+  final double distanceKm;
+  final int totalPrice;
+  final String currency;
+
+  factory OrderPriceQuote.fromJson(Map<String, dynamic> json) {
+    return OrderPriceQuote(
+      distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
+      totalPrice: (json['total_price'] as num?)?.toInt() ?? 0,
+      currency: json['currency']?.toString() ?? 'RUB',
+    );
+  }
+}
+
+class OrderPayment {
+  const OrderPayment({
+    required this.id,
+    required this.orderId,
+    required this.paymentMethod,
+    required this.amount,
+    required this.currency,
+    required this.status,
+    this.confirmationUrl,
+    this.createdAt,
+    this.paidAt,
+  });
+
+  final String id;
+  final String orderId;
+  final PaymentMethod paymentMethod;
+  final int amount;
+  final String currency;
+  final String status;
+  final String? confirmationUrl;
+  final DateTime? createdAt;
+  final DateTime? paidAt;
+
+  bool get isPending => status == 'pending' || status == 'waiting_for_capture';
+  bool get isSucceeded => status == 'succeeded' || status == 'paid';
+  bool get isFailed => status == 'failed' || status == 'canceled';
+
+  factory OrderPayment.fromJson(Map<String, dynamic> json) {
+    return OrderPayment(
+      id: json['id']?.toString() ?? '',
+      orderId: json['order_id']?.toString() ?? '',
+      paymentMethod: _parsePaymentMethod(json['payment_method']?.toString()),
+      amount: (json['amount'] as num?)?.toInt() ?? 0,
+      currency: json['currency']?.toString() ?? 'RUB',
+      status: json['status']?.toString() ?? 'pending',
+      confirmationUrl: json['confirmation_url']?.toString(),
+      createdAt: _parseDate(json['created_at']),
+      paidAt: _parseDate(json['paid_at']),
+    );
+  }
+
+  static PaymentMethod _parsePaymentMethod(String? value) {
+    return value == 'card' ? PaymentMethod.card : PaymentMethod.cash;
+  }
+
+  static DateTime? _parseDate(Object? value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+}
+
+class OrderReceipt {
+  const OrderReceipt({
+    required this.orderId,
+    this.paymentId = '',
+    required this.priceTotal,
+    required this.currency,
+    required this.paymentMethod,
+    required this.paymentStatus,
+    required this.commissionAmount,
+    required this.driverAmount,
+    this.createdAt,
+    this.completedAt,
+    this.driverId,
+    this.driverName,
+    this.driverPhone,
+  });
+
+  final String orderId;
+  final String paymentId;
+  final int priceTotal;
+  final String currency;
+  final String paymentMethod;
+  final String paymentStatus;
+  final int commissionAmount;
+  final int driverAmount;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+  final String? driverId;
+  final String? driverName;
+  final String? driverPhone;
+
+  factory OrderReceipt.fromJson(Map<String, dynamic> json) {
+    return OrderReceipt(
+      orderId: json['order_id']?.toString() ?? '',
+      paymentId: json['payment_id']?.toString() ?? '',
+      priceTotal: (json['price_total'] as num?)?.toInt() ??
+          (json['amount'] as num?)?.toInt() ??
+          0,
+      currency: json['currency']?.toString() ?? 'RUB',
+      paymentMethod: json['payment_method']?.toString() ?? 'cash',
+      paymentStatus: json['payment_status']?.toString() ??
+          json['status']?.toString() ??
+          '',
+      commissionAmount: (json['commission_amount'] as num?)?.toInt() ??
+          (json['commission'] as num?)?.toInt() ??
+          0,
+      driverAmount: (json['driver_amount'] as num?)?.toInt() ?? 0,
+      createdAt: OrderPayment._parseDate(json['created_at']),
+      completedAt: OrderPayment._parseDate(json['completed_at']) ??
+          OrderPayment._parseDate(json['paid_at']),
+      driverId: json['driver_id']?.toString(),
+      driverName: json['driver_name']?.toString(),
+      driverPhone: json['driver_phone']?.toString(),
+    );
   }
 }

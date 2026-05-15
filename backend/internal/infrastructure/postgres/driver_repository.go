@@ -69,6 +69,57 @@ WHERE id = $1`
 	return &drv, nil
 }
 
+func (r *DriverRepository) GetProfileByID(ctx context.Context, id string) (*driverdomain.DriverProfile, error) {
+	const query = `
+SELECT
+	d.id,
+	d.user_id,
+	d.status,
+	d.current_order_id,
+	d.last_seen_at,
+	d.updated_at,
+	COALESCE(u.full_name, '') as full_name,
+	COALESCE(u.phone, '') as phone,
+	COALESCE(d.vehicle_plate, '') as vehicle_plate,
+	COALESCE(d.vehicle_model, '') as vehicle_model,
+	COALESCE(d.vehicle_type, '') as vehicle_type,
+	COALESCE(d.rating_average, 0.0) as rating_average,
+	COALESCE(d.rating_count, 0) as rating_count,
+	COALESCE(d.total_orders, 0) as total_orders
+FROM drivers d
+LEFT JOIN users u ON u.id = d.user_id
+WHERE d.id = $1`
+
+	var (
+		profile driverdomain.DriverProfile
+		status  string
+	)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&profile.ID,
+		&profile.UserID,
+		&status,
+		&profile.CurrentOrderID,
+		&profile.LastSeenAt,
+		&profile.UpdatedAt,
+		&profile.FullName,
+		&profile.Phone,
+		&profile.VehiclePlate,
+		&profile.VehicleModel,
+		&profile.VehicleType,
+		&profile.RatingAverage,
+		&profile.RatingCount,
+		&profile.TotalOrders,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, driverdomain.ErrDriverNotFound
+		}
+		return nil, err
+	}
+	profile.Status = driverdomain.Status(status)
+	return &profile, nil
+}
+
 func (r *DriverRepository) ListActive(ctx context.Context, limit int) ([]*driverdomain.Driver, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100

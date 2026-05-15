@@ -4,6 +4,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 part 'order_flow_state.freezed.dart';
@@ -46,6 +47,14 @@ class OrderFlowState with _$OrderFlowState {
     @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
     @JsonKey(includeFromJson: false, includeToJson: false)
     Driver? assignedDriver,
+    @Default(PaymentMethod.cash) PaymentMethod selectedPaymentMethod,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    OrderPayment? payment,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    OrderReceipt? receipt,
+    @Default(false) bool isPaymentProcessing,
+    @Default(false) bool isReceiptLoading,
+    String? receiptError,
     @Default(0) int searchDurationSeconds,
     @Default(0.0) double estimatedPrice,
     @Default(0.0) double distance,

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../../order/domain/entities/order.dart';
 import '../../../order/domain/entities/order_flow_state.dart';
 import '../providers/order_flow_provider.dart';
 
@@ -43,21 +44,23 @@ class _TowTruckSelectionScreenState
     ref.read(orderFlowProvider.notifier).selectTowTruckType(towTruckType);
   }
 
-  void _continueToDriverSearch() {
-    ref.read(orderFlowProvider.notifier).goToDriverSearch();
+  Future<void> _continueToDriverSearch() async {
+    final started = await ref.read(orderFlowProvider.notifier).goToDriverSearch();
+    if (!mounted || !started) return;
     context.push('/order/search');
   }
 
   @override
   Widget build(BuildContext context) {
     final orderFlowState = ref.watch(orderFlowProvider);
+    final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
 
     return Scaffold(
       backgroundColor: EvikColors.gray50,
       appBar: AppBar(
         backgroundColor: EvikColors.gray50,
         title: Text(
-          'Выберите тип эвакуатора',
+          'Р’С‹Р±РµСЂРёС‚Рµ С‚РёРї СЌРІР°РєСѓР°С‚РѕСЂР°',
           style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
         ),
         centerTitle: true,
@@ -97,7 +100,7 @@ class _TowTruckSelectionScreenState
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Автомобиль: ${orderFlowState.selectedVehicleType?.displayName ?? "Не выбран"}',
+                      'РђРІС‚РѕРјРѕР±РёР»СЊ: ${orderFlowState.selectedVehicleType?.displayName ?? "РќРµ РІС‹Р±СЂР°РЅ"}',
                       style: EvikTypography.bodySmall,
                     ),
                   ],
@@ -107,13 +110,13 @@ class _TowTruckSelectionScreenState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Расстояние: ${orderFlowState.distance.toStringAsFixed(1)} км',
+                      'Р Р°СЃСЃС‚РѕСЏРЅРёРµ: ${orderFlowState.distance.toStringAsFixed(1)} РєРј',
                       style: EvikTypography.bodySmall.copyWith(
                         color: EvikColors.gray600,
                       ),
                     ),
                     Text(
-                      'Базовая цена: ${orderFlowState.estimatedPrice.round()} ₽',
+                      'Р‘Р°Р·РѕРІР°СЏ С†РµРЅР°: ${orderFlowState.estimatedPrice.round()} в‚Ѕ',
                       style: EvikTypography.bodySmall.copyWith(
                         color: EvikColors.accentOrange,
                         fontWeight: FontWeight.bold,
@@ -184,11 +187,45 @@ class _TowTruckSelectionScreenState
 
           // Continue button
           Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: EvikColors.primaryWhite,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: EvikColors.gray200),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _PaymentChoice(
+                    selected: paymentMethod == PaymentMethod.cash,
+                    icon: Icons.payments_rounded,
+                    label: 'РќР°Р»РёС‡РЅС‹Рµ',
+                    onTap: () => ref
+                        .read(orderFlowProvider.notifier)
+                        .selectPaymentMethod(PaymentMethod.cash),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _PaymentChoice(
+                    selected: paymentMethod == PaymentMethod.card,
+                    icon: Icons.credit_card_rounded,
+                    label: 'РљР°СЂС‚Р°',
+                    onTap: () => ref
+                        .read(orderFlowProvider.notifier)
+                        .selectPaymentMethod(PaymentMethod.card),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
             margin: const EdgeInsets.all(16),
             child: SizedBox(
               width: double.infinity,
               child: EvikButton(
-                text: 'Начать поиск водителя',
+                text: 'РќР°С‡Р°С‚СЊ РїРѕРёСЃРє РІРѕРґРёС‚РµР»СЏ',
                 onPressed: orderFlowState.selectedTowTruckType != null
                     ? _continueToDriverSearch
                     : null,
@@ -218,20 +255,9 @@ class TowTruckCard extends StatelessWidget {
   final double basePrice;
   final VoidCallback onTap;
 
-  double get _multiplier {
-    switch (towTruckType) {
-      case TowTruckType.winch:
-        return 1.0;
-      case TowTruckType.platform:
-        return 1.2;
-      case TowTruckType.manipulator:
-        return 1.5;
-    }
-  }
-
   String get _priceText {
-    final price = (basePrice * _multiplier).round();
-    return '$price ₽';
+    final price = basePrice.round();
+    return '$price в‚Ѕ';
   }
 
   @override
@@ -322,15 +348,6 @@ class TowTruckCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (_multiplier != 1.0) ...[
-              const SizedBox(height: 4),
-              Text(
-                '× ${_multiplier.toStringAsFixed(1)}',
-                style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray500,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -348,3 +365,63 @@ class TowTruckCard extends StatelessWidget {
     }
   }
 }
+
+class _PaymentChoice extends StatelessWidget {
+  const _PaymentChoice({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? EvikColors.accentOrange.withValues(alpha: 0.10)
+              : EvikColors.gray50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? EvikColors.accentOrange : EvikColors.gray200,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: selected ? EvikColors.accentOrange : EvikColors.gray600,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: EvikTypography.bodyMedium.copyWith(
+                  color: selected
+                      ? EvikColors.accentOrange
+                      : EvikColors.primaryBlack,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

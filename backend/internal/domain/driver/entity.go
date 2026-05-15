@@ -19,6 +19,31 @@ type Driver struct {
 	UpdatedAt      time.Time
 }
 
+// DriverProfile contains complete driver information for profile display
+type DriverProfile struct {
+	// Basic driver info
+	ID             string
+	UserID         string
+	Status         Status
+	CurrentOrderID *string
+	LastSeenAt     time.Time
+	UpdatedAt      time.Time
+
+	// User identity
+	FullName string
+	Phone    string
+
+	// Vehicle information (from verification)
+	VehiclePlate string
+	VehicleModel string
+	VehicleType  string
+
+	// Rating and statistics
+	RatingAverage float64
+	RatingCount   int
+	TotalOrders   int
+}
+
 func (d Driver) IsAvailable() bool {
 	return d.Status == StatusOnline && d.CurrentOrderID == nil
 }

@@ -28,8 +28,11 @@ class VehicleSelectionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(orderFlowProvider);
-    final canStart =
-        state.selectedVehicleType != null && state.selectedTowTruckType != null;
+    final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
+    final canStart = state.selectedVehicleType != null &&
+        state.selectedTowTruckType != null &&
+        state.estimatedPrice > 0 &&
+        !state.isLoading;
 
     return Scaffold(
       backgroundColor: EvikColors.gray50,
@@ -48,9 +51,9 @@ class VehicleSelectionScreen extends ConsumerWidget {
                         _RouteSummary(state: state),
                         SizedBox(height: compact ? 8 : 10),
                         _OrderField(
-                          label: 'Что перевозим',
+                          label: '��� ���������',
                           value: state.selectedVehicleType?.displayName ??
-                              'Выберите тип авто',
+                              '�������� ��� ����',
                           icon: Icons.directions_car_rounded,
                         ),
                         SizedBox(height: compact ? 8 : 10),
@@ -82,6 +85,13 @@ class VehicleSelectionScreen extends ConsumerWidget {
                           comment: state.clientComment,
                           onTap: () => _editComment(context, ref, state),
                         ),
+                        SizedBox(height: compact ? 8 : 10),
+                        _PaymentSelector(
+                          selected: paymentMethod,
+                          onSelected: (method) => ref
+                              .read(selectedOrderPaymentMethodProvider.notifier)
+                              .state = method,
+                        ),
                         const Spacer(),
                       ],
                     ),
@@ -90,7 +100,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                   child: EvikButton(
-                    text: 'Начать поиск водителя',
+                    text: '������ ����� ��������',
                     width: double.infinity,
                     onPressed: canStart
                         ? () {
@@ -137,7 +147,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Комментарий водителю', style: EvikTypography.h3),
+                Text('����������� ��������', style: EvikTypography.h3),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
@@ -145,7 +155,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                   maxLines: 4,
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
-                    hintText: 'Например: авто у шлагбаума, не заводится',
+                    hintText: '��������: ���� � ���������, �� ���������',
                     filled: true,
                     fillColor: EvikColors.gray100,
                     border: OutlineInputBorder(
@@ -156,7 +166,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 14),
                 EvikButton(
-                  text: 'Сохранить',
+                  text: '���������',
                   width: double.infinity,
                   onPressed: () => Navigator.of(context).pop(controller.text),
                 ),
@@ -224,14 +234,14 @@ class _RouteSummary extends StatelessWidget {
           _SummaryRow(
             icon: Icons.trip_origin_rounded,
             color: EvikColors.successGreen,
-            label: 'Откуда забрать',
+            label: '������ �������',
             value: state.pickupLocation?.displayAddress ?? 'Не указано',
           ),
           const SizedBox(height: 8),
           _SummaryRow(
             icon: Icons.flag_rounded,
             color: EvikColors.accentOrange,
-            label: 'Куда доставить',
+            label: '���� ���������',
             value: state.destinationLocation?.displayAddress ?? 'Не указано',
           ),
         ],
@@ -353,7 +363,7 @@ class _BlockedWheelsStepper extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Количество\nзаблокированных колес',
+              '����������\n��������������� �����',
               style: EvikTypography.bodyMedium.copyWith(
                 color: EvikColors.primaryBlack,
                 fontWeight: FontWeight.w700,
@@ -534,22 +544,14 @@ class _TowTruckSelector extends StatelessWidget {
           return _TowTruckCard(
             towTruck: type,
             selected: selected == type,
-            price: _priceFor(type),
+            price: selected == type && estimatedPrice > 0
+                ? estimatedPrice.round()
+                : 0,
             onTap: () => onSelected(type),
           );
         },
       ),
     );
-  }
-
-  int _priceFor(TowTruckType type) {
-    final base = estimatedPrice <= 0 ? 1850.0 : estimatedPrice;
-    final multiplier = switch (type) {
-      TowTruckType.winch => 1.0,
-      TowTruckType.platform => 1.2,
-      TowTruckType.manipulator => 1.5,
-    };
-    return (base * multiplier).round();
   }
 }
 
@@ -643,8 +645,112 @@ class _TowTruckCard extends StatelessWidget {
       case TowTruckType.platform:
         return '1 час 40 минут';
       case TowTruckType.manipulator:
-        return '2 часа 10 минут';
+        return '2 ���� 10 �����';
     }
+  }
+}
+
+class _PaymentSelector extends StatelessWidget {
+  const _PaymentSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final PaymentMethod selected;
+  final ValueChanged<PaymentMethod> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 58,
+      child: Row(
+        children: [
+          Expanded(
+            child: _PaymentChip(
+              method: PaymentMethod.cash,
+              selected: selected,
+              label: 'Наличные',
+              icon: Icons.payments_rounded,
+              onSelected: onSelected,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _PaymentChip(
+              method: PaymentMethod.card,
+              selected: selected,
+              label: '�����',
+              icon: Icons.credit_card_rounded,
+              onSelected: onSelected,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentChip extends StatelessWidget {
+  const _PaymentChip({
+    required this.method,
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.onSelected,
+  });
+
+  final PaymentMethod method;
+  final PaymentMethod selected;
+  final String label;
+  final IconData icon;
+  final ValueChanged<PaymentMethod> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = method == selected;
+    return Material(
+      color: isSelected
+          ? EvikColors.accentOrange.withValues(alpha: 0.1)
+          : EvikColors.primaryWhite,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => onSelected(method),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? EvikColors.accentOrange : EvikColors.gray200,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color:
+                    isSelected ? EvikColors.accentOrange : EvikColors.gray500,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: EvikTypography.bodyMedium.copyWith(
+                    color: isSelected
+                        ? EvikColors.accentOrange
+                        : EvikColors.primaryBlack,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -668,7 +774,7 @@ class _CommentTile extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                comment.isEmpty ? 'Комментарий' : comment,
+                comment.isEmpty ? '�����������' : comment,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyLarge.copyWith(

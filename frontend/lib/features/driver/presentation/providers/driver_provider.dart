@@ -68,7 +68,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         vehicleModel: vehicleModel,
         vehicleNumber: vehicleNumber,
         vehicleType: vehicleType,
-        rating: 5.0, // начальный рейтинг
+        rating: 0.0, // рейтинг обновится после первых отзывов
         totalOrders: 0,
         isOnline: false,
         currentLocation: null,

@@ -131,6 +131,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	serviceAreaRepo := postgres.NewServiceAreaRepository(db)
 	pricingRepo := postgres.NewPricingRepository(db)
 	adminRepo := postgres.NewAdminRepository(db)
+	verificationRepo := postgres.NewDriverVerificationRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
 	matchingService := domainmatching.NewNearestMatchingService(locationRepo, driverRepo)
 	eventPublisher := redisinfra.NewOrderEventPublisher(rdb, "orders:status")
@@ -165,7 +166,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
-	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, driverGates, npdService, clock)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, driverGates, npdService, clock)
 	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
@@ -178,11 +179,12 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		idGen,
 		clock,
 		httptransport.DocumentStorageConfig{
-			Endpoint:  cfg.S3Endpoint,
-			Region:    cfg.S3Region,
-			Bucket:    cfg.S3Bucket,
-			AccessKey: cfg.S3AccessKey,
-			SecretKey: cfg.S3SecretKey,
+			Endpoint:      cfg.S3Endpoint,
+			Region:        cfg.S3Region,
+			Bucket:        cfg.S3Bucket,
+			AccessKey:     cfg.S3AccessKey,
+			SecretKey:     cfg.S3SecretKey,
+			PublicBaseURL: cfg.S3PublicBaseURL,
 		},
 	)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)

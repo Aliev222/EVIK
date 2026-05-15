@@ -33,6 +33,14 @@ mixin _$OrderFlowState {
   Order? get activeOrder => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
   Driver? get assignedDriver => throw _privateConstructorUsedError;
+  PaymentMethod get selectedPaymentMethod => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OrderPayment? get payment => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OrderReceipt? get receipt => throw _privateConstructorUsedError;
+  bool get isPaymentProcessing => throw _privateConstructorUsedError;
+  bool get isReceiptLoading => throw _privateConstructorUsedError;
+  String? get receiptError => throw _privateConstructorUsedError;
   int get searchDurationSeconds => throw _privateConstructorUsedError;
   double get estimatedPrice => throw _privateConstructorUsedError;
   double get distance => throw _privateConstructorUsedError;
@@ -66,6 +74,14 @@ abstract class $OrderFlowStateCopyWith<$Res> {
       @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       Driver? assignedDriver,
+      PaymentMethod selectedPaymentMethod,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      OrderPayment? payment,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      OrderReceipt? receipt,
+      bool isPaymentProcessing,
+      bool isReceiptLoading,
+      String? receiptError,
       int searchDurationSeconds,
       double estimatedPrice,
       double distance});
@@ -97,6 +113,12 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
     Object? errorMessage = freezed,
     Object? activeOrder = freezed,
     Object? assignedDriver = freezed,
+    Object? selectedPaymentMethod = null,
+    Object? payment = freezed,
+    Object? receipt = freezed,
+    Object? isPaymentProcessing = null,
+    Object? isReceiptLoading = null,
+    Object? receiptError = freezed,
     Object? searchDurationSeconds = null,
     Object? estimatedPrice = null,
     Object? distance = null,
@@ -146,6 +168,30 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
           ? _value.assignedDriver
           : assignedDriver // ignore: cast_nullable_to_non_nullable
               as Driver?,
+      selectedPaymentMethod: null == selectedPaymentMethod
+          ? _value.selectedPaymentMethod
+          : selectedPaymentMethod // ignore: cast_nullable_to_non_nullable
+              as PaymentMethod,
+      payment: freezed == payment
+          ? _value.payment
+          : payment // ignore: cast_nullable_to_non_nullable
+              as OrderPayment?,
+      receipt: freezed == receipt
+          ? _value.receipt
+          : receipt // ignore: cast_nullable_to_non_nullable
+              as OrderReceipt?,
+      isPaymentProcessing: null == isPaymentProcessing
+          ? _value.isPaymentProcessing
+          : isPaymentProcessing // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isReceiptLoading: null == isReceiptLoading
+          ? _value.isReceiptLoading
+          : isReceiptLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      receiptError: freezed == receiptError
+          ? _value.receiptError
+          : receiptError // ignore: cast_nullable_to_non_nullable
+              as String?,
       searchDurationSeconds: null == searchDurationSeconds
           ? _value.searchDurationSeconds
           : searchDurationSeconds // ignore: cast_nullable_to_non_nullable
@@ -183,6 +229,14 @@ abstract class _$$OrderFlowStateImplCopyWith<$Res>
       @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       Driver? assignedDriver,
+      PaymentMethod selectedPaymentMethod,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      OrderPayment? payment,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      OrderReceipt? receipt,
+      bool isPaymentProcessing,
+      bool isReceiptLoading,
+      String? receiptError,
       int searchDurationSeconds,
       double estimatedPrice,
       double distance});
@@ -212,6 +266,12 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
     Object? errorMessage = freezed,
     Object? activeOrder = freezed,
     Object? assignedDriver = freezed,
+    Object? selectedPaymentMethod = null,
+    Object? payment = freezed,
+    Object? receipt = freezed,
+    Object? isPaymentProcessing = null,
+    Object? isReceiptLoading = null,
+    Object? receiptError = freezed,
     Object? searchDurationSeconds = null,
     Object? estimatedPrice = null,
     Object? distance = null,
@@ -261,6 +321,30 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
           ? _value.assignedDriver
           : assignedDriver // ignore: cast_nullable_to_non_nullable
               as Driver?,
+      selectedPaymentMethod: null == selectedPaymentMethod
+          ? _value.selectedPaymentMethod
+          : selectedPaymentMethod // ignore: cast_nullable_to_non_nullable
+              as PaymentMethod,
+      payment: freezed == payment
+          ? _value.payment
+          : payment // ignore: cast_nullable_to_non_nullable
+              as OrderPayment?,
+      receipt: freezed == receipt
+          ? _value.receipt
+          : receipt // ignore: cast_nullable_to_non_nullable
+              as OrderReceipt?,
+      isPaymentProcessing: null == isPaymentProcessing
+          ? _value.isPaymentProcessing
+          : isPaymentProcessing // ignore: cast_nullable_to_non_nullable
+              as bool,
+      isReceiptLoading: null == isReceiptLoading
+          ? _value.isReceiptLoading
+          : isReceiptLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      receiptError: freezed == receiptError
+          ? _value.receiptError
+          : receiptError // ignore: cast_nullable_to_non_nullable
+              as String?,
       searchDurationSeconds: null == searchDurationSeconds
           ? _value.searchDurationSeconds
           : searchDurationSeconds // ignore: cast_nullable_to_non_nullable
@@ -293,6 +377,12 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
       @JsonKey(includeFromJson: false, includeToJson: false) this.activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       this.assignedDriver,
+      this.selectedPaymentMethod = PaymentMethod.cash,
+      @JsonKey(includeFromJson: false, includeToJson: false) this.payment,
+      @JsonKey(includeFromJson: false, includeToJson: false) this.receipt,
+      this.isPaymentProcessing = false,
+      this.isReceiptLoading = false,
+      this.receiptError,
       this.searchDurationSeconds = 0,
       this.estimatedPrice = 0.0,
       this.distance = 0.0});
@@ -330,6 +420,23 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
   final Driver? assignedDriver;
   @override
   @JsonKey()
+  final PaymentMethod selectedPaymentMethod;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final OrderPayment? payment;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final OrderReceipt? receipt;
+  @override
+  @JsonKey()
+  final bool isPaymentProcessing;
+  @override
+  @JsonKey()
+  final bool isReceiptLoading;
+  @override
+  final String? receiptError;
+  @override
+  @JsonKey()
   final int searchDurationSeconds;
   @override
   @JsonKey()
@@ -340,7 +447,7 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
 
   @override
   String toString() {
-    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, activeOrder: $activeOrder, assignedDriver: $assignedDriver, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance)';
+    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, activeOrder: $activeOrder, assignedDriver: $assignedDriver, selectedPaymentMethod: $selectedPaymentMethod, payment: $payment, receipt: $receipt, isPaymentProcessing: $isPaymentProcessing, isReceiptLoading: $isReceiptLoading, receiptError: $receiptError, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance)';
   }
 
   @override
@@ -370,6 +477,16 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
                 other.activeOrder == activeOrder) &&
             (identical(other.assignedDriver, assignedDriver) ||
                 other.assignedDriver == assignedDriver) &&
+            (identical(other.selectedPaymentMethod, selectedPaymentMethod) ||
+                other.selectedPaymentMethod == selectedPaymentMethod) &&
+            (identical(other.payment, payment) || other.payment == payment) &&
+            (identical(other.receipt, receipt) || other.receipt == receipt) &&
+            (identical(other.isPaymentProcessing, isPaymentProcessing) ||
+                other.isPaymentProcessing == isPaymentProcessing) &&
+            (identical(other.isReceiptLoading, isReceiptLoading) ||
+                other.isReceiptLoading == isReceiptLoading) &&
+            (identical(other.receiptError, receiptError) ||
+                other.receiptError == receiptError) &&
             (identical(other.searchDurationSeconds, searchDurationSeconds) ||
                 other.searchDurationSeconds == searchDurationSeconds) &&
             (identical(other.estimatedPrice, estimatedPrice) ||
@@ -380,22 +497,29 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      currentStep,
-      pickupLocation,
-      destinationLocation,
-      selectedVehicleType,
-      selectedTowTruckType,
-      blockedWheelsCount,
-      clientComment,
-      isLoading,
-      errorMessage,
-      activeOrder,
-      assignedDriver,
-      searchDurationSeconds,
-      estimatedPrice,
-      distance);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        currentStep,
+        pickupLocation,
+        destinationLocation,
+        selectedVehicleType,
+        selectedTowTruckType,
+        blockedWheelsCount,
+        clientComment,
+        isLoading,
+        errorMessage,
+        activeOrder,
+        assignedDriver,
+        selectedPaymentMethod,
+        payment,
+        receipt,
+        isPaymentProcessing,
+        isReceiptLoading,
+        receiptError,
+        searchDurationSeconds,
+        estimatedPrice,
+        distance
+      ]);
 
   /// Create a copy of OrderFlowState
   /// with the given fields replaced by the non-null parameter values.
@@ -429,6 +553,14 @@ abstract class _OrderFlowState implements OrderFlowState {
       final Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       final Driver? assignedDriver,
+      final PaymentMethod selectedPaymentMethod,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      final OrderPayment? payment,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      final OrderReceipt? receipt,
+      final bool isPaymentProcessing,
+      final bool isReceiptLoading,
+      final String? receiptError,
       final int searchDurationSeconds,
       final double estimatedPrice,
       final double distance}) = _$OrderFlowStateImpl;
@@ -460,6 +592,20 @@ abstract class _OrderFlowState implements OrderFlowState {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   Driver? get assignedDriver;
+  @override
+  PaymentMethod get selectedPaymentMethod;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OrderPayment? get payment;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OrderReceipt? get receipt;
+  @override
+  bool get isPaymentProcessing;
+  @override
+  bool get isReceiptLoading;
+  @override
+  String? get receiptError;
   @override
   int get searchDurationSeconds;
   @override

@@ -17,6 +17,7 @@ import (
 
 type DriverRepository interface {
 	GetByID(ctx context.Context, id string) (*driverdomain.Driver, error)
+	GetProfileByID(ctx context.Context, id string) (*driverdomain.DriverProfile, error)
 }
 
 type DriverLocationRepository interface {
@@ -28,14 +29,34 @@ type DriverProfileRepository interface {
 	GetTaxProfile(ctx context.Context, driverID string) (*userdomain.TaxProfile, error)
 }
 
+type DriverVerificationRepository interface {
+	GetVerificationStatus(ctx context.Context, driverID string) (*DriverVerificationStatus, error)
+}
+
+type DriverVerificationStatus struct {
+	DriverID         string                      `json:"driver_id"`
+	Status           string                      `json:"status"` // "pending", "approved", "rejected", "changes_requested", "blocked"
+	DocumentsUploaded map[string]DocumentInfo    `json:"documents_uploaded"`
+	SubmittedAt      *time.Time                  `json:"submitted_at"`
+	UpdatedAt        *time.Time                  `json:"updated_at"`
+	AdminComments    string                      `json:"admin_comments,omitempty"`
+}
+
+type DocumentInfo struct {
+	URL         string `json:"url"`
+	UploadedAt  time.Time `json:"uploaded_at"`
+	ContentType string `json:"content_type"`
+}
+
 type DriverHandler struct {
-	setStatusUC  *driveruc.SetStatusUseCase
-	driverRepo   DriverRepository
-	locationRepo DriverLocationRepository
-	profileRepo  DriverProfileRepository
-	gates        *driveruc.GateService
-	npd          *driveruc.NPDService
-	clock        interface{ Now() time.Time }
+	setStatusUC      *driveruc.SetStatusUseCase
+	driverRepo       DriverRepository
+	locationRepo     DriverLocationRepository
+	profileRepo      DriverProfileRepository
+	verificationRepo DriverVerificationRepository
+	gates            *driveruc.GateService
+	npd              *driveruc.NPDService
+	clock            interface{ Now() time.Time }
 }
 
 func NewDriverHandler(
@@ -43,18 +64,20 @@ func NewDriverHandler(
 	driverRepo DriverRepository,
 	locationRepo DriverLocationRepository,
 	profileRepo DriverProfileRepository,
+	verificationRepo DriverVerificationRepository,
 	gates *driveruc.GateService,
 	npd *driveruc.NPDService,
 	clock interface{ Now() time.Time },
 ) *DriverHandler {
 	return &DriverHandler{
-		setStatusUC:  setStatusUC,
-		driverRepo:   driverRepo,
-		locationRepo: locationRepo,
-		profileRepo:  profileRepo,
-		gates:        gates,
-		npd:          npd,
-		clock:        clock,
+		setStatusUC:      setStatusUC,
+		driverRepo:       driverRepo,
+		locationRepo:     locationRepo,
+		profileRepo:      profileRepo,
+		verificationRepo: verificationRepo,
+		gates:            gates,
+		npd:              npd,
+		clock:            clock,
 	}
 }
 
@@ -84,6 +107,23 @@ type driverResponse struct {
 	UpdatedAt      string  `json:"updated_at"`
 }
 
+type driverProfileResponse struct {
+	ID             string  `json:"id"`
+	UserID         string  `json:"user_id"`
+	Status         string  `json:"status"`
+	CurrentOrderID *string `json:"current_order_id"`
+	LastSeenAt     string  `json:"last_seen_at"`
+	UpdatedAt      string  `json:"updated_at"`
+	FullName       string  `json:"full_name"`
+	Phone          string  `json:"phone"`
+	VehiclePlate   string  `json:"vehicle_plate"`
+	VehicleModel   string  `json:"vehicle_model"`
+	VehicleType    string  `json:"vehicle_type"`
+	RatingAverage  float64 `json:"rating_average"`
+	RatingCount    int     `json:"rating_count"`
+	TotalOrders    int     `json:"total_orders"`
+}
+
 type locationResponse struct {
 	Lat       float64 `json:"lat"`
 	Lng       float64 `json:"lng"`
@@ -98,6 +138,24 @@ func (h *DriverHandler) GetDriver(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"driver": newDriverResponse(drv)})
+}
+
+// GetDriverProfile serves GET /drivers/{driverID}/profile.
+// Returns complete driver profile including name, phone, vehicle info, and ratings.
+// Used by frontend to display real driver data instead of hardcoded values.
+func (h *DriverHandler) GetDriverProfile(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+
+	profile, err := h.driverRepo.GetProfileByID(r.Context(), driverID)
+	if err != nil {
+		h.writeDriverError(w, err)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{"profile": newDriverProfileResponse(profile)})
 }
 
 func (h *DriverHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
@@ -192,6 +250,43 @@ func (h *DriverHandler) UpsertTaxProfile(w http.ResponseWriter, r *http.Request)
 	h.writeJSON(w, http.StatusOK, map[string]any{"tax_profile": taxProfileJSON(profile)})
 }
 
+// GetVerificationStatus serves GET /drivers/{driverID}/verification-status.
+// Returns the current document verification status for a driver, including
+// uploaded documents and moderation status. Used by Flutter frontend to
+// show verification progress and handle re-submissions.
+func (h *DriverHandler) GetVerificationStatus(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+
+	if h.verificationRepo == nil {
+		h.writeJSON(w, http.StatusOK, map[string]any{
+			"driver_id": driverID,
+			"status":    "not_submitted",
+			"documents_uploaded": map[string]any{},
+		})
+		return
+	}
+
+	status, err := h.verificationRepo.GetVerificationStatus(r.Context(), driverID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if status == nil {
+		h.writeJSON(w, http.StatusOK, map[string]any{
+			"driver_id": driverID,
+			"status":    "not_submitted",
+			"documents_uploaded": map[string]any{},
+		})
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, status)
+}
+
 func (h *DriverHandler) GetTaxProfile(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	authUserID, err := userIDFromContext(r.Context())
@@ -280,6 +375,25 @@ func newDriverResponse(drv *driverdomain.Driver) driverResponse {
 		CurrentOrderID: drv.CurrentOrderID,
 		LastSeenAt:     drv.LastSeenAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		UpdatedAt:      drv.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+	}
+}
+
+func newDriverProfileResponse(profile *driverdomain.DriverProfile) driverProfileResponse {
+	return driverProfileResponse{
+		ID:             profile.ID,
+		UserID:         profile.UserID,
+		Status:         string(profile.Status),
+		CurrentOrderID: profile.CurrentOrderID,
+		LastSeenAt:     profile.LastSeenAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		UpdatedAt:      profile.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		FullName:       profile.FullName,
+		Phone:          profile.Phone,
+		VehiclePlate:   profile.VehiclePlate,
+		VehicleModel:   profile.VehicleModel,
+		VehicleType:    profile.VehicleType,
+		RatingAverage:  profile.RatingAverage,
+		RatingCount:    profile.RatingCount,
+		TotalOrders:    profile.TotalOrders,
 	}
 }
 

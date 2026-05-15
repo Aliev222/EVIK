@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	admindomain "evik/backend/internal/domain/admin"
+	httptransport "evik/backend/internal/transport/http"
 )
 
 type AdminRepository struct {
@@ -506,6 +507,182 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)`
 		item.CreatedAt,
 	)
 	return err
+}
+
+func (r *AdminRepository) GetDriverReviews(ctx context.Context, driverID string, limit int) ([]admindomain.Review, httptransport.DriverReviewsStats, error) {
+	// Get reviews
+	const reviewQuery = `
+		SELECT
+			dr.id,
+			dr.order_id,
+			dr.driver_id,
+			dr.client_id,
+			dr.stars,
+			COALESCE(dr.comment, dr.text, '') as text,
+			dr.created_at,
+			COALESCE(driver.full_name, '') as driver_name,
+			COALESCE(client.full_name, '') as client_name
+		FROM driver_reviews dr
+		LEFT JOIN users driver ON dr.driver_id = driver.id
+		LEFT JOIN users client ON dr.client_id = client.id
+		WHERE dr.driver_id = $1
+		ORDER BY dr.created_at DESC
+		LIMIT $2`
+
+	rows, err := r.db.QueryContext(ctx, reviewQuery, driverID, limit)
+	if err != nil {
+		return nil, httptransport.DriverReviewsStats{}, err
+	}
+	defer rows.Close()
+
+	var items []admindomain.Review
+	for rows.Next() {
+		var item admindomain.Review
+		if err := rows.Scan(
+			&item.ID,
+			&item.OrderID,
+			&item.DriverID,
+			&item.ClientID,
+			&item.Stars,
+			&item.Text,
+			&item.CreatedAt,
+			&item.DriverName,
+			&item.ClientName,
+		); err != nil {
+			return nil, httptransport.DriverReviewsStats{}, err
+		}
+		items = append(items, item)
+	}
+
+	// Get stats
+	const statsQuery = `
+		SELECT
+			COUNT(*) as total,
+			COALESCE(AVG(stars), 0) as rating_average,
+			COUNT(*) as rating_count
+		FROM driver_reviews
+		WHERE driver_id = $1`
+
+	var stats httptransport.DriverReviewsStats
+	err = r.db.QueryRowContext(ctx, statsQuery, driverID).Scan(
+		&stats.Total,
+		&stats.RatingAverage,
+		&stats.RatingCount,
+	)
+	if err != nil {
+		return nil, httptransport.DriverReviewsStats{}, err
+	}
+
+	return items, stats, rows.Err()
+}
+
+func (r *AdminRepository) GetOrderReview(ctx context.Context, orderID string) (*admindomain.Review, error) {
+	const query = `
+		SELECT
+			dr.id,
+			dr.order_id,
+			dr.driver_id,
+			dr.client_id,
+			dr.stars,
+			COALESCE(dr.comment, dr.text, '') as text,
+			dr.created_at,
+			COALESCE(driver.full_name, '') as driver_name,
+			COALESCE(client.full_name, '') as client_name
+		FROM driver_reviews dr
+		LEFT JOIN users driver ON dr.driver_id = driver.id
+		LEFT JOIN users client ON dr.client_id = client.id
+		WHERE dr.order_id = $1`
+
+	var item admindomain.Review
+	err := r.db.QueryRowContext(ctx, query, orderID).Scan(
+		&item.ID,
+		&item.OrderID,
+		&item.DriverID,
+		&item.ClientID,
+		&item.Stars,
+		&item.Text,
+		&item.CreatedAt,
+		&item.DriverName,
+		&item.ClientName,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &item, nil
+}
+
+func (r *AdminRepository) ListTaxProfiles(ctx context.Context, limit int) ([]httptransport.AdminTaxProfile, error) {
+	query := `
+		SELECT
+			dtp.driver_id,
+			dtp.inn,
+			dtp.taxpayer_type,
+			dtp.verification_status,
+			dtp.created_at,
+			dtp.updated_at,
+			COALESCE(u.full_name, '') as full_name
+		FROM driver_tax_profiles dtp
+		LEFT JOIN users u ON dtp.driver_id = u.id
+		ORDER BY dtp.created_at DESC
+		LIMIT $1
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var profiles []httptransport.AdminTaxProfile
+	for rows.Next() {
+		var profile httptransport.AdminTaxProfile
+		if err := rows.Scan(
+			&profile.DriverID,
+			&profile.INN,
+			&profile.TaxpayerType,
+			&profile.VerificationStatus,
+			&profile.CreatedAt,
+			&profile.UpdatedAt,
+			&profile.FullName,
+		); err != nil {
+			return nil, err
+		}
+		profiles = append(profiles, profile)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return profiles, nil
+}
+
+func (r *AdminRepository) UpdateTaxProfileStatus(ctx context.Context, driverID, status, adminComments string) error {
+	query := `
+		UPDATE driver_tax_profiles
+		SET verification_status = $2, updated_at = NOW()
+		WHERE driver_id = $1
+	`
+
+	result, err := r.db.ExecContext(ctx, query, driverID, status)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("tax profile not found")
+	}
+
+	return nil
 }
 
 func decodeStringList(raw string) []string {

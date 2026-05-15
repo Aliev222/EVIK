@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
 import '../../../../shared/widgets/evik_button.dart';
+import '../../../review/domain/entities/review.dart';
+import '../../../review/presentation/providers/review_provider.dart';
 import '../providers/order_flow_provider.dart';
 
 class DriverRatingScreen extends ConsumerStatefulWidget {
@@ -17,6 +19,7 @@ class DriverRatingScreen extends ConsumerStatefulWidget {
 class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
   int _rating = 0;
   final TextEditingController _commentController = TextEditingController();
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -24,19 +27,74 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
     super.dispose();
   }
 
-  void _submitRating() {
-    // Here you would typically submit the rating to your backend
-    // For now, we'll just reset the flow and go back to home
-    ref.read(orderFlowProvider.notifier).resetFlow();
-    context.go('/');
+  Future<void> _submitRating() async {
+    final orderFlowState = ref.read(orderFlowProvider);
+    final order = orderFlowState.activeOrder;
+    final driver = orderFlowState.assignedDriver;
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Спасибо за отзыв!'),
-        backgroundColor: EvikColors.successGreen,
-      ),
-    );
+    if (order == null || driver == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ошибка: данные заказа не найдены'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final request = CreateReviewRequest(
+        orderId: order.id,
+        driverId: driver.userId,
+        stars: _rating,
+        text: _commentController.text.trim(),
+      );
+
+      await ref.read(reviewRepositoryProvider).createReview(request);
+
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Спасибо за отзыв!'),
+            backgroundColor: EvikColors.successGreen,
+          ),
+        );
+
+        // Reset flow and go to home
+        ref.read(orderFlowProvider.notifier).resetFlow();
+        context.go('/');
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = 'Ошибка отправки отзыва';
+
+        if (e.toString().contains('409') || e.toString().contains('already reviewed')) {
+          errorMessage = 'Вы уже оставили отзыв по этому заказу';
+        } else if (e.toString().contains('403')) {
+          errorMessage = 'Нет прав для оставления отзыва';
+        } else if (e.toString().contains('400')) {
+          errorMessage = 'Некорректные данные отзыва';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   void _orderAgain() {
@@ -180,7 +238,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
 
                             // Driver info
                             Text(
-                              'Водитель EVIK',
+                              driver.fullName ?? 'Водитель EVIK',
                               style: EvikTypography.h3.copyWith(
                                 color: EvikColors.primaryBlack,
                               ),
@@ -333,7 +391,8 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                     width: double.infinity,
                     child: EvikButton(
                       text: 'Оставить отзыв',
-                      onPressed: _rating > 0 ? _submitRating : null,
+                      onPressed: (_rating > 0 && !_isSubmitting) ? _submitRating : null,
+                      isLoading: _isSubmitting,
                       variant: _rating > 0
                           ? EvikButtonVariant.primary
                           : EvikButtonVariant.ghost,

@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE IF NOT EXISTS users (
 	id TEXT PRIMARY KEY,
 	phone TEXT NOT NULL,
@@ -68,3 +69,7 @@ CREATE TABLE IF NOT EXISTS driver_tax_profiles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_driver_tax_profiles_status ON driver_tax_profiles (verification_status, updated_at DESC);
+
+-- +goose Down
+-- not implemented (forward-only migration)
+SELECT 1;

@@ -33,6 +33,15 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
+  Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) {
+    return _makeRequest('PUT', path, body, headers);
+  }
+
+  @override
   Future<Map<String, dynamic>> delete(
     String path, {
     Map<String, String>? headers,
@@ -58,6 +67,13 @@ class HttpApiClient implements ApiClient {
         'GET' => await http.get(uri, headers: requestHeaders).timeout(_timeout),
         'POST' => await http
             .post(
+              uri,
+              headers: requestHeaders,
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(_timeout),
+        'PUT' => await http
+            .put(
               uri,
               headers: requestHeaders,
               body: body == null ? null : jsonEncode(body),

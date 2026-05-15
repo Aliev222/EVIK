@@ -1,3 +1,4 @@
+-- +goose Up
 -- Phase 6: Self-employed driver connection to Moy Nalog (FNS NPD Partner API).
 -- Extends existing driver_tax_profiles with fields required to store
 -- the OAuth2 tokens issued by FNS after the driver grants partner access
@@ -27,3 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_driver_tax_profiles_npd_status
 -- alongside the admin-entered display name for audit / accounting.
 ALTER TABLE users
 	ADD COLUMN IF NOT EXISTS fns_full_name TEXT;
+
+-- +goose Down
+-- not implemented (forward-only migration)
+SELECT 1;

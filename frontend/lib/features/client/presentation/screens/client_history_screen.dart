@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/evik_colors.dart';
 import '../../../../core/theme/evik_typography.dart';
@@ -6,69 +8,59 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/animated_list_item.dart';
 import '../../../../shared/widgets/skeleton_card.dart';
+import '../../../../shared/widgets/evik_button.dart';
+import '../../../order/domain/entities/order.dart';
+import '../../../order/presentation/providers/order_provider.dart';
+import '../../../review/presentation/providers/review_provider.dart';
 
 enum HistoryState { loading, empty, loaded, error }
 
-class ClientHistoryScreen extends StatefulWidget {
+class ClientHistoryScreen extends ConsumerStatefulWidget {
   const ClientHistoryScreen({super.key, this.onSwitchToHome});
 
   final VoidCallback? onSwitchToHome;
 
   @override
-  State<ClientHistoryScreen> createState() => _ClientHistoryScreenState();
+  ConsumerState<ClientHistoryScreen> createState() => _ClientHistoryScreenState();
 }
 
-class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
-  HistoryState _state = HistoryState.loaded;
+class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
+  HistoryState _state = HistoryState.loading;
+  List<Order> _orders = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    try {
+      setState(() {
+        _state = HistoryState.loading;
+        _error = null;
+      });
+
+      final orderRepository = ref.read(orderRepositoryProvider);
+      final orders = await orderRepository.getOrders();
+
+      setState(() {
+        _orders = orders;
+        _state = orders.isEmpty ? HistoryState.empty : HistoryState.loaded;
+      });
+    } catch (error) {
+      setState(() {
+        _error = error.toString();
+        _state = HistoryState.error;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final orders = <_HistoryOrder>[
-      const _HistoryOrder(
-        dateText: '23 апр, 14:32',
-        car: 'Toyota Camry',
-        from: 'ул. Тверская, 15',
-        to: 'СТО Автодром, Ленинский пр.',
-        driver: 'Михаил С.',
-        priceText: '2 300 ₽',
-        status: 'Завершён',
-        statusColor: Color(0xFF10B981),
-        rating: 5,
-      ),
-      const _HistoryOrder(
-        dateText: '19 апр, 09:14',
-        car: 'BMW X5',
-        from: 'Садовое кольцо, 28',
-        to: 'Паркинг Охотный Ряд',
-        driver: 'Алексей В.',
-        priceText: '1 800 ₽',
-        status: 'Завершён',
-        statusColor: Color(0xFF10B981),
-        rating: 4,
-      ),
-      const _HistoryOrder(
-        dateText: '11 апр, 18:55',
-        car: 'KIA Sportage',
-        from: 'ш. Энтузиастов, 3',
-        to: 'Дилерский центр KIA',
-        driver: '',
-        priceText: '3 100 ₽',
-        status: 'Отменён',
-        statusColor: Color(0xFFEF4444),
-        rating: 0,
-      ),
-      const _HistoryOrder(
-        dateText: '2 апр, 11:20',
-        car: 'Lada Vesta',
-        from: 'ул. Профсоюзная, 110',
-        to: 'Технический центр Сити',
-        driver: 'Денис П.',
-        priceText: '2 700 ₽',
-        status: 'Завершён',
-        statusColor: Color(0xFF10B981),
-        rating: 5,
-      ),
-    ];
+    // Convert Order objects to _HistoryOrder for UI display
+    final orders = _orders.map((order) => _HistoryOrder.fromOrder(order)).toList();
 
     return Scaffold(
       backgroundColor: EvikColors.gray50,
@@ -153,8 +145,8 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
         );
       case HistoryState.error:
         return ErrorState(
-          message: 'История заказов временно недоступна.',
-          onRetry: () => setState(() => _state = HistoryState.loading),
+          message: _error ?? 'История заказов временно недоступна.',
+          onRetry: _loadOrders,
         );
       case HistoryState.loaded:
         return ListView.separated(
@@ -162,7 +154,7 @@ class _ClientHistoryScreenState extends State<ClientHistoryScreen> {
           cacheExtent: 200,
           itemBuilder: (context, index) => AnimatedListItem(
             index: index,
-            child: _HistoryCard(order: orders[index]),
+            child: _HistoryCard(order: orders[index], realOrder: _orders[index]),
           ),
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemCount: orders.length,
@@ -192,13 +184,14 @@ class _StateAction extends StatelessWidget {
   }
 }
 
-class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.order});
+class _HistoryCard extends ConsumerWidget {
+  const _HistoryCard({required this.order, required this.realOrder});
 
   final _HistoryOrder order;
+  final Order realOrder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: EvikColors.primaryWhite,
@@ -290,6 +283,13 @@ class _HistoryCard extends StatelessWidget {
                 ),
             ],
           ),
+          // Review section for completed orders
+          if (realOrder.status == OrderStatus.completed) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: EvikColors.gray200),
+            const SizedBox(height: 12),
+            _ReviewSection(orderId: realOrder.id),
+          ],
         ],
       ),
     );
@@ -346,4 +346,148 @@ class _HistoryOrder {
   final String status;
   final Color statusColor;
   final int rating;
+
+  /// Convert real Order data to UI display format
+  factory _HistoryOrder.fromOrder(Order order) {
+    // Format date
+    final dateText = '${order.createdAt.day} ${_getMonthName(order.createdAt.month)}, ${order.createdAt.hour.toString().padLeft(2, '0')}:${order.createdAt.minute.toString().padLeft(2, '0')}';
+
+    // Vehicle type display
+    String car = '';
+    switch (order.vehicleType) {
+      case VehicleType.light:
+        car = 'Легковой автомобиль';
+        break;
+      case VehicleType.suv:
+        car = 'Внедорожник';
+        break;
+      case VehicleType.minibus:
+        car = 'Минивэн';
+        break;
+      case VehicleType.truck:
+        car = 'Грузовой автомобиль';
+        break;
+    }
+
+    // Status display and color
+    String statusText;
+    Color statusColor;
+    switch (order.status) {
+      case OrderStatus.completed:
+        statusText = 'Завершён';
+        statusColor = const Color(0xFF10B981);
+        break;
+      case OrderStatus.cancelled:
+        statusText = 'Отменён';
+        statusColor = const Color(0xFFEF4444);
+        break;
+      case OrderStatus.searching:
+      case OrderStatus.assigned:
+      case OrderStatus.onWay:
+      case OrderStatus.arrived:
+      case OrderStatus.evacuating:
+        statusText = 'В работе';
+        statusColor = const Color(0xFF3B82F6);
+        break;
+    }
+
+    // Price formatting
+    final price = order.finalPrice ?? order.estimatedPrice;
+    final priceText = '${price.toStringAsFixed(0)} ₽';
+
+    return _HistoryOrder(
+      dateText: dateText,
+      car: car,
+      from: order.pickupLocation.address,
+      to: order.dropoffLocation.address,
+      driver: '', // Will be filled when we have driver data
+      priceText: priceText,
+      status: statusText,
+      statusColor: statusColor,
+      rating: 0, // Will be filled when we have rating data
+    );
+  }
+
+  static String _getMonthName(int month) {
+    const months = [
+      'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+    ];
+    return months[month - 1];
+  }
+}
+
+class _ReviewSection extends ConsumerWidget {
+  const _ReviewSection({required this.orderId});
+
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reviewAsync = ref.watch(orderReviewProvider(orderId));
+
+    return reviewAsync.when(
+      loading: () => const SizedBox(
+        height: 20,
+        width: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+      error: (error, stack) => const SizedBox.shrink(), // Hide on error
+      data: (review) {
+        if (review != null) {
+          // Show existing review
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Ваш отзыв:',
+                    style: EvikTypography.bodySmall.copyWith(
+                      color: EvikColors.gray500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ...List.generate(5, (index) {
+                    return Icon(
+                      index < review.stars ? Icons.star : Icons.star_border,
+                      size: 14,
+                      color: const Color(0xFFF59E0B),
+                    );
+                  }),
+                ],
+              ),
+              if (review.text.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  review.text,
+                  style: EvikTypography.bodySmall.copyWith(
+                    color: EvikColors.gray600,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          );
+        } else {
+          // Show "Leave Review" button
+          return SizedBox(
+            width: double.infinity,
+            height: 32,
+            child: EvikButton(
+              text: 'Оставить отзыв',
+              onPressed: () {
+                // Navigate to rating screen
+                context.go('/rate-driver');
+              },
+              variant: EvikButtonVariant.ghost,
+            ),
+          );
+        }
+      },
+    );
+  }
 }

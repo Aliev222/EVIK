@@ -160,8 +160,11 @@ class ClientOrderNotifier extends StateNotifier<ClientOrderState> {
         timeOfDay: DateTime.now(),
       );
       state = state.copyWith(estimatedPrice: price);
-    } catch (_) {
-      state = state.copyWith(estimatedPrice: 2500);
+    } catch (error) {
+      state = state.copyWith(
+        estimatedPrice: null,
+        error: 'Не удалось рассчитать стоимость: $error',
+      );
     }
   }
 
