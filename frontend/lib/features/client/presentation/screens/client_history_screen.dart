@@ -113,7 +113,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
               child: Text(
                 _state == HistoryState.loaded
                     ? '${orders.length} поездки'
-                    : 'MOCK состояния для проверки UI',
+                    : '',
                 style: EvikTypography.bodyMedium.copyWith(
                   color: EvikColors.gray600,
                 ),

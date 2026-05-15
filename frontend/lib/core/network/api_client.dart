@@ -21,7 +21,7 @@ abstract class ApiClient {
 
 const defaultApiBaseUrl = String.fromEnvironment(
   'EVIK_API_BASE_URL',
-  defaultValue: 'https://tow-truck.onrender.com',
+  defaultValue: 'https://evik-backend.onrender.com',
 );
 
 class ApiClientException implements Exception {

@@ -11,7 +11,7 @@ import '../../../features/map/presentation/widgets/animated_driver_marker.dart';
 class RealTimeLocationService {
   static const String _wsUrl = String.fromEnvironment(
     'EVIK_LOCATION_WS_URL',
-    defaultValue: 'wss://tow-truck.onrender.com/ws/orders',
+    defaultValue: 'wss://evik-backend.onrender.com/ws/orders',
   );
 
   WebSocketChannel? _channel;

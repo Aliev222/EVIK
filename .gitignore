@@ -4,7 +4,7 @@ backend/*.log
 backend/.env
 backend/app
 backend/main
-backend/main.exe
+backend/*.exe
 
 # Admin web
 admin-web/admin-web
