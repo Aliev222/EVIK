@@ -229,6 +229,24 @@ CREATE TABLE IF NOT EXISTS user_refresh_sessions (
 CREATE INDEX IF NOT EXISTS idx_user_refresh_sessions_user_created ON user_refresh_sessions (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_refresh_sessions_active_hash ON user_refresh_sessions (token_hash) WHERE revoked_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS user_device_tokens (
+	fcm_token TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	role TEXT NOT NULL CHECK (role IN ('client', 'driver', 'admin')),
+	platform TEXT NOT NULL DEFAULT '',
+	app_version TEXT NOT NULL DEFAULT '',
+	revoked_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_device_tokens_user_role
+	ON user_device_tokens (user_id, role)
+	WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_user_device_tokens_role_active
+	ON user_device_tokens (role)
+	WHERE revoked_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS phone_otps (
 	id TEXT PRIMARY KEY,
 	phone TEXT NOT NULL,

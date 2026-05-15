@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/constants/app_constants.dart';
 import 'core/error/global_error_handler.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/performance/frame_timing_monitor.dart';
 import 'core/performance/rebuild_tracker.dart';
 import 'core/theme/app_theme.dart';
@@ -27,6 +29,7 @@ import 'features/client/presentation/screens/driver_rating_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
 
   // Initialize global error handler
   GlobalErrorHandler.initialize();
@@ -34,6 +37,10 @@ void main() async {
   // Initialize performance monitoring
   FrameTimingMonitor.initialize();
   RebuildTracker.initialize();
+
+  PushNotificationService.instance
+      .setRouteHandler(EvikApp.navigateFromNotification);
+  await PushNotificationService.instance.initialize();
 
   runApp(
     ProviderScope(
@@ -45,6 +52,10 @@ void main() async {
 
 class EvikApp extends StatelessWidget {
   const EvikApp({super.key});
+
+  static void navigateFromNotification(String route) {
+    _router.go(route);
+  }
 
   static final GoRouter _router = GoRouter(
     initialLocation: '/',
@@ -85,6 +96,7 @@ class EvikApp extends StatelessWidget {
       title: 'Tow Truck',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       routerConfig: _router,
     );
   }

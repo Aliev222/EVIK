@@ -44,6 +44,17 @@ type PhoneOTP struct {
 	CreatedAt  time.Time
 }
 
+type DeviceToken struct {
+	UserID     string
+	Role       auth.Role
+	FCMToken   string
+	Platform   string
+	AppVersion string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	RevokedAt  *time.Time
+}
+
 type TaxProfile struct {
 	DriverID           string
 	INN                string

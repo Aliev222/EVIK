@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/bootstrap/app_bootstrap.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -10,6 +11,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
+import '../../../../core/notifications/push_notification_service.dart';
 import '../../../../core/storage/key_value_storage.dart';
 import '../../domain/entities/user.dart';
 
@@ -105,11 +107,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   })  : _api = api,
         _storage = storage,
         super(const AuthState()) {
+    _bindFcmTokenRefresh();
     unawaited(_restoreSession());
   }
 
   final BackendAuthApi _api;
   final KeyValueStorage _storage;
+  StreamSubscription<String>? _fcmTokenRefreshSubscription;
 
   Future<void> signInForTesting(UserRole role) async {
     final activeUser = state.user;
@@ -160,6 +164,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
       await _saveSession(signedUser, tokens);
+      unawaited(_syncFcmTokenForSession(signedUser, tokens.accessToken));
       state = state.copyWith(
         user: signedUser,
         isLoading: false,
@@ -289,6 +294,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
 
         await _saveSession(user, tokens);
+        unawaited(_syncFcmTokenForSession(user, tokens.accessToken));
         state = state.copyWith(
           user: user,
           isLoading: false,
@@ -349,6 +355,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
       await _saveSession(user, tokens);
+      unawaited(_syncFcmTokenForSession(user, tokens.accessToken));
       state = state.copyWith(
         user: user,
         isLoading: false,
@@ -412,6 +419,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         }
       }
       await _saveSession(updated, tokens);
+      unawaited(_syncFcmTokenForSession(updated, tokens.accessToken));
       state = state.copyWith(user: updated, isLoading: false);
     } catch (_) {
       state = state.copyWith(
@@ -422,6 +430,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    await _revokeCurrentFcmToken();
     await _storage.delete(_accessTokenKey);
     await _storage.delete(_refreshTokenKey);
     await _storage.delete(_userKey);
@@ -471,6 +480,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         accessToken: activeAccess,
         isLoading: false,
       );
+      unawaited(_syncFcmTokenForSession(restored, activeAccess));
       return;
     } catch (_) {
       // Try refresh once and retry me.
@@ -492,6 +502,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         accessToken: activeAccess,
         isLoading: false,
       );
+      unawaited(_syncFcmTokenForSession(restored, activeAccess));
     } catch (_) {
       await signOut();
     }
@@ -518,6 +529,83 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _storage.write(_refreshTokenKey, tokens.refreshToken);
     await _storage.write(_userKey, jsonEncode(user.toMap()));
     state = state.copyWith(accessToken: tokens.accessToken);
+  }
+
+  void _bindFcmTokenRefresh() {
+    try {
+      _fcmTokenRefreshSubscription =
+          PushNotificationService.instance.onTokenRefresh.listen((token) {
+        final user = state.user;
+        final accessToken = state.accessToken;
+        if (user == null || accessToken == null || accessToken.isEmpty) {
+          return;
+        }
+        unawaited(_registerFcmToken(
+          user: user,
+          accessToken: accessToken,
+          fcmToken: token,
+        ));
+      });
+    } catch (error) {
+      debugPrint('FCM token refresh listener unavailable: $error');
+    }
+  }
+
+  Future<void> _syncFcmTokenForSession(User user, String accessToken) async {
+    try {
+      final fcmToken = await PushNotificationService.instance.getToken();
+      if (fcmToken == null || fcmToken.isEmpty) {
+        return;
+      }
+      await _registerFcmToken(
+        user: user,
+        accessToken: accessToken,
+        fcmToken: fcmToken,
+      );
+    } catch (error) {
+      debugPrint('FCM token sync failed: $error');
+    }
+  }
+
+  Future<void> _registerFcmToken({
+    required User user,
+    required String accessToken,
+    required String fcmToken,
+  }) async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    await _api.registerFcmToken(
+      accessToken: accessToken,
+      fcmToken: fcmToken,
+      role: user.role,
+      platform: defaultTargetPlatform.name,
+      appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+    );
+  }
+
+  Future<void> _revokeCurrentFcmToken() async {
+    final user = state.user;
+    final accessToken = state.accessToken;
+    if (user == null || accessToken == null || accessToken.isEmpty) {
+      return;
+    }
+    try {
+      final fcmToken = await PushNotificationService.instance.getToken();
+      if (fcmToken == null || fcmToken.isEmpty) {
+        return;
+      }
+      await _api.revokeFcmToken(
+        accessToken: accessToken,
+        fcmToken: fcmToken,
+      );
+    } catch (error) {
+      debugPrint('FCM token revoke failed: $error');
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_fcmTokenRefreshSubscription?.cancel());
+    super.dispose();
   }
 
   User _composeUser({
@@ -682,6 +770,42 @@ class BackendAuthApi {
       },
     );
     debugPrint('Driver profile init response: $json');
+  }
+
+  Future<void> registerFcmToken({
+    required String accessToken,
+    required String fcmToken,
+    required UserRole role,
+    required String platform,
+    required String appVersion,
+  }) async {
+    await _apiClient.post(
+      '/api/v1/devices/fcm-token',
+      <String, dynamic>{
+        'fcm_token': fcmToken,
+        'role': role.name,
+        'platform': platform,
+        'app_version': appVersion,
+      },
+      headers: <String, String>{
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+  }
+
+  Future<void> revokeFcmToken({
+    required String accessToken,
+    required String fcmToken,
+  }) async {
+    await _apiClient.post(
+      '/api/v1/devices/fcm-token/revoke',
+      <String, dynamic>{
+        'fcm_token': fcmToken,
+      },
+      headers: <String, String>{
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
   }
 }
 

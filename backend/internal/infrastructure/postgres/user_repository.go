@@ -120,6 +120,40 @@ RETURNING id, phone, role, code_hash, expires_at, consumed_at, created_at`
 	return &otp, nil
 }
 
+func (r *UserRepository) UpsertDeviceToken(ctx context.Context, token *userdomain.DeviceToken) error {
+	const query = `
+INSERT INTO user_device_tokens (fcm_token, user_id, role, platform, app_version, revoked_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, NULL, $6, $7)
+ON CONFLICT (fcm_token) DO UPDATE SET
+	user_id = EXCLUDED.user_id,
+	role = EXCLUDED.role,
+	platform = EXCLUDED.platform,
+	app_version = EXCLUDED.app_version,
+	revoked_at = NULL,
+	updated_at = EXCLUDED.updated_at`
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		token.FCMToken,
+		token.UserID,
+		string(token.Role),
+		token.Platform,
+		token.AppVersion,
+		token.CreatedAt,
+		token.UpdatedAt,
+	)
+	return err
+}
+
+func (r *UserRepository) RevokeDeviceToken(ctx context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error {
+	_, err := r.db.ExecContext(ctx, `
+UPDATE user_device_tokens
+SET revoked_at = $4, updated_at = $4
+WHERE user_id = $1 AND role = $2 AND fcm_token = $3`,
+		userID, role, fcmToken, revokedAt)
+	return err
+}
+
 func (r *UserRepository) UpsertTaxProfile(ctx context.Context, profile *userdomain.TaxProfile) error {
 	const query = `
 INSERT INTO driver_tax_profiles (driver_id, inn, taxpayer_type, verification_status, created_at, updated_at)

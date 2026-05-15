@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "240443731427",
+    "project_id": "tow-truck-7d4af",
+    "storage_bucket": "tow-truck-7d4af.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:240443731427:android:029b73a6067cede0db44d6",
+        "android_client_info": {
+          "package_name": "com.example.evik_frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmuRWE06UIqzpqnE4kxc2jc0eOBmtqybk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

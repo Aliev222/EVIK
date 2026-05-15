@@ -72,6 +72,55 @@ func TestAuthRefreshRotatesStoredSession(t *testing.T) {
 	}
 }
 
+func TestAuthUpsertDeviceTokenRequiresMatchingRole(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
+		"fcm_token":"fcm-token-1",
+		"role":"client",
+		"platform":"android",
+		"app_version":"1.0.0+1"
+	}`))
+	req = req.WithContext(withAuth(req.Context(), "user-1", auth.RoleDriver))
+	handler.UpsertDeviceToken(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(repo.deviceTokens) != 0 {
+		t.Fatalf("device tokens = %d, want 0", len(repo.deviceTokens))
+	}
+}
+
+func TestAuthUpsertDeviceTokenStoresTokenForAuthenticatedRole(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
+		"fcm_token":"fcm-token-1",
+		"role":"driver",
+		"platform":"android",
+		"app_version":"1.0.0+1"
+	}`))
+	req = req.WithContext(withAuth(req.Context(), "user-1", auth.RoleDriver))
+	handler.UpsertDeviceToken(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	token := repo.deviceTokens["fcm-token-1"]
+	if token == nil || token.UserID != "user-1" || token.Role != auth.RoleDriver {
+		t.Fatalf("stored token = %#v", token)
+	}
+}
+
 type fixedHTTPClock struct{ now time.Time }
 
 func (c fixedHTTPClock) Now() time.Time { return c.now }
@@ -84,16 +133,18 @@ func (g *seqID) NewID() string {
 }
 
 type fakeUserRepository struct {
-	users    map[string]*userdomain.User
-	sessions map[string]*userdomain.RefreshSession
-	otps     map[string]*userdomain.PhoneOTP
+	users        map[string]*userdomain.User
+	sessions     map[string]*userdomain.RefreshSession
+	otps         map[string]*userdomain.PhoneOTP
+	deviceTokens map[string]*userdomain.DeviceToken
 }
 
 func newFakeUserRepository() *fakeUserRepository {
 	return &fakeUserRepository{
-		users:    map[string]*userdomain.User{},
-		sessions: map[string]*userdomain.RefreshSession{},
-		otps:     map[string]*userdomain.PhoneOTP{},
+		users:        map[string]*userdomain.User{},
+		sessions:     map[string]*userdomain.RefreshSession{},
+		otps:         map[string]*userdomain.PhoneOTP{},
+		deviceTokens: map[string]*userdomain.DeviceToken{},
 	}
 }
 
@@ -168,6 +219,20 @@ func (r *fakeUserRepository) ConsumePhoneOTP(_ context.Context, phone string, ro
 		}
 	}
 	return nil, userdomain.ErrOTPNotFound
+}
+
+func (r *fakeUserRepository) UpsertDeviceToken(_ context.Context, token *userdomain.DeviceToken) error {
+	cp := *token
+	r.deviceTokens[token.FCMToken] = &cp
+	return nil
+}
+
+func (r *fakeUserRepository) RevokeDeviceToken(_ context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error {
+	token := r.deviceTokens[fcmToken]
+	if token != nil && token.UserID == userID && string(token.Role) == role {
+		token.RevokedAt = &revokedAt
+	}
+	return nil
 }
 
 func (r *fakeUserRepository) UpsertTaxProfile(context.Context, *userdomain.TaxProfile) error {

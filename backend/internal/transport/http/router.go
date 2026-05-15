@@ -54,6 +54,8 @@ func NewRouter(
 		api.Group(func(secured chi.Router) {
 			secured.Use(authMW)
 			secured.Get("/auth/me", authHandler.Me)
+			secured.Post("/devices/fcm-token", authHandler.UpsertDeviceToken)
+			secured.Post("/devices/fcm-token/revoke", authHandler.RevokeDeviceToken)
 
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders", orderHandler.CreateOrder)
 			secured.Get("/orders", orderHandler.ListOrders)

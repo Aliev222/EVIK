@@ -15,6 +15,8 @@ type Repository interface {
 	RevokeRefreshSession(ctx context.Context, sessionID string, revokedAt time.Time) error
 	CreatePhoneOTP(ctx context.Context, otp *PhoneOTP) error
 	ConsumePhoneOTP(ctx context.Context, phone string, role string, codeHash string, now time.Time) (*PhoneOTP, error)
+	UpsertDeviceToken(ctx context.Context, token *DeviceToken) error
+	RevokeDeviceToken(ctx context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error
 	UpsertTaxProfile(ctx context.Context, profile *TaxProfile) error
 	GetTaxProfile(ctx context.Context, driverID string) (*TaxProfile, error)
 	// UpdateNPDConnection writes the Moy Nalog tokens + status returned by

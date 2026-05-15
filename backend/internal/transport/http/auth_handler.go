@@ -74,6 +74,13 @@ type adminLoginRequest struct {
 	Password string `json:"password"`
 }
 
+type deviceTokenRequest struct {
+	FCMToken   string `json:"fcm_token"`
+	Role       string `json:"role"`
+	Platform   string `json:"platform"`
+	AppVersion string `json:"app_version"`
+}
+
 type authTokensResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -445,6 +452,85 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 			"role": role,
 		},
 	})
+}
+
+func (h *AuthHandler) UpsertDeviceToken(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req deviceTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.FCMToken) == "" {
+		writeAuthError(w, http.StatusBadRequest, "fcm_token is required")
+		return
+	}
+	if req.Role != "" && auth.Role(req.Role) != role {
+		writeAuthError(w, http.StatusForbidden, "role does not match access token")
+		return
+	}
+
+	now := h.clock.Now()
+	token := &userdomain.DeviceToken{
+		UserID:     userID,
+		Role:       role,
+		FCMToken:   strings.TrimSpace(req.FCMToken),
+		Platform:   sanitizeDeviceField(req.Platform, 32),
+		AppVersion: sanitizeDeviceField(req.AppVersion, 64),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := h.users.UpsertDeviceToken(r.Context(), token); err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to save device token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *AuthHandler) RevokeDeviceToken(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req deviceTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAuthError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.FCMToken) == "" {
+		writeAuthError(w, http.StatusBadRequest, "fcm_token is required")
+		return
+	}
+	if err := h.users.RevokeDeviceToken(r.Context(), userID, string(role), strings.TrimSpace(req.FCMToken), h.clock.Now()); err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to revoke device token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func sanitizeDeviceField(value string, maxLen int) string {
+	clean := strings.TrimSpace(value)
+	if len(clean) > maxLen {
+		return clean[:maxLen]
+	}
+	return clean
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
