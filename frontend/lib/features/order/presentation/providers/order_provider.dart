@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
@@ -277,8 +278,18 @@ final activeOrderBootstrapProvider = FutureProvider<Order?>((ref) async {
   final userId =
       ref.watch(authProvider.select((state) => state.user?.id));
   if (userId == null || userId.isEmpty) {
+    debugPrint('bootstrap: userId=null, skipping active order fetch');
     return null;
   }
+  debugPrint('bootstrap: userId=$userId, fetching active order');
   final repository = ref.watch(orderRepositoryProvider);
-  return repository.getActiveOrder();
+  try {
+    final order = await repository.getActiveOrder();
+    debugPrint('bootstrap: active order result id=${order?.id} '
+        'status=${order?.status.name}');
+    return order;
+  } catch (error, stack) {
+    debugPrint('bootstrap: getActiveOrder threw: $error\n$stack');
+    rethrow;
+  }
 });

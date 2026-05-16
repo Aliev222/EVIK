@@ -505,30 +505,40 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       final authState = ref.watch(authProvider);
       final currentUser = ref.watch(currentUserProvider);
 
+      // Wait for SecureStorage restore to finish so we don't trigger
+      // signInForTesting on top of a session that's about to be restored.
+      if (authState.isRestoring) {
+        return const _SplashScreen(
+            key: ValueKey<String>('restore-splash-skipauth'));
+      }
+
+      // Session restored from SecureStorage — respect the persisted role
+      // and don't re-issue signInForTesting (which would overwrite tokens
+      // via registerOrLogin/login fallback).
+      if (currentUser != null &&
+          authState.accessToken != null &&
+          authState.accessToken!.isNotEmpty) {
+        if (currentUser.role == UserRole.driver) {
+          return const DriverScreen();
+        }
+        return const ClientAppShell();
+      }
+
       if (selectedRole == null) {
         return const RoleSelectionScreen();
       }
 
-      final hasActiveTestSession = currentUser?.role == selectedRole &&
-          authState.accessToken != null &&
-          authState.accessToken!.isNotEmpty;
-      if (!hasActiveTestSession) {
-        if (!authState.isLoading) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(authProvider.notifier).signInForTesting(selectedRole);
-          });
-        }
-        return _TestAuthScreen(
-          errorMessage: authState.errorMessage,
-          onRetry: () =>
-              ref.read(authProvider.notifier).signInForTesting(selectedRole),
-        );
+      // No restored session — proceed with the test sign-in flow.
+      if (!authState.isLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(authProvider.notifier).signInForTesting(selectedRole);
+        });
       }
-
-      if (selectedRole == UserRole.driver) {
-        return const DriverScreen();
-      }
-      return const ClientAppShell();
+      return _TestAuthScreen(
+        errorMessage: authState.errorMessage,
+        onRetry: () =>
+            ref.read(authProvider.notifier).signInForTesting(selectedRole),
+      );
     }
 
     // Обычная логика авторизации
