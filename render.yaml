@@ -27,6 +27,8 @@ services:
         value: production
       - key: OTP_FIXED_CODE
         value: 123456
+      - key: DRIVER_GATE_BYPASS
+        value: true
 
   # Redis Cache
   - type: redis

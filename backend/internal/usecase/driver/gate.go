@@ -22,13 +22,17 @@ type GateService struct {
 	repo                 GateRepository
 	clock                Clock
 	subscriptionRequired bool
+	bypass               bool
 }
 
-func NewGateService(repo GateRepository, clock Clock, subscriptionRequired bool) *GateService {
-	return &GateService{repo: repo, clock: clock, subscriptionRequired: subscriptionRequired}
+func NewGateService(repo GateRepository, clock Clock, subscriptionRequired bool, bypass bool) *GateService {
+	return &GateService{repo: repo, clock: clock, subscriptionRequired: subscriptionRequired, bypass: bypass}
 }
 
 func (s *GateService) EnsureCanWork(ctx context.Context, driverID string) error {
+	if s.bypass {
+		return nil
+	}
 	docsApproved, err := s.repo.IsDriverDocumentsApproved(ctx, driverID)
 	if err != nil {
 		return err
@@ -56,6 +60,9 @@ func (s *GateService) EnsureCanWork(ctx context.Context, driverID string) error 
 }
 
 func (s *GateService) EnsureCanRequestPayout(ctx context.Context, driverID string) error {
+	if s.bypass {
+		return nil
+	}
 	docsApproved, err := s.repo.IsDriverDocumentsApproved(ctx, driverID)
 	if err != nil {
 		return err
