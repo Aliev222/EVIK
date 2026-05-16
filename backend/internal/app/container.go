@@ -168,6 +168,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 			pushSender = fcm.NewNoop()
 		} else {
 			pushSender = realSender
+			logger.Printf("INFO: firebase push sender initialized")
 		}
 	}
 
