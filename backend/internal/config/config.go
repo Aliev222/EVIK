@@ -43,6 +43,7 @@ type Config struct {
 	DriverSubscriptionRequired bool
 	ExposeSwagger              bool
 	FirebaseCredentialsJSON    string
+	OTPFixedCode               string
 }
 
 func MustLoad() Config {
@@ -84,9 +85,26 @@ func MustLoad() Config {
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
+		OTPFixedCode:               getFixedOTPCode(),
 	}
 	validateProductionConfig(cfg)
 	return cfg
+}
+
+func getFixedOTPCode() string {
+	code := strings.TrimSpace(getEnv("OTP_FIXED_CODE", ""))
+	if code == "" {
+		return ""
+	}
+	if len(code) != 6 {
+		log.Fatalf("invalid OTP_FIXED_CODE: must be exactly 6 digits")
+	}
+	for _, r := range code {
+		if r < '0' || r > '9' {
+			log.Fatalf("invalid OTP_FIXED_CODE: must contain digits only")
+		}
+	}
+	return code
 }
 
 func (c Config) IsProduction() bool {

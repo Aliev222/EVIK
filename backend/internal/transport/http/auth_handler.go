@@ -26,9 +26,10 @@ type AuthHandler struct {
 	idGen          interface{ NewID() string }
 	clock          interface{ Now() time.Time }
 	exposeOTPCodes bool
+	fixedOTPCode   string
 }
 
-func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool) *AuthHandler {
+func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool, fixedOTPCode string) *AuthHandler {
 	return &AuthHandler{
 		tokens:         tokens,
 		users:          users,
@@ -37,6 +38,7 @@ func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, admi
 		idGen:          idGen,
 		clock:          clock,
 		exposeOTPCodes: exposeOTPCodes,
+		fixedOTPCode:   strings.TrimSpace(fixedOTPCode),
 	}
 }
 
@@ -209,10 +211,14 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusBadRequest, "phone and valid role are required")
 		return
 	}
-	code, err := randomOTP()
-	if err != nil {
-		writeAuthError(w, http.StatusInternalServerError, "failed to create otp")
-		return
+	code := h.fixedOTPCode
+	if code == "" {
+		var err error
+		code, err = randomOTP()
+		if err != nil {
+			writeAuthError(w, http.StatusInternalServerError, "failed to create otp")
+			return
+		}
 	}
 	now := h.clock.Now()
 	otp := &userdomain.PhoneOTP{

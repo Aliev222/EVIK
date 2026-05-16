@@ -17,7 +17,7 @@ func TestAuthRegisterIssuesRealUserSubjectAndRefreshSession(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "")
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{
@@ -48,7 +48,7 @@ func TestAuthRefreshRotatesStoredSession(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "")
 	_, refreshToken, err := handler.issueTokens(context.Background(), "user-1", auth.RoleClient)
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
@@ -76,7 +76,7 @@ func TestAuthUpsertDeviceTokenRequiresMatchingRole(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "")
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
@@ -100,7 +100,7 @@ func TestAuthUpsertDeviceTokenStoresTokenForAuthenticatedRole(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "")
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
@@ -118,6 +118,38 @@ func TestAuthUpsertDeviceTokenStoresTokenForAuthenticatedRole(t *testing.T) {
 	token := repo.deviceTokens["fcm-token-1"]
 	if token == nil || token.UserID != "user-1" || token.Role != auth.RoleDriver {
 		t.Fatalf("stored token = %#v", token)
+	}
+}
+
+func TestAuthOTPUsesConfiguredFixedCode(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, false, "123456")
+
+	requestRec := httptest.NewRecorder()
+	requestReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/request", bytes.NewBufferString(`{
+		"phone":"+79990000003",
+		"role":"client"
+	}`))
+	handler.RequestOTP(requestRec, requestReq)
+	if requestRec.Code != http.StatusAccepted {
+		t.Fatalf("request status = %d, body = %s", requestRec.Code, requestRec.Body.String())
+	}
+	if bytes.Contains(requestRec.Body.Bytes(), []byte("debug_otp")) {
+		t.Fatalf("fixed code leaked in production-style response: %s", requestRec.Body.String())
+	}
+
+	verifyRec := httptest.NewRecorder()
+	verifyReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/verify", bytes.NewBufferString(`{
+		"phone":"+79990000003",
+		"role":"client",
+		"code":"123456",
+		"full_name":"Client Three"
+	}`))
+	handler.VerifyOTP(verifyRec, verifyReq)
+	if verifyRec.Code != http.StatusOK {
+		t.Fatalf("verify status = %d, body = %s", verifyRec.Code, verifyRec.Body.String())
 	}
 }
 

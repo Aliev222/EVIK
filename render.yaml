@@ -25,6 +25,8 @@ services:
         generateValue: true
       - key: APP_ENV
         value: production
+      - key: OTP_FIXED_CODE
+        value: 123456
 
   # Redis Cache
   - type: redis
@@ -39,7 +41,7 @@ services:
     env: static
     region: frankfurt
     plan: starter
-    buildCommand: cd frontend && flutter build web --release --dart-define=EVIK_API_BASE_URL=https://evik-backend.onrender.com
+    buildCommand: cd frontend && flutter build web --release --dart-define=EVIK_API_BASE_URL=https://tow-truck.onrender.com
     staticPublishPath: ./frontend/build/web
     routes:
       - type: rewrite

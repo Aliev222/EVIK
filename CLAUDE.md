@@ -162,8 +162,8 @@ frontend/lib/
 - **Client State**: `frontend/lib/features/client/presentation/providers/client_order_provider.dart`
 
 ### 🚀 **Production URLs & Config**
-- **API Base**: `evik-backend.onrender.com` (defined in `frontend/lib/core/network/api_client.dart`)
-- **WebSocket**: `wss://evik-backend.onrender.com/ws/orders`
+- **API Base**: `tow-truck.onrender.com` (defined in `frontend/lib/core/network/api_client.dart`)
+- **WebSocket**: `wss://tow-truck.onrender.com/ws/orders`
 - **Environment**: Set via `EVIK_API_BASE_URL` and `EVIK_WS_URL`
 - **Deploy Config**: `render.yaml`
 
@@ -345,8 +345,8 @@ internal/
 
 ## Production URLs
 
-- **API**: `https://evik-backend.onrender.com`
-- **WebSocket**: `wss://evik-backend.onrender.com/ws/orders`
+- **API**: `https://tow-truck.onrender.com`
+- **WebSocket**: `wss://tow-truck.onrender.com/ws/orders`
 - **Web App**: `https://evik-web.onrender.com`
 
 Configure via environment variables:

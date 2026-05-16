@@ -2,7 +2,7 @@
 echo 🚀 Запуск EVIK с реальным API...
 echo.
 echo ⚠️ ВНИМАНИЕ: Подключение к продакшн бэкенду!
-echo API: https://evik-backend.onrender.com
+echo API: https://tow-truck.onrender.com
 echo.
 echo Выберите платформу:
 echo 1. Веб (Chrome)
