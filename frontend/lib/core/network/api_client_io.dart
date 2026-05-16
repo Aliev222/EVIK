@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'api_client.dart';
+import 'auth_retry_coordinator.dart';
 
 ApiClient createPlatformApiClient({String baseUrl = defaultApiBaseUrl}) {
   return IoApiClient(baseUrl: baseUrl);
@@ -52,8 +53,9 @@ class IoApiClient implements ApiClient {
     String method,
     String path,
     Map<String, dynamic>? body,
-    Map<String, String>? headers,
-  ) async {
+    Map<String, String>? headers, {
+    bool allowAuthRetry = true,
+  }) async {
     const maxRetries = 3;
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
@@ -85,6 +87,27 @@ class IoApiClient implements ApiClient {
 
           final response = await request.close().timeout(_timeout);
           final responseText = await response.transform(utf8.decoder).join();
+
+          if (response.statusCode == 401 &&
+              allowAuthRetry &&
+              headers != null &&
+              headers.containsKey('Authorization')) {
+            final newToken =
+                await AuthRetryCoordinator.refreshAccessToken();
+            if (newToken != null && newToken.isNotEmpty) {
+              final retryHeaders = <String, String>{
+                ...headers,
+                'Authorization': 'Bearer $newToken',
+              };
+              return _makeRequest(
+                method,
+                path,
+                body,
+                retryHeaders,
+                allowAuthRetry: false,
+              );
+            }
+          }
 
           return _decodeResponse(
               method, path, uri, response.statusCode, responseText);

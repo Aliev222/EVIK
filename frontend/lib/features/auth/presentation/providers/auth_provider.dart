@@ -11,6 +11,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
+import '../../../../core/network/auth_retry_coordinator.dart';
 import '../../../../core/notifications/push_notification_service.dart';
 import '../../../../core/storage/key_value_storage.dart';
 import '../../domain/entities/user.dart';
@@ -20,12 +21,17 @@ const _refreshTokenKey = 'auth_refresh_token';
 const _userKey = 'auth_user';
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(
+  final notifier = AuthNotifier(
     api: BackendAuthApi(
       apiClient: platform_api.createPlatformApiClient(),
     ),
     storage: ref.read(keyValueStorageProvider),
   );
+  AuthRetryCoordinator.configure(
+    refresh: notifier.refreshAccessToken,
+    logout: notifier.signOut,
+  );
+  return notifier;
 });
 
 final currentUserProvider = Provider<User?>((ref) {
@@ -426,6 +432,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         errorMessage: 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ СЂРѕР»СЊ.',
       );
+    }
+  }
+
+  Future<String?>? _pendingRefresh;
+
+  /// Refreshes the access token using the stored refresh token.
+  /// Returns the new access token on success, or null on failure.
+  /// Concurrent callers share a single in-flight refresh.
+  Future<String?> refreshAccessToken() {
+    return _pendingRefresh ??=
+        _doRefresh().whenComplete(() => _pendingRefresh = null);
+  }
+
+  Future<String?> _doRefresh() async {
+    final refreshToken = await _storage.read(_refreshTokenKey);
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await signOut();
+      return null;
+    }
+    try {
+      final tokens = await _api.refresh(refreshToken: refreshToken);
+      await _storage.write(_accessTokenKey, tokens.accessToken);
+      await _storage.write(_refreshTokenKey, tokens.refreshToken);
+      state = state.copyWith(accessToken: tokens.accessToken);
+      return tokens.accessToken;
+    } catch (_) {
+      await signOut();
+      return null;
     }
   }
 
