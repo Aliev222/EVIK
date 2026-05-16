@@ -234,7 +234,7 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	payload := map[string]any{"otp_required": true, "expires_in_seconds": 600}
-	if h.exposeOTPCodes {
+	if h.exposeOTPCodes && h.fixedOTPCode == "" {
 		payload["debug_otp"] = code
 	}
 	writeJSON(w, http.StatusAccepted, payload)

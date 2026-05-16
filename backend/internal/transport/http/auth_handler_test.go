@@ -153,6 +153,26 @@ func TestAuthOTPUsesConfiguredFixedCode(t *testing.T) {
 	}
 }
 
+func TestAuthOTPDoesNotExposeConfiguredFixedCode(t *testing.T) {
+	repo := newFakeUserRepository()
+	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
+	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "123456")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/request", bytes.NewBufferString(`{
+		"phone":"+79990000004",
+		"role":"client"
+	}`))
+	handler.RequestOTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("debug_otp")) || bytes.Contains(rec.Body.Bytes(), []byte("123456")) {
+		t.Fatalf("fixed code leaked in response: %s", rec.Body.String())
+	}
+}
+
 type fixedHTTPClock struct{ now time.Time }
 
 func (c fixedHTTPClock) Now() time.Time { return c.now }
