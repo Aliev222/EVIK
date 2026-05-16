@@ -502,19 +502,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _restoreSession() async {
-    debugPrint('restoreSession: started');
     try {
       final accessToken = await _storage.read(_accessTokenKey);
       final refreshToken = await _storage.read(_refreshTokenKey);
       final savedUser = await _readSavedUser();
       if (accessToken == null || refreshToken == null) {
-        debugPrint('restoreSession: tokens not found '
-            '(access=${accessToken != null}, refresh=${refreshToken != null})');
         return;
       }
-      debugPrint('restoreSession: tokens found '
-          '(accessLen=${accessToken.length}, refreshLen=${refreshToken.length}, '
-          'savedUser=${savedUser?.id})');
 
       String activeAccess = accessToken;
       try {
@@ -523,8 +517,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
           identity: identity,
           fallback: savedUser,
         );
-        debugPrint('restoreSession: identity restored userId=${restored.id} '
-            'role=${restored.role.name} (path=me)');
         state = state.copyWith(
           user: restored,
           accessToken: activeAccess,
@@ -532,8 +524,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
         unawaited(_syncFcmTokenForSession(restored, activeAccess));
         return;
-      } catch (error) {
-        debugPrint('restoreSession: /auth/me failed, trying refresh: $error');
+      } catch (_) {
         // Try refresh once and retry me.
       }
 
@@ -548,17 +539,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
           fallback: savedUser,
         );
         await _storage.write(_userKey, jsonEncode(restored.toMap()));
-        debugPrint('restoreSession: identity restored userId=${restored.id} '
-            'role=${restored.role.name} (path=refresh+me)');
         state = state.copyWith(
           user: restored,
           accessToken: activeAccess,
           isLoading: false,
         );
         unawaited(_syncFcmTokenForSession(restored, activeAccess));
-      } catch (error) {
-        debugPrint('restoreSession: refresh+me failed, signing out: $error');
-        debugPrint('restoreSession: signOut called');
+      } catch (_) {
         await signOut();
       }
     } finally {
@@ -566,10 +553,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // hot-restart). Writing to `state` post-dispose throws — guard it.
       if (mounted) {
         state = state.copyWith(isRestoring: false);
-        debugPrint('restoreSession: isRestoring=false '
-            '(user=${state.user?.id}, hasToken=${state.accessToken != null})');
-      } else {
-        debugPrint('restoreSession: finally — notifier disposed, skip state');
       }
     }
   }

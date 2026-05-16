@@ -1,7 +1,5 @@
 ﻿import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
@@ -122,26 +120,13 @@ class HttpOrderRepository implements OrderRepository {
 
   @override
   Future<Order?> getActiveOrder() async {
-    final authHeaders = _authHeaders;
-    debugPrint('getActiveOrder: requesting /api/v1/orders/active '
-        '(hasToken=${authHeaders?['Authorization'] != null})');
-    try {
-      final response = await _apiClient.get(
-        '/api/v1/orders/active',
-        headers: authHeaders,
-      );
-      final raw = response['order'];
-      debugPrint('getActiveOrder: response keys=${response.keys.toList()} '
-          'orderPresent=${raw != null}');
-      if (raw == null) return null;
-      final order = Order.fromMap(raw as Map<String, dynamic>);
-      debugPrint('getActiveOrder: parsed order id=${order.id} '
-          'status=${order.status.name}');
-      return order;
-    } catch (error) {
-      debugPrint('getActiveOrder: request failed: $error');
-      rethrow;
-    }
+    final response = await _apiClient.get(
+      '/api/v1/orders/active',
+      headers: _authHeaders,
+    );
+    final raw = response['order'];
+    if (raw == null) return null;
+    return Order.fromMap(raw as Map<String, dynamic>);
   }
 
   @override
