@@ -51,3 +51,10 @@ node_modules/
 .env
 .env.local
 .env.production
+
+# Secrets / service account keys
+*-firebase-adminsdk-*.json
+*service-account*.json
+*service_account*.json
+firebase-adminsdk-*.json
+gcp-key*.json
