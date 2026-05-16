@@ -53,6 +53,8 @@ func MustLoad() Config {
 		httpAddr = ":" + getEnv("PORT", "8080")
 	}
 
+	otpFixedCode := getFixedOTPCode()
+
 	cfg := Config{
 		HTTPAddr:                   httpAddr,
 		AppEnv:                     getEnv("APP_ENV", "development"),
@@ -84,10 +86,10 @@ func MustLoad() Config {
 		MinimumWithdrawalKopecks:   int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
 		BalanceReleaseInterval:     getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
-		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", false),
+		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", otpFixedCode != ""),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
-		OTPFixedCode:               getFixedOTPCode(),
+		OTPFixedCode:               otpFixedCode,
 	}
 	validateProductionConfig(cfg)
 	return cfg
