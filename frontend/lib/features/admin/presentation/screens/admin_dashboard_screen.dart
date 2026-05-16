@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/realtime_location_service.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../map/presentation/widgets/animated_driver_marker.dart';
-import '../../../map/presentation/widgets/live_driver_map.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver_map.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});

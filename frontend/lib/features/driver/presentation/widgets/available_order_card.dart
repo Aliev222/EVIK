@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../domain/entities/available_order.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
 
 class AvailableOrderCard extends StatelessWidget {
   final AvailableOrder order;

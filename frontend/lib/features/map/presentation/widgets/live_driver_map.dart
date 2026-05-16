@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/realtime_location_service.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../map/domain/entities/map_location.dart';
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'animated_driver_marker.dart';
 import 'evik_osm_map_view.dart';
 

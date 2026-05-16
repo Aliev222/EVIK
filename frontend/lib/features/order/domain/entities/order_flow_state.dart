@@ -1,4 +1,4 @@
-// ignore_for_file: invalid_annotation_target
+﻿// ignore_for_file: invalid_annotation_target
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
@@ -68,33 +68,33 @@ extension TowTruckTypeExtension on TowTruckType {
   String get displayName {
     switch (this) {
       case TowTruckType.winch:
-        return 'Лебедка';
+        return '�������';
       case TowTruckType.platform:
-        return 'Платформа';
+        return '���������';
       case TowTruckType.manipulator:
-        return 'Манипулятор';
+        return '�����������';
     }
   }
 
   String get shortLabel {
     switch (this) {
       case TowTruckType.winch:
-        return 'Стандарт';
+        return '��������';
       case TowTruckType.platform:
-        return 'Платформа';
+        return '���������';
       case TowTruckType.manipulator:
-        return 'Манипулятор';
+        return '�����������';
     }
   }
 
   String get description {
     switch (this) {
       case TowTruckType.winch:
-        return 'Для авто на ходу или с заблокированными колесами';
+        return '��� ���� �� ���� ��� � ���������������� ��������';
       case TowTruckType.platform:
-        return 'Полная погрузка автомобиля на платформу';
+        return '������ �������� ���������� �� ���������';
       case TowTruckType.manipulator:
-        return 'Для сложной погрузки, кювета или тесного двора';
+        return '��� ������� ��������, ������ ��� ������� �����';
     }
   }
 
@@ -114,26 +114,26 @@ extension VehicleTypeExtension on VehicleType {
   String get displayName {
     switch (this) {
       case VehicleType.light:
-        return 'Седан';
+        return '�����';
       case VehicleType.suv:
-        return 'Кроссовер';
+        return '���������';
       case VehicleType.minibus:
-        return 'Миниавтобус';
+        return '�����������';
       case VehicleType.truck:
-        return 'Грузовик';
+        return '��������';
     }
   }
 
   String get description {
     switch (this) {
       case VehicleType.light:
-        return 'Легковой автомобиль до 1.8 т';
+        return '�������� ���������� �� 1.8 �';
       case VehicleType.suv:
-        return 'Кроссовер или внедорожник';
+        return '��������� ��� �����������';
       case VehicleType.minibus:
-        return 'Миниавтобус или небольшой фургон';
+        return '����������� ��� ��������� ������';
       case VehicleType.truck:
-        return 'Грузовой автомобиль';
+        return '�������� ����������';
     }
   }
 

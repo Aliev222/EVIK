@@ -1,19 +1,19 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../../core/realtime/event_dispatcher.dart';
-import '../../../../core/realtime/websocket_client.dart';
-import '../../../../core/realtime/websocket_client_stub.dart'
+import 'package:tow_truck_frontend/core/realtime/event_dispatcher.dart';
+import 'package:tow_truck_frontend/core/realtime/websocket_client.dart';
+import 'package:tow_truck_frontend/core/realtime/websocket_client_stub.dart'
     if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
     as platform_ws;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../data/repository_impl/http_order_repository.dart';
-import '../../domain/entities/order.dart';
-import '../../domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   final accessToken =
@@ -266,4 +266,19 @@ final watchAvailableOrdersProvider = StreamProvider.family
 final watchDriverOrderProvider =
     StreamProvider.family.autoDispose<Order?, String>((ref, driverId) {
   return ref.watch(orderRepositoryProvider).watchDriverCurrentOrder(driverId);
+});
+
+// One-shot bootstrap fetch of the caller's currently active (non-terminal)
+// order. Used by the router at startup to decide whether to land the user
+// on a tracking/active-order screen instead of the default home.
+// Rebuilds when the authenticated user id changes (login / signOut),
+// so a fresh fetch happens on each new session.
+final activeOrderBootstrapProvider = FutureProvider<Order?>((ref) async {
+  final userId =
+      ref.watch(authProvider.select((state) => state.user?.id));
+  if (userId == null || userId.isEmpty) {
+    return null;
+  }
+  final repository = ref.watch(orderRepositoryProvider);
+  return repository.getActiveOrder();
 });

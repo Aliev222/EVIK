@@ -1,5 +1,5 @@
-import '../entities/order.dart';
-import '../repositories/order_repository.dart';
+﻿import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class CreateOrderUseCase {
   const CreateOrderUseCase(this._repository);

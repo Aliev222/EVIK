@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../../../core/services/navigation_service.dart';
-import '../../../../core/services/openstreetmap_service.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../map/presentation/widgets/evik_osm_map_view.dart';
-import '../../domain/entities/active_order.dart';
-import '../providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/core/services/navigation_service.dart';
+import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 
 class ActiveOrderScreen extends ConsumerStatefulWidget {
   const ActiveOrderScreen({super.key});

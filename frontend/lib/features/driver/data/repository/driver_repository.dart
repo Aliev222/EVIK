@@ -1,4 +1,4 @@
-import '../../domain/entities/driver.dart';
+﻿import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 
 abstract class DriverRepository {
   Future<Driver?> getDriver(String userId);

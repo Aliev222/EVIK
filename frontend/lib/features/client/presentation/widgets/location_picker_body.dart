@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'osm_location_picker.dart';
 
 class LocationPickerBody extends ConsumerWidget {

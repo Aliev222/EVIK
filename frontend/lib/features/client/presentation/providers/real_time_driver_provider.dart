@@ -1,12 +1,12 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/openstreetmap_service.dart';
-import '../../../../core/services/realtime_location_service.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 
 /// Real-time driver tracking for client
 class RealTimeDriverState {

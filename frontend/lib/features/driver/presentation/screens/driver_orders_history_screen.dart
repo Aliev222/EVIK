@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/empty_state.dart';
-import '../../../../shared/widgets/error_state.dart';
-import '../../../../shared/widgets/skeleton_card.dart';
-import '../../domain/entities/order_history_item.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
+import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
+import 'package:tow_truck_frontend/shared/widgets/skeleton_card.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/order_history_item.dart';
 
 // Пример истории заказов
 final driverOrderHistoryProvider = Provider<List<OrderHistoryItem>>((ref) {

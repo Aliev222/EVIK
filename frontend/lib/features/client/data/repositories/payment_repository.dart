@@ -1,5 +1,5 @@
-import '../../../../core/network/api_client.dart';
-import '../../domain/entities/payment_wallet.dart';
+﻿import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 
 class PaymentRepository {
   const PaymentRepository({

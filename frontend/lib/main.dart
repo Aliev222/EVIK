@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +27,9 @@ import 'features/client/presentation/screens/driver_info_screen.dart';
 import 'features/client/presentation/screens/tracking_screen.dart';
 import 'features/client/presentation/screens/order_completion_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
+import 'features/driver/presentation/screens/active_order_screen.dart';
+import 'features/order/domain/entities/order.dart';
+import 'features/order/presentation/providers/order_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +38,14 @@ void main() async {
   // Initialize global error handler
   GlobalErrorHandler.initialize();
 
-  // Initialize performance monitoring
-  FrameTimingMonitor.initialize();
-  RebuildTracker.initialize();
+  const enablePerformanceMonitor = bool.fromEnvironment(
+    'EVIK_ENABLE_PERF_MONITOR',
+    defaultValue: false,
+  );
+  if (kDebugMode && enablePerformanceMonitor) {
+    FrameTimingMonitor.initialize();
+    RebuildTracker.initialize();
+  }
 
   PushNotificationService.instance
       .setRouteHandler(EvikApp.navigateFromNotification);
@@ -477,11 +486,19 @@ class _ProgressBarState extends State<_ProgressBar>
   }
 }
 
-class _AppRouter extends ConsumerWidget {
+class _AppRouter extends ConsumerStatefulWidget {
   const _AppRouter({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends ConsumerState<_AppRouter> {
+  // Guards against repeated GoRouter navigation when bootstrap re-emits.
+  String? _redirectedForOrderId;
+
+  @override
+  Widget build(BuildContext context) {
     // Быстрый режим тестирования - пропуск авторизации
     if (AppConstants.skipAuth) {
       final selectedRole = ref.watch(selectedOnboardingRoleProvider);
@@ -519,11 +536,24 @@ class _AppRouter extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final selectedRole = ref.watch(selectedOnboardingRoleProvider);
 
+    // Hold on the splash while persisted session is being restored,
+    // so a signed-in user never briefly sees the auth screen.
+    if (authState.isRestoring) {
+      return const _SplashScreen(key: ValueKey<String>('restore-splash'));
+    }
+
     if (authState.isAuthenticated && currentUser != null) {
-      if (currentUser.role == UserRole.driver) {
-        return const DriverScreen();
-      }
-      return const ClientAppShell();
+      // Bootstrap fetch of any non-terminal order so the router can
+      // resume the user where they left off after an app restart.
+      final bootstrap = ref.watch(activeOrderBootstrapProvider);
+      return bootstrap.when(
+        loading: () =>
+            const _SplashScreen(key: ValueKey<String>('bootstrap-splash')),
+        // Errors are non-fatal — fall through to the default home shell
+        // so a transient network failure never traps the user on a splash.
+        error: (_, __) => _homeFor(currentUser.role),
+        data: (order) => _routeForRestoredOrder(currentUser.role, order),
+      );
     }
 
     if (authState.isCodeSent) {
@@ -535,6 +565,52 @@ class _AppRouter extends ConsumerWidget {
     }
 
     return AuthScreen(initialRole: selectedRole);
+  }
+
+  Widget _routeForRestoredOrder(UserRole role, Order? order) {
+    if (order == null) {
+      _redirectedForOrderId = null;
+      return _homeFor(role);
+    }
+
+    if (role == UserRole.driver) {
+      // Driver active-order UI is owned by ActiveOrderScreen and reads its
+      // state from newDriverProvider — surface it directly here so the
+      // driver lands on the active order instead of the home dashboard.
+      return const ActiveOrderScreen();
+    }
+
+    // Client: GoRouter owns the order flow routes, so push via go() and
+    // render a splash this frame to avoid a flash of ClientAppShell.
+    final target = switch (order.status) {
+      OrderStatus.searching => '/order/search',
+      OrderStatus.assigned ||
+      OrderStatus.onWay ||
+      OrderStatus.arrived ||
+      OrderStatus.evacuating =>
+        '/order/tracking',
+      OrderStatus.completed || OrderStatus.cancelled => null,
+    };
+
+    if (target == null) {
+      return _homeFor(role);
+    }
+
+    if (_redirectedForOrderId != order.id) {
+      _redirectedForOrderId = order.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        EvikApp._router.go(target);
+      });
+    }
+    return const _SplashScreen(key: ValueKey<String>('redirect-splash'));
+  }
+
+  Widget _homeFor(UserRole role) {
+    if (role == UserRole.driver) {
+      return const DriverScreen();
+    }
+    return const ClientAppShell();
   }
 }
 

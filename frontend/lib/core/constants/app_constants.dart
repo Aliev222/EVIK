@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 
 class AppConstants {
   static const String appName = 'Tow Truck';
@@ -7,11 +7,11 @@ class AppConstants {
   static const bool isProduction =
       bool.fromEnvironment('DART_DEFINE_ENV_PROD', defaultValue: false);
 
-  // Mock режим для тестирования без бэкенда
+  // Mock ����� ��� ������������ ��� �������
   static const bool useMockData =
       bool.fromEnvironment('USE_MOCK_DATA', defaultValue: false);
 
-  // Режим быстрого тестирования - пропуск авторизации
+  // ����� �������� ������������ - ������� �����������
   static const bool skipAuth =
       bool.fromEnvironment('SKIP_AUTH', defaultValue: kDebugMode);
 
@@ -22,7 +22,7 @@ class AppConstants {
 
   static const String openStreetMapAttribution = String.fromEnvironment(
     'OSM_ATTRIBUTION',
-    defaultValue: '© OpenStreetMap © CARTO',
+    defaultValue: '� OpenStreetMap � CARTO',
   );
 
   static const String osrmBaseUrl = String.fromEnvironment(

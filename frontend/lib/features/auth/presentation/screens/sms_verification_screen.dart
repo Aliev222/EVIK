@@ -1,13 +1,13 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../providers/auth_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 
 class SmsVerificationScreen extends ConsumerStatefulWidget {
   const SmsVerificationScreen({super.key});

@@ -1,9 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../domain/entities/payment_wallet.dart';
+import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 import 'payment_wallet_provider.dart';
 
 final clientPaymentMethodsProvider = StateNotifierProvider<

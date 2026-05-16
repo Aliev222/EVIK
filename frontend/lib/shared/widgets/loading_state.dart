@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../../core/theme/evik_colors.dart';
-import '../../core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 
 class LoadingState extends StatelessWidget {
   const LoadingState({super.key, this.message});

@@ -1,13 +1,13 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../features/order/domain/entities/order.dart';
-import '../../../features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
-/// Real-time сервис для WebSocket связи с сервером местоположений
+/// Real-time ������ ��� WebSocket ����� � �������� ��������������
 class RealTimeLocationService {
   static const String _wsUrl = String.fromEnvironment(
     'EVIK_LOCATION_WS_URL',
@@ -19,7 +19,7 @@ class RealTimeLocationService {
   String? _userId;
   String? _userType; // 'driver', 'client', 'admin'
 
-  // Stream controllers для разных типов данных
+  // Stream controllers ��� ������ ����� ������
   final StreamController<DriverLocationUpdate> _driverLocationController =
       StreamController<DriverLocationUpdate>.broadcast();
   final StreamController<OrderUpdate> _orderUpdateController =
@@ -29,7 +29,7 @@ class RealTimeLocationService {
   final StreamController<String> _connectionController =
       StreamController<String>.broadcast();
 
-  // Getters для стримов
+  // Getters ��� �������
   Stream<DriverLocationUpdate> get driverLocationStream =>
       _driverLocationController.stream;
   Stream<OrderUpdate> get orderUpdateStream => _orderUpdateController.stream;
@@ -39,7 +39,7 @@ class RealTimeLocationService {
 
   bool get isConnected => _isConnected;
 
-  /// Подключение к WebSocket серверу
+  /// ����������� � WebSocket �������
   Future<bool> connect({
     required String userId,
     required String userType, // 'driver', 'client', 'admin'
@@ -50,14 +50,14 @@ class RealTimeLocationService {
 
       _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
 
-      // Слушаем входящие сообщения
+      // ������� �������� ���������
       _channel!.stream.listen(
         _handleMessage,
         onError: _handleError,
         onDone: _handleDisconnection,
       );
 
-      // Регистрируемся на сервере
+      // �������������� �� �������
       await _register();
 
       _isConnected = true;
@@ -73,7 +73,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Регистрация пользователя на сервере
+  /// ����������� ������������ �� �������
   Future<void> _register() async {
     final message = {
       'type': 'register_$_userType',
@@ -84,7 +84,7 @@ class RealTimeLocationService {
     _sendMessage(message);
   }
 
-  /// Отправка GPS координат водителя на сервер
+  /// �������� GPS ��������� �������� �� ������
   Future<void> sendDriverLocation({
     required double lat,
     required double lng,
@@ -133,7 +133,7 @@ class RealTimeLocationService {
     _sendMessage(message);
   }
 
-  /// Создание заказа клиентом
+  /// �������� ������ ��������
   Future<void> createOrder({
     required double pickupLat,
     required double pickupLng,
@@ -161,7 +161,7 @@ class RealTimeLocationService {
     _sendMessage(message);
   }
 
-  /// Обработка входящих сообщений от сервера
+  /// ��������� �������� ��������� �� �������
   void _handleMessage(dynamic rawMessage) {
     try {
       final message = json.decode(rawMessage);
@@ -205,7 +205,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Обработка обновления местоположения водителя
+  /// ��������� ���������� �������������� ��������
   void _handleDriverLocationUpdate(Map<String, dynamic> message) {
     try {
       final location = message['location'];
@@ -250,7 +250,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Обработка найденного водителя для клиента
+  /// ��������� ���������� �������� ��� �������
   void _handleDriverFound(Map<String, dynamic> message) {
     try {
       final driverData = message['driver'];
@@ -276,7 +276,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Обработка назначения нового заказа водителю
+  /// ��������� ���������� ������ ������ ��������
   void _handleNewOrderAssigned(Map<String, dynamic> message) {
     try {
       final orderData = message['order'];
@@ -297,7 +297,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Обработка отсутствия доступных водителей
+  /// ��������� ���������� ��������� ���������
   void _handleNoDriversAvailable(Map<String, dynamic> message) {
     final orderUpdate = OrderUpdate(
       orderId: message['order_id'],
@@ -308,7 +308,7 @@ class RealTimeLocationService {
     _orderUpdateController.add(orderUpdate);
   }
 
-  /// Обработка начального состояния для админ панели
+  /// ��������� ���������� ��������� ��� ����� ������
   void _handleInitialState(Map<String, dynamic> message) {
     try {
       final drivers = message['drivers'] as List;
@@ -331,7 +331,7 @@ class RealTimeLocationService {
     }
   }
 
-  /// Парсинг статуса водителя
+  /// ������� ������� ��������
   DriverMarkerStatus _parseDriverStatus(String? status) {
     switch (status) {
       case 'to_pickup':
@@ -345,28 +345,28 @@ class RealTimeLocationService {
     }
   }
 
-  /// Отправка сообщения на сервер
+  /// �������� ��������� �� ������
   void _sendMessage(Map<String, dynamic> message) {
     if (_isConnected && _channel != null) {
       _channel!.sink.add(json.encode(message));
     }
   }
 
-  /// Обработка ошибок WebSocket
+  /// ��������� ������ WebSocket
   void _handleError(Object error) {
     debugPrint('WebSocket error: $error');
     _isConnected = false;
     _connectionController.add('error');
   }
 
-  /// Обработка отключения WebSocket
+  /// ��������� ���������� WebSocket
   void _handleDisconnection() {
     debugPrint('WebSocket disconnected');
     _isConnected = false;
     _connectionController.add('disconnected');
   }
 
-  /// Отключение от сервера
+  /// ���������� �� �������
   Future<void> disconnect() async {
     _isConnected = false;
     await _channel?.sink.close();
@@ -374,7 +374,7 @@ class RealTimeLocationService {
     _connectionController.add('disconnected');
   }
 
-  /// Очистка ресурсов
+  /// ������� ��������
   void dispose() {
     disconnect();
     _driverLocationController.close();
@@ -384,7 +384,7 @@ class RealTimeLocationService {
   }
 }
 
-/// Класс для обновлений местоположения водителей
+/// ����� ��� ���������� �������������� ���������
 class DriverLocationUpdate {
   final String driverId;
   final double lat;
@@ -435,7 +435,7 @@ class ClientLocationUpdate {
       );
 }
 
-/// Класс для обновлений заказов
+/// ����� ��� ���������� �������
 class OrderUpdate {
   final String orderId;
   final OrderUpdateType status;
@@ -460,7 +460,7 @@ class OrderUpdate {
   });
 }
 
-/// Типы обновлений заказов
+/// ���� ���������� �������
 enum OrderUpdateType {
   driverFound,
   newOrderAssigned,
@@ -468,7 +468,7 @@ enum OrderUpdateType {
   orderCompleted,
 }
 
-/// Provider для real-time сервиса
+/// Provider ��� real-time �������
 final realTimeLocationServiceProvider =
     Provider<RealTimeLocationService>((ref) {
   return RealTimeLocationService();

@@ -1,20 +1,20 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/location_service.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../driver/presentation/providers/new_driver_provider.dart';
-import '../../../map/domain/entities/map_location.dart';
-import '../../../order/data/repository_impl/http_order_repository.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/entities/order_flow_state.dart';
-import '../../../order/domain/repositories/order_repository.dart';
-import '../../../order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/services/location_service.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 import 'payment_wallet_provider.dart';
 
 final locationServiceProvider = Provider<LocationService>((ref) {

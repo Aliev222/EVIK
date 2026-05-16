@@ -1,9 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 
 class DriverTaxProfile {
   const DriverTaxProfile({

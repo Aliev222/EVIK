@@ -1,9 +1,9 @@
-import 'package:flutter/services.dart';
+﻿import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:vibration/vibration.dart';
 
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 enum DriverHapticType {
   light,

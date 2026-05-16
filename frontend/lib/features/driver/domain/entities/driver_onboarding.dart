@@ -1,4 +1,4 @@
-import '../../../order/domain/entities/order.dart';
+﻿import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:image_picker/image_picker.dart';
 
 enum DriverDocumentType {

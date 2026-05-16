@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../domain/entities/driver_earnings.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_earnings.dart';
 
 class EarningsCard extends StatelessWidget {
   const EarningsCard({

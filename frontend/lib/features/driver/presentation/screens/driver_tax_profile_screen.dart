@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../providers/driver_tax_profile_provider.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_tax_profile_provider.dart';
 
 class DriverTaxProfileScreen extends ConsumerStatefulWidget {
   const DriverTaxProfileScreen({super.key});

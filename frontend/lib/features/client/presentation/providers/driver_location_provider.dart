@@ -1,10 +1,10 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../driver/domain/entities/driver.dart' as driver_domain;
-import '../../../driver/presentation/providers/driver_provider.dart';
-import '../../../map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart' as driver_domain;
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_provider.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'active_order_provider.dart';
 
 class DriverLocation {

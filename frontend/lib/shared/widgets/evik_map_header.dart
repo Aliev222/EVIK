@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import '../../core/theme/evik_colors.dart';
-import '../../core/theme/evik_typography.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'evik_avatar.dart';
 
 class EvikMapHeader extends StatelessWidget {

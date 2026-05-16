@@ -1,15 +1,15 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../domain/entities/driver_onboarding.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 
 final driverVerificationRepositoryProvider =
     Provider<DriverVerificationRepository>((ref) {

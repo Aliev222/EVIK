@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../network/api_client.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 
 class GlobalErrorHandler {
   static void initialize() {

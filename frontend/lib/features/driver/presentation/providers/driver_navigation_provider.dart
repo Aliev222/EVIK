@@ -1,7 +1,7 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/services/location_service.dart';
-import '../../../../core/services/navigation_service.dart';
-import '../../../order/domain/entities/order.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tow_truck_frontend/core/services/location_service.dart';
+import 'package:tow_truck_frontend/core/services/navigation_service.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class DriverNavigationState {
   const DriverNavigationState({

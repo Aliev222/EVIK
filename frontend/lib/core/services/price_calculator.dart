@@ -1,7 +1,7 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
-import '../../features/order/domain/entities/order.dart';
-import '../../shared/models/tariff_model.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/shared/models/tariff_model.dart';
 import 'location_service.dart';
 
 class PriceCalculator {

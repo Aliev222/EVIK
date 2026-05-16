@@ -1,16 +1,16 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/repositories/order_repository.dart';
-import '../../../order/presentation/providers/order_provider.dart';
-import '../../data/repository/driver_repository.dart';
-import '../../data/services/driver_location_service.dart';
-import '../../data/services/driver_notification_service.dart';
-import '../../data/services/order_status_service.dart';
-import '../../domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository/driver_repository.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_location_service.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_notification_service.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/order_status_service.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'driver_provider.dart';
 
 class DriverStatusState {
@@ -229,7 +229,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
       state = state.copyWith(
         isGpsLost: true,
         errorMessage:
-            'РџСЂРѕР±Р»РµРјС‹ СЃ GPS. РџСЂРѕРІРµСЂСЊС‚Рµ РЅР°СЃС‚СЂРѕР№РєРё.',
+            'Проблемы с GPS. Проверьте настройки.',
       );
     }
   }
@@ -254,7 +254,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
       await _notificationService.vibrateFeedback(DriverHapticType.success);
     } catch (_) {
       state = state.copyWith(
-        errorMessage: 'Заказ уже принят другим водителем.',
+        errorMessage: '����� ��� ������ ������ ���������.',
       );
     }
   }

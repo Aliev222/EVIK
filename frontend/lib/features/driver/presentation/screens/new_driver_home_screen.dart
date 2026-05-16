@@ -1,20 +1,20 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../../../core/performance/rebuild_tracker.dart';
+import 'package:tow_truck_frontend/core/performance/rebuild_tracker.dart';
 
-import '../../../../core/services/openstreetmap_service.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../map/presentation/widgets/evik_osm_map_view.dart';
-import '../../domain/entities/available_order.dart';
-import '../../domain/entities/driver.dart';
-import '../../domain/entities/driver_work_state.dart';
-import '../providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 
 // Provider for driver profile data (reused from profile screen)
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {

@@ -1,17 +1,17 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../data/repository_impl/http_driver_repository.dart';
-import '../../domain/entities/active_order.dart';
-import '../../domain/entities/available_order.dart';
-import '../../domain/entities/driver_stats.dart';
-import '../../domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
 
 final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
   final accessToken =

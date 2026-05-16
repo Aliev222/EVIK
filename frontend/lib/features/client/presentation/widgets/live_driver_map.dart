@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../map/presentation/widgets/animated_driver_marker.dart';
-import '../../../map/presentation/widgets/evik_osm_map_view.dart';
-import '../../../order/domain/entities/order.dart';
-import '../providers/real_time_driver_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/real_time_driver_provider.dart';
 
 /// Live map showing driver moving smoothly to client
 class LiveDriverMap extends ConsumerStatefulWidget {

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 
@@ -9,7 +9,7 @@ class DriverLocationService {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw const DriverLocationException(
-        'Р’РєР»СЋС‡РёС‚Рµ РіРµРѕР»РѕРєР°С†РёСЋ РґР»СЏ РїРѕРёСЃРєР° Р·Р°РєР°Р·РѕРІ.',
+        'Включите геолокацию для поиска заказов.',
       );
     }
 
@@ -21,7 +21,7 @@ class DriverLocationService {
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       throw const DriverLocationException(
-        'РќРµС‚ РґРѕСЃС‚СѓРїР° Рє РіРµРѕР»РѕРєР°С†РёРё. Р Р°Р·СЂРµС€РёС‚Рµ GPS РґР»СЏ СЂР°Р±РѕС‚С‹ РІРѕРґРёС‚РµР»СЏ.',
+        'Нет доступа к геолокации. Разрешите GPS для работы водителя.',
       );
     }
 

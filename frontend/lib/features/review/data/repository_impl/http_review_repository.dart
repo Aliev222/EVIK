@@ -1,6 +1,6 @@
-import '../../../../core/network/api_client.dart';
-import '../../domain/entities/review.dart';
-import '../../domain/repositories/review_repository.dart';
+﻿import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
+import 'package:tow_truck_frontend/features/review/domain/repositories/review_repository.dart';
 
 class HttpReviewRepository implements ReviewRepository {
   const HttpReviewRepository({

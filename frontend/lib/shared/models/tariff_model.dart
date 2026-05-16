@@ -1,4 +1,4 @@
-import '../../features/order/domain/entities/order.dart';
+﻿import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class VehicleMultipliers {
   const VehicleMultipliers({

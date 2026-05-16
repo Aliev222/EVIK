@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/services/realtime_location_service.dart';
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../driver/domain/entities/driver.dart';
-import '../../../map/presentation/widgets/animated_driver_marker.dart';
-import '../../../map/presentation/widgets/live_driver_map.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/entities/order_flow_state.dart';
-import '../providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver_map.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class TrackingScreen extends ConsumerStatefulWidget {
   const TrackingScreen({super.key});

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../../../map/presentation/widgets/evik_osm_map_view.dart';
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class DriverMapWidget extends StatelessWidget {
   const DriverMapWidget({

@@ -1,4 +1,4 @@
-import '../../../core/network/api_client.dart';
+﻿import 'package:tow_truck_frontend/core/network/api_client.dart';
 
 class DriverStatusDto {
   const DriverStatusDto({

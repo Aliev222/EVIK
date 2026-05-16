@@ -1,13 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../data/repository/driver_repository.dart';
-import '../../data/repository_impl/http_driver_repository.dart';
-import '../../domain/entities/driver.dart';
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository/driver_repository.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 // Driver Repository Provider
 final driverRepositoryProvider = Provider<DriverRepository>((ref) {

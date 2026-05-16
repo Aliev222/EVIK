@@ -1,9 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-import '../../../../core/services/openstreetmap_service.dart';
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 /// Animated driver marker that smoothly moves along an OSRM route preview.
 class AnimatedDriverMarker extends StatefulWidget {

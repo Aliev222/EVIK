@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../theme/evik_colors.dart';
-import '../theme/evik_tokens.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_tokens.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({

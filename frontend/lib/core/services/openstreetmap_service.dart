@@ -1,11 +1,11 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
-import '../constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 
 class OpenStreetMapService {
   static const String _userAgent = 'EVIK mobile app';

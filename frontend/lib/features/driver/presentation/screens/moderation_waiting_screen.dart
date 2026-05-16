@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../../../../core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 
 class ModerationWaitingScreen extends StatelessWidget {
   const ModerationWaitingScreen({super.key});

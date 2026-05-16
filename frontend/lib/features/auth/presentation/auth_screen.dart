@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/evik_colors.dart';
-import '../../../core/theme/evik_typography.dart';
-import '../../../shared/widgets/evik_button.dart';
-import '../../onboarding/presentation/screens/role_selection_screen.dart';
-import '../domain/entities/user.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
+import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'providers/auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {

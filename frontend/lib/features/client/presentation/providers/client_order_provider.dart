@@ -1,12 +1,12 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../map/domain/entities/map_location.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/repositories/order_repository.dart';
-import '../../../order/presentation/providers/order_provider.dart';
-import '../../data/services/pricing_service.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/features/client/data/services/pricing_service.dart';
 
 enum ClientHomeUIState {
   idle,

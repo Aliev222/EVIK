@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -120,7 +120,7 @@ class IoApiClient implements ApiClient {
             method: method,
             path: path,
             statusCode: 408,
-            message: 'Превышено время ожидания ответа',
+            message: '��������� ����� �������� ������',
             uri: _baseUri.resolve(path),
           );
         }
@@ -131,7 +131,7 @@ class IoApiClient implements ApiClient {
             method: method,
             path: path,
             statusCode: 0,
-            message: 'Нет подключения к интернету',
+            message: '��� ����������� � ���������',
             uri: _baseUri.resolve(path),
           );
         }
@@ -161,30 +161,30 @@ class IoApiClient implements ApiClient {
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
 
     if (statusCode < 200 || statusCode >= 300) {
-      String errorMessage = 'Ошибка сети';
+      String errorMessage = '������ ����';
 
       switch (statusCode) {
         case 401:
-          errorMessage = 'Ошибка авторизации';
+          errorMessage = '������ �����������';
           break;
         case 403:
-          errorMessage = 'Доступ запрещен';
+          errorMessage = '������ ��������';
           break;
         case 404:
-          errorMessage = 'Ресурс не найден';
+          errorMessage = '������ �� ������';
           break;
         case 429:
-          errorMessage = 'Слишком много запросов. Попробуйте позже';
+          errorMessage = '������� ����� ��������. ���������� �����';
           break;
         case 500:
-          errorMessage = 'Ошибка сервера. Попробуйте позже';
+          errorMessage = '������ �������. ���������� �����';
           break;
         case 503:
-          errorMessage = 'Сервис временно недоступен';
+          errorMessage = '������ �������� ����������';
           break;
       }
 
-      // Если есть детали ошибки от сервера
+      // ���� ���� ������ ������ �� �������
       if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {
         final serverError = decoded['error'].toString();
         if (serverError.isNotEmpty && serverError != 'null') {

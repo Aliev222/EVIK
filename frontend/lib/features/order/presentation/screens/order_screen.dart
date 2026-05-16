@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/widgets/app_scaffold.dart';
-import '../../domain/entities/order.dart';
-import '../../domain/repositories/order_repository.dart';
-import '../state/order_state_notifier.dart';
+import 'package:tow_truck_frontend/core/widgets/app_scaffold.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/presentation/state/order_state_notifier.dart';
 import '../widgets/order_state_views.dart';
 
 class OrderScreen extends ConsumerWidget {

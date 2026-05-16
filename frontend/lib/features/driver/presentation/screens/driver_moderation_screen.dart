@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../providers/driver_moderation_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_moderation_provider.dart';
 
 class DriverModerationScreen extends ConsumerWidget {
   const DriverModerationScreen({

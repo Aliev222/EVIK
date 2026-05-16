@@ -1,9 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 
 class AddressSearchSheet extends StatefulWidget {
   const AddressSearchSheet({

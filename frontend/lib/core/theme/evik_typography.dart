@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'evik_colors.dart';
 
 class EvikTypography {
   static String get fontFamily => GoogleFonts.manrope().fontFamily!;
 
-  // Заголовки (точно как в Claude Design)
+  // ��������� (����� ��� � Claude Design)
   static TextStyle get h1 => GoogleFonts.manrope(
     fontSize: 40,
     fontWeight: FontWeight.w800,
@@ -27,7 +27,7 @@ class EvikTypography {
     color: EvikColors.primaryBlack,
   );
 
-  // Основной текст
+  // �������� �����
   static TextStyle get bodyLarge => GoogleFonts.manrope(
     fontSize: 15,
     fontWeight: FontWeight.w500,
@@ -47,7 +47,7 @@ class EvikTypography {
     color: EvikColors.gray500,
   );
 
-  // Специальные стили
+  // ����������� �����
   static TextStyle get caption => GoogleFonts.manrope(
     fontSize: 11,
     fontWeight: FontWeight.w700,

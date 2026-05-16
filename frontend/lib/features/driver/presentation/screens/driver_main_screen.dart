@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../domain/entities/driver_work_state.dart';
-import '../providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 import 'active_order_screen.dart';
 import 'driver_earnings_screen.dart';
 import 'driver_orders_history_screen.dart';

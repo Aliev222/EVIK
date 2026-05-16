@@ -1,11 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 
-import '../../../../core/network/api_client.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../domain/entities/active_order.dart';
-import '../../domain/entities/available_order.dart';
-import '../../domain/entities/driver.dart';
-import '../repository/driver_repository.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository/driver_repository.dart';
 
 class HttpDriverRepository implements DriverRepository {
   const HttpDriverRepository({

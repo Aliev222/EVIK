@@ -1,5 +1,5 @@
-import '../entities/order.dart';
-import '../entities/order_flow_state.dart';
+﻿import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 
 class CreateOrderCommand {
   const CreateOrderCommand({
@@ -31,6 +31,11 @@ abstract class OrderRepository {
 
   /// Получить заказ по ID
   Future<Order?> getOrder(String orderId);
+
+  /// Получить активный (не терминальный) заказ текущего пользователя.
+  /// Возвращает null, если активного заказа нет.
+  /// Роль (клиент/водитель) определяется бэкендом по JWT.
+  Future<Order?> getActiveOrder();
 
   /// Отменить заказ
   Future<void> cancelOrder(String orderId, {String? reason});

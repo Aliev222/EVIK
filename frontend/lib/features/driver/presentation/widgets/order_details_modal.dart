@@ -1,9 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class OrderDetailsModal extends StatefulWidget {
   const OrderDetailsModal({

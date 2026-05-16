@@ -1,11 +1,11 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../domain/entities/driver_onboarding.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 
 class DocumentCameraScreen extends StatelessWidget {
   const DocumentCameraScreen({

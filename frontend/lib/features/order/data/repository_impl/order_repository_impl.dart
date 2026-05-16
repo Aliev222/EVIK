@@ -1,10 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 
-import '../../../../core/network/api_client.dart';
-import '../../domain/entities/order.dart';
-import '../../domain/repositories/order_repository.dart';
-import '../datasource/order_remote_datasource.dart';
-import '../dto/order_dto.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/data/datasource/order_remote_datasource.dart';
+import 'package:tow_truck_frontend/features/order/data/dto/order_dto.dart';
 
 class OrderRepositoryImpl implements OrderRepository {
   OrderRepositoryImpl({required this.remote});

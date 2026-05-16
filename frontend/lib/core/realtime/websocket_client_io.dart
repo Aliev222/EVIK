@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'websocket_client.dart';
 
 const defaultWsUrl = String.fromEnvironment(

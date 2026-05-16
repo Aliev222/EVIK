@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 
 enum ClientTab { home, history, wallet, profile }
 

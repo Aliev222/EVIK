@@ -1,8 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/realtime_location_service.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../domain/entities/order.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 /// Провайдер для создания заказов через real-time сервис
 class RealTimeOrderNotifier extends StateNotifier<AsyncValue<String?>> {

@@ -1,4 +1,4 @@
-import '../entities/review.dart';
+﻿import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
 
 abstract class ReviewRepository {
   Future<Review> createReview(CreateReviewRequest request);

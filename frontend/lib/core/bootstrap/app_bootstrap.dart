@@ -1,7 +1,7 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../storage/key_value_storage.dart';
-import '../storage/secure_key_value_storage.dart';
+import 'package:tow_truck_frontend/core/storage/key_value_storage.dart';
+import 'package:tow_truck_frontend/core/storage/secure_key_value_storage.dart';
 
 final keyValueStorageProvider = Provider<KeyValueStorage>((ref) {
   return SecureKeyValueStorage();

@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../order/data/repository_impl/http_order_repository.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/entities/order_flow_state.dart';
-import '../../../order/presentation/providers/order_provider.dart';
-import '../providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class OrderCompletionScreen extends ConsumerStatefulWidget {
   const OrderCompletionScreen({super.key});

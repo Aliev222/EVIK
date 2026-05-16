@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../../order/domain/entities/order_flow_state.dart';
-import '../providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class TowTruckSelectionScreen extends ConsumerStatefulWidget {
   const TowTruckSelectionScreen({super.key});
@@ -60,7 +60,7 @@ class _TowTruckSelectionScreenState
       appBar: AppBar(
         backgroundColor: EvikColors.gray50,
         title: Text(
-          'Р’С‹Р±РµСЂРёС‚Рµ С‚РёРї СЌРІР°РєСѓР°С‚РѕСЂР°',
+          'Выберите тип эвакуатора',
           style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
         ),
         centerTitle: true,
@@ -100,7 +100,7 @@ class _TowTruckSelectionScreenState
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'РђРІС‚РѕРјРѕР±РёР»СЊ: ${orderFlowState.selectedVehicleType?.displayName ?? "РќРµ РІС‹Р±СЂР°РЅ"}',
+                      'Автомобиль: ${orderFlowState.selectedVehicleType?.displayName ?? "Не выбран"}',
                       style: EvikTypography.bodySmall,
                     ),
                   ],
@@ -110,13 +110,13 @@ class _TowTruckSelectionScreenState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Р Р°СЃСЃС‚РѕСЏРЅРёРµ: ${orderFlowState.distance.toStringAsFixed(1)} РєРј',
+                      'Расстояние: ${orderFlowState.distance.toStringAsFixed(1)} км',
                       style: EvikTypography.bodySmall.copyWith(
                         color: EvikColors.gray600,
                       ),
                     ),
                     Text(
-                      'Р‘Р°Р·РѕРІР°СЏ С†РµРЅР°: ${orderFlowState.estimatedPrice.round()} в‚Ѕ',
+                      'Базовая цена: ${orderFlowState.estimatedPrice.round()} ₽',
                       style: EvikTypography.bodySmall.copyWith(
                         color: EvikColors.accentOrange,
                         fontWeight: FontWeight.bold,
@@ -200,7 +200,7 @@ class _TowTruckSelectionScreenState
                   child: _PaymentChoice(
                     selected: paymentMethod == PaymentMethod.cash,
                     icon: Icons.payments_rounded,
-                    label: 'РќР°Р»РёС‡РЅС‹Рµ',
+                    label: 'Наличные',
                     onTap: () => ref
                         .read(orderFlowProvider.notifier)
                         .selectPaymentMethod(PaymentMethod.cash),
@@ -211,7 +211,7 @@ class _TowTruckSelectionScreenState
                   child: _PaymentChoice(
                     selected: paymentMethod == PaymentMethod.card,
                     icon: Icons.credit_card_rounded,
-                    label: 'РљР°СЂС‚Р°',
+                    label: 'Карта',
                     onTap: () => ref
                         .read(orderFlowProvider.notifier)
                         .selectPaymentMethod(PaymentMethod.card),
@@ -225,7 +225,7 @@ class _TowTruckSelectionScreenState
             child: SizedBox(
               width: double.infinity,
               child: EvikButton(
-                text: 'РќР°С‡Р°С‚СЊ РїРѕРёСЃРє РІРѕРґРёС‚РµР»СЏ',
+                text: 'Начать поиск водителя',
                 onPressed: orderFlowState.selectedTowTruckType != null
                     ? _continueToDriverSearch
                     : null,
@@ -257,7 +257,7 @@ class TowTruckCard extends StatelessWidget {
 
   String get _priceText {
     final price = basePrice.round();
-    return '$price в‚Ѕ';
+    return '$price ₽';
   }
 
   @override

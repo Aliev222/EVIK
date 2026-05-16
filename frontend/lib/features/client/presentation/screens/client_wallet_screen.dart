@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../../shared/widgets/empty_state.dart';
-import '../../../../shared/widgets/error_state.dart';
-import '../../../../shared/widgets/evik_button.dart';
-import '../../../../shared/widgets/skeleton_card.dart';
-import '../../domain/entities/payment_wallet.dart';
-import '../providers/client_payment_methods_provider.dart';
-import '../providers/payment_wallet_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
+import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
+import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/shared/widgets/skeleton_card.dart';
+import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/client_payment_methods_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/payment_wallet_provider.dart';
 
 class ClientWalletScreen extends ConsumerStatefulWidget {
   const ClientWalletScreen({super.key});

@@ -1,7 +1,7 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'driver_verification_provider.dart';
 import 'driver_tax_profile_provider.dart';
 

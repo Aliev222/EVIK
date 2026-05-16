@@ -1,13 +1,13 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../domain/entities/driver_onboarding.dart';
-import '../../../order/domain/entities/order.dart';
-import '../../data/repository/driver_verification_repository.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository/driver_verification_repository.dart';
 
 class DriverOnboardingState {
   const DriverOnboardingState({

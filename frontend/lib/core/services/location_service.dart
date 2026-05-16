@@ -1,8 +1,8 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
 
-import '../../features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'openstreetmap_service.dart';
 
 class LocationService {
@@ -24,10 +24,12 @@ class LocationService {
         throw const LocationException('Доступ к геолокации не разрешен');
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
-      );
+      final cachedPosition = await Geolocator.getLastKnownPosition();
+      final position = cachedPosition ??
+          await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 6),
+          );
 
       final address = await _getAddressByCoordinates(
         position.latitude,

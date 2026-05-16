@@ -1,20 +1,20 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../../../core/bootstrap/app_bootstrap.dart';
-import '../../../../core/constants/app_constants.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/bootstrap/app_bootstrap.dart';
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../../core/network/auth_retry_coordinator.dart';
-import '../../../../core/notifications/push_notification_service.dart';
-import '../../../../core/storage/key_value_storage.dart';
-import '../../domain/entities/user.dart';
+import 'package:tow_truck_frontend/core/network/auth_retry_coordinator.dart';
+import 'package:tow_truck_frontend/core/notifications/push_notification_service.dart';
+import 'package:tow_truck_frontend/core/storage/key_value_storage.dart';
+import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 
 const _accessTokenKey = 'auth_access_token';
 const _refreshTokenKey = 'auth_refresh_token';
@@ -43,6 +43,7 @@ class AuthState {
     this.user,
     this.accessToken,
     this.isLoading = false,
+    this.isRestoring = true,
     this.errorMessage,
     this.phoneNumber,
     this.pendingFullName,
@@ -55,6 +56,10 @@ class AuthState {
   final User? user;
   final String? accessToken;
   final bool isLoading;
+  // True while restoring a persisted session at startup — router holds on a
+  // splash until this flips to false, so a signed-in user never briefly sees
+  // the auth screen.
+  final bool isRestoring;
   final String? errorMessage;
   final String? phoneNumber;
   final String? pendingFullName;
@@ -71,6 +76,7 @@ class AuthState {
     String? accessToken,
     bool clearAccessToken = false,
     bool? isLoading,
+    bool? isRestoring,
     String? errorMessage,
     bool clearError = false,
     String? phoneNumber,
@@ -88,6 +94,7 @@ class AuthState {
       user: user ?? this.user,
       accessToken: clearAccessToken ? null : accessToken ?? this.accessToken,
       isLoading: isLoading ?? this.isLoading,
+      isRestoring: isRestoring ?? this.isRestoring,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       phoneNumber: clearPendingAuth ? null : phoneNumber ?? this.phoneNumber,
       pendingFullName:
@@ -195,7 +202,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isLoading: false,
         errorMessage:
-            'Р’РІРµРґРёС‚Рµ РєРѕСЂСЂРµРєС‚РЅС‹Р№ РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР°.',
+            'Введите корректный номер телефона.',
       );
       return;
     }
@@ -205,7 +212,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(
         isLoading: false,
         errorMessage:
-            'Р’РІРµРґРёС‚Рµ РёРјСЏ РЅРµ РєРѕСЂРѕС‡Рµ 2 СЃРёРјРІРѕР»РѕРІ.',
+            'Введите имя не короче 2 символов.',
       );
       return;
     }
@@ -237,7 +244,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final sanitizedCode = code.replaceAll(RegExp(r'[^\d]'), '');
     if (sanitizedCode.length != 6) {
       state =
-          state.copyWith(errorMessage: 'Р’РІРµРґРёС‚Рµ 6 С†РёС„СЂ РёР· SMS.');
+          state.copyWith(errorMessage: 'Введите 6 цифр из SMS.');
       return;
     }
 
@@ -247,25 +254,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (phoneNumber == null || fullName == null || role == null) {
       state = state.copyWith(
         errorMessage:
-            'РЎРµСЃСЃРёСЏ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РёСЃС‚РµРєР»Р°. Р—Р°РїСЂРѕСЃРёС‚Рµ РєРѕРґ Р·Р°РЅРѕРІРѕ.',
+            'Сессия подтверждения истекла. Запросите код заново.',
       );
       return;
     }
 
-    // В мок-режиме принимаем любой 6-значный код
+    // � ���-������ ��������� ����� 6-������� ���
     if (AppConstants.useMockData) {
       debugPrint('[MOCK AUTH] Accepting any 6-digit code: $sanitizedCode');
       final userID = _deriveUserID(phoneNumber);
       if (userID == null) {
         state = state.copyWith(
-          errorMessage: 'Не удалось сформировать идентификатор пользователя.',
+          errorMessage: '�� ������� ������������ ������������� ������������.',
         );
         return;
       }
 
       state = state.copyWith(isLoading: true, clearError: true);
 
-      // Имитируем небольшую задержку
+      // ��������� ��������� ��������
       await Future.delayed(const Duration(milliseconds: 800));
 
       try {
@@ -320,12 +327,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     }
 
-    // Оригинальная логика для продакшена
+    // ������������ ������ ��� ����������
     final userID = _deriveUserID(phoneNumber);
     if (userID == null) {
       state = state.copyWith(
         errorMessage:
-            'РќРµ СѓРґР°Р»РѕСЃСЊ СЃС„РѕСЂРјРёСЂРѕРІР°С‚СЊ РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.',
+            'Не удалось сформировать идентификатор пользователя.',
       );
       return;
     }
@@ -384,7 +391,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (phoneNumber == null || fullName == null || role == null) {
       state = state.copyWith(
         errorMessage:
-            'РЎРµСЃСЃРёСЏ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РёСЃС‚РµРєР»Р°. Р—Р°РїСЂРѕСЃРёС‚Рµ РєРѕРґ Р·Р°РЅРѕРІРѕ.',
+            'Сессия подтверждения истекла. Запросите код заново.',
       );
       return;
     }
@@ -430,7 +437,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ СЂРѕР»СЊ.',
+        errorMessage: 'Не удалось обновить роль.',
       );
     }
   }
@@ -495,50 +502,58 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _restoreSession() async {
-    final accessToken = await _storage.read(_accessTokenKey);
-    final refreshToken = await _storage.read(_refreshTokenKey);
-    final savedUser = await _readSavedUser();
-    if (accessToken == null || refreshToken == null) {
-      return;
-    }
-
-    String activeAccess = accessToken;
     try {
-      final identity = await _api.me(accessToken: activeAccess);
-      final restored = _composeUser(
-        identity: identity,
-        fallback: savedUser,
-      );
-      state = state.copyWith(
-        user: restored,
-        accessToken: activeAccess,
-        isLoading: false,
-      );
-      unawaited(_syncFcmTokenForSession(restored, activeAccess));
-      return;
-    } catch (_) {
-      // Try refresh once and retry me.
-    }
+      final accessToken = await _storage.read(_accessTokenKey);
+      final refreshToken = await _storage.read(_refreshTokenKey);
+      final savedUser = await _readSavedUser();
+      if (accessToken == null || refreshToken == null) {
+        return;
+      }
 
-    try {
-      final tokens = await _api.refresh(refreshToken: refreshToken);
-      activeAccess = tokens.accessToken;
-      await _storage.write(_accessTokenKey, tokens.accessToken);
-      await _storage.write(_refreshTokenKey, tokens.refreshToken);
-      final identity = await _api.me(accessToken: activeAccess);
-      final restored = _composeUser(
-        identity: identity,
-        fallback: savedUser,
-      );
-      await _storage.write(_userKey, jsonEncode(restored.toMap()));
-      state = state.copyWith(
-        user: restored,
-        accessToken: activeAccess,
-        isLoading: false,
-      );
-      unawaited(_syncFcmTokenForSession(restored, activeAccess));
-    } catch (_) {
-      await signOut();
+      String activeAccess = accessToken;
+      try {
+        final identity = await _api.me(accessToken: activeAccess);
+        final restored = _composeUser(
+          identity: identity,
+          fallback: savedUser,
+        );
+        state = state.copyWith(
+          user: restored,
+          accessToken: activeAccess,
+          isLoading: false,
+        );
+        unawaited(_syncFcmTokenForSession(restored, activeAccess));
+        return;
+      } catch (_) {
+        // Try refresh once and retry me.
+      }
+
+      try {
+        final tokens = await _api.refresh(refreshToken: refreshToken);
+        activeAccess = tokens.accessToken;
+        await _storage.write(_accessTokenKey, tokens.accessToken);
+        await _storage.write(_refreshTokenKey, tokens.refreshToken);
+        final identity = await _api.me(accessToken: activeAccess);
+        final restored = _composeUser(
+          identity: identity,
+          fallback: savedUser,
+        );
+        await _storage.write(_userKey, jsonEncode(restored.toMap()));
+        state = state.copyWith(
+          user: restored,
+          accessToken: activeAccess,
+          isLoading: false,
+        );
+        unawaited(_syncFcmTokenForSession(restored, activeAccess));
+      } catch (_) {
+        await signOut();
+      }
+    } finally {
+      // Notifier may be disposed before async restore finishes (tests,
+      // hot-restart). Writing to `state` post-dispose throws — guard it.
+      if (mounted) {
+        state = state.copyWith(isRestoring: false);
+      }
     }
   }
 
@@ -693,14 +708,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _loginErrorMessage(Object error) {
-    const fallback = 'Не удалось выполнить вход через сервер.';
+    const fallback = '�� ������� ��������� ���� ����� ������.';
     if (error is! ApiClientException) {
       return fallback;
     }
     if (error.path == '/api/v1/auth/login') {
       return switch (error.statusCode) {
-        401 => 'Неверные учетные данные.',
-        429 => 'Слишком много попыток. Попробуйте позже.',
+        401 => '�������� ������� ������.',
+        429 => '������� ����� �������. ���������� �����.',
         _ => fallback,
       };
     }

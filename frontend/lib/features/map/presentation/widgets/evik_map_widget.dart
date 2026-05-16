@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../domain/entities/map_location.dart';
-import '../../presentation/providers/map_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/map/presentation/providers/map_provider.dart';
 import 'evik_osm_map_view.dart';
 
 class EvikMapWidget extends ConsumerWidget {

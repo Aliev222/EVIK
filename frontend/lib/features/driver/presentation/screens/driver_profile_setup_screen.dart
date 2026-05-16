@@ -1,15 +1,15 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../domain/entities/driver_onboarding.dart';
-import '../../../order/domain/entities/order.dart';
-import '../providers/driver_onboarding_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_onboarding_provider.dart';
 
 class DriverProfileSetupScreen extends ConsumerStatefulWidget {
   const DriverProfileSetupScreen({super.key});

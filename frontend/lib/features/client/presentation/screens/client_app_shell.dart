@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../widgets/client_bottom_nav.dart';
+import 'package:tow_truck_frontend/features/client/presentation/widgets/client_bottom_nav.dart';
 import 'client_history_screen.dart';
 import 'client_home_screen.dart';
 import 'client_profile_screen.dart';

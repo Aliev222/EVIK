@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../../core/theme/evik_typography.dart';
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../onboarding/presentation/screens/role_selection_screen.dart';
-import '../../../review/domain/entities/review.dart';
-import '../../../review/presentation/providers/review_provider.dart';
-import '../../domain/entities/driver.dart';
-import '../providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
+import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
+import 'package:tow_truck_frontend/features/review/presentation/providers/review_provider.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 
 // Provider for driver profile data
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {

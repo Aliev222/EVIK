@@ -1,13 +1,13 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../domain/entities/driver_onboarding.dart';
-import '../providers/driver_onboarding_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_onboarding_provider.dart';
 import 'document_camera_screen.dart';
 import 'driver_profile_setup_screen.dart';
 

@@ -1,9 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
-import '../../../../core/network/api_client.dart';
-import '../../domain/entities/order.dart';
-import '../../domain/entities/order_flow_state.dart';
-import '../../domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class HttpOrderRepository implements OrderRepository {
   const HttpOrderRepository({
@@ -116,6 +116,17 @@ class HttpOrderRepository implements OrderRepository {
       headers: _authHeaders,
     );
     return Order.fromMap(response['order'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Order?> getActiveOrder() async {
+    final response = await _apiClient.get(
+      '/api/v1/orders/active',
+      headers: _authHeaders,
+    );
+    final raw = response['order'];
+    if (raw == null) return null;
+    return Order.fromMap(raw as Map<String, dynamic>);
   }
 
   @override

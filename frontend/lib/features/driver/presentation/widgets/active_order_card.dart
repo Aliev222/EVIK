@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../order/domain/entities/order.dart';
-import '../providers/driver_navigation_provider.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_navigation_provider.dart';
 
 class DriverActiveOrderCard extends ConsumerWidget {
   const DriverActiveOrderCard({

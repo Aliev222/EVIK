@@ -1,21 +1,21 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client.dart';
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../../core/realtime/event_dispatcher.dart';
-import '../../../../core/realtime/websocket_client.dart';
-import '../../../../core/realtime/websocket_client_stub.dart'
+import 'package:tow_truck_frontend/core/realtime/event_dispatcher.dart';
+import 'package:tow_truck_frontend/core/realtime/websocket_client.dart';
+import 'package:tow_truck_frontend/core/realtime/websocket_client_stub.dart'
     if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
     as platform_ws;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../data/repository_impl/order_repository_impl.dart';
-import '../../domain/entities/order.dart';
-import '../../domain/repositories/order_repository.dart';
-import '../../domain/usecases/create_order_usecase.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/order/data/repository_impl/order_repository_impl.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
+import 'package:tow_truck_frontend/features/order/domain/usecases/create_order_usecase.dart';
 
 class OrderUiState {
   const OrderUiState({

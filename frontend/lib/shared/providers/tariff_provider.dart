@@ -1,6 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/tariff_model.dart';
+import 'package:tow_truck_frontend/shared/models/tariff_model.dart';
 
 class TariffRepository {
   const TariffRepository();

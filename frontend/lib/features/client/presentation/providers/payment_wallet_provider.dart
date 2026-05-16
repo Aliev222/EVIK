@@ -1,13 +1,13 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/network/api_client_stub.dart'
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../data/repositories/payment_repository.dart';
-import '../../domain/entities/payment_wallet.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/client/data/repositories/payment_repository.dart';
+import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   final token = ref.watch(authProvider.select((state) => state.accessToken));

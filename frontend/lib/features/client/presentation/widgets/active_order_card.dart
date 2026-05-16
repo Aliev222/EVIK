@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
-import '../../../../core/theme/evik_colors.dart';
-import '../../../driver/domain/entities/driver.dart';
-import '../../../order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class ActiveOrderCard extends StatelessWidget {
   const ActiveOrderCard({
