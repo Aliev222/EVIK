@@ -260,6 +260,74 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 
+// GetActiveOrder returns the caller's currently active (non-terminal) order, if any.
+//
+// For clients: searches their own orders across searching/accepted/arrived/in_progress.
+// For drivers: searches orders assigned to them across accepted/arrived/in_progress
+// (searching orders are the pool, not yet assigned).
+//
+// @Summary      Get the caller's active order
+// @Description  Returns the single non-terminal order belonging to the authenticated user, or null if there is none.
+// @Tags         orders
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  SingleOrderResponse
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Router       /orders/active [get]
+func (h *OrderHandler) GetActiveOrder(w http.ResponseWriter, r *http.Request) {
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var statuses []orderdomain.Status
+	switch role {
+	case auth.RoleClient:
+		statuses = []orderdomain.Status{
+			orderdomain.StatusSearching,
+			orderdomain.StatusAccepted,
+			orderdomain.StatusArrived,
+			orderdomain.StatusInProgress,
+		}
+	case auth.RoleDriver:
+		statuses = []orderdomain.Status{
+			orderdomain.StatusAccepted,
+			orderdomain.StatusArrived,
+			orderdomain.StatusInProgress,
+		}
+	default:
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	for _, status := range statuses {
+		var orders []*orderdomain.Order
+		var listErr error
+		if role == auth.RoleClient {
+			orders, listErr = h.orderRepo.ListByUserID(r.Context(), userID, status, 1)
+		} else {
+			orders, listErr = h.orderRepo.ListByDriverID(r.Context(), userID, status, 1)
+		}
+		if listErr != nil {
+			h.writeError(w, http.StatusInternalServerError, listErr)
+			return
+		}
+		if len(orders) > 0 {
+			h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(orders[0])})
+			return
+		}
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]any{"order": nil})
+}
+
 func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	var req acceptOrderRequest

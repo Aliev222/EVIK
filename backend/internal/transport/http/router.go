@@ -59,6 +59,7 @@ func NewRouter(
 
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders", orderHandler.CreateOrder)
 			secured.Get("/orders", orderHandler.ListOrders)
+			secured.Get("/orders/active", orderHandler.GetActiveOrder)
 			secured.Get("/orders/{orderID}", orderHandler.GetOrder)
 			secured.Get("/orders/{orderID}/review", adminHandler.GetOrderReview)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders/{orderID}/payments", paymentHandler.CreateOrderPayment)
