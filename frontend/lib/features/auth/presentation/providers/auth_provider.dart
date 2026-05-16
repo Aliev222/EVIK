@@ -734,7 +734,10 @@ class BackendAuthApi {
         'role': role.name,
         'password': password,
       });
-      return AuthResult.fromJson(json);
+      final tokens =
+          AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>);
+      final identity = await me(accessToken: tokens.accessToken);
+      return AuthResult(tokens: tokens, identity: identity);
     }
   }
 
