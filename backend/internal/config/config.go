@@ -42,6 +42,7 @@ type Config struct {
 	BalanceReleaseInterval     time.Duration
 	DriverSubscriptionRequired bool
 	ExposeSwagger              bool
+	FirebaseCredentialsJSON    string
 }
 
 func MustLoad() Config {
@@ -82,6 +83,7 @@ func MustLoad() Config {
 		BalanceReleaseInterval:     getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
+		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 	}
 	validateProductionConfig(cfg)
 	return cfg

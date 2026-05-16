@@ -19,6 +19,7 @@ type AcceptOrderUseCase struct {
 	orderRepo      orderdomain.Repository
 	driverRepo     DriverOrderRepository
 	eventPublisher EventPublisher
+	pushSender     PushSender
 	clock          Clock
 	logger         Logger
 }
@@ -27,6 +28,7 @@ func NewAcceptOrderUseCase(
 	orderRepo orderdomain.Repository,
 	driverRepo DriverOrderRepository,
 	eventPublisher EventPublisher,
+	pushSender PushSender,
 	clock Clock,
 	logger Logger,
 ) *AcceptOrderUseCase {
@@ -34,6 +36,7 @@ func NewAcceptOrderUseCase(
 		orderRepo:      orderRepo,
 		driverRepo:     driverRepo,
 		eventPublisher: eventPublisher,
+		pushSender:     pushSender,
 		clock:          clock,
 		logger:         logger,
 	}
@@ -101,7 +104,31 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 		return nil, err
 	}
 
+	uc.notifyClientAccepted(ctx, ord, driverID)
+
 	return ord, nil
+}
+
+// notifyClientAccepted fires a "водитель в пути" push at the client when a
+// driver takes the order. Errors are logged and swallowed so push failures
+// never roll back a successful assignment.
+func (uc *AcceptOrderUseCase) notifyClientAccepted(parent context.Context, ord *orderdomain.Order, driverID string) {
+	if uc.pushSender == nil {
+		return
+	}
+	pushCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+	defer cancel()
+
+	title := "Водитель в пути"
+	body := "Эвакуатор найден и едет к вам"
+	data := map[string]string{
+		"type":      "order_accepted",
+		"order_id":  ord.ID,
+		"driver_id": driverID,
+	}
+	if err := uc.pushSender.SendToUser(pushCtx, ord.UserID, "client", title, body, data); err != nil {
+		uc.logger.Error("failed to send accepted push to client", err, "order_id", ord.ID, "user_id", ord.UserID)
+	}
 }
 
 func (uc *AcceptOrderUseCase) tryRecoverDriverAvailability(

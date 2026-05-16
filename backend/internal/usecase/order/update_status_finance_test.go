@@ -26,7 +26,7 @@ func TestUpdateStatusCompletedCompletesFinanceWithoutPayoutRequest(t *testing.T)
 	driverRepo := &fakeDriverOrderRepository{}
 	publisher := &fakeEventPublisher{}
 	finance := &fakeCompletionFinance{}
-	uc := NewUpdateStatusUseCase(orderRepo, driverRepo, publisher, finance, fakeClock{now: now})
+	uc := NewUpdateStatusUseCase(orderRepo, driverRepo, publisher, finance, nil, fakeClock{now: now}, fakeLogger{})
 
 	ord, err := uc.Execute(context.Background(), "order-1", orderdomain.StatusCompleted)
 	if err != nil {

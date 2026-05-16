@@ -145,6 +145,59 @@ ON CONFLICT (fcm_token) DO UPDATE SET
 	return err
 }
 
+// ListActiveDeviceTokens returns all non-revoked FCM tokens registered for the
+// given (user_id, role) pair. Used by the FCM sender to fan out a push to
+// every device the user is currently signed in on.
+func (r *UserRepository) ListActiveDeviceTokens(ctx context.Context, userID string, role string) ([]string, error) {
+	const query = `
+SELECT fcm_token
+FROM user_device_tokens
+WHERE user_id = $1 AND role = $2 AND revoked_at IS NULL`
+	rows, err := r.db.QueryContext(ctx, query, userID, role)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, rows.Err()
+}
+
+// ListAvailableDriverDeviceTokens returns FCM tokens for drivers who are
+// currently online AND not busy with another order — the broadcast target
+// when a new order is created. Joins drivers on users.id to filter by the
+// live availability flag rather than relying on stale device-token state.
+func (r *UserRepository) ListAvailableDriverDeviceTokens(ctx context.Context) ([]string, error) {
+	const query = `
+SELECT udt.fcm_token
+FROM user_device_tokens AS udt
+JOIN drivers AS d ON d.user_id = udt.user_id
+WHERE udt.role = 'driver'
+  AND udt.revoked_at IS NULL
+  AND d.status = 'online'
+  AND d.current_order_id IS NULL`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, rows.Err()
+}
+
 func (r *UserRepository) RevokeDeviceToken(ctx context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 UPDATE user_device_tokens

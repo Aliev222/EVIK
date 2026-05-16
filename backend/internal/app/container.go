@@ -16,6 +16,7 @@ import (
 	domainmatching "evik/backend/internal/domain/matching"
 	pricingdomain "evik/backend/internal/domain/pricing"
 	routingdomain "evik/backend/internal/domain/routing"
+	"evik/backend/internal/infrastructure/fcm"
 	httpinfra "evik/backend/internal/infrastructure/http"
 	"evik/backend/internal/infrastructure/postgres"
 	redisinfra "evik/backend/internal/infrastructure/redis"
@@ -154,10 +155,26 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired)
 
+	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
+	// is empty so local/dev runs without Firebase credentials still boot cleanly.
+	var pushSender orderuc.PushSender
+	if cfg.FirebaseCredentialsJSON == "" {
+		pushSender = fcm.NewNoop()
+		logger.Printf("INFO: FIREBASE_CREDENTIALS_JSON not set — using noop FCM sender")
+	} else {
+		realSender, err := fcm.New(context.Background(), []byte(cfg.FirebaseCredentialsJSON), userRepo, appLogger)
+		if err != nil {
+			logger.Printf("WARN: failed to init FCM sender, falling back to noop: %v", err)
+			pushSender = fcm.NewNoop()
+		} else {
+			pushSender = realSender
+		}
+	}
+
 	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
-	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, createTransactionUC, eventPublisher, clock, idGen, appLogger)
-	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
-	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, financeUC, clock)
+	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, createTransactionUC, eventPublisher, pushSender, clock, idGen, appLogger)
+	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
+	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, financeUC, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, clock, appLogger)
 
