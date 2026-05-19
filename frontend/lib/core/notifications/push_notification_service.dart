@@ -33,6 +33,7 @@ class PushNotificationService {
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
   void Function(String route)? _routeHandler;
+  String? Function()? _currentRouteResolver;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -44,7 +45,7 @@ class PushNotificationService {
     await _initializeLocalNotifications();
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
-      alert: true,
+      alert: false,
       badge: true,
       sound: true,
     );
@@ -64,6 +65,10 @@ class PushNotificationService {
 
   void setRouteHandler(void Function(String route) handler) {
     _routeHandler = handler;
+  }
+
+  void setCurrentRouteResolver(String? Function() resolver) {
+    _currentRouteResolver = resolver;
   }
 
   Future<String?> getToken() {
@@ -127,6 +132,13 @@ class PushNotificationService {
       return;
     }
 
+    if (route != null) {
+      final currentRoute = _currentRouteResolver?.call();
+      if (currentRoute != null && currentRoute == route) {
+        return;
+      }
+    }
+
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -137,6 +149,7 @@ class PushNotificationService {
             overflow: TextOverflow.ellipsis,
           ),
           behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
           duration: const Duration(seconds: 6),
           action: route == null
               ? null

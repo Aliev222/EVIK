@@ -49,6 +49,8 @@ void main() async {
 
   PushNotificationService.instance
       .setRouteHandler(EvikApp.navigateFromNotification);
+  PushNotificationService.instance
+      .setCurrentRouteResolver(EvikApp.currentRoute);
   await PushNotificationService.instance.initialize();
 
   runApp(
@@ -64,6 +66,10 @@ class EvikApp extends StatelessWidget {
 
   static void navigateFromNotification(String route) {
     _router.go(route);
+  }
+
+  static String? currentRoute() {
+    return _router.routerDelegate.currentConfiguration.uri.toString();
   }
 
   static final GoRouter _router = GoRouter(
