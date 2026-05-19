@@ -666,7 +666,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return User(
         id: identity.userID,
         phone: '',
-        fullName: 'EVIK User',
+        fullName: 'Tow Truck User',
         role: identity.role,
         avatar: null,
         isActive: true,

@@ -6,6 +6,7 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 
 part 'order_flow_state.freezed.dart';
 part 'order_flow_state.g.dart';
@@ -58,6 +59,9 @@ class OrderFlowState with _$OrderFlowState {
     @Default(0) int searchDurationSeconds,
     @Default(0.0) double estimatedPrice,
     @Default(0.0) double distance,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default(<TowTruckType, Tariff>{})
+    Map<TowTruckType, Tariff> tariffs,
   }) = _OrderFlowState;
 
   factory OrderFlowState.fromJson(Map<String, dynamic> json) =>

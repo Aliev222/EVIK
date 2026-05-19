@@ -22,7 +22,7 @@ class PushNotificationService {
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
     'evik_fcm_high_importance',
-    'EVIK alerts',
+    'Tow Truck alerts',
     description: 'Order, payment, and driver status alerts',
     importance: Importance.high,
   );
@@ -156,7 +156,7 @@ class PushNotificationService {
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'evik_fcm_high_importance',
-        'EVIK alerts',
+        'Tow Truck alerts',
         channelDescription: 'Order, payment, and driver status alerts',
         importance: Importance.high,
         priority: Priority.high,
@@ -224,7 +224,7 @@ class PushNotificationService {
   String _notificationTitle(RemoteMessage message) {
     return message.notification?.title ??
         message.data['title']?.toString() ??
-        'EVIK';
+        'Tow Truck';
   }
 
   String _notificationBody(RemoteMessage message) {

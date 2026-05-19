@@ -3,6 +3,7 @@
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class HttpOrderRepository implements OrderRepository {
@@ -95,6 +96,20 @@ class HttpOrderRepository implements OrderRepository {
       headers: _authHeaders,
     );
     return OrderReceipt.fromJson(response);
+  }
+
+  @override
+  Future<List<Tariff>> getTariffs() async {
+    final response = await _apiClient.get(
+      '/api/v1/pricing/tariffs',
+      headers: _authHeaders,
+    );
+    final raw = response['tariffs'] as List<dynamic>? ?? const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(Tariff.fromJson)
+        .whereType<Tariff>()
+        .toList();
   }
 
   @override

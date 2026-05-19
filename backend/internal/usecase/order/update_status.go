@@ -81,7 +81,7 @@ func (uc *UpdateStatusUseCase) notifyClientStatusChange(parent context.Context, 
 		body = "Водитель ожидает вас в точке подачи"
 	case orderdomain.StatusCompleted:
 		title = "Заказ завершён"
-		body = "Спасибо, что воспользовались EVIK"
+		body = "Спасибо, что воспользовались Tow Truck"
 	default:
 		return
 	}

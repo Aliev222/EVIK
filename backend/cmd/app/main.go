@@ -20,7 +20,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// @title           EVIK Backend API
+// @title           Tow Truck Backend API
 // @version         1.0
 // @description     Tow truck marketplace API — orders, drivers, payments, payouts, admin.
 // @BasePath        /api/v1

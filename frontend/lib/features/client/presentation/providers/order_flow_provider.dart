@@ -13,6 +13,7 @@ import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dar
 import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 import 'payment_wallet_provider.dart';
@@ -66,6 +67,22 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       currentStep: OrderFlowStep.vehicleSelection,
       errorMessage: null,
     );
+    unawaited(_loadTariffs());
+  }
+
+  Future<void> _loadTariffs() async {
+    if (state.tariffs.isNotEmpty) return;
+    try {
+      final repo = _ref.read(orderRepositoryProvider);
+      final list = await repo.getTariffs();
+      if (list.isEmpty) return;
+      final map = <TowTruckType, Tariff>{
+        for (final t in list) t.towTruckType: t,
+      };
+      state = state.copyWith(tariffs: map);
+    } catch (_) {
+      // best-effort: ошибка загрузки тарифов не блокирует выбор
+    }
   }
 
   void goToTowTruckSelection() {

@@ -218,7 +218,7 @@ definitions:
 info:
   contact: {}
   description: Tow truck marketplace API — orders, drivers, payments, payouts, admin.
-  title: EVIK Backend API
+  title: Tow Truck Backend API
   version: "1.0"
 paths:
   /auth/login:

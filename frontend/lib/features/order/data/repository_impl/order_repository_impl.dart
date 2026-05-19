@@ -2,6 +2,7 @@
 
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 import 'package:tow_truck_frontend/features/order/data/datasource/order_remote_datasource.dart';
 import 'package:tow_truck_frontend/features/order/data/dto/order_dto.dart';
@@ -46,6 +47,9 @@ class OrderRepositoryImpl implements OrderRepository {
     _controllerFor(orderId).add(cancelled.state);
     return cancelled;
   }
+
+  @override
+  Future<List<Tariff>> getTariffs() async => const <Tariff>[];
 
   @override
   Stream<OrderState> watchOrderState(String orderId) {

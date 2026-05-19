@@ -687,7 +687,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
-	Title:            "EVIK Backend API",
+	Title:            "Tow Truck Backend API",
 	Description:      "Tow truck marketplace API — orders, drivers, payments, payouts, admin.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
