@@ -8,6 +8,7 @@ import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class VehicleSelectionScreen extends ConsumerWidget {
@@ -29,9 +30,12 @@ class VehicleSelectionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(orderFlowProvider);
     final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
+    final hasPrice = state.estimatedPrice > 0 ||
+        (state.selectedTowTruckType != null &&
+            state.tariffs[state.selectedTowTruckType] != null);
     final canStart = state.selectedVehicleType != null &&
         state.selectedTowTruckType != null &&
-        state.estimatedPrice > 0 &&
+        hasPrice &&
         !state.isLoading;
 
     return Scaffold(
@@ -76,6 +80,8 @@ class VehicleSelectionScreen extends ConsumerWidget {
                           towTrucks: _towTruckTypes,
                           selected: state.selectedTowTruckType,
                           estimatedPrice: state.estimatedPrice,
+                          tariffs: state.tariffs,
+                          distanceKm: state.distance,
                           onSelected: (type) => ref
                               .read(orderFlowProvider.notifier)
                               .selectTowTruckType(type),
@@ -523,12 +529,16 @@ class _TowTruckSelector extends StatelessWidget {
     required this.towTrucks,
     required this.selected,
     required this.estimatedPrice,
+    required this.tariffs,
+    required this.distanceKm,
     required this.onSelected,
   });
 
   final List<TowTruckType> towTrucks;
   final TowTruckType? selected;
   final double estimatedPrice;
+  final Map<TowTruckType, Tariff> tariffs;
+  final double distanceKm;
   final ValueChanged<TowTruckType> onSelected;
 
   @override
@@ -541,12 +551,20 @@ class _TowTruckSelector extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final type = towTrucks[index];
+          final isSelected = selected == type;
+          int? price;
+          if (isSelected && estimatedPrice > 0) {
+            price = estimatedPrice.round();
+          } else {
+            final tariff = tariffs[type];
+            if (tariff != null) {
+              price = tariff.estimateRub(distanceKm).round();
+            }
+          }
           return _TowTruckCard(
             towTruck: type,
-            selected: selected == type,
-            price: selected == type && estimatedPrice > 0
-                ? estimatedPrice.round()
-                : 0,
+            selected: isSelected,
+            price: price,
             onTap: () => onSelected(type),
           );
         },
@@ -565,7 +583,7 @@ class _TowTruckCard extends StatelessWidget {
 
   final TowTruckType towTruck;
   final bool selected;
-  final int price;
+  final int? price;
   final VoidCallback onTap;
 
   @override
@@ -623,7 +641,7 @@ class _TowTruckCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '$price ₽',
+                    price == null ? '—' : '$price ₽',
                     style: EvikTypography.bodyLarge.copyWith(
                       color: EvikColors.primaryBlack,
                       fontWeight: FontWeight.w900,

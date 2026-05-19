@@ -44,6 +44,8 @@ mixin _$OrderFlowState {
   int get searchDurationSeconds => throw _privateConstructorUsedError;
   double get estimatedPrice => throw _privateConstructorUsedError;
   double get distance => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  Map<TowTruckType, Tariff> get tariffs => throw _privateConstructorUsedError;
 
   /// Serializes this OrderFlowState to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -84,7 +86,9 @@ abstract class $OrderFlowStateCopyWith<$Res> {
       String? receiptError,
       int searchDurationSeconds,
       double estimatedPrice,
-      double distance});
+      double distance,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      Map<TowTruckType, Tariff> tariffs});
 }
 
 /// @nodoc
@@ -122,6 +126,7 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
     Object? searchDurationSeconds = null,
     Object? estimatedPrice = null,
     Object? distance = null,
+    Object? tariffs = null,
   }) {
     return _then(_value.copyWith(
       currentStep: null == currentStep
@@ -204,6 +209,10 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
           ? _value.distance
           : distance // ignore: cast_nullable_to_non_nullable
               as double,
+      tariffs: null == tariffs
+          ? _value.tariffs
+          : tariffs // ignore: cast_nullable_to_non_nullable
+              as Map<TowTruckType, Tariff>,
     ) as $Val);
   }
 }
@@ -239,7 +248,9 @@ abstract class _$$OrderFlowStateImplCopyWith<$Res>
       String? receiptError,
       int searchDurationSeconds,
       double estimatedPrice,
-      double distance});
+      double distance,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      Map<TowTruckType, Tariff> tariffs});
 }
 
 /// @nodoc
@@ -275,6 +286,7 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
     Object? searchDurationSeconds = null,
     Object? estimatedPrice = null,
     Object? distance = null,
+    Object? tariffs = null,
   }) {
     return _then(_$OrderFlowStateImpl(
       currentStep: null == currentStep
@@ -357,6 +369,10 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
           ? _value.distance
           : distance // ignore: cast_nullable_to_non_nullable
               as double,
+      tariffs: null == tariffs
+          ? _value._tariffs
+          : tariffs // ignore: cast_nullable_to_non_nullable
+              as Map<TowTruckType, Tariff>,
     ));
   }
 }
@@ -385,7 +401,10 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
       this.receiptError,
       this.searchDurationSeconds = 0,
       this.estimatedPrice = 0.0,
-      this.distance = 0.0});
+      this.distance = 0.0,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      final Map<TowTruckType, Tariff> tariffs = const <TowTruckType, Tariff>{}})
+      : _tariffs = tariffs;
 
   factory _$OrderFlowStateImpl.fromJson(Map<String, dynamic> json) =>
       _$$OrderFlowStateImplFromJson(json);
@@ -444,10 +463,18 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
   @override
   @JsonKey()
   final double distance;
+  final Map<TowTruckType, Tariff> _tariffs;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  Map<TowTruckType, Tariff> get tariffs {
+    if (_tariffs is EqualUnmodifiableMapView) return _tariffs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_tariffs);
+  }
 
   @override
   String toString() {
-    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, activeOrder: $activeOrder, assignedDriver: $assignedDriver, selectedPaymentMethod: $selectedPaymentMethod, payment: $payment, receipt: $receipt, isPaymentProcessing: $isPaymentProcessing, isReceiptLoading: $isReceiptLoading, receiptError: $receiptError, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance)';
+    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, activeOrder: $activeOrder, assignedDriver: $assignedDriver, selectedPaymentMethod: $selectedPaymentMethod, payment: $payment, receipt: $receipt, isPaymentProcessing: $isPaymentProcessing, isReceiptLoading: $isReceiptLoading, receiptError: $receiptError, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance, tariffs: $tariffs)';
   }
 
   @override
@@ -492,7 +519,8 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
             (identical(other.estimatedPrice, estimatedPrice) ||
                 other.estimatedPrice == estimatedPrice) &&
             (identical(other.distance, distance) ||
-                other.distance == distance));
+                other.distance == distance) &&
+            const DeepCollectionEquality().equals(other._tariffs, _tariffs));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -518,7 +546,8 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
         receiptError,
         searchDurationSeconds,
         estimatedPrice,
-        distance
+        distance,
+        const DeepCollectionEquality().hash(_tariffs)
       ]);
 
   /// Create a copy of OrderFlowState
@@ -563,7 +592,9 @@ abstract class _OrderFlowState implements OrderFlowState {
       final String? receiptError,
       final int searchDurationSeconds,
       final double estimatedPrice,
-      final double distance}) = _$OrderFlowStateImpl;
+      final double distance,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      final Map<TowTruckType, Tariff> tariffs}) = _$OrderFlowStateImpl;
 
   factory _OrderFlowState.fromJson(Map<String, dynamic> json) =
       _$OrderFlowStateImpl.fromJson;
@@ -612,6 +643,9 @@ abstract class _OrderFlowState implements OrderFlowState {
   double get estimatedPrice;
   @override
   double get distance;
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  Map<TowTruckType, Tariff> get tariffs;
 
   /// Create a copy of OrderFlowState
   /// with the given fields replaced by the non-null parameter values.
