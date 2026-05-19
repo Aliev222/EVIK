@@ -17,12 +17,12 @@ class AppConstants {
 
   static const String openStreetMapTileUrl = String.fromEnvironment(
     'OSM_TILE_URL',
-    defaultValue: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+    defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   );
 
   static const String openStreetMapAttribution = String.fromEnvironment(
     'OSM_ATTRIBUTION',
-    defaultValue: '� OpenStreetMap � CARTO',
+    defaultValue: '© OpenStreetMap contributors',
   );
 
   static const String osrmBaseUrl = String.fromEnvironment(

@@ -68,33 +68,33 @@ extension TowTruckTypeExtension on TowTruckType {
   String get displayName {
     switch (this) {
       case TowTruckType.winch:
-        return '�������';
+        return 'Эвакуатор с лебёдкой';
       case TowTruckType.platform:
-        return '���������';
+        return 'Эвакуатор-платформа';
       case TowTruckType.manipulator:
-        return '�����������';
+        return 'Эвакуатор-манипулятор';
     }
   }
 
   String get shortLabel {
     switch (this) {
       case TowTruckType.winch:
-        return '��������';
+        return 'С лебёдкой';
       case TowTruckType.platform:
-        return '���������';
+        return 'Платформа';
       case TowTruckType.manipulator:
-        return '�����������';
+        return 'Манипулятор';
     }
   }
 
   String get description {
     switch (this) {
       case TowTruckType.winch:
-        return '��� ���� �� ���� ��� � ���������������� ��������';
+        return 'Для машин на ходу или с разблокированными колёсами';
       case TowTruckType.platform:
-        return '������ �������� ���������� �� ���������';
+        return 'Полная погрузка автомобиля на платформу';
       case TowTruckType.manipulator:
-        return '��� ������� ��������, ������ ��� ������� �����';
+        return 'Для тяжёлой техники, спецтех или крупных грузов';
     }
   }
 
@@ -114,26 +114,26 @@ extension VehicleTypeExtension on VehicleType {
   String get displayName {
     switch (this) {
       case VehicleType.light:
-        return '�����';
+        return 'Седан';
       case VehicleType.suv:
-        return '���������';
+        return 'Кроссовер';
       case VehicleType.minibus:
-        return '�����������';
+        return 'Микроавтобус';
       case VehicleType.truck:
-        return '��������';
+        return 'Грузовик';
     }
   }
 
   String get description {
     switch (this) {
       case VehicleType.light:
-        return '�������� ���������� �� 1.8 �';
+        return 'Легковые автомобили до 1.8 т';
       case VehicleType.suv:
-        return '��������� ��� �����������';
+        return 'Кроссоверы и внедорожники';
       case VehicleType.minibus:
-        return '����������� ��� ��������� ������';
+        return 'Микроавтобусы для нескольких людей';
       case VehicleType.truck:
-        return '�������� ����������';
+        return 'Грузовая спецтехника';
     }
   }
 

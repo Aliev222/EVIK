@@ -114,7 +114,9 @@ func (h *PricingHandler) GetTariffs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]any{
+		"tariffs": response,
+	})
 }
 
 // GetTariffByType returns the active tariff for a specific tow truck type

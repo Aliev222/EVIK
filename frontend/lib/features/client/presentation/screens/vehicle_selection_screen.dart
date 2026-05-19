@@ -100,7 +100,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
                   child: EvikButton(
-                    text: '������ ����� ��������',
+                    text: 'Начать поиск водителя',
                     width: double.infinity,
                     onPressed: canStart
                         ? () {
@@ -147,7 +147,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('����������� ��������', style: EvikTypography.h3),
+                Text('Комментарий водителю', style: EvikTypography.h3),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
@@ -155,7 +155,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                   maxLines: 4,
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
-                    hintText: '��������: ���� � ���������, �� ���������',
+                    hintText: 'Например: подъезд со двора, не сигналить',
                     filled: true,
                     fillColor: EvikColors.gray100,
                     border: OutlineInputBorder(
@@ -166,7 +166,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 14),
                 EvikButton(
-                  text: '���������',
+                  text: 'Сохранить',
                   width: double.infinity,
                   onPressed: () => Navigator.of(context).pop(controller.text),
                 ),
@@ -234,14 +234,14 @@ class _RouteSummary extends StatelessWidget {
           _SummaryRow(
             icon: Icons.trip_origin_rounded,
             color: EvikColors.successGreen,
-            label: '������ �������',
+            label: 'Точка подачи',
             value: state.pickupLocation?.displayAddress ?? 'Не указано',
           ),
           const SizedBox(height: 8),
           _SummaryRow(
             icon: Icons.flag_rounded,
             color: EvikColors.accentOrange,
-            label: '���� ���������',
+            label: 'Точка назначения',
             value: state.destinationLocation?.displayAddress ?? 'Не указано',
           ),
         ],
@@ -363,7 +363,7 @@ class _BlockedWheelsStepper extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              '����������\n��������������� �����',
+              'Количество\nзаблокированных колёс',
               style: EvikTypography.bodyMedium.copyWith(
                 color: EvikColors.primaryBlack,
                 fontWeight: FontWeight.w700,
@@ -645,7 +645,7 @@ class _TowTruckCard extends StatelessWidget {
       case TowTruckType.platform:
         return '1 час 40 минут';
       case TowTruckType.manipulator:
-        return '2 ���� 10 �����';
+        return '2 часа 10 минут';
     }
   }
 }
@@ -679,7 +679,7 @@ class _PaymentSelector extends StatelessWidget {
             child: _PaymentChip(
               method: PaymentMethod.card,
               selected: selected,
-              label: '�����',
+              label: 'Карта',
               icon: Icons.credit_card_rounded,
               onSelected: onSelected,
             ),
@@ -774,7 +774,7 @@ class _CommentTile extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                comment.isEmpty ? '�����������' : comment,
+                comment.isEmpty ? 'Комментарий' : comment,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyLarge.copyWith(
