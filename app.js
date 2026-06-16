@@ -12,7 +12,7 @@ async function loadServiceAreas() {
     state.serviceAreas = data.data || [];
     state.serviceAreasError = null;
   } catch (error) {
-    state.serviceAreasError = "Ошибка загрузки зон обслуживания: " + error.message;
+    state.serviceAreasError = "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: " + error.message;
     state.serviceAreas = [];
   }
 
@@ -30,7 +30,7 @@ function renderServiceAreas() {
         <td colspan="5">
           <div class="loading-state">
             <div class="spinner"></div>
-            Загрузка зон обслуживания...
+            пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ...
           </div>
         </td>
       </tr>
@@ -43,8 +43,8 @@ function renderServiceAreas() {
       <tr>
         <td colspan="5">
           <div class="error-state">
-            <strong>Ошибка:</strong> ${escapeHtml(state.serviceAreasError)}
-            <button class="link-button" type="button" onclick="loadServiceAreas()">Повторить</button>
+            <strong>пїЅпїЅпїЅпїЅпїЅпїЅ:</strong> ${escapeHtml(state.serviceAreasError)}
+            <button class="link-button" type="button" onclick="loadServiceAreas()">пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</button>
           </div>
         </td>
       </tr>
@@ -55,9 +55,9 @@ function renderServiceAreas() {
   if (state.serviceAreas.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5">
+        <td colspan="5">2
           <div class="empty-state">
-            Нет зон обслуживания
+            пїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
           </div>
         </td>
       </tr>
@@ -73,10 +73,10 @@ function renderServiceAreas() {
   tbody.innerHTML = filteredAreas.map(area => `
     <tr>
       <td><strong>${escapeHtml(area.name)}</strong></td>
-      <td class="mono">${escapeHtml(area.slug || "—")}</td>
+      <td class="mono">${escapeHtml(area.slug || "пїЅ")}</td>
       <td>
         <span class="status-pill ${area.is_active ? 'success' : 'muted'}">
-          ${area.is_active ? 'Активен' : 'Выключен'}
+          ${area.is_active ? 'пїЅпїЅпїЅпїЅпїЅпїЅпїЅ' : 'пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ'}
         </span>
       </td>
       <td class="mono">
@@ -84,7 +84,7 @@ function renderServiceAreas() {
         ${area.max_lat.toFixed(6)}, ${area.max_lng.toFixed(6)}
       </td>
       <td class="table-actions">
-        <button class="icon-button" type="button" onclick="alert('Редактирование пока недоступно')" title="Редактировать">
+        <button class="icon-button" type="button" onclick="alert('пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ')" title="пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
       </td>

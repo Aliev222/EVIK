@@ -43,6 +43,14 @@ class HttpOrderRepository implements OrderRepository {
       body['tow_truck_type'] = command.towTruckType!.name;
     }
 
+    // Add human-readable addresses if available
+    if (command.pickupLocation.address.isNotEmpty) {
+      body['pickup_address'] = command.pickupLocation.address;
+    }
+    if (command.dropoffLocation.address.isNotEmpty) {
+      body['dropoff_address'] = command.dropoffLocation.address;
+    }
+
     final response = await _apiClient.post(
       '/api/v1/orders',
       body,
