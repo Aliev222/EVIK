@@ -4,7 +4,13 @@ class EvikColors {
   // Основные цвета (из Claude Design)
   static const Color primaryBlack = Color(0xFF1A1A1A);
   static const Color primaryWhite = Color(0xFFFFFFFF);
-  static const Color accentOrange = Color(0xFFFF6B35);
+  static const Color accentOrange = Color(0xFFFF8A00);
+
+  // Семантические цвета редизайна (референс "Авро")
+  static const Color textPrimary = Color(0xFF1F1F1F);
+  static const Color textSecondary = Color(0xFF687280);
+  static const Color cardBackground = Color(0xFFF7F6F3);
+  static const Color sosRed = Color(0xFFEF4444);
 
   // Функциональные цвета
   static const Color successGreen = Color(0xFF10B981);

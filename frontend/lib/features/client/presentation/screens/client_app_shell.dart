@@ -2,10 +2,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/features/client/presentation/widgets/client_bottom_nav.dart';
+import 'package:tow_truck_frontend/features/client/presentation/widgets/services_placeholder_screen.dart';
 import 'client_history_screen.dart';
 import 'client_home_screen.dart';
 import 'client_profile_screen.dart';
-import 'client_wallet_screen.dart';
 
 class ClientAppShell extends ConsumerStatefulWidget {
   const ClientAppShell({super.key});
@@ -56,13 +56,15 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
           key: const ValueKey(ClientTab.home),
           onProfilePressed: () => _switchToTab(ClientTab.profile),
         );
+      case ClientTab.services:
+        return const ServicesPlaceholderScreen(
+          key: ValueKey(ClientTab.services),
+        );
       case ClientTab.history:
         return ClientHistoryScreen(
           key: const ValueKey(ClientTab.history),
           onSwitchToHome: () => _switchToTab(ClientTab.home),
         );
-      case ClientTab.wallet:
-        return const ClientWalletScreen(key: ValueKey(ClientTab.wallet));
       case ClientTab.profile:
         return const ClientProfileScreen(key: ValueKey(ClientTab.profile));
     }

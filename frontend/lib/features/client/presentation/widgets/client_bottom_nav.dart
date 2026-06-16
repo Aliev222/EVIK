@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 
-enum ClientTab { home, history, wallet, profile }
+enum ClientTab { home, services, history, profile }
 
 class ClientBottomNav extends StatelessWidget {
   const ClientBottomNav({
@@ -45,22 +45,22 @@ class ClientBottomNav extends StatelessWidget {
             _NavItem(
               tab: ClientTab.home,
               activeTab: activeTab,
-              icon: Icons.navigation_rounded,
+              icon: Icons.home_rounded,
               label: 'Главная',
+              onTap: onTabChanged,
+            ),
+            _NavItem(
+              tab: ClientTab.services,
+              activeTab: activeTab,
+              icon: Icons.grid_view_rounded,
+              label: 'Услуги',
               onTap: onTabChanged,
             ),
             _NavItem(
               tab: ClientTab.history,
               activeTab: activeTab,
-              icon: Icons.history_rounded,
+              icon: Icons.receipt_long_rounded,
               label: 'Заказы',
-              onTap: onTabChanged,
-            ),
-            _NavItem(
-              tab: ClientTab.wallet,
-              activeTab: activeTab,
-              icon: Icons.account_balance_wallet_rounded,
-              label: 'Оплата',
               onTap: onTabChanged,
             ),
             _NavItem(
