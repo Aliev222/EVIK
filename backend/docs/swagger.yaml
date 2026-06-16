@@ -47,6 +47,9 @@ definitions:
       auto_dispatch:
         example: false
         type: boolean
+      dropoff_address:
+        example: ул. Арбат, 10
+        type: string
       dropoff_lat:
         example: 55.76
         type: number
@@ -58,6 +61,9 @@ definitions:
         - cash
         - card
         example: card
+        type: string
+      pickup_address:
+        example: ул. Тверская, 1
         type: string
       pickup_lat:
         example: 55.7522
@@ -122,6 +128,9 @@ definitions:
         type: string
       dropoff:
         $ref: '#/definitions/http.CoordinateDTO'
+      dropoff_address:
+        example: ул. Арбат, 10
+        type: string
       dropoff_lat:
         type: number
       dropoff_lng:
@@ -130,6 +139,9 @@ definitions:
         type: string
       pickup:
         $ref: '#/definitions/http.CoordinateDTO'
+      pickup_address:
+        example: ул. Тверская, 1
+        type: string
       pickup_lat:
         type: number
       pickup_lng:
@@ -415,6 +427,30 @@ paths:
       summary: Create payment for order
       tags:
       - payments
+  /orders/active:
+    get:
+      description: Returns the single non-terminal order belonging to the authenticated
+        user, or null if there is none.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the caller's active order
+      tags:
+      - orders
   /webhooks/yookassa:
     post:
       consumes:

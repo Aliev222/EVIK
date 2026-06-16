@@ -27,16 +27,18 @@ func (t TowTruckType) IsValid() bool {
 }
 
 type Order struct {
-	ID           string
-	UserID       string
-	DriverID     *string
-	Pickup       Coordinate
-	Dropoff      Coordinate
-	TowTruckType TowTruckType
-	Status       Status
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	CancelledAt  *time.Time
+	ID             string
+	UserID         string
+	DriverID       *string
+	Pickup         Coordinate
+	PickupAddress  string
+	Dropoff        Coordinate
+	DropoffAddress string
+	TowTruckType   TowTruckType
+	Status         Status
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	CancelledAt    *time.Time
 }
 
 func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTruckType, now time.Time) (*Order, error) {

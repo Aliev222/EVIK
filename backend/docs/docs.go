@@ -196,6 +196,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/orders/active": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the single non-terminal order belonging to the authenticated user, or null if there is none.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Get the caller's active order",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.SingleOrderResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/orders/{orderID}": {
             "get": {
                 "security": [
@@ -426,6 +463,10 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": false
                 },
+                "dropoff_address": {
+                    "type": "string",
+                    "example": "ул. Арбат, 10"
+                },
                 "dropoff_lat": {
                     "type": "number",
                     "example": 55.76
@@ -441,6 +482,10 @@ const docTemplate = `{
                         "card"
                     ],
                     "example": "card"
+                },
+                "pickup_address": {
+                    "type": "string",
+                    "example": "ул. Тверская, 1"
                 },
                 "pickup_lat": {
                     "type": "number",
@@ -534,6 +579,10 @@ const docTemplate = `{
                 "dropoff": {
                     "$ref": "#/definitions/http.CoordinateDTO"
                 },
+                "dropoff_address": {
+                    "type": "string",
+                    "example": "ул. Арбат, 10"
+                },
                 "dropoff_lat": {
                     "type": "number"
                 },
@@ -545,6 +594,10 @@ const docTemplate = `{
                 },
                 "pickup": {
                     "$ref": "#/definitions/http.CoordinateDTO"
+                },
+                "pickup_address": {
+                    "type": "string",
+                    "example": "ул. Тверская, 1"
                 },
                 "pickup_lat": {
                     "type": "number"

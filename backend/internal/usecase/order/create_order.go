@@ -61,13 +61,15 @@ type CreateOrderUseCase struct {
 }
 
 type CreateOrderInput struct {
-	UserID       string
-	PickupLat    float64
-	PickupLng    float64
-	DropoffLat   float64
-	DropoffLng   float64
-	TowTruckType orderdomain.TowTruckType
-	AutoDispatch bool
+	UserID         string
+	PickupLat      float64
+	PickupLng      float64
+	DropoffLat     float64
+	DropoffLng     float64
+	PickupAddress  string
+	DropoffAddress string
+	TowTruckType   orderdomain.TowTruckType
+	AutoDispatch   bool
 }
 
 func NewCreateOrderUseCase(
@@ -103,6 +105,8 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 		uc.logger.Error("create order validation failed", err, "user_id", input.UserID)
 		return nil, err
 	}
+	ord.PickupAddress = input.PickupAddress
+	ord.DropoffAddress = input.DropoffAddress
 
 	if err := uc.orderRepo.Create(ctx, ord); err != nil {
 		uc.logger.Error("failed to persist created order", err, "order_id", ord.ID)
