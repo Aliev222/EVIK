@@ -80,15 +80,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   height: 1.1,
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Мы рядом и готовы помочь',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: EvikColors.textSecondary,
-                ),
-              ),
               const SizedBox(height: 20),
               _CallTowTruckButton(onPressed: _openPickupSelection),
               const SizedBox(height: 24),
@@ -332,8 +323,8 @@ class _QuickServiceCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: EvikColors.primaryWhite,
                   borderRadius: BorderRadius.circular(12),
@@ -341,20 +332,19 @@ class _QuickServiceCard extends StatelessWidget {
                 child: Icon(
                   service.icon,
                   color: EvikColors.accentOrange,
-                  size: 24,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   service.label,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: 14,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: EvikColors.textPrimary,
-                    height: 1.15,
                   ),
                 ),
               ),
