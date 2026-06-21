@@ -17,7 +17,7 @@ class AppConstants {
 
   static const String openStreetMapTileUrl = String.fromEnvironment(
     'OSM_TILE_URL',
-    defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    defaultValue: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   );
 
   static const String openStreetMapAttribution = String.fromEnvironment(

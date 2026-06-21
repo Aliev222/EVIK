@@ -106,7 +106,8 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
               children: [
                 TileLayer(
                   urlTemplate: AppConstants.openStreetMapTileUrl,
-                  userAgentPackageName: 'com.example.evik_frontend',
+                  userAgentPackageName: 'com.avro.app',
+                  subdomains: const ['a', 'b', 'c', 'd'],
                   maxZoom: 19,
                 ),
                 if (widget.routePoints.length >= 2)
