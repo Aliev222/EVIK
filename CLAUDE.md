@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EVIK is a cross-platform Flutter tow truck application ("Uber for tow trucks") targeting iOS, Android, and Web platforms. The project consists of a production-ready Flutter frontend with custom Go backend integration.
+Авро is a cross-platform Flutter tow truck application ("Uber for tow trucks") targeting iOS, Android, and Web platforms. The project consists of a production-ready Flutter frontend with custom Go backend integration.
 
 ## 🗺️ PROJECT MAP - START HERE FOR ANY TASK
 
@@ -12,7 +12,7 @@ EVIK is a cross-platform Flutter tow truck application ("Uber for tow trucks") t
 
 ### 📁 **Root Structure**
 ```
-EVIK/
+Авро/
 ├── backend/           # Go API server (Production ready)
 ├── frontend/          # Flutter mobile/web app (Production ready) 
 ├── render.yaml        # Render.com deployment config
@@ -305,7 +305,7 @@ internal/
 **flutter_map Setup:**
 - Library: `flutter_map: ^8.3.0` (OpenStreetMap-based, not Google Maps) + `flutter_map_animations: ^0.10.0`
 - No proprietary API key required for base OSM tiles
-- Custom wrapper: `ProMapsViewSimple` (legacy file name) with EVIK-specific markers
+- Custom wrapper: `ProMapsViewSimple` (legacy file name) with Авро-specific markers
 - Features: location tracking, address search, route metadata, custom markers
 - Android integration: pure Flutter plugin stack, no native map platform view
 

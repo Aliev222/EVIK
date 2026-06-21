@@ -1,4 +1,4 @@
-# EVIK - Uber-like Tow Truck Architecture
+# Авро - Uber-like Tow Truck Architecture
 
 Production-ready baseline for a Flutter + Go system using Clean Architecture and modular monolith backend.
 
