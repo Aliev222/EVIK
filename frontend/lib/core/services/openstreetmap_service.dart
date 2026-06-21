@@ -8,7 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 
 class OpenStreetMapService {
-  static const String _userAgent = 'EVIK mobile app';
+  static const String _userAgent = 'Avro mobile app';
 
   static String getMapTileUrl({
     required int zoom,

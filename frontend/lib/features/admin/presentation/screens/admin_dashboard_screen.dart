@@ -85,7 +85,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       appBar: AppBar(
         backgroundColor: EvikColors.primaryWhite,
         title: Text(
-          'EVIK Admin Dashboard',
+          'Авро Админ',
           style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
         ),
         centerTitle: true,

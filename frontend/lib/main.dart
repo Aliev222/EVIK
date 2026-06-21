@@ -108,7 +108,7 @@ class EvikApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Tow Truck',
+      title: 'Авро',
       theme: AppTheme.light(),
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
@@ -343,14 +343,14 @@ class _SplashScreenState extends State<_SplashScreen>
 
                 const SizedBox(height: 14),
 
-                // EVIK text
+                // Авро text
                 AnimatedBuilder(
                   animation: _logoController,
                   builder: (context, child) {
                     return Opacity(
                       opacity: _logoOpacity.value,
                       child: const Text(
-                        'TOW TRUCK',
+                        'Авро',
                         style: TextStyle(
                           fontSize: 42,
                           fontWeight: FontWeight.w900,
@@ -382,7 +382,7 @@ class _SplashScreenState extends State<_SplashScreen>
                     child: const Column(
                       children: [
                         Text(
-                          'TOWING SERVICE',
+                          'Помощь на дороге',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

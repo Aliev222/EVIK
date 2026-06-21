@@ -45,7 +45,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       backgroundColor: EvikColors.gray50,
       appBar: AppBar(
         title: Text(
-          'Вход в Tow Truck',
+          'Вход в Авро',
           style: EvikTypography.h2.copyWith(fontSize: 24),
         ),
         backgroundColor: Colors.transparent,

@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/foundation.dart';
 
 class AppConstants {
-  static const String appName = 'Tow Truck';
+  static const String appName = 'Авро';
   static const String appVersion = '1.0.0';
 
   static const bool isProduction =

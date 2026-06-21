@@ -107,7 +107,7 @@ class _WalletBody extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _MetricTile(
-                  title: 'Расчеты с Tow Truck',
+                  title: 'Расчеты с Авро',
                   amount: wallet.debtBalance,
                   subtitle: wallet.debtBalance > 0
                       ? 'Будет удержано из следующих безналичных заказов'
@@ -557,7 +557,7 @@ class DriverSubscriptionScreen extends ConsumerWidget {
                       : EvikColors.warningAmber,
                 ),
                 const SizedBox(height: 14),
-                Text('Tow Truck Pro', style: EvikTypography.h2),
+                Text('Авро Pro', style: EvikTypography.h2),
                 const SizedBox(height: 8),
                 Text(
                   'Приоритет в распределении заказов и доступ к финансовым инструментам водителя.',

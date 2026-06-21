@@ -328,7 +328,7 @@ class _Header extends StatelessWidget {
               ],
             ),
             child: Text(
-              'TOW TRUCK',
+              'Авро',
               style: EvikTypography.caption.copyWith(
                 color:
                     isDarkCard ? EvikColors.primaryWhite : EvikColors.gray700,

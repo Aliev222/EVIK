@@ -7,7 +7,7 @@ class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
     required this.child,
-    this.title = 'Tow Truck',
+    this.title = 'Авро',
   });
 
   final Widget child;

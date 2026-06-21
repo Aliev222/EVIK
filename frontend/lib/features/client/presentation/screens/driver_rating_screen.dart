@@ -238,7 +238,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
 
                             // Driver info
                             Text(
-                              driver.fullName ?? 'Водитель EVIK',
+                              driver.fullName ?? 'Водитель Авро',
                               style: EvikTypography.h3.copyWith(
                                 color: EvikColors.primaryBlack,
                               ),

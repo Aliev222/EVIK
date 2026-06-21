@@ -73,8 +73,8 @@ final watchDriverModerationProvider =
   return Stream<DriverVerificationDocument?>.value(
     DriverVerificationDocument(
       userId: userId,
-      fullName: 'EVIK Driver',
-      vehicleModel: 'Эвакуатор EVIK',
+      fullName: 'Авро Driver',
+      vehicleModel: 'Эвакуатор Авро',
       vehicleNumber: '',
       vehicleType: 'light',
       documentUrls: const <String, String>{},
