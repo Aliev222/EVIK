@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
@@ -145,6 +146,9 @@ class OrderNotifier extends StateNotifier<OrderProviderState> {
 
   Future<void> createOrder(CreateOrderCommand command) async {
     state = state.copyWith(isLoading: true, clearError: true);
+    final authState = _ref.read(authProvider);
+    debugPrint('Token: ${authState.accessToken}');
+    debugPrint('User role: ${authState.user?.role}');
     try {
       final order = await _repository.createOrder(command);
       _mergeOrderUpdate(order);

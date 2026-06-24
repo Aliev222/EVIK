@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
@@ -51,6 +52,7 @@ class HttpOrderRepository implements OrderRepository {
       body['dropoff_address'] = command.dropoffLocation.address;
     }
 
+    debugPrint('Token: ${_accessTokenProvider?.call() ?? _accessToken}');
     final response = await _apiClient.post(
       '/api/v1/orders',
       body,

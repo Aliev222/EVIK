@@ -20,20 +20,14 @@ class SkeletonCard extends StatelessWidget {
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: EvikColors.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: EvikColors.border, width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Shimmer.fromColors(
-          baseColor: EvikColors.gray100,
+          baseColor: EvikColors.border,
           highlightColor: EvikColors.primaryWhite,
           period: const Duration(milliseconds: 1200),
           child: Column(
@@ -97,7 +91,7 @@ class _SkeletonBlock extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: EvikColors.gray200,
+        color: EvikColors.border,
         borderRadius: BorderRadius.circular(radius),
       ),
     );

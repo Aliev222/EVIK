@@ -23,8 +23,9 @@ class ServicesPlaceholderScreen extends StatelessWidget {
                   width: 88,
                   height: 88,
                   decoration: BoxDecoration(
-                    color: EvikColors.cardBackground,
+                    color: EvikColors.primaryWhite,
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: EvikColors.border),
                   ),
                   child: const Icon(
                     Icons.grid_view_rounded,

@@ -61,13 +61,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFFFBF5), Color(0xFFFFFFFF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+        color: EvikColors.primaryWhite,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
@@ -79,9 +73,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                       _showComingSoon('Уведомления — скоро будет доступно'),
                 ),
                 const SizedBox(height: 12),
-                Flexible(
-                  flex: 1,
-                  fit: FlexFit.tight,
+                SizedBox(
+                  height: 52,
                   child: _SosSlider(
                     onConfirmed: () =>
                         _showComingSoon('SOS — скоро будет доступно'),
@@ -89,7 +82,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Flexible(
-                  flex: 3,
+                  flex: 4,
                   fit: FlexFit.tight,
                   child: _LocationMapCard(
                     lat: lat,
@@ -100,7 +93,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Flexible(
-                  flex: 3,
+                  flex: 4,
                   fit: FlexFit.tight,
                   child: _QuickServicesGrid(
                     onServiceTap: () =>
@@ -191,19 +184,8 @@ class _CallTowTruckButton extends StatelessWidget {
       height: 64,
       width: double.infinity,
       decoration: BoxDecoration(
+        color: EvikColors.accentOrangeAction,
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF8C00), Color(0xFFFFB347)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -369,15 +351,9 @@ class _QuickServiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: EvikColors.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: EvikColors.border, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -393,7 +369,7 @@ class _QuickServiceCard extends StatelessWidget {
               children: [
                 Icon(
                   service.icon,
-                  size: 28,
+                  size: 24,
                   color: EvikColors.accentOrange,
                 ),
                 const SizedBox(height: 8),
@@ -415,7 +391,7 @@ class _QuickServiceCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
-                    color: EvikColors.textPrimary.withValues(alpha: 0.45),
+                    color: EvikColors.textHint,
                   ),
                 ),
               ],
@@ -556,7 +532,9 @@ class _SosSlider extends StatefulWidget {
 
 class _SosSliderState extends State<_SosSlider>
     with SingleTickerProviderStateMixin {
-  static const double _thumbSize = 48;
+  static const double _thumbSize = 36;
+  // Минимальная область нажатия 44×44 при визуальном размере 36
+  static const double _hitSize = 44;
   static const double _thumbPadding = 8;
   static const double _completeThreshold = 0.85;
 
@@ -580,7 +558,7 @@ class _SosSliderState extends State<_SosSlider>
   }
 
   double get _maxDrag =>
-      (_trackWidth - _thumbSize - _thumbPadding * 2).clamp(0, double.infinity);
+      (_trackWidth - _hitSize - _thumbPadding * 2).clamp(0, double.infinity);
 
   void _onDragUpdate(DragUpdateDetails details) {
     final maxDrag = _maxDrag;
@@ -633,19 +611,9 @@ class _SosSliderState extends State<_SosSlider>
         return Container(
           height: constraints.maxHeight,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              colors: [Color(0xFFEF4444), Color(0xFFFF6B6B)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            color: const Color(0xFFFFF0E8),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: EvikColors.accentOrange, width: 1),
           ),
           child: Stack(
             alignment: Alignment.centerLeft,
@@ -658,29 +626,39 @@ class _SosSliderState extends State<_SosSlider>
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: EvikColors.primaryWhite,
+                      color: EvikColors.accentOrange,
                     ),
                   ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(_thumbPadding),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _thumbPadding,
+                  vertical: 4,
+                ),
                 child: Transform.translate(
                   offset: Offset(_dragPixels, 0),
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onHorizontalDragUpdate: _onDragUpdate,
                     onHorizontalDragEnd: _onDragEnd,
-                    child: Container(
-                      width: _thumbSize,
-                      height: _thumbSize,
-                      decoration: const BoxDecoration(
-                        color: EvikColors.primaryWhite,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.shield_rounded,
-                        color: Color(0xFFEF4444),
-                        size: 26,
+                    child: SizedBox(
+                      width: _hitSize,
+                      height: _hitSize,
+                      child: Center(
+                        child: Container(
+                          width: _thumbSize,
+                          height: _thumbSize,
+                          decoration: const BoxDecoration(
+                            color: EvikColors.accentOrangeAction,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.shield_rounded,
+                            color: EvikColors.primaryWhite,
+                            size: 22,
+                          ),
+                        ),
                       ),
                     ),
                   ),

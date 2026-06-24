@@ -63,7 +63,7 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
             decoration: InputDecoration(
               hintText: 'Введите адрес',
               filled: true,
-              fillColor: EvikColors.surfaceDark,
+              fillColor: EvikColors.surface,
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _isLoading
                   ? const Padding(
@@ -77,7 +77,7 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
                   : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: EvikColors.borderDark),
+                borderSide: const BorderSide(color: EvikColors.border),
               ),
             ),
             onChanged: _onChanged,

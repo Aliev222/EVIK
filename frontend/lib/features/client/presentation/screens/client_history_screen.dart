@@ -63,7 +63,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
     final orders = _orders.map((order) => _HistoryOrder.fromOrder(order)).toList();
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: EvikColors.primaryWhite,
       appBar: AppBar(
         title: Text(
           'История заказов',
@@ -85,24 +85,6 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
           splashRadius: 24,
           padding: const EdgeInsets.all(8),
         ),
-        actions: [
-          _StateAction(
-            label: 'Empty',
-            onTap: () => setState(() => _state = HistoryState.empty),
-          ),
-          _StateAction(
-            label: 'Loading',
-            onTap: () => setState(() => _state = HistoryState.loading),
-          ),
-          _StateAction(
-            label: 'Error',
-            onTap: () => setState(() => _state = HistoryState.error),
-          ),
-          _StateAction(
-            label: 'Loaded',
-            onTap: () => setState(() => _state = HistoryState.loaded),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Column(
@@ -115,11 +97,11 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
                     ? '${orders.length} поездки'
                     : '',
                 style: EvikTypography.bodyMedium.copyWith(
-                  color: EvikColors.gray600,
+                  color: EvikColors.textSecondary,
                 ),
               ),
             ),
-            const Divider(height: 1, color: EvikColors.gray200),
+            const Divider(height: 1, color: EvikColors.border),
             Expanded(child: _buildBody(orders)),
           ],
         ),
@@ -163,27 +145,6 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
   }
 }
 
-class _StateAction extends StatelessWidget {
-  const _StateAction({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      child: Text(
-        label,
-        style: EvikTypography.bodySmall.copyWith(
-          color: EvikColors.accentOrange,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
 class _HistoryCard extends ConsumerWidget {
   const _HistoryCard({required this.order, required this.realOrder});
 
@@ -196,7 +157,7 @@ class _HistoryCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: EvikColors.primaryWhite,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.gray200),
+        border: Border.all(color: EvikColors.border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -219,7 +180,7 @@ class _HistoryCard extends ConsumerWidget {
                     Text(
                       order.dateText,
                       style: EvikTypography.bodySmall
-                          .copyWith(color: EvikColors.gray500),
+                          .copyWith(color: EvikColors.textSecondary),
                     ),
                     const SizedBox(height: 2),
                     Text(order.car,
@@ -259,7 +220,7 @@ class _HistoryCard extends ConsumerWidget {
           const SizedBox(height: 6),
           _RouteRow(color: EvikColors.primaryBlack, text: order.to),
           const SizedBox(height: 10),
-          const Divider(height: 1, color: EvikColors.gray200),
+          const Divider(height: 1, color: EvikColors.border),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -267,7 +228,7 @@ class _HistoryCard extends ConsumerWidget {
                 child: Text(
                   order.driver,
                   style: EvikTypography.bodyMedium
-                      .copyWith(color: EvikColors.gray500),
+                      .copyWith(color: EvikColors.textSecondary),
                 ),
               ),
               if (order.rating > 0)
@@ -286,7 +247,7 @@ class _HistoryCard extends ConsumerWidget {
           // Review section for completed orders
           if (realOrder.status == OrderStatus.completed) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1, color: EvikColors.gray200),
+            const Divider(height: 1, color: EvikColors.border),
             const SizedBox(height: 12),
             _ReviewSection(orderId: realOrder.id),
           ],
@@ -444,7 +405,7 @@ class _ReviewSection extends ConsumerWidget {
                   Text(
                     'Ваш отзыв:',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray500,
+                      color: EvikColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -463,7 +424,7 @@ class _ReviewSection extends ConsumerWidget {
                 Text(
                   review.text,
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.gray600,
+                    color: EvikColors.textSecondary,
                     fontStyle: FontStyle.italic,
                   ),
                   maxLines: 2,

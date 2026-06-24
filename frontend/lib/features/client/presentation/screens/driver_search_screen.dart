@@ -9,7 +9,6 @@ import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
-import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
@@ -161,9 +160,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     });
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: EvikColors.primaryWhite,
       appBar: AppBar(
-        backgroundColor: EvikColors.gray50,
+        backgroundColor: EvikColors.primaryWhite,
         title: Text(
           'Поиск водителя',
           style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
@@ -197,13 +196,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                 color: EvikColors.primaryWhite,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: EvikColors.gray300.withValues(alpha: 0.5),
-                    offset: const Offset(0, -4),
-                    blurRadius: 12,
-                  ),
-                ],
+                border: const Border(
+                  top: BorderSide(color: EvikColors.border),
+                ),
               ),
               padding: const EdgeInsets.all(20),
               child: SafeArea(
@@ -238,7 +233,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                     Text(
                       searchTimer,
                       style: EvikTypography.bodyLarge.copyWith(
-                        color: EvikColors.accentOrange,
+                        color: EvikColors.primaryBlack,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -248,7 +243,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: EvikColors.gray50,
+                        color: EvikColors.surface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -288,10 +283,20 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                     // Cancel button
                     SizedBox(
                       width: double.infinity,
-                      child: EvikButton(
-                        text: 'Отменить поиск',
+                      height: 56,
+                      child: ElevatedButton(
                         onPressed: _cancelSearch,
-                        variant: EvikButtonVariant.secondary,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: EvikColors.surface,
+                          foregroundColor: EvikColors.errorRed,
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: EvikTypography.buttonText,
+                        ),
+                        child: const Text('Отменить поиск'),
                       ),
                     ),
                   ],
@@ -312,12 +317,12 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: EvikColors.gray500),
+        Icon(icon, size: 16, color: EvikColors.textHint),
         const SizedBox(width: 8),
         Text(
           label,
           style: EvikTypography.bodySmall.copyWith(
-            color: EvikColors.gray600,
+            color: EvikColors.textSecondary,
           ),
         ),
         const Spacer(),

@@ -568,18 +568,10 @@ CREATE TABLE IF NOT EXISTS driver_verifications (
 CREATE INDEX IF NOT EXISTS idx_driver_verifications_status_submitted_at ON driver_verifications (status, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_driver_verifications_user_id ON driver_verifications (user_id);
 
-CREATE TABLE IF NOT EXISTS driver_reviews (
-	id TEXT PRIMARY KEY,
-	order_id TEXT NOT NULL,
-	driver_id TEXT NOT NULL,
-	client_id TEXT NOT NULL,
-	stars INTEGER NOT NULL,
-	text TEXT NOT NULL DEFAULT '',
-	created_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_driver_reviews_driver_created_at ON driver_reviews (driver_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_driver_reviews_created_at ON driver_reviews (created_at DESC);
+-- driver_reviews is created by migration 20260515_driver_reviews.sql (with the
+-- canonical "comment" column). It must NOT be created here, otherwise the
+-- migration's CREATE TABLE IF NOT EXISTS is skipped and the two schemas diverge
+-- (legacy "text" column vs. "comment"), which broke all review endpoints.
 
 CREATE TABLE IF NOT EXISTS moderation_audit_log (
 	id TEXT PRIMARY KEY,

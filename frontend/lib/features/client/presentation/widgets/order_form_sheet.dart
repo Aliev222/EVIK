@@ -150,9 +150,9 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: EvikColors.primaryWhite,
+                  color: EvikColors.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: EvikColors.gray200),
+                  border: Border.all(color: EvikColors.border),
                 ),
                 child: cardsState.isLoading
                     ? const Row(
@@ -209,8 +209,9 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: EvikColors.surfaceDark,
+                  color: EvikColors.surface,
                   borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: EvikColors.border),
                 ),
                 child: Text(
                   'Примерная стоимость: ${state.estimatedPrice!.toStringAsFixed(0)}₽',

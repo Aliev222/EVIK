@@ -13,7 +13,7 @@ class ClientProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: EvikColors.primaryWhite,
       appBar: AppBar(
         title: Text(
           'Профиль',
@@ -58,6 +58,7 @@ class ClientProfileScreen extends ConsumerWidget {
                       style: EvikTypography.h3.copyWith(
                         color: EvikColors.primaryWhite,
                         fontWeight: FontWeight.w800,
+                        fontSize: 20,
                       ),
                     ),
                   ),
@@ -72,7 +73,7 @@ class ClientProfileScreen extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text('+7 (999) 123-45-67',
                             style: EvikTypography.bodyMedium
-                                .copyWith(color: EvikColors.gray600)),
+                                .copyWith(color: EvikColors.textSecondary)),
                         const SizedBox(height: 4),
                         Text('★★★★☆ 4.0 · 7 поездок',
                             style: EvikTypography.bodySmall.copyWith(
@@ -84,7 +85,7 @@ class ClientProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1, color: EvikColors.gray200),
+            const Divider(height: 1, color: EvikColors.border),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
@@ -123,7 +124,7 @@ class ClientProfileScreen extends ConsumerWidget {
                       style: ElevatedButton.styleFrom(
                         elevation: 0,
                         backgroundColor: EvikColors.primaryWhite,
-                        foregroundColor: EvikColors.primaryBlack,
+                        foregroundColor: EvikColors.errorRed,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
@@ -207,7 +208,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: EvikColors.gray100,
+                    color: EvikColors.surface,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(icon, color: EvikColors.accentOrange),
@@ -225,7 +226,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  tileColor: EvikColors.gray50,
+                  tileColor: EvikColors.surface,
                   title: Text(
                     option,
                     style: EvikTypography.bodyLarge.copyWith(
@@ -235,7 +236,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                   trailing: Text(
                     'Скоро',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray500,
+                      color: EvikColors.textHint,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -304,11 +305,11 @@ class _ProfileTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: EvikColors.gray100,
+                  color: EvikColors.surface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 20, color: EvikColors.gray800),
+                child: Icon(icon, size: 20, color: EvikColors.textSecondary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -321,11 +322,11 @@ class _ProfileTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(subtitle,
                         style: EvikTypography.bodySmall
-                            .copyWith(color: EvikColors.gray700)),
+                            .copyWith(color: EvikColors.textSecondary)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: EvikColors.gray600),
+              const Icon(Icons.chevron_right, color: EvikColors.textHint),
             ],
           ),
         ),

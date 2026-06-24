@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 
 class EvikColors {
-  // Основные цвета (из Claude Design)
-  static const Color primaryBlack = Color(0xFF1A1A1A);
+  // Основные цвета
+  static const Color primaryBlack = Color(0xFF111111);
   static const Color primaryWhite = Color(0xFFFFFFFF);
-  static const Color accentOrange = Color(0xFFFF8A00);
+  static const Color accentOrange = Color(0xFFFF6B00);
+  // Затемнённый оранжевый для поверхностей с белым текстом (контраст ≥ 4.5:1)
+  static const Color accentOrangeAction = Color(0xFFE25E00);
 
-  // Семантические цвета редизайна (референс "Авро")
-  static const Color textPrimary = Color(0xFF1F1F1F);
-  static const Color textSecondary = Color(0xFF687280);
-  static const Color cardBackground = Color(0xFFF7F6F3);
+  // Семантические цвета единой палитры
+  static const Color textPrimary = Color(0xFF111111);
+  static const Color textSecondary = Color(0xFF555555);
+  static const Color textHint = Color(0xFFAAAAAA);
+  static const Color surface = Color(0xFFF7F7F7);
+  static const Color cardBackground = surface;
+  static const Color border = Color(0xFFEEEEEE);
   static const Color sosRed = Color(0xFFEF4444);
 
   // Функциональные цвета
-  static const Color successGreen = Color(0xFF10B981);
+  static const Color successGreen = Color(0xFF22C55E);
   static const Color warningAmber = Color(0xFFF59E0B);
   static const Color errorRed = Color(0xFFEF4444);
   static const Color infoBlue = Color(0xFF3B82F6);

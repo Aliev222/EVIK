@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:vibration/vibration.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/constants/app_constants.dart';
@@ -173,288 +175,28 @@ class _SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<_SplashScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _logoController;
-  late AnimationController _textController;
-  late AnimationController _blinkController;
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
   late Animation<double> _logoScale;
-  late Animation<double> _logoOpacity;
-  late Animation<double> _blinkOpacity;
-  late Animation<double> _textOpacity;
-  late Animation<Offset> _textSlide;
 
   @override
   void initState() {
     super.initState();
 
-    _logoController = AnimationController(
-      duration: const Duration(milliseconds: 700),
-      vsync: this,
-    );
-
-    _textController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-
-    _blinkController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
     _logoScale = Tween<double>(
-      begin: 0.3,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: const Cubic(0.16, 1, 0.3, 1),
-    ));
-
-    _logoOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoController,
-      curve: Curves.easeOut,
-    ));
-
-    _textOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(_textController);
-
-    _textSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _textController,
-      curve: Curves.easeOut,
-    ));
-
-    _blinkOpacity = Tween<double>(
-      begin: 0.7,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _blinkController,
-      curve: Curves.easeInOut,
-    ));
-
-    // Start animations
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) _logoController.forward();
-    });
-
-    Future.delayed(const Duration(milliseconds: 950), () {
-      if (mounted) {
-        _textController.forward();
-        _blinkController.repeat(reverse: true);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _logoController.dispose();
-    _textController.dispose();
-    _blinkController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      body: Stack(
-        children: [
-          // Subtle dot grid background
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _DotGridPainter(),
-            ),
-          ),
-
-          // Warm glow effect
-          AnimatedBuilder(
-            animation: _logoController,
-            builder: (context, child) {
-              return Positioned(
-                right: -80,
-                top: -80,
-                child: Transform.scale(
-                  scale: _logoScale.value,
-                  child: Container(
-                    width: 320,
-                    height: 320,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          const Color(0xFFFF6B35).withValues(alpha: 0.10),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.7],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // Main content
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo with blinking effect
-                AnimatedBuilder(
-                  animation:
-                      Listenable.merge([_logoController, _blinkController]),
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _logoScale.value,
-                      child: Opacity(
-                        opacity: _logoOpacity.value * _blinkOpacity.value,
-                        child: Container(
-                          width: 240,
-                          height: 240,
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFF6B35).withValues(
-                                    alpha: 0.25 * _blinkOpacity.value),
-                                blurRadius: 60,
-                                offset: const Offset(0, 20),
-                                spreadRadius: 10,
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/img/load.png',
-                            width: 240,
-                            height: 240,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 14),
-
-                // Авро text
-                AnimatedBuilder(
-                  animation: _logoController,
-                  builder: (context, child) {
-                    return Opacity(
-                      opacity: _logoOpacity.value,
-                      child: const Text(
-                        'Авро',
-                        style: TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF1A1A1A),
-                          letterSpacing: -0.5,
-                          height: 1.1,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // Bottom tagline and progress
-          Positioned(
-            bottom: 88,
-            left: 0,
-            right: 0,
-            child: AnimatedBuilder(
-              animation: _textController,
-              builder: (context, child) {
-                return SlideTransition(
-                  position: _textSlide,
-                  child: FadeTransition(
-                    opacity: _textOpacity,
-                    child: const Column(
-                      children: [
-                        Text(
-                          'Помощь на дороге',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF6B7280),
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        SizedBox(height: 20),
-                        _ProgressBar(),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DotGridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.04)
-      ..strokeWidth = 1;
-
-    const spacing = 32.0;
-    final maxDots = ((size.width / spacing) * (size.height / spacing)).round();
-    if (maxDots > 100) return; // Skip if too many dots
-
-    for (double x = 0; x < size.width; x += spacing) {
-      for (double y = 0; y < size.height; y += spacing) {
-        canvas.drawCircle(Offset(x + 1, y + 1), 0.8, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _ProgressBar extends StatefulWidget {
-  const _ProgressBar();
-
-  @override
-  State<_ProgressBar> createState() => _ProgressBarState();
-}
-
-class _ProgressBarState extends State<_ProgressBar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _progress;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1400),
-      vsync: this,
-    );
-
-    _progress = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: 0.5,
+      end: 2.0,
     ).animate(CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeInOut,
+      curve: Curves.easeOut,
     ));
 
+    Vibration.vibrate(duration: 800, amplitude: 64);
     _controller.forward();
   }
 
@@ -466,26 +208,40 @@ class _ProgressBarState extends State<_ProgressBar>
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 44,
-        height: 2,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE5E7EB),
-          borderRadius: BorderRadius.circular(1),
-        ),
-        child: AnimatedBuilder(
-          animation: _progress,
-          builder: (context, child) {
-            return Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF6B35),
-                borderRadius: BorderRadius.circular(1),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScaleTransition(
+              scale: _logoScale,
+              child: Image.asset(
+                'assets/img/load.png',
+                width: 250,
+                height: 250,
+                fit: BoxFit.contain,
               ),
-              width: 44 * _progress.value,
-              height: 2,
-            );
-          },
+            ),
+            const SizedBox(height: 27),
+            Text(
+              'Авро',
+              style: GoogleFonts.inter(
+                fontSize: 60,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1F1F1F),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Помощь на дороге',
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w400,
+                color: const Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
         ),
       ),
     );

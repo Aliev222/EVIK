@@ -1,10 +1,15 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'pulsing_location_dot.dart';
 
 class EvikOsmMapView extends StatefulWidget {
   const EvikOsmMapView({
@@ -50,6 +55,9 @@ class EvikOsmMapView extends StatefulWidget {
 class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   final MapController _mapController = MapController();
   bool _isLocating = false;
+  StreamSubscription<Position>? _userLocationSubscription;
+  LatLng? _userLocation;
+  bool _locationErrorShown = false;
 
   LatLng get _initialCenter => LatLng(
         widget.initialLat ?? AppConstants.moscowLat,
@@ -57,8 +65,21 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
       );
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.showUserLocation) _subscribeToUserLocation();
+  }
+
+  @override
   void didUpdateWidget(covariant EvikOsmMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.showUserLocation != oldWidget.showUserLocation) {
+      if (widget.showUserLocation) {
+        _subscribeToUserLocation();
+      } else {
+        _unsubscribeFromUserLocation();
+      }
+    }
     final centerChanged = widget.initialLat != oldWidget.initialLat ||
         widget.initialLng != oldWidget.initialLng ||
         widget.initialZoom != oldWidget.initialZoom;
@@ -122,6 +143,18 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                       ),
                     ],
                   ),
+                if (_userLocation != null)
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _userLocation!,
+                        width: PulsingLocationDot.haloSize,
+                        height: PulsingLocationDot.haloSize,
+                        alignment: Alignment.center,
+                        child: const PulsingLocationDot(),
+                      ),
+                    ],
+                  ),
                 MarkerLayer(
                   markers: widget.markers
                       .map(
@@ -169,6 +202,40 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _unsubscribeFromUserLocation();
+    super.dispose();
+  }
+
+  void _subscribeToUserLocation() {
+    _userLocationSubscription?.cancel();
+    _userLocationSubscription =
+        LocationService.instance.getLocationStream().listen(
+      (position) {
+        if (!mounted) return;
+        setState(() {
+          _userLocation = LatLng(position.latitude, position.longitude);
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        debugPrint('EvikOsmMapView: ошибка потока геолокации: $error');
+        if (!mounted || _locationErrorShown) return;
+        _locationErrorShown = true;
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось определить ваше местоположение'),
+          ),
+        );
+      },
+    );
+  }
+
+  void _unsubscribeFromUserLocation() {
+    _userLocationSubscription?.cancel();
+    _userLocationSubscription = null;
   }
 
   Future<void> _moveToCurrentLocation() async {

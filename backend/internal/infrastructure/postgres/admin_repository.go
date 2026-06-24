@@ -456,7 +456,7 @@ SELECT
 	r.client_id,
 	r.client_id AS client_name,
 	r.stars,
-	r.text,
+	r.comment,
 	r.created_at
 FROM driver_reviews r
 LEFT JOIN driver_verifications v ON v.user_id = r.driver_id
@@ -492,7 +492,7 @@ LIMIT $1`
 
 func (r *AdminRepository) CreateReview(ctx context.Context, item admindomain.Review) error {
 	const query = `
-INSERT INTO driver_reviews (id, order_id, driver_id, client_id, stars, text, created_at)
+INSERT INTO driver_reviews (id, order_id, driver_id, client_id, stars, comment, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	_, err := r.db.ExecContext(
@@ -518,7 +518,7 @@ func (r *AdminRepository) GetDriverReviews(ctx context.Context, driverID string,
 			dr.driver_id,
 			dr.client_id,
 			dr.stars,
-			COALESCE(dr.comment, dr.text, '') as text,
+			COALESCE(dr.comment, '') as comment,
 			dr.created_at,
 			COALESCE(driver.full_name, '') as driver_name,
 			COALESCE(client.full_name, '') as client_name
@@ -535,7 +535,7 @@ func (r *AdminRepository) GetDriverReviews(ctx context.Context, driverID string,
 	}
 	defer rows.Close()
 
-	var items []admindomain.Review
+	items := make([]admindomain.Review, 0)
 	for rows.Next() {
 		var item admindomain.Review
 		if err := rows.Scan(
@@ -584,7 +584,7 @@ func (r *AdminRepository) GetOrderReview(ctx context.Context, orderID string) (*
 			dr.driver_id,
 			dr.client_id,
 			dr.stars,
-			COALESCE(dr.comment, dr.text, '') as text,
+			COALESCE(dr.comment, '') as comment,
 			dr.created_at,
 			COALESCE(driver.full_name, '') as driver_name,
 			COALESCE(client.full_name, '') as client_name

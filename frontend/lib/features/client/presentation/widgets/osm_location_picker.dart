@@ -183,7 +183,7 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: EvikColors.primaryWhite,
       body: Stack(
         children: [
           Positioned.fill(
@@ -309,11 +309,11 @@ class _TopPanel extends StatelessWidget {
                     icon: const Icon(Icons.arrow_forward_rounded),
                   ),
                   filled: true,
-                  fillColor: EvikColors.gray100,
+                  fillColor: EvikColors.surface,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+                    borderSide: const BorderSide(color: EvikColors.border),
                   ),
                 ),
               ),
@@ -365,7 +365,7 @@ class _BottomPanel extends StatelessWidget {
             Text(
               addressLabel,
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.gray500,
+                color: EvikColors.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
             ),
