@@ -8,8 +8,24 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+)
+
+// Sentinel errors let callers distinguish server misconfiguration and upstream
+// transport failures from genuine client validation errors, so HTTP handlers
+// can return accurate status codes (503/502/401) instead of a blanket 400.
+var (
+	// ErrCredentialsNotConfigured signals the server is missing YooKassa shop
+	// credentials. This is a server misconfiguration, never a client mistake.
+	ErrCredentialsNotConfigured = errors.New("yookassa credentials are not configured")
+	// ErrUpstreamUnavailable signals a network/transport failure reaching YooKassa.
+	ErrUpstreamUnavailable = errors.New("yookassa upstream unavailable")
+	// ErrUpstreamUnauthorized signals YooKassa rejected our credentials (HTTP 401/403).
+	ErrUpstreamUnauthorized = errors.New("yookassa upstream rejected credentials")
 )
 
 type YooKassaClient struct {
@@ -20,6 +36,7 @@ type YooKassaClient struct {
 	payoutGatewayID string
 	payoutSecretKey string
 	payoutMode      string
+	stubMode        bool
 	client          *http.Client
 }
 
@@ -53,7 +70,7 @@ type YooKassaPayoutResponse struct {
 	Status string
 }
 
-func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecretKey, payoutMode string) *YooKassaClient {
+func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecretKey, payoutMode string, stubMode bool) *YooKassaClient {
 	if payoutMode == "" {
 		payoutMode = "sandbox"
 	}
@@ -65,13 +82,30 @@ func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecr
 		payoutGatewayID: payoutGatewayID,
 		payoutSecretKey: payoutSecretKey,
 		payoutMode:      payoutMode,
+		stubMode:        stubMode,
 		client:          &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
+// stubPayment returns a fake, already-succeeded payment without contacting
+// YooKassa. Used in dev/test when YOOKASSA_STUB_MODE is enabled.
+func (c *YooKassaClient) stubPayment() *YooKassaPaymentResponse {
+	id := uuid.NewString()
+	log.Printf("[YOOKASSA STUB] Created fake payment %s", id)
+	return &YooKassaPaymentResponse{
+		ID:              id,
+		Status:          "succeeded",
+		ConfirmationURL: "https://stub.local/payment/" + id,
+		Paid:            true,
+	}
+}
+
 func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentRequest) (*YooKassaPaymentResponse, error) {
+	if c.stubMode {
+		return c.stubPayment(), nil
+	}
 	if c.shopID == "" || c.secretKey == "" {
-		return nil, errors.New("yookassa credentials are not configured")
+		return nil, ErrCredentialsNotConfigured
 	}
 	payload := map[string]any{
 		"amount": map[string]string{
@@ -109,6 +143,11 @@ func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentR
 }
 
 func (c *YooKassaClient) CreatePayout(ctx context.Context, req YooKassaPayoutRequest) (*YooKassaPayoutResponse, error) {
+	if c.stubMode {
+		id := "stub-payout-" + uuid.NewString()
+		log.Printf("[YOOKASSA STUB] Created fake payout %s", id)
+		return &YooKassaPayoutResponse{ID: id, Status: "succeeded"}, nil
+	}
 	if c.payoutMode != "live" {
 		return &YooKassaPayoutResponse{
 			ID:     "sandbox-" + req.IdempotencyKey,
@@ -164,10 +203,13 @@ func (c *YooKassaClient) doJSON(ctx context.Context, method, path, idempotencyKe
 	request.Header.Set("Authorization", authHeader)
 	response, err := c.client.Do(request)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrUpstreamUnavailable, err)
 	}
 	defer response.Body.Close()
 	responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: status=%d body=%s", ErrUpstreamUnauthorized, response.StatusCode, string(responseBody))
+	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("yookassa api error: status=%d body=%s", response.StatusCode, string(responseBody))
 	}

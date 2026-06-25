@@ -49,6 +49,9 @@ func NewRouter(
 		api.Post("/auth/admin/login", authHandler.AdminLogin)
 		api.Post("/auth/refresh", authHandler.Refresh)
 		api.Post("/webhooks/yookassa", paymentHandler.HandleYooKassaWebhook)
+		// Dev-only: manually complete a stub payment. Self-gates on stub mode
+		// (returns 404 when YOOKASSA_STUB_MODE is off, e.g. in production).
+		api.Post("/dev/payments/{id}/complete", paymentHandler.DevCompletePayment)
 		api.Get("/service-areas/check", serviceAreaHandler.Check)
 
 		api.Group(func(secured chi.Router) {

@@ -25,6 +25,7 @@ type PaymentHandler struct {
 	gates     *driveruc.GateService
 	idGen     interface{ NewID() string }
 	clock     interface{ Now() time.Time }
+	stubMode  bool
 }
 
 func NewPaymentHandler(
@@ -34,8 +35,36 @@ func NewPaymentHandler(
 	gates *driveruc.GateService,
 	idGen interface{ NewID() string },
 	clock interface{ Now() time.Time },
+	stubMode bool,
 ) *PaymentHandler {
-	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock}
+	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock, stubMode: stubMode}
+}
+
+// writePaymentError maps payment/provider errors to accurate HTTP status codes
+// and hides internal error detail from the response body. A misconfigured or
+// unreachable payment provider must never surface as a 400 (which wrongly blames
+// the caller); it surfaces as 503/502 instead.
+func writePaymentError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, paymentuc.ErrProviderNotConfigured):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Payment service is temporarily unavailable"})
+	case errors.Is(err, paymentuc.ErrProviderUnavailable):
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "Payment service is temporarily unavailable"})
+	case errors.Is(err, paymentuc.ErrProviderUnauthorized):
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Payment authorization failed"})
+	case errors.Is(err, paymentuc.ErrOrderNotOwned):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+	case errors.Is(err, paymentdomain.ErrDuplicateOperation):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "duplicate operation"})
+	case errors.Is(err, paymentdomain.ErrValidationFailed),
+		errors.Is(err, paymentdomain.ErrInvalidAmount),
+		errors.Is(err, paymentdomain.ErrInsufficientFunds),
+		errors.Is(err, paymentdomain.ErrPayoutMethodNotFound):
+		// Validation/precondition errors are safe and useful to echo back.
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	default:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Payment processing failed"})
+	}
 }
 
 type addCardRequest struct {
@@ -158,7 +187,7 @@ func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Reque
 	}
 	payment, err := h.financeUC.CreateOrderPayment(r.Context(), userID, chi.URLParam(r, "orderID"), paymentdomain.PaymentMethodType(req.PaymentMethod))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePaymentError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})
@@ -181,7 +210,7 @@ func (h *PaymentHandler) InitClientPaymentMethod(w http.ResponseWriter, r *http.
 	}
 	init, err := h.financeUC.SaveClientPaymentMethod(r.Context(), userID)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePaymentError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -283,6 +312,33 @@ func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]bool{"processed": true})
 }
 
+// DevCompletePayment manually marks a stub payment as succeeded for testing the
+// webhook/confirmation flow without real YooKassa. It is a no-op route unless
+// YOOKASSA_STUB_MODE is enabled — when disabled it returns 404 so it is
+// invisible in production. The {id} path param is the provider payment id
+// returned in the payment's confirmation_url (https://stub.local/payment/{id}).
+func (h *PaymentHandler) DevCompletePayment(w http.ResponseWriter, r *http.Request) {
+	if !h.stubMode {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payment id is required"})
+		return
+	}
+	payment, err := h.financeUC.CompleteStubPayment(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, paymentdomain.ErrPaymentNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "payment not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to complete payment"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"payment": newFinancePaymentResponse(payment)})
+}
+
 func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -357,7 +413,7 @@ func (h *PaymentHandler) RequestDriverPayout(w http.ResponseWriter, r *http.Requ
 	}
 	payout, err := h.financeUC.RequestDriverPayout(r.Context(), driverID, req.Amount, idempotencyKey)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePaymentError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"payout": payout})
@@ -417,7 +473,7 @@ func (h *PaymentHandler) CreateDriverSubscriptionPayment(w http.ResponseWriter, 
 	}
 	payment, err := h.financeUC.CreateDriverSubscriptionPayment(r.Context(), driverID, req.PlanID)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writePaymentError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})

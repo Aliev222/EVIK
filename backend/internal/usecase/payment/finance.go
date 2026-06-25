@@ -18,6 +18,20 @@ import (
 	pricingdomain "evik/backend/internal/domain/pricing"
 )
 
+// Provider-facing sentinel errors. The container's provider adapter translates
+// infrastructure transport errors into these so HTTP handlers can map them to
+// accurate status codes (503/502/401) instead of a blanket 400.
+var (
+	// ErrProviderNotConfigured: the payment provider has no usable credentials.
+	ErrProviderNotConfigured = errors.New("payment provider is not configured")
+	// ErrProviderUnavailable: a network/transport failure reaching the provider.
+	ErrProviderUnavailable = errors.New("payment provider is unavailable")
+	// ErrProviderUnauthorized: the provider rejected our credentials.
+	ErrProviderUnauthorized = errors.New("payment provider rejected credentials")
+	// ErrOrderNotOwned: the caller does not own the order they are paying for.
+	ErrOrderNotOwned = errors.New("order does not belong to user")
+)
+
 type PricingService interface {
 	CalculatePrice(ctx context.Context, input pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error)
 }
@@ -103,7 +117,7 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 		return nil, err
 	}
 	if ord.UserID != userID {
-		return nil, errors.New("order does not belong to user")
+		return nil, ErrOrderNotOwned
 	}
 	calculation, err := uc.pricingService.CalculatePrice(ctx, pricingdomain.CalculatePriceInput{
 		OrderID:      ord.ID,
@@ -277,6 +291,24 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 		}
 	}
 	return uc.repo.MarkWebhookProcessed(ctx, eventID)
+}
+
+// CompleteStubPayment manually marks a payment succeeded by its provider
+// payment id, simulating the YooKassa webhook confirmation. It is only reachable
+// through the dev endpoint when YOOKASSA_STUB_MODE is enabled, so card payments
+// made against the stub provider can be driven to completion (and subscriptions
+// activated) without a real webhook.
+func (uc *FinanceUseCase) CompleteStubPayment(ctx context.Context, providerPaymentID string) (*paymentdomain.Payment, error) {
+	p, err := uc.repo.UpdatePaymentFromProvider(ctx, providerPaymentID, string(paymentdomain.PaymentStatusSucceeded), true)
+	if err != nil {
+		return nil, err
+	}
+	if p.Purpose == paymentdomain.PaymentPurposeSubscription && p.Status == paymentdomain.PaymentStatusSucceeded {
+		if err := uc.repo.ActivateSubscriptionByPayment(ctx, p.ID); err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
 }
 
 func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID string) error {

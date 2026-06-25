@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -58,6 +60,22 @@ type yookassaProvider struct {
 	client *httpinfra.YooKassaClient
 }
 
+// mapProviderError translates infrastructure transport errors into the
+// usecase-level sentinels the HTTP handlers know how to status-map, keeping the
+// transport layer decoupled from the YooKassa client's concrete error types.
+func mapProviderError(err error) error {
+	switch {
+	case errors.Is(err, httpinfra.ErrCredentialsNotConfigured):
+		return fmt.Errorf("%w: %v", paymentuc.ErrProviderNotConfigured, err)
+	case errors.Is(err, httpinfra.ErrUpstreamUnauthorized):
+		return fmt.Errorf("%w: %v", paymentuc.ErrProviderUnauthorized, err)
+	case errors.Is(err, httpinfra.ErrUpstreamUnavailable):
+		return fmt.Errorf("%w: %v", paymentuc.ErrProviderUnavailable, err)
+	default:
+		return err
+	}
+}
+
 func (p yookassaProvider) CreatePayment(ctx context.Context, req paymentuc.ProviderPaymentRequest) (*paymentuc.ProviderPaymentResponse, error) {
 	res, err := p.client.CreatePayment(ctx, httpinfra.YooKassaPaymentRequest{
 		Amount:         req.Amount,
@@ -69,7 +87,7 @@ func (p yookassaProvider) CreatePayment(ctx context.Context, req paymentuc.Provi
 		SaveMethod:     req.SaveMethod,
 	})
 	if err != nil {
-		return nil, err
+		return nil, mapProviderError(err)
 	}
 	return &paymentuc.ProviderPaymentResponse{ID: res.ID, Status: res.Status, ConfirmationURL: res.ConfirmationURL, Paid: res.Paid}, nil
 }
@@ -83,7 +101,7 @@ func (p yookassaProvider) CreatePayout(ctx context.Context, req paymentuc.Provid
 		IdempotencyKey:      req.IdempotencyKey,
 	})
 	if err != nil {
-		return nil, err
+		return nil, mapProviderError(err)
 	}
 	return &paymentuc.ProviderPayoutResponse{ID: res.ID, Status: res.Status}, nil
 }
@@ -151,7 +169,14 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	// Create payment transaction use case
 	createTransactionUC := paymentuc.NewCreateTransactionUseCase(paymentRepo, clock, idGen)
-	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
+	// Stub mode fakes all YooKassa calls. It is enabled explicitly via
+	// YOOKASSA_STUB_MODE, or implicitly when credentials are absent in a
+	// non-production environment so local/dev runs work without real keys.
+	yooStubMode := cfg.YooKassaStubMode || (!cfg.IsProduction() && (cfg.YooKassaShopID == "" || cfg.YooKassaSecret == ""))
+	if yooStubMode {
+		logger.Printf("WARN: YOOKASSA STUB MODE active — payments are faked, no real charges occur")
+	}
+	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode, yooStubMode)
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass)
 
@@ -185,7 +210,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, driverGates, npdService, clock)
-	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
+	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock, yooStubMode)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)

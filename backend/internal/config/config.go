@@ -37,6 +37,7 @@ type Config struct {
 	YooKassaPayoutGatewayID    string
 	YooKassaPayoutSecret       string
 	YooKassaPayoutMode         string
+	YooKassaStubMode           bool
 	FinancePendingHoldSeconds  int
 	MinimumWithdrawalKopecks   int64
 	BalanceReleaseInterval     time.Duration
@@ -82,6 +83,7 @@ func MustLoad() Config {
 		YooKassaPayoutGatewayID:    getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
 		YooKassaPayoutSecret:       getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
 		YooKassaPayoutMode:         getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
+		YooKassaStubMode:           getEnvBool("YOOKASSA_STUB_MODE", false),
 		FinancePendingHoldSeconds:  getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
 		MinimumWithdrawalKopecks:   int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
 		BalanceReleaseInterval:     getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
