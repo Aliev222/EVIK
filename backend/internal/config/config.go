@@ -46,7 +46,6 @@ type Config struct {
 	ExposeSwagger              bool
 	FirebaseCredentialsJSON    string
 	OTPFixedCode               string
-	AdminStaticDir             string
 }
 
 func MustLoad() Config {
@@ -93,7 +92,6 @@ func MustLoad() Config {
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		OTPFixedCode:               otpFixedCode,
-		AdminStaticDir:             getEnv("ADMIN_STATIC_DIR", "../admin-web/static"),
 	}
 	validateProductionConfig(cfg)
 	return cfg

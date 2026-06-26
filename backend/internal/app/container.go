@@ -242,8 +242,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 
-	adminStaticDir := resolveAdminStaticDir(cfg.AdminStaticDir, logger)
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, adminStaticDir)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
 	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
 }
 

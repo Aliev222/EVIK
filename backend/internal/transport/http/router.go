@@ -1,10 +1,7 @@
 package http
 
 import (
-	"io/fs"
 	nethttp "net/http"
-	"os"
-	"strings"
 
 	"evik/backend/internal/auth"
 	ws "evik/backend/internal/transport/ws"
@@ -28,7 +25,6 @@ func NewRouter(
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
 	exposeSwagger bool,
-	adminStaticDir string,
 ) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -154,10 +150,6 @@ func NewRouter(
 	if exposeSwagger {
 		r.Get("/swagger/*", httpSwagger.WrapHandler)
 	}
-	if adminStaticDir != "" {
-		r.Get("/admin", nethttp.RedirectHandler("/admin/", nethttp.StatusMovedPermanently).ServeHTTP)
-		r.Get("/admin/*", adminStaticHandler(adminStaticDir))
-	}
 	r.Get("/healthz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		w.WriteHeader(nethttp.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -167,40 +159,4 @@ func NewRouter(
 	})
 	r.With(authMW).Get("/ws/orders", wsHandler.Handle)
 	return r
-}
-
-// adminStaticHandler serves the prebuilt admin SPA from staticDir.
-// Login is enforced client-side via POST /api/v1/auth/admin/login; the
-// static assets themselves are public, matching how admin-web/main.go
-// serves the same bundle locally.
-func adminStaticHandler(staticDir string) nethttp.HandlerFunc {
-	root := nethttp.Dir(staticDir)
-	fileServer := nethttp.FileServer(root)
-	return func(w nethttp.ResponseWriter, r *nethttp.Request) {
-		relPath := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/admin"), "/")
-		if relPath == "" {
-			serveAdminIndex(w, r, staticDir)
-			return
-		}
-		if _, err := fs.Stat(os.DirFS(staticDir), relPath); err != nil {
-			serveAdminIndex(w, r, staticDir)
-			return
-		}
-		http2 := *r
-		http2.URL.Path = "/" + relPath
-		fileServer.ServeHTTP(w, &http2)
-	}
-}
-
-func serveAdminIndex(w nethttp.ResponseWriter, r *nethttp.Request, staticDir string) {
-	data, err := os.ReadFile(staticDir + "/index.html")
-	if err != nil {
-		// staticDir is resolved (and verified) at startup; reaching here means
-		// the files vanished after boot, so degrade to 404 rather than 500.
-		nethttp.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(data)
 }
