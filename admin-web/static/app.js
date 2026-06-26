@@ -171,6 +171,7 @@ const api = {
   get(path, opts)    { return this.request('GET',    path, opts); },
   post(path, body, opts)  { return this.request('POST',   path, { ...(opts || {}), body }); },
   put(path, body, opts)   { return this.request('PUT',    path, { ...(opts || {}), body }); },
+  patch(path, body, opts) { return this.request('PATCH',  path, { ...(opts || {}), body }); },
   del(path, opts)    { return this.request('DELETE', path, opts); },
 };
 
@@ -2526,7 +2527,7 @@ function pageServiceAreas(main) {
           <p class="header-description">Управление зонами обслуживания и проверка покрытия</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" disabled>
+          <button class="btn btn-secondary" id="sa-add-focus">
             ${svgIcon('plus')}
             Добавить зону
           </button>
@@ -2542,16 +2543,18 @@ function pageServiceAreas(main) {
             </div>
           </div>
           <div class="card-body">
-            ${MissingEndpointState('CRUD операции для зон пока не поддерживаются')}
-            <div class="missing-features">
-              <h4>Планируемый функционал:</h4>
-              <ul>
-                <li>${svgIcon('check-circle')} Список всех сервисных зон</li>
-                <li>${svgIcon('check-circle')} Добавление новых зон</li>
-                <li>${svgIcon('check-circle')} Редактирование границ зон</li>
-                <li>${svgIcon('check-circle')} Управление статусом зон</li>
-              </ul>
+            <div class="add-city-form">
+              <div class="form-group">
+                <label>Название города</label>
+                <input id="sa-city-name" type="text" placeholder="Махачкала" />
+              </div>
+              <button class="btn btn-primary" id="sa-city-add">
+                ${svgIcon('plus')}
+                Добавить город
+              </button>
+              <p class="muted">Координаты определяются автоматически через Nominatim (OpenStreetMap).</p>
             </div>
+            <div id="sa-city-list"></div>
           </div>
         </div>
 
@@ -2592,7 +2595,8 @@ function pageServiceAreas(main) {
     res.innerHTML = LoadingState('Проверяем покрытие...');
     try {
       const r = await api.get('/api/v1/service-areas/check', { query: { lat, lng } });
-      const isInServiceArea = r.in_service_area;
+      const isInServiceArea = r.allowed;
+      const areaName = r.service_area && r.service_area.name ? r.service_area.name : null;
       res.innerHTML = `
         <div class="check-result glass ${isInServiceArea ? 'success' : 'warning'}">
           <div class="result-header">
@@ -2604,10 +2608,10 @@ function pageServiceAreas(main) {
               <span class="label">Координаты:</span>
               <span class="value">${lat}, ${lng}</span>
             </div>
-            ${r.nearest_city ? `
+            ${areaName ? `
               <div class="coordinate-display">
-                <span class="label">Ближайший город:</span>
-                <span class="value">${escapeHtml(r.nearest_city)}</span>
+                <span class="label">Зона обслуживания:</span>
+                <span class="value">${escapeHtml(areaName)}</span>
               </div>
             ` : ''}
           </div>
@@ -2620,6 +2624,65 @@ function pageServiceAreas(main) {
         </div>`;
     } catch (e) { res.innerHTML = ErrorState(e.message); }
   };
+
+  // ----- City (service area) management -----
+  const cityList = $('#sa-city-list', main);
+
+  async function loadCities() {
+    cityList.innerHTML = LoadingState('Загрузка городов...');
+    try {
+      const data = await api.get('/api/v1/admin/cities');
+      const cities = (data && data.cities) || [];
+      if (cities.length === 0) { cityList.innerHTML = EmptyState('Города ещё не добавлены'); return; }
+      cityList.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Город</th><th>slug</th><th>Статус</th><th></th></tr></thead>
+        <tbody>${cities.map(c => `<tr class="no-hover">
+          <td>${escapeHtml(c.name)}</td>
+          <td>${escapeHtml(c.slug || '—')}</td>
+          <td>${c.is_active ? 'Активна' : 'Отключена'}</td>
+          <td>
+            <button class="btn btn-secondary" data-city-toggle="${escapeHtml(c.id)}" data-active="${c.is_active}">${c.is_active ? 'Отключить' : 'Включить'}</button>
+            <button class="btn btn-danger" data-city-del="${escapeHtml(c.id)}">Удалить</button>
+          </td></tr>`).join('')}</tbody>
+      </table></div>`;
+
+      cityList.querySelectorAll('[data-city-toggle]').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.dataset.cityToggle;
+          const next = btn.dataset.active !== 'true';
+          try { await api.patch(`/api/v1/admin/cities/${encodeURIComponent(id)}`, { is_active: next }); toast('Статус обновлён', 'success'); loadCities(); }
+          catch (e) { toast(e.message, 'error'); }
+        };
+      });
+      cityList.querySelectorAll('[data-city-del]').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.dataset.cityDel;
+          if (!confirm('Удалить город?')) return;
+          try { await api.del(`/api/v1/admin/cities/${encodeURIComponent(id)}`); toast('Город удалён', 'success'); loadCities(); }
+          catch (e) { toast(e.message, 'error'); }
+        };
+      });
+    } catch (e) { cityList.innerHTML = ErrorState(e.message); }
+  }
+
+  $('#sa-add-focus').onclick = () => { const i = $('#sa-city-name', main); if (i) i.focus(); };
+
+  $('#sa-city-add').onclick = async () => {
+    const input = $('#sa-city-name', main);
+    const name = (input.value || '').trim();
+    if (!name) { toast('Укажите название города', 'warning'); return; }
+    const btn = $('#sa-city-add');
+    btn.disabled = true;
+    try {
+      await api.post('/api/v1/admin/cities', { name });
+      toast('Город добавлен', 'success');
+      input.value = '';
+      loadCities();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+
+  loadCities();
 }
 
 /* ---------- Helpers for finance report-shaped tabs ---------- */

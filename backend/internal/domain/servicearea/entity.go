@@ -3,6 +3,7 @@ package servicearea
 type ServiceArea struct {
 	ID       string
 	Name     string
+	Slug     string
 	MinLat   float64
 	MinLng   float64
 	MaxLat   float64

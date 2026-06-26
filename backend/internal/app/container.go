@@ -19,6 +19,7 @@ import (
 	pricingdomain "evik/backend/internal/domain/pricing"
 	routingdomain "evik/backend/internal/domain/routing"
 	"evik/backend/internal/infrastructure/fcm"
+	"evik/backend/internal/infrastructure/geocoding"
 	httpinfra "evik/backend/internal/infrastructure/http"
 	"evik/backend/internal/infrastructure/postgres"
 	redisinfra "evik/backend/internal/infrastructure/redis"
@@ -214,6 +215,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)
+	cityGeocoder := geocoding.NewNominatim()
+	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
 		driverRepo,
@@ -239,7 +242,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
 	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
 }
 
@@ -610,23 +613,9 @@ CREATE TABLE IF NOT EXISTS moderation_audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_moderation_audit_entity_created_at ON moderation_audit_log (entity_type, entity_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS service_areas (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL,
-	min_lat DOUBLE PRECISION NOT NULL,
-	min_lng DOUBLE PRECISION NOT NULL,
-	max_lat DOUBLE PRECISION NOT NULL,
-	max_lng DOUBLE PRECISION NOT NULL,
-	is_active BOOLEAN NOT NULL DEFAULT TRUE,
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_service_areas_active_bounds ON service_areas (is_active, min_lat, max_lat, min_lng, max_lng);
-
-INSERT INTO service_areas (id, name, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
-VALUES ('moscow-default', 'Moscow default area', 55.20, 36.80, 56.20, 38.40, TRUE, NOW(), NOW())
-ON CONFLICT (id) DO UPDATE SET is_active = EXCLUDED.is_active, updated_at = NOW();
+-- service_areas managed only via migrations (20260511 creates the table +
+-- active-bounds index, 20260513 adds the slug column). Intentionally NOT
+-- created here to avoid schema drift between EnsureSchema and the migration set.
 
 CREATE TABLE IF NOT EXISTS driver_tax_profiles (
 	driver_id TEXT PRIMARY KEY,

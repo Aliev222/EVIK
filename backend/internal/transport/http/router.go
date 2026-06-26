@@ -20,6 +20,7 @@ func NewRouter(
 	routingHandler *RoutingHandler,
 	adminHandler *AdminHandler,
 	serviceAreaHandler *ServiceAreaHandler,
+	cityHandler *CityHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
@@ -32,7 +33,7 @@ func NewRouter(
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
@@ -136,6 +137,13 @@ func NewRouter(
 				admin.Post("/tax-profiles/{driverID}/verify", adminHandler.VerifyTaxProfile)
 				admin.Post("/tax-profiles/{driverID}/reject", adminHandler.RejectTaxProfile)
 				admin.Post("/tax-profiles/{driverID}/request-changes", adminHandler.RequestTaxProfileChanges)
+
+				// City (service area) management.
+				admin.Post("/cities/search", cityHandler.Search)
+				admin.Post("/cities", cityHandler.Create)
+				admin.Get("/cities", cityHandler.List)
+				admin.Patch("/cities/{id}", cityHandler.Patch)
+				admin.Delete("/cities/{id}", cityHandler.Delete)
 			})
 		})
 	})
