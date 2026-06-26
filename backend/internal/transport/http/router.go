@@ -179,11 +179,11 @@ func adminStaticHandler(staticDir string) nethttp.HandlerFunc {
 	return func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		relPath := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/admin"), "/")
 		if relPath == "" {
-			serveAdminIndex(w, staticDir)
+			serveAdminIndex(w, r, staticDir)
 			return
 		}
 		if _, err := fs.Stat(os.DirFS(staticDir), relPath); err != nil {
-			serveAdminIndex(w, staticDir)
+			serveAdminIndex(w, r, staticDir)
 			return
 		}
 		http2 := *r
@@ -192,10 +192,12 @@ func adminStaticHandler(staticDir string) nethttp.HandlerFunc {
 	}
 }
 
-func serveAdminIndex(w nethttp.ResponseWriter, staticDir string) {
+func serveAdminIndex(w nethttp.ResponseWriter, r *nethttp.Request, staticDir string) {
 	data, err := os.ReadFile(staticDir + "/index.html")
 	if err != nil {
-		nethttp.Error(w, "index.html missing", nethttp.StatusInternalServerError)
+		// staticDir is resolved (and verified) at startup; reaching here means
+		// the files vanished after boot, so degrade to 404 rather than 500.
+		nethttp.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
