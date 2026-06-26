@@ -21,6 +21,7 @@ func NewRouter(
 	adminHandler *AdminHandler,
 	serviceAreaHandler *ServiceAreaHandler,
 	cityHandler *CityHandler,
+	driverLocationsHandler *DriverLocationsHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
@@ -139,11 +140,15 @@ func NewRouter(
 				admin.Post("/tax-profiles/{driverID}/request-changes", adminHandler.RequestTaxProfileChanges)
 
 				// City (service area) management.
+				admin.Get("/cities/autocomplete", cityHandler.Autocomplete)
 				admin.Post("/cities/search", cityHandler.Search)
 				admin.Post("/cities", cityHandler.Create)
 				admin.Get("/cities", cityHandler.List)
 				admin.Patch("/cities/{id}", cityHandler.Patch)
 				admin.Delete("/cities/{id}", cityHandler.Delete)
+
+				// Live driver map.
+				admin.Get("/drivers/locations", driverLocationsHandler.List)
 			})
 		})
 	})

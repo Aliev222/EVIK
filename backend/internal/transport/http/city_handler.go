@@ -16,6 +16,7 @@ import (
 // CityGeocoder resolves a city name to a bounding box via an external service.
 type CityGeocoder interface {
 	SearchCity(ctx context.Context, name string) (*geocoding.CitySearchResult, error)
+	Search(ctx context.Context, query string, limit int) ([]geocoding.CitySearchResult, error)
 }
 
 // CityIDGenerator generates unique identifiers for new service areas.
@@ -74,6 +75,51 @@ func (h *CityHandler) Search(w http.ResponseWriter, r *http.Request) {
 		"center":         centerPayload{Lat: res.CenterLat, Lng: res.CenterLng},
 		"suggested_slug": res.Slug,
 	})
+}
+
+// autocompleteResult is the JSON shape returned per suggestion.
+type autocompleteResult struct {
+	DisplayName string  `json:"display_name"`
+	Lat         float64 `json:"lat"`
+	Lng         float64 `json:"lng"`
+	MinLat      float64 `json:"min_lat"`
+	MaxLat      float64 `json:"max_lat"`
+	MinLng      float64 `json:"min_lng"`
+	MaxLng      float64 `json:"max_lng"`
+	Type        string  `json:"type"`
+	OSMID       string  `json:"osm_id"`
+}
+
+// Autocomplete returns up to 5 Nominatim suggestions for a partial city name.
+// GET /admin/cities/autocomplete?q=...
+func (h *CityHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len([]rune(q)) < 3 {
+		writeJSON(w, http.StatusOK, []autocompleteResult{})
+		return
+	}
+
+	results, err := h.geocoder.Search(r.Context(), q, 5)
+	if err != nil {
+		h.writeGeocodeError(w, err)
+		return
+	}
+
+	out := make([]autocompleteResult, 0, len(results))
+	for _, res := range results {
+		out = append(out, autocompleteResult{
+			DisplayName: res.DisplayName,
+			Lat:         res.CenterLat,
+			Lng:         res.CenterLng,
+			MinLat:      res.MinLat,
+			MaxLat:      res.MaxLat,
+			MinLng:      res.MinLng,
+			MaxLng:      res.MaxLng,
+			Type:        res.Type,
+			OSMID:       res.OSMID,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // Create geocodes a name, rejects duplicate slugs, and persists an active area.

@@ -163,6 +163,75 @@ LIMIT $3`
 	return drivers, nil
 }
 
+// ListAllWithProfile returns drivers of any status enriched with user and
+// vehicle profile data, most recently seen first. Used by the admin live map,
+// which needs every driver (not just online/busy) so it can resolve staleness
+// against each driver's last known location.
+func (r *DriverRepository) ListAllWithProfile(ctx context.Context, limit int) ([]*driverdomain.DriverProfile, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+
+	const query = `
+SELECT
+	d.id,
+	d.user_id,
+	d.status,
+	d.current_order_id,
+	d.last_seen_at,
+	d.updated_at,
+	COALESCE(u.full_name, '') as full_name,
+	COALESCE(u.phone, '') as phone,
+	COALESCE(d.vehicle_plate, '') as vehicle_plate,
+	COALESCE(d.vehicle_model, '') as vehicle_model,
+	COALESCE(d.vehicle_type, '') as vehicle_type,
+	COALESCE(d.rating_average, 0.0) as rating_average,
+	COALESCE(d.rating_count, 0) as rating_count,
+	COALESCE(d.total_orders, 0) as total_orders
+FROM drivers d
+LEFT JOIN users u ON u.id = d.user_id
+ORDER BY d.last_seen_at DESC
+LIMIT $1`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	profiles := make([]*driverdomain.DriverProfile, 0, limit)
+	for rows.Next() {
+		var (
+			profile driverdomain.DriverProfile
+			status  string
+		)
+		if err := rows.Scan(
+			&profile.ID,
+			&profile.UserID,
+			&status,
+			&profile.CurrentOrderID,
+			&profile.LastSeenAt,
+			&profile.UpdatedAt,
+			&profile.FullName,
+			&profile.Phone,
+			&profile.VehiclePlate,
+			&profile.VehicleModel,
+			&profile.VehicleType,
+			&profile.RatingAverage,
+			&profile.RatingCount,
+			&profile.TotalOrders,
+		); err != nil {
+			return nil, err
+		}
+		profile.Status = driverdomain.Status(status)
+		profiles = append(profiles, &profile)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return profiles, nil
+}
+
 func (r *DriverRepository) IsAvailable(ctx context.Context, id string) (bool, error) {
 	drv, err := r.GetByID(ctx, id)
 	if err != nil {

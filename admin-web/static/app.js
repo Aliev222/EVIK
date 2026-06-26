@@ -2514,7 +2514,43 @@ function pageTaxProfiles(main) {
     </div>`;
 }
 
-/* ---------- 7.6 Service Areas (CRUD missing, check works) ---------- */
+/* ---------- 7.6 Service Areas (autocomplete + interactive map + driver layer) ---------- */
+const serviceAreasPageState = {
+  map: null,
+  rectanglesById: new Map(),
+  previewRect: null,
+  cities: [],
+  selectedSuggestion: null,
+  selectedCityId: null,
+  drivers: [],
+  driverMarkersById: new Map(),
+  driverPollId: null,
+  unmount: null,
+};
+
+function saCityColor(isActive) {
+  return isActive ? '#22C55E' : '#999999';
+}
+
+function saCityBounds(c) {
+  const b = c.bbox || {};
+  return L.latLngBounds([b.min_lat, b.min_lng], [b.max_lat, b.max_lng]);
+}
+
+function saDriverStatusMeta(status) {
+  const map = {
+    online:  { color: '#3B82F6', label: 'На смене',  pulse: true  },
+    busy:    { color: '#22C55E', label: 'Занят',     pulse: false },
+    offline: { color: '#EF4444', label: 'Оффлайн',   pulse: false },
+  };
+  return map[status] || map.offline;
+}
+
+function saDriverInBounds(d, bounds) {
+  if (!bounds) return true;
+  return bounds.contains([d.lat, d.lng]);
+}
+
 function pageServiceAreas(main) {
   main.innerHTML = `
     <div class="service-areas-layout">
@@ -2522,15 +2558,36 @@ function pageServiceAreas(main) {
         <div class="header-content">
           <div class="header-title">
             ${svgIcon('map-pin')}
-            <h1>Сервисные зоны</h1>
+            <h1>Зоны работы</h1>
           </div>
           <p class="header-description">Управление зонами обслуживания и проверка покрытия</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" id="sa-add-focus">
-            ${svgIcon('plus')}
-            Добавить зону
-          </button>
+          <span class="dash-pill dash-pill-${state.backendOk === false ? 'err' : 'ok'}">
+            <span class="dash-dot"></span>
+            ${state.backendOk === false ? 'Нет связи' : 'Подключено'}
+          </span>
+        </div>
+      </div>
+
+      <div class="card glass sa-map-card">
+        <div class="sa-map-toolbar">
+          <div class="sa-map-legend">
+            <span class="drv-legend-item"><span class="sa-driver-dot is-online"></span>На смене</span>
+            <span class="drv-legend-item"><span class="sa-driver-dot is-busy"></span>Занят</span>
+            <span class="drv-legend-item"><span class="sa-driver-dot is-offline"></span>Оффлайн</span>
+          </div>
+          <div class="sa-map-stats" id="sa-map-stats"></div>
+          <div class="sa-map-controls">
+            <span class="sa-city-filter-pill" id="sa-city-filter-pill" style="display:none;"></span>
+            <button class="btn btn-ghost btn-sm" id="sa-show-all-cities">Все города</button>
+          </div>
+        </div>
+        <div id="sa-map" class="sa-map-canvas"></div>
+        <div id="sa-map-unavailable" class="sa-map-empty" style="display:none;">
+          ${icon('alert-triangle', 'state-icon')}
+          <div class="dash-empty-title">Карта недоступна</div>
+          <div class="dash-empty-sub">Не удалось загрузить Leaflet с CDN. Проверьте сеть.</div>
         </div>
       </div>
 
@@ -2544,15 +2601,16 @@ function pageServiceAreas(main) {
           </div>
           <div class="card-body">
             <div class="add-city-form">
-              <div class="form-group">
+              <div class="form-group sa-autocomplete-wrap">
                 <label>Название города</label>
-                <input id="sa-city-name" type="text" placeholder="Махачкала" />
+                <input id="sa-city-name" type="text" placeholder="Махачкала" autocomplete="off" />
+                <div id="sa-autocomplete" class="sa-autocomplete" style="display:none;"></div>
               </div>
               <button class="btn btn-primary" id="sa-city-add">
                 ${svgIcon('plus')}
                 Добавить город
               </button>
-              <p class="muted">Координаты определяются автоматически через Nominatim (OpenStreetMap).</p>
+              <p class="muted">Начните вводить название — координаты подсказывает Nominatim (OpenStreetMap).</p>
             </div>
             <div id="sa-city-list"></div>
           </div>
@@ -2587,6 +2645,7 @@ function pageServiceAreas(main) {
         </div>
       </div>
     </div>`;
+
   $('#sa-check').onclick = async () => {
     const lat = $('[name="lat"]', main).value;
     const lng = $('[name="lng"]', main).value;
@@ -2625,7 +2684,226 @@ function pageServiceAreas(main) {
     } catch (e) { res.innerHTML = ErrorState(e.message); }
   };
 
-  // ----- City (service area) management -----
+  /* ----- Map setup ----- */
+  const mapEl = $('#sa-map', main);
+  if (typeof L === 'undefined') {
+    mapEl.style.display = 'none';
+    $('#sa-map-unavailable', main).style.display = 'flex';
+  } else {
+    const map = L.map(mapEl, { zoomControl: true, preferCanvas: false }).setView([61.5, 90], 3);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
+    serviceAreasPageState.map = map;
+    serviceAreasPageState.rectanglesById = new Map();
+    serviceAreasPageState.driverMarkersById = new Map();
+    serviceAreasPageState.previewRect = null;
+    setTimeout(() => { try { map.invalidateSize(); } catch (_) {} }, 60);
+  }
+
+  function clearPreview() {
+    if (serviceAreasPageState.previewRect) {
+      try { serviceAreasPageState.map.removeLayer(serviceAreasPageState.previewRect); } catch (_) {}
+      serviceAreasPageState.previewRect = null;
+    }
+  }
+
+  function drawPreview(suggestion) {
+    if (!serviceAreasPageState.map) return;
+    clearPreview();
+    const bounds = L.latLngBounds(
+      [suggestion.min_lat, suggestion.min_lng],
+      [suggestion.max_lat, suggestion.max_lng]
+    );
+    const rect = L.rectangle(bounds, {
+      color: '#22C55E',
+      weight: 2,
+      dashArray: '6, 6',
+      fillColor: '#22C55E',
+      fillOpacity: 0.15,
+    }).addTo(serviceAreasPageState.map);
+    rect.bindTooltip(escapeHtml(suggestion.display_name), { permanent: true, direction: 'center', className: 'sa-city-label' });
+    serviceAreasPageState.previewRect = rect;
+    serviceAreasPageState.map.fitBounds(bounds.pad(0.3), { animate: true });
+  }
+
+  function drawCityRectangles() {
+    if (!serviceAreasPageState.map) return;
+    for (const rect of serviceAreasPageState.rectanglesById.values()) {
+      try { serviceAreasPageState.map.removeLayer(rect); } catch (_) {}
+    }
+    serviceAreasPageState.rectanglesById.clear();
+
+    for (const c of serviceAreasPageState.cities) {
+      const bounds = saCityBounds(c);
+      const color = saCityColor(c.is_active);
+      const rect = L.rectangle(bounds, {
+        color,
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.3,
+      }).addTo(serviceAreasPageState.map);
+      rect.bindTooltip(escapeHtml(c.name), { permanent: true, direction: 'center', className: 'sa-city-label' });
+      rect.on('click', () => {
+        highlightCityRow(c.id);
+        selectCityFilter(c);
+        serviceAreasPageState.map.fitBounds(bounds.pad(0.2), { animate: true });
+      });
+      serviceAreasPageState.rectanglesById.set(c.id, rect);
+    }
+  }
+
+  function highlightCityRow(id) {
+    const list = $('#sa-city-list', main);
+    if (!list) return;
+    list.querySelectorAll('tr[data-city-row]').forEach(tr => {
+      tr.classList.toggle('sa-row-active', tr.dataset.cityRow === id);
+    });
+    const row = list.querySelector(`tr[data-city-row="${id}"]`);
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function focusCityOnMap(c) {
+    if (!serviceAreasPageState.map) return;
+    serviceAreasPageState.map.fitBounds(saCityBounds(c).pad(0.2), { animate: true });
+    highlightCityRow(c.id);
+    selectCityFilter(c);
+  }
+
+  /* ----- Driver live layer ----- */
+  function driverPopupHtml(d) {
+    const initials = (d.full_name || '?').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    const avatar = d.avatar_url
+      ? `<img class="sa-driver-avatar" src="${escapeHtml(d.avatar_url)}" alt="" />`
+      : `<div class="sa-driver-avatar sa-driver-avatar-fallback">${escapeHtml(initials)}</div>`;
+    const meta = saDriverStatusMeta(d.status);
+    return `<div class="sa-driver-popup">
+      <div class="sa-driver-popup-head">
+        ${avatar}
+        <div>
+          <div class="sa-driver-popup-name">${escapeHtml(d.full_name || '—')}</div>
+          <span class="badge" style="background:${meta.color}22; color:${meta.color};">${escapeHtml(meta.label)}</span>
+        </div>
+      </div>
+      <div class="sa-driver-popup-row"><span>Телефон</span>${d.phone ? `<a href="tel:${escapeHtml(d.phone)}">${escapeHtml(d.phone)} · Позвонить</a>` : '<span>—</span>'}</div>
+      <div class="sa-driver-popup-row"><span>Машина</span><span>${escapeHtml(d.vehicle_plate || '—')}</span></div>
+      <div class="sa-driver-popup-actions">
+        <button class="btn btn-primary btn-sm" data-sa-driver-open="${escapeHtml(d.driver_id)}">Открыть профиль</button>
+      </div>
+    </div>`;
+  }
+
+  function buildDriverIcon(status) {
+    const meta = saDriverStatusMeta(status);
+    return L.divIcon({
+      className: 'sa-driver-marker',
+      html: `<div class="sa-driver-dot-wrap">${meta.pulse ? '<div class="sa-driver-pulse"></div>' : ''}<div class="sa-driver-dot is-${status}"></div></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    });
+  }
+
+  function refreshDriverStats(visible) {
+    const slot = $('#sa-map-stats', main);
+    if (!slot) return;
+    const online = visible.filter(d => d.status === 'online').length;
+    const busy = visible.filter(d => d.status === 'busy').length;
+    const offline = visible.filter(d => d.status === 'offline').length;
+    slot.innerHTML = `
+      <span class="sa-stat">На карте: <b>${visible.length}</b></span>
+      <span class="sa-stat">На смене: <b>${online}</b></span>
+      <span class="sa-stat">Занято: <b>${busy}</b></span>
+      <span class="sa-stat">Оффлайн: <b>${offline}</b></span>`;
+  }
+
+  function drawDriverMarkers() {
+    if (!serviceAreasPageState.map) return;
+    const bounds = serviceAreasPageState.selectedCityId
+      ? (() => {
+          const c = serviceAreasPageState.cities.find(x => x.id === serviceAreasPageState.selectedCityId);
+          return c ? saCityBounds(c) : null;
+        })()
+      : null;
+    const visible = serviceAreasPageState.drivers.filter(d =>
+      typeof d.lat === 'number' && typeof d.lng === 'number' && saDriverInBounds(d, bounds)
+    );
+    refreshDriverStats(visible);
+
+    const seen = new Set();
+    for (const d of visible) {
+      seen.add(d.driver_id);
+      let marker = serviceAreasPageState.driverMarkersById.get(d.driver_id);
+      if (!marker) {
+        marker = L.marker([d.lat, d.lng], { icon: buildDriverIcon(d.status) });
+        marker.bindPopup(driverPopupHtml(d), { maxWidth: 260, className: 'sa-driver-popup-wrap' });
+        marker.on('popupopen', () => {
+          const popup = marker.getPopup();
+          const el = popup && popup.getElement();
+          const btn = el && el.querySelector('[data-sa-driver-open]');
+          if (btn) btn.onclick = () => navigate('#/drivers');
+        });
+        marker.addTo(serviceAreasPageState.map);
+        serviceAreasPageState.driverMarkersById.set(d.driver_id, marker);
+        marker._saStatus = d.status;
+      } else {
+        const el = marker.getElement();
+        if (el) el.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
+        marker.setLatLng([d.lat, d.lng]);
+        if (marker._saStatus !== d.status) {
+          marker.setIcon(buildDriverIcon(d.status));
+          marker._saStatus = d.status;
+          if (marker.isPopupOpen()) marker.setPopupContent(driverPopupHtml(d));
+        }
+      }
+    }
+    for (const [id, marker] of serviceAreasPageState.driverMarkersById.entries()) {
+      if (!seen.has(id)) {
+        const el = marker.getElement();
+        if (el) {
+          el.style.transition = 'opacity 0.5s ease';
+          el.style.opacity = '0';
+        }
+        setTimeout(() => { try { serviceAreasPageState.map.removeLayer(marker); } catch (_) {} }, 500);
+        serviceAreasPageState.driverMarkersById.delete(id);
+      }
+    }
+  }
+
+  async function loadDrivers() {
+    try {
+      const query = {};
+      if (serviceAreasPageState.selectedCityId) query.city_id = serviceAreasPageState.selectedCityId;
+      const items = await api.get('/api/v1/admin/drivers/locations', { query });
+      serviceAreasPageState.drivers = Array.isArray(items) ? items : [];
+      drawDriverMarkers();
+    } catch (_) { /* keep last known positions on transient errors */ }
+  }
+
+  function updateCityFilterPill() {
+    const pill = $('#sa-city-filter-pill', main);
+    if (!pill) return;
+    if (!serviceAreasPageState.selectedCityId) { pill.style.display = 'none'; return; }
+    const c = serviceAreasPageState.cities.find(x => x.id === serviceAreasPageState.selectedCityId);
+    if (!c) { pill.style.display = 'none'; return; }
+    const count = serviceAreasPageState.drivers.filter(d => saDriverInBounds(d, saCityBounds(c))).length;
+    pill.style.display = 'inline-flex';
+    pill.textContent = `${c.name} · ${count} водител${count === 1 ? 'ь' : (count >= 2 && count <= 4 ? 'я' : 'ей')}`;
+  }
+
+  function selectCityFilter(c) {
+    serviceAreasPageState.selectedCityId = c ? c.id : null;
+    updateCityFilterPill();
+    drawDriverMarkers();
+  }
+
+  $('#sa-show-all-cities').onclick = () => {
+    selectCityFilter(null);
+    const list = $('#sa-city-list', main);
+    if (list) list.querySelectorAll('tr[data-city-row]').forEach(tr => tr.classList.remove('sa-row-active'));
+  };
+
+  /* ----- City (service area) management ----- */
   const cityList = $('#sa-city-list', main);
 
   async function loadCities() {
@@ -2633,10 +2911,13 @@ function pageServiceAreas(main) {
     try {
       const data = await api.get('/api/v1/admin/cities');
       const cities = (data && data.cities) || [];
+      serviceAreasPageState.cities = cities;
+      drawCityRectangles();
+      updateCityFilterPill();
       if (cities.length === 0) { cityList.innerHTML = EmptyState('Города ещё не добавлены'); return; }
       cityList.innerHTML = `<div class="table-wrap"><table>
         <thead><tr><th>Город</th><th>slug</th><th>Статус</th><th></th></tr></thead>
-        <tbody>${cities.map(c => `<tr class="no-hover">
+        <tbody>${cities.map(c => `<tr class="no-hover" data-city-row="${escapeHtml(c.id)}">
           <td>${escapeHtml(c.name)}</td>
           <td>${escapeHtml(c.slug || '—')}</td>
           <td>${c.is_active ? 'Активна' : 'Отключена'}</td>
@@ -2646,26 +2927,77 @@ function pageServiceAreas(main) {
           </td></tr>`).join('')}</tbody>
       </table></div>`;
 
+      cityList.querySelectorAll('tr[data-city-row]').forEach(tr => {
+        tr.style.cursor = 'pointer';
+        tr.onclick = (e) => {
+          if (e.target.closest('button')) return;
+          const c = serviceAreasPageState.cities.find(x => x.id === tr.dataset.cityRow);
+          if (c) focusCityOnMap(c);
+        };
+      });
       cityList.querySelectorAll('[data-city-toggle]').forEach(btn => {
-        btn.onclick = async () => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
           const id = btn.dataset.cityToggle;
           const next = btn.dataset.active !== 'true';
           try { await api.patch(`/api/v1/admin/cities/${encodeURIComponent(id)}`, { is_active: next }); toast('Статус обновлён', 'success'); loadCities(); }
-          catch (e) { toast(e.message, 'error'); }
+          catch (e2) { toast(e2.message, 'error'); }
         };
       });
       cityList.querySelectorAll('[data-city-del]').forEach(btn => {
-        btn.onclick = async () => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
           const id = btn.dataset.cityDel;
           if (!confirm('Удалить город?')) return;
           try { await api.del(`/api/v1/admin/cities/${encodeURIComponent(id)}`); toast('Город удалён', 'success'); loadCities(); }
-          catch (e) { toast(e.message, 'error'); }
+          catch (e2) { toast(e2.message, 'error'); }
         };
       });
     } catch (e) { cityList.innerHTML = ErrorState(e.message); }
   }
 
-  $('#sa-add-focus').onclick = () => { const i = $('#sa-city-name', main); if (i) i.focus(); };
+  /* ----- Autocomplete ----- */
+  const nameInput = $('#sa-city-name', main);
+  const dropdown = $('#sa-autocomplete', main);
+
+  function closeDropdown() {
+    dropdown.style.display = 'none';
+    dropdown.innerHTML = '';
+  }
+
+  function renderSuggestions(items) {
+    if (!items || items.length === 0) { closeDropdown(); return; }
+    dropdown.innerHTML = items.map((s, i) => `
+      <div class="sa-autocomplete-item" data-idx="${i}">${escapeHtml(s.display_name)}</div>
+    `).join('');
+    dropdown.style.display = 'block';
+    dropdown.querySelectorAll('.sa-autocomplete-item').forEach(el => {
+      el.onclick = () => {
+        const s = items[Number(el.dataset.idx)];
+        serviceAreasPageState.selectedSuggestion = s;
+        nameInput.value = s.display_name;
+        closeDropdown();
+        drawPreview(s);
+      };
+    });
+  }
+
+  const runAutocomplete = debounce(async (q) => {
+    if (q.trim().length < 3) { closeDropdown(); return; }
+    try {
+      const items = await api.get('/api/v1/admin/cities/autocomplete', { query: { q } });
+      renderSuggestions(Array.isArray(items) ? items : []);
+    } catch (_) { closeDropdown(); }
+  }, 300);
+
+  nameInput.addEventListener('input', () => {
+    serviceAreasPageState.selectedSuggestion = null;
+    runAutocomplete(nameInput.value);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.sa-autocomplete-wrap')) closeDropdown();
+  });
 
   $('#sa-city-add').onclick = async () => {
     const input = $('#sa-city-name', main);
@@ -2677,12 +3009,42 @@ function pageServiceAreas(main) {
       await api.post('/api/v1/admin/cities', { name });
       toast('Город добавлен', 'success');
       input.value = '';
+      serviceAreasPageState.selectedSuggestion = null;
+      clearPreview();
+      closeDropdown();
       loadCities();
     } catch (e) { toast(e.message, 'error'); }
     finally { btn.disabled = false; }
   };
 
   loadCities();
+  loadDrivers();
+  serviceAreasPageState.driverPollId = setInterval(loadDrivers, 5000);
+
+  serviceAreasPageState.unmount = () => {
+    clearPreview();
+    if (serviceAreasPageState.driverPollId) {
+      clearInterval(serviceAreasPageState.driverPollId);
+      serviceAreasPageState.driverPollId = null;
+    }
+    if (serviceAreasPageState.map) {
+      try { serviceAreasPageState.map.remove(); } catch (_) {}
+    }
+    serviceAreasPageState.map = null;
+    serviceAreasPageState.rectanglesById = new Map();
+    serviceAreasPageState.driverMarkersById = new Map();
+    serviceAreasPageState.cities = [];
+    serviceAreasPageState.drivers = [];
+    serviceAreasPageState.selectedCityId = null;
+  };
+  const cleanupRouteWatch = () => {
+    if (document.body.getAttribute('data-route') !== 'service-areas') {
+      if (serviceAreasPageState.unmount) serviceAreasPageState.unmount();
+      serviceAreasPageState.unmount = null;
+      window.removeEventListener('hashchange', cleanupRouteWatch);
+    }
+  };
+  window.addEventListener('hashchange', cleanupRouteWatch);
 }
 
 /* ---------- Helpers for finance report-shaped tabs ---------- */

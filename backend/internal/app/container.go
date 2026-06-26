@@ -217,6 +217,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)
 	cityGeocoder := geocoding.NewNominatim()
 	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
+	driverLocationsHandler := httptransport.NewDriverLocationsHandler(driverRepo, locationRepo, serviceAreaRepo)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
 		driverRepo,
@@ -242,7 +243,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
 	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
 }
 

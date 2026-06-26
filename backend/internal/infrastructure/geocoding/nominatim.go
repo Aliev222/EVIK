@@ -38,6 +38,8 @@ type CitySearchResult struct {
 	CenterLat   float64
 	CenterLng   float64
 	Slug        string
+	OSMID       string
+	Type        string
 }
 
 // Nominatim is a rate-limited client for the OSM Nominatim search endpoint.
@@ -69,6 +71,8 @@ type nominatimResult struct {
 	Lat         string   `json:"lat"`
 	Lon         string   `json:"lon"`
 	BoundingBox []string `json:"boundingbox"`
+	OsmID       int64    `json:"osm_id"`
+	Type        string   `json:"type"`
 }
 
 // SearchCity resolves a city name to its bounding box and center via Nominatim.
@@ -79,7 +83,7 @@ func (n *Nominatim) SearchCity(ctx context.Context, name string) (*CitySearchRes
 		return nil, errors.New("geocoding: name is required")
 	}
 
-	body, err := n.doSearch(ctx, trimmed)
+	body, err := n.doSearch(ctx, trimmed, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -134,8 +138,60 @@ func (n *Nominatim) SearchCity(ctx context.Context, name string) (*CitySearchRes
 	}, nil
 }
 
+// Search resolves a partial city name into up to limit autocomplete suggestions.
+// Queries shorter than 3 runes return an empty slice without hitting Nominatim.
+// It blocks as needed to honor the 1 request/second rate limit.
+func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]CitySearchResult, error) {
+	trimmed := strings.TrimSpace(query)
+	if len([]rune(trimmed)) < 3 {
+		return []CitySearchResult{}, nil
+	}
+	if limit <= 0 || limit > 5 {
+		limit = 5
+	}
+
+	body, err := n.doSearch(ctx, trimmed, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []nominatimResult
+	if err := json.Unmarshal(body, &results); err != nil {
+		return nil, fmt.Errorf("geocoding: decode response: %w", err)
+	}
+
+	out := make([]CitySearchResult, 0, len(results))
+	for _, r := range results {
+		if len(r.BoundingBox) != 4 {
+			continue
+		}
+		minLat, err1 := strconv.ParseFloat(r.BoundingBox[0], 64)
+		maxLat, err2 := strconv.ParseFloat(r.BoundingBox[1], 64)
+		minLng, err3 := strconv.ParseFloat(r.BoundingBox[2], 64)
+		maxLng, err4 := strconv.ParseFloat(r.BoundingBox[3], 64)
+		centerLat, err5 := strconv.ParseFloat(r.Lat, 64)
+		centerLng, err6 := strconv.ParseFloat(r.Lon, 64)
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil || err6 != nil {
+			continue
+		}
+		out = append(out, CitySearchResult{
+			DisplayName: r.DisplayName,
+			MinLat:      minLat,
+			MaxLat:      maxLat,
+			MinLng:      minLng,
+			MaxLng:      maxLng,
+			CenterLat:   centerLat,
+			CenterLng:   centerLng,
+			Slug:        Slugify(r.DisplayName),
+			OSMID:       strconv.FormatInt(r.OsmID, 10),
+			Type:        r.Type,
+		})
+	}
+	return out, nil
+}
+
 // doSearch performs the rate-limited HTTP GET against Nominatim.
-func (n *Nominatim) doSearch(ctx context.Context, name string) ([]byte, error) {
+func (n *Nominatim) doSearch(ctx context.Context, name string, limit int) ([]byte, error) {
 	// Serialize and throttle: hold the lock across the request so concurrent
 	// callers cannot exceed one request per second.
 	n.mu.Lock()
@@ -153,7 +209,7 @@ func (n *Nominatim) doSearch(ctx context.Context, name string) ([]byte, error) {
 	q := url.Values{}
 	q.Set("q", name)
 	q.Set("format", "json")
-	q.Set("limit", "1")
+	q.Set("limit", strconv.Itoa(limit))
 	q.Set("addressdetails", "1")
 	endpoint := n.baseURL + "?" + q.Encode()
 
