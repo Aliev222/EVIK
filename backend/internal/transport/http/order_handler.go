@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 
 	"evik/backend/internal/auth"
 	driverdomain "evik/backend/internal/domain/driver"
+	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	servicearea "evik/backend/internal/domain/servicearea"
 	driveruc "evik/backend/internal/usecase/driver"
@@ -22,15 +24,22 @@ type DriverCityCache interface {
 	GetDriverCity(ctx context.Context, driverID string) (string, error)
 }
 
+// DriverLocationCache reads the last known location of a driver from Redis.
+type DriverLocationCache interface {
+	GetLastLocation(ctx context.Context, driverID string) (*locationdomain.Location, error)
+}
+
 type OrderHandler struct {
-	createUC  *orderuc.CreateOrderUseCase
-	acceptUC  *orderuc.AcceptOrderUseCase
-	updateUC  *orderuc.UpdateStatusUseCase
-	cancelUC  *orderuc.CancelOrderUseCase
-	orderRepo orderAccessRepository
-	areas     servicearea.Repository
-	gates     *driveruc.GateService
-	cityCache DriverCityCache
+	createUC        *orderuc.CreateOrderUseCase
+	acceptUC        *orderuc.AcceptOrderUseCase
+	updateUC        *orderuc.UpdateStatusUseCase
+	cancelUC        *orderuc.CancelOrderUseCase
+	orderRepo       orderAccessRepository
+	areas           servicearea.Repository
+	gates           *driveruc.GateService
+	cityCache       DriverCityCache
+	locationCache   DriverLocationCache
+	expansionRadius float64
 }
 
 type orderAccessRepository interface {
@@ -38,6 +47,7 @@ type orderAccessRepository interface {
 	ListByUserID(ctx context.Context, userID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error)
 	ListByDriverID(ctx context.Context, driverID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error)
 	ListByStatusAndCity(ctx context.Context, status orderdomain.Status, cityID string, limit int) ([]*orderdomain.Order, error)
+	ListExpandedSearching(ctx context.Context, limit int) ([]*orderdomain.Order, error)
 }
 
 func NewOrderHandler(
@@ -49,16 +59,20 @@ func NewOrderHandler(
 	areas servicearea.Repository,
 	gates *driveruc.GateService,
 	cityCache DriverCityCache,
+	locationCache DriverLocationCache,
+	expansionRadiusKM float64,
 ) *OrderHandler {
 	return &OrderHandler{
-		createUC:  createUC,
-		acceptUC:  acceptUC,
-		updateUC:  updateUC,
-		cancelUC:  cancelUC,
-		orderRepo: orderRepo,
-		areas:     areas,
-		gates:     gates,
-		cityCache: cityCache,
+		createUC:        createUC,
+		acceptUC:        acceptUC,
+		updateUC:        updateUC,
+		cancelUC:        cancelUC,
+		orderRepo:       orderRepo,
+		areas:           areas,
+		gates:           gates,
+		cityCache:       cityCache,
+		locationCache:   locationCache,
+		expansionRadius: expansionRadiusKM,
 	}
 }
 
@@ -105,6 +119,8 @@ type orderResponse struct {
 	DropoffAddress string             `json:"dropoff_address"`
 	TowTruckType   string             `json:"tow_truck_type"`
 	Status         string             `json:"status"`
+	IsExpanded     bool               `json:"is_expanded"`
+	DistanceKM     *float64           `json:"distance_km,omitempty"`
 	CreatedAt      string             `json:"created_at"`
 	UpdatedAt      string             `json:"updated_at"`
 	CancelledAt    *string            `json:"cancelled_at"`
@@ -225,8 +241,16 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 	switch role {
 	case auth.RoleAdmin:
 		orders, err = h.orderRepo.ListByStatus(r.Context(), status, limit)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	case auth.RoleClient:
 		orders, err = h.orderRepo.ListByUserID(r.Context(), userID, status, limit)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 	case auth.RoleDriver:
 		if status == orderdomain.StatusSearching {
 			if h.gates != nil {
@@ -239,18 +263,25 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 				cityID, cityErr := h.cityCache.GetDriverCity(r.Context(), userID)
 				if cityErr == nil && cityID != "" {
 					orders, err = h.orderRepo.ListByStatusAndCity(r.Context(), status, cityID, limit)
+					if err != nil {
+						h.writeError(w, http.StatusInternalServerError, err)
+						return
+					}
 				}
-				// Driver outside all cities or no cached city → empty list (spec requirement).
+				// Driver outside all cities or no cached city → only expanded orders below.
 			}
-		} else {
-			orders, err = h.orderRepo.ListByDriverID(r.Context(), userID, status, limit)
+			h.writeJSON(w, http.StatusOK, map[string]any{
+				"orders": h.buildDriverSearchingResponse(r.Context(), userID, orders),
+			})
+			return
+		}
+		orders, err = h.orderRepo.ListByDriverID(r.Context(), userID, status, limit)
+		if err != nil {
+			h.writeError(w, http.StatusInternalServerError, err)
+			return
 		}
 	default:
 		writeAuthError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -559,8 +590,66 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		DropoffAddress: ord.DropoffAddress,
 		TowTruckType:   string(ord.TowTruckType),
 		Status:         string(ord.Status),
+		IsExpanded:     ord.IsExpanded,
 		CreatedAt:      ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		UpdatedAt:      ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		CancelledAt:    cancelledAt,
 	}
+}
+
+// buildDriverSearchingResponse merges city-scoped orders with expanded orders
+// visible to the driver based on their current location.
+func (h *OrderHandler) buildDriverSearchingResponse(ctx context.Context, driverUserID string, cityOrders []*orderdomain.Order) []orderResponse {
+	var driverLat, driverLng float64
+	hasLocation := false
+	if h.locationCache != nil {
+		if loc, err := h.locationCache.GetLastLocation(ctx, driverUserID); err == nil && loc != nil {
+			driverLat, driverLng = loc.Lat, loc.Lng
+			hasLocation = true
+		}
+	}
+
+	seen := make(map[string]struct{}, len(cityOrders))
+	payload := make([]orderResponse, 0, len(cityOrders))
+
+	for _, o := range cityOrders {
+		seen[o.ID] = struct{}{}
+		resp := newOrderResponse(o)
+		if hasLocation {
+			d := haversineKM(driverLat, driverLng, o.Pickup.Lat, o.Pickup.Lng)
+			resp.DistanceKM = &d
+		}
+		payload = append(payload, resp)
+	}
+
+	// Append expanded orders the driver can reach but that are outside their city.
+	if hasLocation && h.expansionRadius > 0 {
+		expanded, _ := h.orderRepo.ListExpandedSearching(ctx, 100)
+		for _, o := range expanded {
+			if _, ok := seen[o.ID]; ok {
+				continue
+			}
+			d := haversineKM(driverLat, driverLng, o.Pickup.Lat, o.Pickup.Lng)
+			if d <= h.expansionRadius {
+				seen[o.ID] = struct{}{}
+				resp := newOrderResponse(o)
+				resp.DistanceKM = &d
+				payload = append(payload, resp)
+			}
+		}
+	}
+
+	return payload
+}
+
+// haversineKM returns the great-circle distance in kilometres between two coords.
+func haversineKM(lat1, lng1, lat2, lng2 float64) float64 {
+	const R = 6371.0
+	φ1 := lat1 * math.Pi / 180
+	φ2 := lat2 * math.Pi / 180
+	dφ := (lat2 - lat1) * math.Pi / 180
+	dλ := (lng2 - lng1) * math.Pi / 180
+	a := math.Sin(dφ/2)*math.Sin(dφ/2) +
+		math.Cos(φ1)*math.Cos(φ2)*math.Sin(dλ/2)*math.Sin(dλ/2)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }

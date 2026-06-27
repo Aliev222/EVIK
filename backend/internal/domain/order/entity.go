@@ -37,6 +37,8 @@ type Order struct {
 	DropoffAddress string
 	TowTruckType   TowTruckType
 	Status         Status
+	IsExpanded     bool
+	ExpandedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	CancelledAt    *time.Time

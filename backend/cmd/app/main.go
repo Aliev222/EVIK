@@ -54,6 +54,7 @@ func main() {
 	}
 
 	go container.Scheduler.Run(ctx)
+	go container.ExpansionScheduler.Run(ctx)
 
 	go func() {
 		logger.Printf("http server started on %s", cfg.HTTPAddr)

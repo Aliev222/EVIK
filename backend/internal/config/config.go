@@ -40,8 +40,11 @@ type Config struct {
 	YooKassaStubMode           bool
 	FinancePendingHoldSeconds  int
 	MinimumWithdrawalKopecks   int64
-	BalanceReleaseInterval     time.Duration
-	DriverSubscriptionRequired bool
+	BalanceReleaseInterval          time.Duration
+	OrderExpansionCheckInterval     time.Duration
+	OrderExpansionDelay             time.Duration
+	OrderExpansionRadiusKM          float64
+	DriverSubscriptionRequired      bool
 	DriverGateBypass           bool
 	ExposeSwagger              bool
 	FirebaseCredentialsJSON    string
@@ -86,7 +89,10 @@ func MustLoad() Config {
 		YooKassaStubMode:           getEnvBool("YOOKASSA_STUB_MODE", false),
 		FinancePendingHoldSeconds:  getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
 		MinimumWithdrawalKopecks:   int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
-		BalanceReleaseInterval:     getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
+		BalanceReleaseInterval:          getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
+		OrderExpansionCheckInterval:     getEnvDuration("ORDER_EXPANSION_CHECK_INTERVAL", 10*time.Second),
+		OrderExpansionDelay:             getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
+		OrderExpansionRadiusKM:          getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", otpFixedCode != ""),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
@@ -216,6 +222,18 @@ func getEnvDurationHours(key string, fallbackHours int) time.Duration {
 		return time.Duration(fallbackHours) * time.Hour
 	}
 	return time.Duration(hours) * time.Hour
+}
+
+func getEnvFloat64(key string, fallback float64) float64 {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
 }
 
 func getEnvDuration(key string, fallback time.Duration) time.Duration {

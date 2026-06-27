@@ -34,10 +34,11 @@ import (
 )
 
 type Container struct {
-	Router    http.Handler
-	Scheduler *Scheduler
-	db        *sql.DB
-	rdb       *redis.Client
+	Router             http.Handler
+	Scheduler          *Scheduler
+	ExpansionScheduler *SearchExpansionScheduler
+	db                 *sql.DB
+	rdb                *redis.Client
 }
 
 type stdClock struct{}
@@ -228,7 +229,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM)
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
@@ -265,9 +266,19 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, logger)
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
+	expansionScheduler := NewSearchExpansionScheduler(
+		orderRepo,
+		locationRepo,
+		pushSender,
+		eventPublisher,
+		logger,
+		cfg.OrderExpansionCheckInterval,
+		cfg.OrderExpansionDelay,
+		cfg.OrderExpansionRadiusKM,
+	)
 
 	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
-	return &Container{Router: router, Scheduler: scheduler, db: db, rdb: rdb}, nil
+	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, db: db, rdb: rdb}, nil
 }
 
 func EnsureSchema(db *sql.DB) error {
@@ -353,6 +364,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS price_total NUMERIC(12,2) NOT NULL D
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS financial_status TEXT NOT NULL DEFAULT 'pending';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS financially_completed_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_expanded BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS expanded_at TIMESTAMPTZ;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

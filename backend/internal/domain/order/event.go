@@ -11,6 +11,7 @@ const (
 	EventCompleted    EventType = "completed"
 	EventCancelled    EventType = "cancelled"
 	EventNoDriverFound EventType = "no_driver_found"
+	EventOrderExpanded EventType = "order_expanded"
 )
 
 type Event struct {

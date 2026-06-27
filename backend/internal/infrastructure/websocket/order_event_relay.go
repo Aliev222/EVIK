@@ -66,6 +66,11 @@ func (r *OrderEventRelay) handleEvent(payload string) {
 			r.hub.SendToDriversWhere(func(_ *Client) bool { return true }, []byte(payload))
 		}
 
+	case orderdomain.EventOrderExpanded:
+		// Broadcast to all connected drivers; client-side distance filtering applies.
+		r.hub.SendToDriversWhere(func(_ *Client) bool { return true }, []byte(payload))
+		r.logger.Printf("relay: order_expanded broadcast for order %s", event.OrderID)
+
 	default:
 		if userID != "" {
 			r.hub.SendToUser(userID, []byte(payload))

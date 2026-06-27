@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
 )
@@ -19,8 +20,8 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
-INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -39,6 +40,8 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
 		ord.UpdatedAt,
 		ord.CancelledAt,
 		ord.CityID,
+		ord.IsExpanded,
+		ord.ExpandedAt,
 	)
 	return err
 }
@@ -60,15 +63,23 @@ func scanNullableString(ns sql.NullString) string {
 func (r *OrderRepository) Update(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 UPDATE orders
-SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6
+SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8
 WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt)
+	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt)
+	return err
+}
+
+// MarkExpanded sets is_expanded=TRUE and expanded_at on a single order atomically.
+func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE orders SET is_expanded = TRUE, expanded_at = $2 WHERE id = $1`,
+		orderID, now)
 	return err
 }
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE id = $1`
 
@@ -79,6 +90,7 @@ WHERE id = $1`
 		cityID         sql.NullString
 		towTruckType   string
 		status         string
+		expandedAt     sql.NullTime
 	)
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&ord.ID,
@@ -96,6 +108,8 @@ WHERE id = $1`
 		&ord.UpdatedAt,
 		&ord.CancelledAt,
 		&cityID,
+		&ord.IsExpanded,
+		&expandedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -110,6 +124,10 @@ WHERE id = $1`
 	if cityID.Valid {
 		ord.CityID = &cityID.String
 	}
+	if expandedAt.Valid {
+		t := expandedAt.Time
+		ord.ExpandedAt = &t
+	}
 	return &ord, nil
 }
 
@@ -119,7 +137,7 @@ func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.S
 	}
 
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = $1
 ORDER BY created_at ASC
@@ -140,6 +158,7 @@ LIMIT $2`
 			cityID         sql.NullString
 			towTruckType   string
 			rowStatus      string
+			expandedAt     sql.NullTime
 		)
 		if err := rows.Scan(
 			&ord.ID,
@@ -157,6 +176,8 @@ LIMIT $2`
 			&ord.UpdatedAt,
 			&ord.CancelledAt,
 			&cityID,
+			&ord.IsExpanded,
+			&expandedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -166,6 +187,10 @@ LIMIT $2`
 		ord.DropoffAddress = scanNullableString(dropoffAddress)
 		if cityID.Valid {
 			ord.CityID = &cityID.String
+		}
+		if expandedAt.Valid {
+			t := expandedAt.Time
+			ord.ExpandedAt = &t
 		}
 		orders = append(orders, &ord)
 	}
@@ -180,55 +205,12 @@ func (r *OrderRepository) ListByStatusAndCity(ctx context.Context, status orderd
 		limit = 20
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = $1 AND city_id = $2
 ORDER BY created_at ASC
 LIMIT $3`
-	rows, err := r.db.QueryContext(ctx, query, string(status), cityID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	orders := make([]*orderdomain.Order, 0, limit)
-	for rows.Next() {
-		var (
-			ord            orderdomain.Order
-			pickupAddress  sql.NullString
-			dropoffAddress sql.NullString
-			cid            sql.NullString
-			towTruckType   string
-			rowStatus      string
-		)
-		if err := rows.Scan(
-			&ord.ID,
-			&ord.UserID,
-			&ord.DriverID,
-			&ord.Pickup.Lat,
-			&ord.Pickup.Lng,
-			&ord.Dropoff.Lat,
-			&ord.Dropoff.Lng,
-			&pickupAddress,
-			&dropoffAddress,
-			&towTruckType,
-			&rowStatus,
-			&ord.CreatedAt,
-			&ord.UpdatedAt,
-			&ord.CancelledAt,
-			&cid,
-		); err != nil {
-			return nil, err
-		}
-		ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
-		ord.Status = orderdomain.Status(rowStatus)
-		ord.PickupAddress = scanNullableString(pickupAddress)
-		ord.DropoffAddress = scanNullableString(dropoffAddress)
-		if cid.Valid {
-			ord.CityID = &cid.String
-		}
-		orders = append(orders, &ord)
-	}
-	return orders, rows.Err()
+	return r.queryOrders(ctx, query, string(status), cityID, limit)
 }
 
 func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error) {
@@ -236,7 +218,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, statu
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE user_id = $1`
 	args := []any{userID}
@@ -255,7 +237,7 @@ func (r *OrderRepository) ListByDriverID(ctx context.Context, driverID string, s
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE driver_id = $1`
 	args := []any{driverID}
@@ -269,12 +251,51 @@ WHERE driver_id = $1`
 	return r.listOrders(ctx, query, args...)
 }
 
-func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...any) ([]*orderdomain.Order, error) {
+// ListSearchingForExpansion returns orders that have been in "searching" status
+// for longer than olderThan and have not yet been expanded.
+func (r *OrderRepository) ListSearchingForExpansion(ctx context.Context, olderThan time.Time, limit int) ([]*orderdomain.Order, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	const query = `
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+FROM orders
+WHERE status = 'searching' AND is_expanded = FALSE AND created_at < $1
+ORDER BY created_at ASC
+LIMIT $2`
+	return r.queryOrders(ctx, query, olderThan, limit)
+}
+
+// ListExpandedSearching returns orders in "searching" status that have already
+// been expanded to the wider radius.
+func (r *OrderRepository) ListExpandedSearching(ctx context.Context, limit int) ([]*orderdomain.Order, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	const query = `
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+FROM orders
+WHERE status = 'searching' AND is_expanded = TRUE
+ORDER BY created_at ASC
+LIMIT $1`
+	return r.queryOrders(ctx, query, limit)
+}
+
+// queryOrders runs any SELECT query whose columns match the standard order projection.
+func (r *OrderRepository) queryOrders(ctx context.Context, query string, args ...any) ([]*orderdomain.Order, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+	return r.scanOrders(rows)
+}
+
+func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...any) ([]*orderdomain.Order, error) {
+	return r.queryOrders(ctx, query, args...)
+}
+
+func (r *OrderRepository) scanOrders(rows *sql.Rows) ([]*orderdomain.Order, error) {
 	orders := make([]*orderdomain.Order, 0)
 	for rows.Next() {
 		var (
@@ -284,6 +305,7 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 			cityID         sql.NullString
 			towTruckType   string
 			rowStatus      string
+			expandedAt     sql.NullTime
 		)
 		if err := rows.Scan(
 			&ord.ID,
@@ -301,6 +323,8 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 			&ord.UpdatedAt,
 			&ord.CancelledAt,
 			&cityID,
+			&ord.IsExpanded,
+			&expandedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -311,12 +335,13 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 		if cityID.Valid {
 			ord.CityID = &cityID.String
 		}
+		if expandedAt.Valid {
+			t := expandedAt.Time
+			ord.ExpandedAt = &t
+		}
 		orders = append(orders, &ord)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return orders, nil
+	return orders, rows.Err()
 }
 
 // ListAdminOrders returns paginated denormalized orders for the admin panel.
