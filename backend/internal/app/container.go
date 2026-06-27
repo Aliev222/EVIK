@@ -224,7 +224,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
 	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, createTransactionUC, eventPublisher, pushSender, clock, idGen, appLogger)
-	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
+	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, financeUC, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
@@ -366,6 +366,9 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS financial_status TEXT NOT NULL DEFAU
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS financially_completed_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_expanded BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS expanded_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_cross_city BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS surcharge_amount INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS surcharge_percent INTEGER NOT NULL DEFAULT 0;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

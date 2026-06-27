@@ -11,6 +11,8 @@ import (
 	paymentdomain "evik/backend/internal/domain/payment"
 )
 
+const defaultCommissionPercent = 15
+
 type PaymentRepository struct {
 	db *sql.DB
 }
@@ -536,13 +538,15 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 	var driverID sql.NullString
 	var paymentMethod string
 	var orderAmount sql.NullInt64
+	var surchargeAmount int64
 	err = tx.QueryRowContext(ctx, `
 SELECT o.driver_id,
 	COALESCE((SELECT payment_method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1), o.payment_method, 'cash'),
-	COALESCE(rub_to_cents(o.price_total), (SELECT amount FROM payment_transactions WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1))
+	COALESCE(rub_to_cents(o.price_total), (SELECT amount FROM payment_transactions WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1)),
+	COALESCE(o.surcharge_amount, 0)
 FROM orders o
 WHERE o.id = $1
-FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount)
+FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAmount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return paymentdomain.ErrPaymentNotFound
 	}
@@ -569,7 +573,8 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount)
 	}
 
 	total := orderAmount.Int64
-	commission := total * 15 / 100
+	base := total - surchargeAmount
+	commission := base * defaultCommissionPercent / 100
 	now := time.Now().UTC()
 	if paymentMethod == string(paymentdomain.PaymentMethodCash) {
 		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance + cents_to_rub($1), updated_at = NOW() WHERE id = $2`, commission, walletID); err != nil {

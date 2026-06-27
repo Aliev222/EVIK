@@ -31,13 +31,16 @@ type calculatePriceRequest struct {
 }
 
 type calculatePriceResponse struct {
-	OrderID       string  `json:"order_id"`
-	DistanceKm    float64 `json:"distance_km"`
-	BasePrice     int64   `json:"base_price"`
-	DistancePrice int64   `json:"distance_price"`
-	TotalPrice    int64   `json:"total_price"`
-	TariffID      string  `json:"tariff_id"`
-	Currency      string  `json:"currency"`
+	OrderID         string  `json:"order_id"`
+	DistanceKm      float64 `json:"distance_km"`
+	BasePrice       int64   `json:"base_price"`
+	DistancePrice   int64   `json:"distance_price"`
+	TotalPrice      int64   `json:"total_price"`
+	SurchargeAmount  int64   `json:"surcharge_amount"`
+	SurchargePercent int     `json:"surcharge_percent"`
+	SurchargeReason  *string `json:"surcharge_reason"`
+	TariffID        string  `json:"tariff_id"`
+	Currency        string  `json:"currency"`
 }
 
 type tariffResponse struct {
@@ -77,14 +80,22 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	var surchargeReason *string
+	if calculation.SurchargePercent > 0 {
+		r := "Подача из другого города"
+		surchargeReason = &r
+	}
 	response := calculatePriceResponse{
-		OrderID:       calculation.OrderID,
-		DistanceKm:    calculation.DistanceKm,
-		BasePrice:     calculation.BasePrice,
-		DistancePrice: calculation.DistancePrice,
-		TotalPrice:    calculation.TotalPrice,
-		TariffID:      calculation.TariffID,
-		Currency:      "RUB",
+		OrderID:         calculation.OrderID,
+		DistanceKm:      calculation.DistanceKm,
+		BasePrice:       calculation.BasePrice,
+		DistancePrice:   calculation.DistancePrice,
+		TotalPrice:      calculation.TotalPrice,
+		SurchargeAmount:  calculation.SurchargeAmount,
+		SurchargePercent: calculation.SurchargePercent,
+		SurchargeReason:  surchargeReason,
+		TariffID:        calculation.TariffID,
+		Currency:        "RUB",
 	}
 
 	w.Header().Set("Content-Type", "application/json")

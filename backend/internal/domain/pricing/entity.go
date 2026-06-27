@@ -46,14 +46,16 @@ func NewTariff(id string, truckType orderdomain.TowTruckType, basePrice, pricePe
 
 // PriceCalculation represents the result of price calculation
 type PriceCalculation struct {
-	TariffID       string
-	OrderID        string
-	DistanceKm     float64
-	BasePrice      int64
-	DistancePrice  int64
-	TotalPrice     int64
-	AppliedTariff  Tariff
-	CalculatedAt   time.Time
+	TariffID        string
+	OrderID         string
+	DistanceKm      float64
+	BasePrice       int64
+	DistancePrice   int64
+	TotalPrice      int64
+	SurchargeAmount  int64
+	SurchargePercent int
+	AppliedTariff   Tariff
+	CalculatedAt    time.Time
 }
 
 // CalculatePrice calculates price based on tariff and distance

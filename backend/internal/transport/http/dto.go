@@ -62,22 +62,25 @@ type CreateOrderRequest struct {
 // OrderDTO is the order representation returned in single-order and list
 // responses. Mirrors the existing internal orderResponse shape.
 type OrderDTO struct {
-	ID             string        `json:"id"`
-	UserID         string        `json:"user_id"`
-	DriverID       *string       `json:"driver_id"`
-	Pickup         CoordinateDTO `json:"pickup"`
-	Dropoff        CoordinateDTO `json:"dropoff"`
-	PickupLat      float64       `json:"pickup_lat"`
-	PickupLng      float64       `json:"pickup_lng"`
-	DropoffLat     float64       `json:"dropoff_lat"`
-	DropoffLng     float64       `json:"dropoff_lng"`
-	PickupAddress  string        `json:"pickup_address" example:"ул. Тверская, 1"`
-	DropoffAddress string        `json:"dropoff_address" example:"ул. Арбат, 10"`
-	TowTruckType   string        `json:"tow_truck_type" example:"winch"`
-	Status         string        `json:"status" example:"searching"`
-	CreatedAt      string        `json:"created_at"`
-	UpdatedAt      string        `json:"updated_at"`
-	CancelledAt    *string       `json:"cancelled_at"`
+	ID              string        `json:"id"`
+	UserID          string        `json:"user_id"`
+	DriverID        *string       `json:"driver_id"`
+	Pickup          CoordinateDTO `json:"pickup"`
+	Dropoff         CoordinateDTO `json:"dropoff"`
+	PickupLat       float64       `json:"pickup_lat"`
+	PickupLng       float64       `json:"pickup_lng"`
+	DropoffLat      float64       `json:"dropoff_lat"`
+	DropoffLng      float64       `json:"dropoff_lng"`
+	PickupAddress   string        `json:"pickup_address" example:"ул. Тверская, 1"`
+	DropoffAddress  string        `json:"dropoff_address" example:"ул. Арбат, 10"`
+	TowTruckType    string        `json:"tow_truck_type" example:"winch"`
+	Status          string        `json:"status" example:"searching"`
+	IsCrossCity     bool          `json:"is_cross_city"`
+	SurchargeAmount int64         `json:"surcharge_amount"`
+	SurchargePercent int          `json:"surcharge_percent"`
+	CreatedAt       string        `json:"created_at"`
+	UpdatedAt       string        `json:"updated_at"`
+	CancelledAt     *string       `json:"cancelled_at"`
 }
 
 // SingleOrderResponse is the response of POST /orders and GET /orders/{orderID}.

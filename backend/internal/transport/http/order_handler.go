@@ -105,25 +105,36 @@ type coordinateResponse struct {
 	Lng float64 `json:"lng"`
 }
 
+type PriceBreakdown struct {
+	BasePrice       int64  `json:"base_price"`
+	SurchargeAmount int64  `json:"surcharge_amount"`
+	SurchargeReason string `json:"surcharge_reason"`
+	TotalPrice      int64  `json:"total_price"`
+}
+
 type orderResponse struct {
-	ID             string             `json:"id"`
-	UserID         string             `json:"user_id"`
-	DriverID       *string            `json:"driver_id"`
-	Pickup         coordinateResponse `json:"pickup"`
-	Dropoff        coordinateResponse `json:"dropoff"`
-	PickupLat      float64            `json:"pickup_lat"`
-	PickupLng      float64            `json:"pickup_lng"`
-	DropoffLat     float64            `json:"dropoff_lat"`
-	DropoffLng     float64            `json:"dropoff_lng"`
-	PickupAddress  string             `json:"pickup_address"`
-	DropoffAddress string             `json:"dropoff_address"`
-	TowTruckType   string             `json:"tow_truck_type"`
-	Status         string             `json:"status"`
-	IsExpanded     bool               `json:"is_expanded"`
-	DistanceKM     *float64           `json:"distance_km,omitempty"`
-	CreatedAt      string             `json:"created_at"`
-	UpdatedAt      string             `json:"updated_at"`
-	CancelledAt    *string            `json:"cancelled_at"`
+	ID              string             `json:"id"`
+	UserID          string             `json:"user_id"`
+	DriverID        *string            `json:"driver_id"`
+	Pickup          coordinateResponse `json:"pickup"`
+	Dropoff         coordinateResponse `json:"dropoff"`
+	PickupLat       float64            `json:"pickup_lat"`
+	PickupLng       float64            `json:"pickup_lng"`
+	DropoffLat      float64            `json:"dropoff_lat"`
+	DropoffLng      float64            `json:"dropoff_lng"`
+	PickupAddress   string             `json:"pickup_address"`
+	DropoffAddress  string             `json:"dropoff_address"`
+	TowTruckType    string             `json:"tow_truck_type"`
+	Status          string             `json:"status"`
+	IsExpanded      bool               `json:"is_expanded"`
+	IsCrossCity     bool               `json:"is_cross_city"`
+	SurchargeAmount int64              `json:"surcharge_amount"`
+	SurchargePercent int                `json:"surcharge_percent"`
+	PriceBreakdown  *PriceBreakdown    `json:"price_breakdown,omitempty"`
+	DistanceKM      *float64           `json:"distance_km,omitempty"`
+	CreatedAt       string             `json:"created_at"`
+	UpdatedAt       string             `json:"updated_at"`
+	CancelledAt     *string            `json:"cancelled_at"`
 }
 
 // CreateOrder creates a new tow truck order on behalf of the authenticated client.
@@ -570,10 +581,21 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		cancelledAt = &value
 	}
 
+	var breakdown *PriceBreakdown
+	if ord.IsCrossCity {
+		base := ord.PriceTotal - ord.SurchargeAmount
+		breakdown = &PriceBreakdown{
+			BasePrice:       base,
+			SurchargeAmount: ord.SurchargeAmount,
+			SurchargeReason: "Подача из другого города",
+			TotalPrice:      ord.PriceTotal,
+		}
+	}
+
 	return orderResponse{
-		ID:       ord.ID,
-		UserID:   ord.UserID,
-		DriverID: ord.DriverID,
+		ID:              ord.ID,
+		UserID:          ord.UserID,
+		DriverID:        ord.DriverID,
 		Pickup: coordinateResponse{
 			Lat: ord.Pickup.Lat,
 			Lng: ord.Pickup.Lng,
@@ -582,18 +604,22 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 			Lat: ord.Dropoff.Lat,
 			Lng: ord.Dropoff.Lng,
 		},
-		PickupLat:      ord.Pickup.Lat,
-		PickupLng:      ord.Pickup.Lng,
-		DropoffLat:     ord.Dropoff.Lat,
-		DropoffLng:     ord.Dropoff.Lng,
-		PickupAddress:  ord.PickupAddress,
-		DropoffAddress: ord.DropoffAddress,
-		TowTruckType:   string(ord.TowTruckType),
-		Status:         string(ord.Status),
-		IsExpanded:     ord.IsExpanded,
-		CreatedAt:      ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:      ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		CancelledAt:    cancelledAt,
+		PickupLat:       ord.Pickup.Lat,
+		PickupLng:       ord.Pickup.Lng,
+		DropoffLat:      ord.Dropoff.Lat,
+		DropoffLng:      ord.Dropoff.Lng,
+		PickupAddress:   ord.PickupAddress,
+		DropoffAddress:  ord.DropoffAddress,
+		TowTruckType:    string(ord.TowTruckType),
+		Status:          string(ord.Status),
+		IsExpanded:      ord.IsExpanded,
+		IsCrossCity:     ord.IsCrossCity,
+		SurchargeAmount: ord.SurchargeAmount,
+		SurchargePercent: ord.SurchargePercent,
+		PriceBreakdown:  breakdown,
+		CreatedAt:       ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		UpdatedAt:       ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		CancelledAt:     cancelledAt,
 	}
 }
 

@@ -27,21 +27,25 @@ func (t TowTruckType) IsValid() bool {
 }
 
 type Order struct {
-	ID             string
-	UserID         string
-	DriverID       *string
-	CityID         *string
-	Pickup         Coordinate
-	PickupAddress  string
-	Dropoff        Coordinate
-	DropoffAddress string
-	TowTruckType   TowTruckType
-	Status         Status
-	IsExpanded     bool
-	ExpandedAt     *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	CancelledAt    *time.Time
+	ID              string
+	UserID          string
+	DriverID        *string
+	CityID          *string
+	PriceTotal      int64
+	Pickup          Coordinate
+	PickupAddress   string
+	Dropoff         Coordinate
+	DropoffAddress  string
+	TowTruckType    TowTruckType
+	Status          Status
+	IsExpanded      bool
+	IsCrossCity     bool
+	SurchargeAmount int64
+	SurchargePercent int
+	ExpandedAt      *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	CancelledAt     *time.Time
 }
 
 func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTruckType, now time.Time) (*Order, error) {

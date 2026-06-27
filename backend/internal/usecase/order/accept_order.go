@@ -6,7 +6,9 @@ import (
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
+	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
+	servicearea "evik/backend/internal/domain/servicearea"
 )
 
 type DriverOrderRepository interface {
@@ -15,11 +17,26 @@ type DriverOrderRepository interface {
 	GetByID(ctx context.Context, id string) (*driverdomain.Driver, error)
 }
 
+type DriverCityCache interface {
+	GetDriverCity(ctx context.Context, driverID string) (string, error)
+}
+
+type DriverLocationCache interface {
+	GetLastLocation(ctx context.Context, driverID string) (*locationdomain.Location, error)
+}
+
+type CityDetector interface {
+	CheckPoint(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, bool, error)
+}
+
 type AcceptOrderUseCase struct {
 	orderRepo      orderdomain.Repository
 	driverRepo     DriverOrderRepository
 	eventPublisher EventPublisher
 	pushSender     PushSender
+	cityCache      DriverCityCache
+	locCache       DriverLocationCache
+	cityDetector   CityDetector
 	clock          Clock
 	logger         Logger
 }
@@ -27,6 +44,9 @@ type AcceptOrderUseCase struct {
 func NewAcceptOrderUseCase(
 	orderRepo orderdomain.Repository,
 	driverRepo DriverOrderRepository,
+	cityCache DriverCityCache,
+	locCache DriverLocationCache,
+	cityDetector CityDetector,
 	eventPublisher EventPublisher,
 	pushSender PushSender,
 	clock Clock,
@@ -35,6 +55,9 @@ func NewAcceptOrderUseCase(
 	return &AcceptOrderUseCase{
 		orderRepo:      orderRepo,
 		driverRepo:     driverRepo,
+		cityCache:      cityCache,
+		locCache:       locCache,
+		cityDetector:   cityDetector,
 		eventPublisher: eventPublisher,
 		pushSender:     pushSender,
 		clock:          clock,
@@ -83,6 +106,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	} else {
 		driverAssigned = true
 	}
+	uc.applySurchargeIfCrossCity(ctx, ord, driverID)
 	if err := uc.orderRepo.Update(ctx, ord); err != nil {
 		if driverAssigned {
 			if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, orderID, now); releaseErr != nil {
@@ -129,6 +153,46 @@ func (uc *AcceptOrderUseCase) notifyClientAccepted(parent context.Context, ord *
 	if err := uc.pushSender.SendToUser(pushCtx, ord.UserID, "client", title, body, data); err != nil {
 		uc.logger.Error("failed to send accepted push to client", err, "order_id", ord.ID, "user_id", ord.UserID)
 	}
+}
+
+// applySurchargeIfCrossCity checks whether the accepting driver belongs to a
+// different city than the order's origin city. If so, it applies a 50%
+// surcharge to the order price. When the driver's city cannot be determined
+// from the Redis cache, the method falls back to geo-detecting the city from
+// the driver's last known location.
+func (uc *AcceptOrderUseCase) applySurchargeIfCrossCity(ctx context.Context, ord *orderdomain.Order, driverID string) {
+	if ord.CityID == nil || *ord.CityID == "" || ord.PriceTotal <= 0 {
+		return
+	}
+	var driverCity string
+	cityID, err := uc.cityCache.GetDriverCity(ctx, driverID)
+	if err == nil && cityID != "" {
+		driverCity = cityID
+	} else if uc.locCache != nil && uc.cityDetector != nil {
+		loc, locErr := uc.locCache.GetLastLocation(ctx, driverID)
+		if locErr == nil && loc != nil {
+			area, ok, detErr := uc.cityDetector.CheckPoint(ctx, loc.Lat, loc.Lng)
+			if detErr == nil && ok {
+				driverCity = area.ID
+			}
+		}
+	}
+	if driverCity == "" || driverCity == *ord.CityID {
+		return
+	}
+	original := ord.PriceTotal
+	ord.IsCrossCity = true
+	ord.SurchargePercent = 50
+	ord.SurchargeAmount = original * 50 / 100
+	ord.PriceTotal = original + ord.SurchargeAmount
+	uc.logger.Info("applied cross-city surcharge",
+		"order_id", ord.ID,
+		"driver_id", driverID,
+		"order_city", *ord.CityID,
+		"driver_city", driverCity,
+		"original_price", original,
+		"surcharge_amount", ord.SurchargeAmount,
+		"new_total", ord.PriceTotal)
 }
 
 func (uc *AcceptOrderUseCase) tryRecoverDriverAvailability(
