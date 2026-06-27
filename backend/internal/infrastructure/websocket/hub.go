@@ -95,7 +95,25 @@ func (h *Hub) SendToUser(userID string, payload []byte) {
 			select {
 			case c.Send <- payload:
 			default:
-				// Client buffer is full, skip
+			}
+		}
+	}
+}
+
+// SendToDriversWhere sends payload to every connected driver client for which
+// predicate returns true. Predicate is called under RLock — keep it cheap.
+func (h *Hub) SendToDriversWhere(predicate func(c *Client) bool, payload []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for c := range h.clients {
+		if c.Role != "driver" {
+			continue
+		}
+		if predicate(c) {
+			select {
+			case c.Send <- payload:
+			default:
 			}
 		}
 	}

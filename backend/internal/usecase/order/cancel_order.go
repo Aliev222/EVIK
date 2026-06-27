@@ -42,13 +42,18 @@ func (uc *CancelOrderUseCase) Execute(ctx context.Context, orderID string, reaso
 			return nil, err
 		}
 	}
+	cancelPayload := map[string]any{
+		"status":  ord.Status,
+		"reason":  cancelReason,
+		"user_id": ord.UserID,
+	}
+	if ord.DriverID != nil {
+		cancelPayload["driver_id"] = *ord.DriverID
+	}
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventCancelled,
 		OrderID: ord.ID,
-		Payload: map[string]any{
-			"status": ord.Status,
-			"reason": cancelReason,
-		},
+		Payload: cancelPayload,
 	}); err != nil {
 		uc.logger.Error("failed to publish cancelled status", err, "order_id", ord.ID)
 		return nil, err

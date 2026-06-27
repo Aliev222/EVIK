@@ -30,6 +30,7 @@ type Order struct {
 	ID             string
 	UserID         string
 	DriverID       *string
+	CityID         *string
 	Pickup         Coordinate
 	PickupAddress  string
 	Dropoff        Coordinate

@@ -16,7 +16,7 @@ func TestSetStatusOnlinePersistsDriverAndLocation(t *testing.T) {
 	orderRepo := newFakeOrderRepository()
 	locationRepo := &fakeLocationRepository{}
 	publisher := &fakeEventPublisher{}
-	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, fakeClock{now: now}, fakeLogger{})
+	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, nil, nil, fakeClock{now: now}, fakeLogger{})
 
 	lat := 55.75
 	lng := 37.62
@@ -70,7 +70,7 @@ func TestSetStatusOfflineCancelsActiveOrderAndRemovesLocation(t *testing.T) {
 	}
 	locationRepo := &fakeLocationRepository{}
 	publisher := &fakeEventPublisher{}
-	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, fakeClock{now: now}, fakeLogger{})
+	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, nil, nil, fakeClock{now: now}, fakeLogger{})
 
 	drv, err := uc.Execute(context.Background(), SetStatusInput{
 		DriverID: "driver-1",

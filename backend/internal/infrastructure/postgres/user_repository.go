@@ -198,6 +198,42 @@ WHERE udt.role = 'driver'
 	return tokens, rows.Err()
 }
 
+// ListDeviceTokensByDriverIDs returns active FCM tokens for the given set of
+// driver user-IDs. Used by city-scoped push broadcasts.
+func (r *UserRepository) ListDeviceTokensByDriverIDs(ctx context.Context, driverIDs []string) ([]string, error) {
+	if len(driverIDs) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(driverIDs))
+	placeholders := make([]string, len(driverIDs))
+	for i, id := range driverIDs {
+		args[i] = id
+		placeholders[i] = argRef(i + 1)
+	}
+	query := `
+SELECT udt.fcm_token
+FROM user_device_tokens AS udt
+JOIN drivers AS d ON d.user_id = udt.user_id
+WHERE udt.user_id IN (` + strings.Join(placeholders, ",") + `)
+  AND udt.role = 'driver'
+  AND udt.revoked_at IS NULL
+  AND d.status = 'online'`
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, t)
+	}
+	return tokens, rows.Err()
+}
+
 func (r *UserRepository) RevokeDeviceToken(ctx context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 UPDATE user_device_tokens

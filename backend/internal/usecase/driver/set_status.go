@@ -40,11 +40,23 @@ type LocationRepository interface {
 	RemoveDriver(ctx context.Context, driverID string) error
 }
 
+// CityDetector maps a coordinate pair to a service-area ID.
+type CityDetector interface {
+	DetectCity(ctx context.Context, lat, lng float64) (cityID string, found bool, err error)
+}
+
+// CityCache persists the driver→city mapping for fast lookup elsewhere.
+type CityCache interface {
+	SetDriverCity(ctx context.Context, driverID, cityID string) error
+}
+
 type SetStatusUseCase struct {
 	driverRepo     DriverRepository
 	orderRepo      OrderRepository
 	locationRepo   LocationRepository
 	eventPublisher EventPublisher
+	cityDetector   CityDetector
+	cityCache      CityCache
 	clock          Clock
 	logger         Logger
 }
@@ -62,6 +74,8 @@ func NewSetStatusUseCase(
 	orderRepo OrderRepository,
 	locationRepo LocationRepository,
 	eventPublisher EventPublisher,
+	cityDetector CityDetector,
+	cityCache CityCache,
 	clock Clock,
 	logger Logger,
 ) *SetStatusUseCase {
@@ -70,6 +84,8 @@ func NewSetStatusUseCase(
 		orderRepo:      orderRepo,
 		locationRepo:   locationRepo,
 		eventPublisher: eventPublisher,
+		cityDetector:   cityDetector,
+		cityCache:      cityCache,
 		clock:          clock,
 		logger:         logger,
 	}
@@ -122,6 +138,7 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 			}); err != nil {
 				return nil, err
 			}
+			uc.cacheDriverCity(ctx, input.DriverID, *input.Lat, *input.Lng)
 		}
 		return current, nil
 	}
@@ -144,8 +161,29 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 		}); err != nil {
 			return nil, err
 		}
+		uc.cacheDriverCity(ctx, input.DriverID, *input.Lat, *input.Lng)
 	}
 	return drv, nil
+}
+
+// cacheDriverCity detects the service area for the given coords and caches it.
+// Errors are logged and swallowed — a missed cache write degrades push targeting
+// but must never fail a location update.
+func (uc *SetStatusUseCase) cacheDriverCity(ctx context.Context, driverID string, lat, lng float64) {
+	if uc.cityDetector == nil || uc.cityCache == nil {
+		return
+	}
+	areaID, found, err := uc.cityDetector.DetectCity(ctx, lat, lng)
+	if err != nil {
+		uc.logger.Error("city detection failed for driver", err, "driver_id", driverID)
+		return
+	}
+	if !found {
+		return
+	}
+	if err := uc.cityCache.SetDriverCity(ctx, driverID, areaID); err != nil {
+		uc.logger.Error("failed to cache driver city", err, "driver_id", driverID, "city_id", areaID)
+	}
 }
 
 func (uc *SetStatusUseCase) cancelActiveOrder(ctx context.Context, drv *driverdomain.Driver, now time.Time) error {

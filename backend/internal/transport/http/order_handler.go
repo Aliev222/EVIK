@@ -17,6 +17,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// DriverCityCache reads the city cached in Redis for a given driver.
+type DriverCityCache interface {
+	GetDriverCity(ctx context.Context, driverID string) (string, error)
+}
+
 type OrderHandler struct {
 	createUC  *orderuc.CreateOrderUseCase
 	acceptUC  *orderuc.AcceptOrderUseCase
@@ -25,12 +30,14 @@ type OrderHandler struct {
 	orderRepo orderAccessRepository
 	areas     servicearea.Repository
 	gates     *driveruc.GateService
+	cityCache DriverCityCache
 }
 
 type orderAccessRepository interface {
 	orderdomain.Repository
 	ListByUserID(ctx context.Context, userID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error)
 	ListByDriverID(ctx context.Context, driverID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error)
+	ListByStatusAndCity(ctx context.Context, status orderdomain.Status, cityID string, limit int) ([]*orderdomain.Order, error)
 }
 
 func NewOrderHandler(
@@ -41,6 +48,7 @@ func NewOrderHandler(
 	orderRepo orderAccessRepository,
 	areas servicearea.Repository,
 	gates *driveruc.GateService,
+	cityCache DriverCityCache,
 ) *OrderHandler {
 	return &OrderHandler{
 		createUC:  createUC,
@@ -50,6 +58,7 @@ func NewOrderHandler(
 		orderRepo: orderRepo,
 		areas:     areas,
 		gates:     gates,
+		cityCache: cityCache,
 	}
 }
 
@@ -136,9 +145,15 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, errors.New("payment_method must be cash or card"))
 		return
 	}
-	if err := h.ensureServiceAreaAllows(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng); err != nil {
+	area, err := h.ensureServiceAreaAllows(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
+	if err != nil {
 		h.writeError(w, http.StatusForbidden, err)
 		return
+	}
+
+	cityID := ""
+	if area != nil {
+		cityID = area.ID
 	}
 
 	ord, err := h.createUC.Execute(r.Context(), orderuc.CreateOrderInput{
@@ -150,7 +165,8 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PickupAddress:  req.PickupAddress,
 		DropoffAddress: req.DropoffAddress,
 		TowTruckType:   towTruckType,
-		AutoDispatch:   false, // Always false - manual driver acceptance only
+		AutoDispatch:   false,
+		CityID:         cityID,
 	})
 	if err != nil {
 		switch {
@@ -219,7 +235,13 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			orders, err = h.orderRepo.ListByStatus(r.Context(), status, limit)
+			if h.cityCache != nil {
+				cityID, cityErr := h.cityCache.GetDriverCity(r.Context(), userID)
+				if cityErr == nil && cityID != "" {
+					orders, err = h.orderRepo.ListByStatusAndCity(r.Context(), status, cityID, limit)
+				}
+				// Driver outside all cities or no cached city → empty list (spec requirement).
+			}
 		} else {
 			orders, err = h.orderRepo.ListByDriverID(r.Context(), userID, status, limit)
 		}
@@ -429,21 +451,25 @@ func (h *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 
-func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, pickupLng, dropoffLat, dropoffLng float64) error {
+// ensureServiceAreaAllows validates both coordinates and returns the matched
+// service area (determined by pickup point) so the caller can record city_id.
+func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, pickupLng, dropoffLat, dropoffLng float64) (*servicearea.ServiceArea, error) {
 	if h.areas == nil {
-		return nil
+		return nil, nil
 	}
-	if _, ok, err := h.areas.CheckPoint(ctx, pickupLat, pickupLng); err != nil {
-		return err
-	} else if !ok {
-		return errors.New("pickup is outside active service areas")
+	area, ok, err := h.areas.CheckPoint(ctx, pickupLat, pickupLng)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, errors.New("pickup is outside active service areas")
 	}
 	if _, ok, err := h.areas.CheckPoint(ctx, dropoffLat, dropoffLng); err != nil {
-		return err
+		return nil, err
 	} else if !ok {
-		return errors.New("dropoff is outside active service areas")
+		return nil, errors.New("dropoff is outside active service areas")
 	}
-	return nil
+	return area, nil
 }
 
 func (h *OrderHandler) canAccessOrder(ctx context.Context, ord *orderdomain.Order, allowDriverSearching bool) bool {

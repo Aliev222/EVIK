@@ -20,25 +20,28 @@ import (
 	"google.golang.org/api/option"
 )
 
-// PushSender is the dependency surface consumed by order usecases. Two
-// fan-out modes are supported: targeted (single recipient identified by
-// userID + role) and broadcast to all currently-available drivers.
-//
-// Implementations MUST treat both calls as fire-and-forget from the caller's
-// perspective: the returned error is logged but never propagated up the
-// HTTP handler chain — a failed push must not abort an order transition.
+// PushSender is the dependency surface consumed by order usecases.
 type PushSender interface {
 	SendToUser(ctx context.Context, userID, role, title, body string, data map[string]string) error
 	BroadcastToAvailableDrivers(ctx context.Context, title, body string, data map[string]string) error
+	BroadcastToDriversInCity(ctx context.Context, cityID, title, body string, data map[string]string) error
+}
+
+// AreaBBoxLookup resolves a service-area ID to its bounding box.
+type AreaBBoxLookup interface {
+	GetAreaBBox(ctx context.Context, cityID string) (minLat, minLng, maxLat, maxLng float64, err error)
+}
+
+// DriverCityLocator returns IDs of drivers inside the given bounding box.
+type DriverCityLocator interface {
+	GetDriverIDsInBBox(ctx context.Context, minLat, minLng, maxLat, maxLng float64) ([]string, error)
 }
 
 // TokenLister is the slice of the user repository that the Sender needs.
-// Defined here (consumer side) so the postgres repo stays unaware of the
-// FCM package and can satisfy the contract by accident — accept interfaces,
-// return structs.
 type TokenLister interface {
 	ListActiveDeviceTokens(ctx context.Context, userID string, role string) ([]string, error)
 	ListAvailableDriverDeviceTokens(ctx context.Context) ([]string, error)
+	ListDeviceTokensByDriverIDs(ctx context.Context, driverIDs []string) ([]string, error)
 	RevokeDeviceToken(ctx context.Context, userID string, role string, fcmToken string, revokedAt time.Time) error
 }
 
@@ -57,16 +60,16 @@ type messagingClient interface {
 
 // Sender is the production Firebase-backed implementation of PushSender.
 type Sender struct {
-	client messagingClient
-	tokens TokenLister
-	logger Logger
-	now    func() time.Time
+	client      messagingClient
+	tokens      TokenLister
+	areaLookup  AreaBBoxLookup
+	cityLocator DriverCityLocator
+	logger      Logger
+	now         func() time.Time
 }
 
-// New initialises a Sender from a raw service-account JSON. The caller is
-// expected to read FIREBASE_CREDENTIALS_JSON from config and pass it as
-// bytes. If credentialsJSON is empty, callers should use NewNoop instead.
-func New(ctx context.Context, credentialsJSON []byte, tokens TokenLister, logger Logger) (*Sender, error) {
+// New initialises a Sender from a raw service-account JSON.
+func New(ctx context.Context, credentialsJSON []byte, tokens TokenLister, areaLookup AreaBBoxLookup, cityLocator DriverCityLocator, logger Logger) (*Sender, error) {
 	if len(credentialsJSON) == 0 {
 		return nil, errors.New("fcm: empty credentials JSON")
 	}
@@ -82,10 +85,12 @@ func New(ctx context.Context, credentialsJSON []byte, tokens TokenLister, logger
 		return nil, fmt.Errorf("fcm: init messaging client: %w", err)
 	}
 	return &Sender{
-		client: client,
-		tokens: tokens,
-		logger: logger,
-		now:    func() time.Time { return time.Now().UTC() },
+		client:      client,
+		tokens:      tokens,
+		areaLookup:  areaLookup,
+		cityLocator: cityLocator,
+		logger:      logger,
+		now:         func() time.Time { return time.Now().UTC() },
 	}, nil
 }
 
@@ -189,9 +194,28 @@ func (s *Sender) handleResponses(ctx context.Context, batch []string, resp *mess
 	}
 }
 
-// NoopSender is wired in when FIREBASE_CREDENTIALS_JSON is empty so the rest
-// of the application — usecases, handlers, tests — can pretend FCM is
-// always present. All methods return nil immediately.
+// BroadcastToDriversInCity sends a push to every online driver whose last
+// known location is inside the service area identified by cityID.
+func (s *Sender) BroadcastToDriversInCity(ctx context.Context, cityID, title, body string, data map[string]string) error {
+	if s.areaLookup == nil || s.cityLocator == nil {
+		return s.BroadcastToAvailableDrivers(ctx, title, body, data)
+	}
+	minLat, minLng, maxLat, maxLng, err := s.areaLookup.GetAreaBBox(ctx, cityID)
+	if err != nil {
+		return fmt.Errorf("fcm: get area bbox for %s: %w", cityID, err)
+	}
+	driverIDs, err := s.cityLocator.GetDriverIDsInBBox(ctx, minLat, minLng, maxLat, maxLng)
+	if err != nil {
+		return fmt.Errorf("fcm: get drivers in bbox: %w", err)
+	}
+	tokens, err := s.tokens.ListDeviceTokensByDriverIDs(ctx, driverIDs)
+	if err != nil {
+		return fmt.Errorf("fcm: list tokens for city drivers: %w", err)
+	}
+	return s.sendMulticast(ctx, tokens, title, body, data, "", "driver")
+}
+
+// NoopSender is wired in when FIREBASE_CREDENTIALS_JSON is empty.
 type NoopSender struct{}
 
 func NewNoop() NoopSender { return NoopSender{} }
@@ -201,5 +225,9 @@ func (NoopSender) SendToUser(context.Context, string, string, string, string, ma
 }
 
 func (NoopSender) BroadcastToAvailableDrivers(context.Context, string, string, map[string]string) error {
+	return nil
+}
+
+func (NoopSender) BroadcastToDriversInCity(context.Context, string, string, string, map[string]string) error {
 	return nil
 }

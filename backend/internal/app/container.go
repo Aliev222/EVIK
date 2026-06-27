@@ -18,6 +18,7 @@ import (
 	domainmatching "evik/backend/internal/domain/matching"
 	pricingdomain "evik/backend/internal/domain/pricing"
 	routingdomain "evik/backend/internal/domain/routing"
+	servicearea "evik/backend/internal/domain/servicearea"
 	"evik/backend/internal/infrastructure/fcm"
 	"evik/backend/internal/infrastructure/geocoding"
 	httpinfra "evik/backend/internal/infrastructure/http"
@@ -107,6 +108,28 @@ func (p yookassaProvider) CreatePayout(ctx context.Context, req paymentuc.Provid
 	return &paymentuc.ProviderPayoutResponse{ID: res.ID, Status: res.Status}, nil
 }
 
+// serviceAreaBBoxLookup adapts the service-area repository to fcm.AreaBBoxLookup.
+type serviceAreaBBoxLookup struct{ repo servicearea.Repository }
+
+func (s serviceAreaBBoxLookup) GetAreaBBox(ctx context.Context, cityID string) (minLat, minLng, maxLat, maxLng float64, err error) {
+	area, err := s.repo.GetByID(ctx, cityID)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	return area.MinLat, area.MinLng, area.MaxLat, area.MaxLng, nil
+}
+
+// cityDetectorAdapter adapts servicearea.Repository.CheckPoint to driveruc.CityDetector.
+type cityDetectorAdapter struct{ repo servicearea.Repository }
+
+func (c cityDetectorAdapter) DetectCity(ctx context.Context, lat, lng float64) (string, bool, error) {
+	area, ok, err := c.repo.CheckPoint(ctx, lat, lng)
+	if err != nil || !ok {
+		return "", ok, err
+	}
+	return area.ID, true, nil
+}
+
 func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	db, err := sql.Open("pgx", cfg.PostgresDSN)
 	if err != nil {
@@ -188,7 +211,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		pushSender = fcm.NewNoop()
 		logger.Printf("INFO: FIREBASE_CREDENTIALS_JSON not set — using noop FCM sender")
 	} else {
-		realSender, err := fcm.New(context.Background(), []byte(cfg.FirebaseCredentialsJSON), userRepo, appLogger)
+		realSender, err := fcm.New(context.Background(), []byte(cfg.FirebaseCredentialsJSON), userRepo, serviceAreaBBoxLookup{serviceAreaRepo}, locationRepo, appLogger)
 		if err != nil {
 			logger.Printf("WARN: failed to init FCM sender, falling back to noop: %v", err)
 			pushSender = fcm.NewNoop()
@@ -203,9 +226,9 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, financeUC, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
-	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, clock, appLogger)
+	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo)
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
@@ -239,7 +262,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager)
-	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, logger)
+	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, logger)
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
 

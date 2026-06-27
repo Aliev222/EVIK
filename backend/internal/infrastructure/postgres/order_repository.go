@@ -19,8 +19,8 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
-INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -38,6 +38,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 		ord.CreatedAt,
 		ord.UpdatedAt,
 		ord.CancelledAt,
+		ord.CityID,
 	)
 	return err
 }
@@ -67,7 +68,7 @@ WHERE id = $1`
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
 FROM orders
 WHERE id = $1`
 
@@ -75,6 +76,7 @@ WHERE id = $1`
 		ord            orderdomain.Order
 		pickupAddress  sql.NullString
 		dropoffAddress sql.NullString
+		cityID         sql.NullString
 		towTruckType   string
 		status         string
 	)
@@ -93,6 +95,7 @@ WHERE id = $1`
 		&ord.CreatedAt,
 		&ord.UpdatedAt,
 		&ord.CancelledAt,
+		&cityID,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -104,6 +107,9 @@ WHERE id = $1`
 	ord.Status = orderdomain.Status(status)
 	ord.PickupAddress = scanNullableString(pickupAddress)
 	ord.DropoffAddress = scanNullableString(dropoffAddress)
+	if cityID.Valid {
+		ord.CityID = &cityID.String
+	}
 	return &ord, nil
 }
 
@@ -113,7 +119,7 @@ func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.S
 	}
 
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
 FROM orders
 WHERE status = $1
 ORDER BY created_at ASC
@@ -131,6 +137,7 @@ LIMIT $2`
 			ord            orderdomain.Order
 			pickupAddress  sql.NullString
 			dropoffAddress sql.NullString
+			cityID         sql.NullString
 			towTruckType   string
 			rowStatus      string
 		)
@@ -149,6 +156,7 @@ LIMIT $2`
 			&ord.CreatedAt,
 			&ord.UpdatedAt,
 			&ord.CancelledAt,
+			&cityID,
 		); err != nil {
 			return nil, err
 		}
@@ -156,6 +164,9 @@ LIMIT $2`
 		ord.Status = orderdomain.Status(rowStatus)
 		ord.PickupAddress = scanNullableString(pickupAddress)
 		ord.DropoffAddress = scanNullableString(dropoffAddress)
+		if cityID.Valid {
+			ord.CityID = &cityID.String
+		}
 		orders = append(orders, &ord)
 	}
 	if err := rows.Err(); err != nil {
@@ -164,12 +175,68 @@ LIMIT $2`
 	return orders, nil
 }
 
+func (r *OrderRepository) ListByStatusAndCity(ctx context.Context, status orderdomain.Status, cityID string, limit int) ([]*orderdomain.Order, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	const query = `
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
+FROM orders
+WHERE status = $1 AND city_id = $2
+ORDER BY created_at ASC
+LIMIT $3`
+	rows, err := r.db.QueryContext(ctx, query, string(status), cityID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	orders := make([]*orderdomain.Order, 0, limit)
+	for rows.Next() {
+		var (
+			ord            orderdomain.Order
+			pickupAddress  sql.NullString
+			dropoffAddress sql.NullString
+			cid            sql.NullString
+			towTruckType   string
+			rowStatus      string
+		)
+		if err := rows.Scan(
+			&ord.ID,
+			&ord.UserID,
+			&ord.DriverID,
+			&ord.Pickup.Lat,
+			&ord.Pickup.Lng,
+			&ord.Dropoff.Lat,
+			&ord.Dropoff.Lng,
+			&pickupAddress,
+			&dropoffAddress,
+			&towTruckType,
+			&rowStatus,
+			&ord.CreatedAt,
+			&ord.UpdatedAt,
+			&ord.CancelledAt,
+			&cid,
+		); err != nil {
+			return nil, err
+		}
+		ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
+		ord.Status = orderdomain.Status(rowStatus)
+		ord.PickupAddress = scanNullableString(pickupAddress)
+		ord.DropoffAddress = scanNullableString(dropoffAddress)
+		if cid.Valid {
+			ord.CityID = &cid.String
+		}
+		orders = append(orders, &ord)
+	}
+	return orders, rows.Err()
+}
+
 func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
 FROM orders
 WHERE user_id = $1`
 	args := []any{userID}
@@ -188,7 +255,7 @@ func (r *OrderRepository) ListByDriverID(ctx context.Context, driverID string, s
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, created_at, updated_at, cancelled_at, city_id
 FROM orders
 WHERE driver_id = $1`
 	args := []any{driverID}
@@ -214,6 +281,7 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 			ord            orderdomain.Order
 			pickupAddress  sql.NullString
 			dropoffAddress sql.NullString
+			cityID         sql.NullString
 			towTruckType   string
 			rowStatus      string
 		)
@@ -232,6 +300,7 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 			&ord.CreatedAt,
 			&ord.UpdatedAt,
 			&ord.CancelledAt,
+			&cityID,
 		); err != nil {
 			return nil, err
 		}
@@ -239,6 +308,9 @@ func (r *OrderRepository) listOrders(ctx context.Context, query string, args ...
 		ord.Status = orderdomain.Status(rowStatus)
 		ord.PickupAddress = scanNullableString(pickupAddress)
 		ord.DropoffAddress = scanNullableString(dropoffAddress)
+		if cityID.Valid {
+			ord.CityID = &cityID.String
+		}
 		orders = append(orders, &ord)
 	}
 	if err := rows.Err(); err != nil {

@@ -94,3 +94,36 @@ func (s *LocationStore) RemoveDriver(ctx context.Context, driverID string) error
 	}
 	return s.client.Del(ctx, "drivers:location:updated_at:"+driverID).Err()
 }
+
+// GetDriverIDsInBBox returns IDs of all drivers whose last known position
+// falls within the given bounding box. Fetches all geo members then filters
+// in Go — safe for the fleet sizes we operate at.
+func (s *LocationStore) GetDriverIDsInBBox(ctx context.Context, minLat, minLng, maxLat, maxLng float64) ([]string, error) {
+	ids, err := s.client.ZRange(ctx, "drivers:geo", 0, -1).Result()
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	coords, err := s.client.GeoPos(ctx, "drivers:geo", ids...).Result()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(ids))
+	for i, pos := range coords {
+		if pos == nil {
+			continue
+		}
+		if pos.Latitude >= minLat && pos.Latitude <= maxLat &&
+			pos.Longitude >= minLng && pos.Longitude <= maxLng {
+			result = append(result, ids[i])
+		}
+	}
+	return result, nil
+}
+
+func (s *LocationStore) SetDriverCity(ctx context.Context, driverID, cityID string) error {
+	return s.client.Set(ctx, "driver:"+driverID+":city_id", cityID, 24*time.Hour).Err()
+}
+
+func (s *LocationStore) GetDriverCity(ctx context.Context, driverID string) (string, error) {
+	return s.client.Get(ctx, "driver:"+driverID+":city_id").Result()
+}

@@ -41,11 +41,11 @@ type PaymentService interface {
 }
 
 // PushSender mirrors the surface of fcm.PushSender so this package can call
-// out to the FCM layer without importing it (and without dragging Firebase
-// into test binaries). Any value satisfying both methods is acceptable.
+// out to the FCM layer without importing it.
 type PushSender interface {
 	SendToUser(ctx context.Context, userID, role, title, body string, data map[string]string) error
 	BroadcastToAvailableDrivers(ctx context.Context, title, body string, data map[string]string) error
+	BroadcastToDriversInCity(ctx context.Context, cityID, title, body string, data map[string]string) error
 }
 
 type CreateOrderUseCase struct {
@@ -70,6 +70,7 @@ type CreateOrderInput struct {
 	DropoffAddress string
 	TowTruckType   orderdomain.TowTruckType
 	AutoDispatch   bool
+	CityID         string
 }
 
 func NewCreateOrderUseCase(
@@ -107,6 +108,9 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	}
 	ord.PickupAddress = input.PickupAddress
 	ord.DropoffAddress = input.DropoffAddress
+	if input.CityID != "" {
+		ord.CityID = &input.CityID
+	}
 
 	if err := uc.orderRepo.Create(ctx, ord); err != nil {
 		uc.logger.Error("failed to persist created order", err, "order_id", ord.ID)
@@ -222,7 +226,13 @@ func (uc *CreateOrderUseCase) broadcastNewOrderPush(parent context.Context, ord 
 		"tow_truck_type": string(ord.TowTruckType),
 		"price_kopecks":  fmt.Sprintf("%d", priceKopecks),
 	}
-	if err := uc.pushSender.BroadcastToAvailableDrivers(pushCtx, title, body, data); err != nil {
-		uc.logger.Error("failed to broadcast new order push", err, "order_id", ord.ID)
+	var pushErr error
+	if ord.CityID != nil && *ord.CityID != "" {
+		pushErr = uc.pushSender.BroadcastToDriversInCity(pushCtx, *ord.CityID, title, body, data)
+	} else {
+		pushErr = uc.pushSender.BroadcastToAvailableDrivers(pushCtx, title, body, data)
+	}
+	if pushErr != nil {
+		uc.logger.Error("failed to broadcast new order push", pushErr, "order_id", ord.ID)
 	}
 }

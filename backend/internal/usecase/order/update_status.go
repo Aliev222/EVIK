@@ -52,10 +52,17 @@ func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next
 			return nil, err
 		}
 	}
+	evPayload := map[string]any{
+		"status":  ord.Status,
+		"user_id": ord.UserID,
+	}
+	if ord.DriverID != nil {
+		evPayload["driver_id"] = *ord.DriverID
+	}
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventTypeFromStatus(ord.Status),
 		OrderID: ord.ID,
-		Payload: map[string]any{"status": ord.Status},
+		Payload: evPayload,
 	}); err != nil {
 		return nil, err
 	}
