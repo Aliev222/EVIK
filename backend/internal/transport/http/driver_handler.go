@@ -33,6 +33,10 @@ type DriverVerificationRepository interface {
 	GetVerificationStatus(ctx context.Context, driverID string) (*DriverVerificationStatus, error)
 }
 
+type ActiveOrderChecker interface {
+	HasActiveOrderWithDriver(ctx context.Context, clientID, driverID string) (bool, error)
+}
+
 type DriverVerificationStatus struct {
 	DriverID         string                      `json:"driver_id"`
 	Status           string                      `json:"status"` // "pending", "approved", "rejected", "changes_requested", "blocked"
@@ -54,6 +58,7 @@ type DriverHandler struct {
 	locationRepo     DriverLocationRepository
 	profileRepo      DriverProfileRepository
 	verificationRepo DriverVerificationRepository
+	orderChecker     ActiveOrderChecker
 	gates            *driveruc.GateService
 	npd              *driveruc.NPDService
 	clock            interface{ Now() time.Time }
@@ -65,6 +70,7 @@ func NewDriverHandler(
 	locationRepo DriverLocationRepository,
 	profileRepo DriverProfileRepository,
 	verificationRepo DriverVerificationRepository,
+	orderChecker ActiveOrderChecker,
 	gates *driveruc.GateService,
 	npd *driveruc.NPDService,
 	clock interface{ Now() time.Time },
@@ -75,6 +81,7 @@ func NewDriverHandler(
 		locationRepo:     locationRepo,
 		profileRepo:      profileRepo,
 		verificationRepo: verificationRepo,
+		orderChecker:     orderChecker,
 		gates:            gates,
 		npd:              npd,
 		clock:            clock,
@@ -130,8 +137,41 @@ type locationResponse struct {
 	UpdatedAt string  `json:"updated_at"`
 }
 
+// canAccessDriver returns true if the caller is allowed to see the target
+// driver's status/location. Admins see all; drivers see themselves; clients
+// see only a driver they have an active order with.
+func (h *DriverHandler) canAccessDriver(ctx context.Context, callerID string, callerRole auth.Role, targetDriverID string) bool {
+	if callerRole == auth.RoleAdmin {
+		return true
+	}
+	if callerRole == auth.RoleDriver && callerID == targetDriverID {
+		return true
+	}
+	if callerRole == auth.RoleClient && h.orderChecker != nil {
+		ok, err := h.orderChecker.HasActiveOrderWithDriver(ctx, callerID, targetDriverID)
+		if err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *DriverHandler) GetDriver(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
+	callerID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	callerRole, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !h.canAccessDriver(r.Context(), callerID, callerRole, driverID) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	drv, err := h.driverRepo.GetByID(r.Context(), driverID)
 	if err != nil {
 		h.writeDriverError(w, err)
@@ -317,6 +357,20 @@ func (h *DriverHandler) GetTaxProfile(w http.ResponseWriter, r *http.Request) {
 
 func (h *DriverHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
+	callerID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	callerRole, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !h.canAccessDriver(r.Context(), callerID, callerRole, driverID) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	loc, err := h.locationRepo.GetLastLocation(r.Context(), driverID)
 	if err != nil {
 		h.writeDriverError(w, err)

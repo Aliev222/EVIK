@@ -409,10 +409,10 @@ class DriverProfileScreen extends ConsumerWidget {
                     child: Center(
                       child: Text(
                         'Выйти из аккаунта',
-                        style: EvikTypography.bodyMedium.copyWith(
-                          color: EvikColors.errorRed,
-                          fontWeight: FontWeight.w600,
+                        style: TextStyle(
+                          color: Color(0xFFEF4444),
                           fontSize: 16,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),

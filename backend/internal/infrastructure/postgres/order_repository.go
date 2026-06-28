@@ -146,6 +146,26 @@ RETURNING id, user_id, driver_id,
 	return &ord, nil
 }
 
+// HasActiveOrderWithDriver returns true if clientID has an active order
+// (accepted, arrived, or in_progress) currently assigned to driverID.
+func (r *OrderRepository) HasActiveOrderWithDriver(ctx context.Context, clientID, driverID string) (bool, error) {
+	const query = `
+SELECT 1 FROM orders
+WHERE user_id   = $1
+  AND driver_id = $2
+  AND status    IN ('accepted','arrived','in_progress')
+LIMIT 1`
+	var dummy int
+	err := r.db.QueryRowContext(ctx, query, clientID, driverID).Scan(&dummy)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // MarkExpanded sets is_expanded=TRUE and expanded_at on a single order atomically.
 func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now time.Time) error {
 	_, err := r.db.ExecContext(ctx,

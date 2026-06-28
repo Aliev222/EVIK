@@ -15,6 +15,10 @@ import 'package:tow_truck_frontend/core/network/auth_retry_coordinator.dart';
 import 'package:tow_truck_frontend/core/notifications/push_notification_service.dart';
 import 'package:tow_truck_frontend/core/storage/key_value_storage.dart';
 import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/client_payment_methods_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/payment_wallet_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 
 const _accessTokenKey = 'auth_access_token';
 const _refreshTokenKey = 'auth_refresh_token';
@@ -26,6 +30,7 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
       apiClient: platform_api.createPlatformApiClient(),
     ),
     storage: ref.read(keyValueStorageProvider),
+    ref: ref,
   );
   AuthRetryCoordinator.configure(
     refresh: notifier.refreshAccessToken,
@@ -117,8 +122,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier({
     required BackendAuthApi api,
     required KeyValueStorage storage,
+    required Ref ref,
   })  : _api = api,
         _storage = storage,
+        _ref = ref,
         super(const AuthState()) {
     _bindFcmTokenRefresh();
     unawaited(_restoreSession());
@@ -126,6 +133,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   final BackendAuthApi _api;
   final KeyValueStorage _storage;
+  final Ref _ref;
   StreamSubscription<String>? _fcmTokenRefreshSubscription;
 
   Future<void> signInForTesting(UserRole role) async {
@@ -471,6 +479,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    // Clear all provider caches to prevent data leak between users
+    try {
+      _ref.invalidate(orderFlowProvider);
+    } catch (_) {}
+    try {
+      _ref.invalidate(paymentWalletProvider);
+    } catch (_) {}
+    try {
+      _ref.invalidate(clientPaymentMethodsProvider);
+    } catch (_) {}
+    try {
+      _ref.invalidate(newDriverProvider);
+    } catch (_) {}
+
     await _revokeCurrentFcmToken();
     await _storage.delete(_accessTokenKey);
     await _storage.delete(_refreshTokenKey);

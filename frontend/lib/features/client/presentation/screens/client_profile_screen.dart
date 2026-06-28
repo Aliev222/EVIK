@@ -150,7 +150,11 @@ class ClientProfileScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(14)),
                       ),
                       child: Text('Выйти из аккаунта',
-                          style: EvikTypography.h3.copyWith(fontSize: 36 / 2)),
+                          style: TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          )),
                     ),
                   ),
                 ],

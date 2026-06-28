@@ -234,7 +234,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
-	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, driverGates, npdService, clock)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, orderRepo, driverGates, npdService, clock)
 	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock, yooStubMode)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
