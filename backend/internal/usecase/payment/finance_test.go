@@ -234,6 +234,9 @@ func (r *fakePaymentOrderRepo) ListAdminOrders(context.Context, orderdomain.Admi
 func (r *fakePaymentOrderRepo) GetAdminOrderDetails(context.Context, string) (*orderdomain.AdminOrderDetails, error) {
 	return nil, nil
 }
+func (r *fakePaymentOrderRepo) AcceptOrder(context.Context, string, string) (*orderdomain.Order, error) {
+	return nil, nil
+}
 
 type fakePricingService struct{}
 

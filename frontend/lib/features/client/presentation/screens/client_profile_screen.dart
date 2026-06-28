@@ -12,6 +12,7 @@ class ClientProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     return Scaffold(
       backgroundColor: EvikColors.primaryWhite,
       appBar: AppBar(
@@ -54,7 +55,9 @@ class ClientProfileScreen extends ConsumerWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      'А',
+                      user?.fullName.isNotEmpty == true
+                          ? user!.fullName[0].toUpperCase()
+                          : '?',
                       style: EvikTypography.h3.copyWith(
                         color: EvikColors.primaryWhite,
                         fontWeight: FontWeight.w800,
@@ -67,15 +70,15 @@ class ClientProfileScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Алексей Иванов',
+                        Text(user?.fullName ?? 'Неизвестный',
                             style:
                                 EvikTypography.h3.copyWith(fontSize: 34 / 2)),
                         const SizedBox(height: 2),
-                        Text('+7 (999) 123-45-67',
+                        Text(user?.phone ?? '',
                             style: EvikTypography.bodyMedium
                                 .copyWith(color: EvikColors.textSecondary)),
                         const SizedBox(height: 4),
-                        Text('★★★★☆ 4.0 · 7 поездок',
+                        Text('Клиент Авро',
                             style: EvikTypography.bodySmall.copyWith(
                                 color: const Color(0xFFF59E0B),
                                 fontWeight: FontWeight.w700)),
@@ -115,11 +118,29 @@ class ClientProfileScreen extends ConsumerWidget {
                     height: 58,
                     child: ElevatedButton(
                       onPressed: () {
-                        ref.read(authProvider.notifier).signOut();
-                        // Очищаем выбранную роль чтобы попасть на экран выбора роли
-                        ref
-                            .read(selectedOnboardingRoleProvider.notifier)
-                            .state = null;
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Выход'),
+                            content: const Text('Вы уверены что хотите выйти?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Отмена'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  ref.read(authProvider.notifier).signOut();
+                                },
+                                child: const Text(
+                                  'Выйти',
+                                  style: TextStyle(color: Color(0xFFEF4444)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         elevation: 0,

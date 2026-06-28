@@ -226,6 +226,25 @@ type fakeOrderRepository struct {
 	updated bool
 }
 
+func (r *fakeOrderRepository) AcceptOrder(_ context.Context, orderID, driverID string) (*orderdomain.Order, error) {
+	ord, err := r.GetByID(context.Background(), orderID)
+	if err != nil {
+		return nil, err
+	}
+	if ord.Status != orderdomain.StatusSearching || ord.DriverID != nil {
+		return nil, orderdomain.ErrOrderAlreadyTaken
+	}
+	ord.DriverID = &driverID
+	ord.Status = orderdomain.StatusAccepted
+	if r.orders != nil {
+		r.orders[orderID] = ord
+	} else {
+		r.order = ord
+	}
+	copied := *ord
+	return &copied, nil
+}
+
 func (r *fakeOrderRepository) Create(context.Context, *orderdomain.Order) error {
 	return nil
 }

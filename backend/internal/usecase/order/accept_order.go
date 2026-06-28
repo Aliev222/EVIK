@@ -66,22 +66,23 @@ func NewAcceptOrderUseCase(
 }
 
 func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, driverID string) (*orderdomain.Order, error) {
-	ord, err := uc.orderRepo.GetByID(ctx, orderID)
+	ord, err := uc.orderRepo.AcceptOrder(ctx, orderID, driverID)
 	if err != nil {
+		if errors.Is(err, orderdomain.ErrOrderAlreadyTaken) {
+			// Idempotency: this driver may already hold the order.
+			existing, getErr := uc.orderRepo.GetByID(ctx, orderID)
+			if getErr != nil {
+				return nil, getErr
+			}
+			if isSameDriverActiveOrder(existing, driverID) {
+				return existing, nil
+			}
+			return nil, err
+		}
 		return nil, err
-	}
-
-	if isSameDriverActiveOrder(ord, driverID) {
-		return ord, nil
 	}
 
 	now := uc.clock.Now()
-	if err := ord.TransitionTo(orderdomain.StatusAccepted, now); err != nil {
-		return nil, err
-	}
-	if err := ord.AssignDriver(driverID, now); err != nil {
-		return nil, err
-	}
 	driverAssigned := false
 	if _, err := uc.driverRepo.AssignOrder(ctx, driverID, orderID, now); err != nil {
 		if errors.Is(err, driverdomain.ErrDriverUnavailable) {
@@ -106,6 +107,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	} else {
 		driverAssigned = true
 	}
+
 	uc.applySurchargeIfCrossCity(ctx, ord, driverID)
 	if err := uc.orderRepo.Update(ctx, ord); err != nil {
 		if driverAssigned {
@@ -121,7 +123,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 		Payload: map[string]any{
 			"status":    ord.Status,
 			"driver_id": driverID,
-			"user_id":   ord.UserID, // Add user_id for targeted delivery
+			"user_id":   ord.UserID,
 		},
 	}); err != nil {
 		uc.logger.Error("failed to publish accepted status", err, "order_id", ord.ID)

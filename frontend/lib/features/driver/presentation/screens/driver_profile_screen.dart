@@ -379,10 +379,29 @@ class DriverProfileScreen extends ConsumerWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    ref.read(authProvider.notifier).signOut();
-                    // Очищаем выбранную роль чтобы попасть на экран выбора роли
-                    ref.read(selectedOnboardingRoleProvider.notifier).state =
-                        null;
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Выход'),
+                        content: const Text('Вы уверены что хотите выйти?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Отмена'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              ref.read(authProvider.notifier).signOut();
+                            },
+                            child: const Text(
+                              'Выйти',
+                              style: TextStyle(color: Color(0xFFEF4444)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: Padding(

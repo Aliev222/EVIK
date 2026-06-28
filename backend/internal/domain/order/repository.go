@@ -9,6 +9,10 @@ type Repository interface {
 	Create(ctx context.Context, order *Order) error
 	Update(ctx context.Context, order *Order) error
 	GetByID(ctx context.Context, id string) (*Order, error)
+	// AcceptOrder atomically sets driver_id and status='accepted' only when the
+	// order is in 'searching' state with no driver assigned yet. Returns
+	// ErrOrderAlreadyTaken when another driver won the race.
+	AcceptOrder(ctx context.Context, orderID, driverID string) (*Order, error)
 	ListByStatus(ctx context.Context, status Status, limit int) ([]*Order, error)
 	ListAdminOrders(ctx context.Context, filter AdminOrderFilter) ([]AdminOrderListItem, int64, error)
 	GetAdminOrderDetails(ctx context.Context, orderID string) (*AdminOrderDetails, error)

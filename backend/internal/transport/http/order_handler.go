@@ -569,6 +569,8 @@ func (h *OrderHandler) writeOrderError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusNotFound, err)
 	case errors.Is(err, orderdomain.ErrInvalidTransition):
 		h.writeError(w, http.StatusConflict, err)
+	case errors.Is(err, orderdomain.ErrOrderAlreadyTaken):
+		h.writeError(w, http.StatusConflict, err)
 	default:
 		h.writeError(w, http.StatusInternalServerError, err)
 	}

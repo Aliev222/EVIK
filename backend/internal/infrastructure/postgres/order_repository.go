@@ -73,6 +73,79 @@ WHERE id = $1`
 	return err
 }
 
+// AcceptOrder atomically claims an order for driverID using a single
+// UPDATE...RETURNING. The WHERE clause ensures only one driver can win:
+// the row must still be in 'searching' status with no driver_id assigned.
+// If no row is updated, ErrOrderAlreadyTaken is returned.
+func (r *OrderRepository) AcceptOrder(ctx context.Context, orderID, driverID string) (*orderdomain.Order, error) {
+	const query = `
+UPDATE orders
+SET driver_id  = $2,
+    status     = 'accepted',
+    updated_at = NOW()
+WHERE id        = $1
+  AND status    = 'searching'
+  AND driver_id IS NULL
+RETURNING id, user_id, driver_id,
+          pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+          pickup_address, dropoff_address,
+          tow_truck_type, status, rub_to_cents(price_total),
+          is_cross_city, surcharge_amount, surcharge_percent,
+          created_at, updated_at, cancelled_at,
+          city_id, is_expanded, expanded_at`
+
+	var (
+		ord            orderdomain.Order
+		pickupAddress  sql.NullString
+		dropoffAddress sql.NullString
+		cityID         sql.NullString
+		towTruckType   string
+		status         string
+		expandedAt     sql.NullTime
+	)
+	err := r.db.QueryRowContext(ctx, query, orderID, driverID).Scan(
+		&ord.ID,
+		&ord.UserID,
+		&ord.DriverID,
+		&ord.Pickup.Lat,
+		&ord.Pickup.Lng,
+		&ord.Dropoff.Lat,
+		&ord.Dropoff.Lng,
+		&pickupAddress,
+		&dropoffAddress,
+		&towTruckType,
+		&status,
+		&ord.PriceTotal,
+		&ord.IsCrossCity,
+		&ord.SurchargeAmount,
+		&ord.SurchargePercent,
+		&ord.CreatedAt,
+		&ord.UpdatedAt,
+		&ord.CancelledAt,
+		&cityID,
+		&ord.IsExpanded,
+		&expandedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, orderdomain.ErrOrderAlreadyTaken
+		}
+		return nil, err
+	}
+	ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
+	ord.Status = orderdomain.Status(status)
+	ord.PickupAddress = scanNullableString(pickupAddress)
+	ord.DropoffAddress = scanNullableString(dropoffAddress)
+	if cityID.Valid {
+		ord.CityID = &cityID.String
+	}
+	if expandedAt.Valid {
+		t := expandedAt.Time
+		ord.ExpandedAt = &t
+	}
+	return &ord, nil
+}
+
 // MarkExpanded sets is_expanded=TRUE and expanded_at on a single order atomically.
 func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now time.Time) error {
 	_, err := r.db.ExecContext(ctx,
