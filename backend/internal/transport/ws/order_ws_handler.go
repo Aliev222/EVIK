@@ -5,10 +5,17 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"evik/backend/internal/auth"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 	gws "github.com/gorilla/websocket"
+)
+
+const (
+	pongWait   = 90 * time.Second
+	pingPeriod = 75 * time.Second
+	writeWait  = 10 * time.Second
 )
 
 type OrderWSHandler struct {
@@ -91,6 +98,11 @@ func (h *OrderWSHandler) readPump(c *wsinfra.Client) {
 		_ = c.Conn.Close()
 	}()
 
+	_ = c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.Conn.SetPongHandler(func(string) error {
+		return c.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	})
+
 	for {
 		if _, _, err := c.Conn.ReadMessage(); err != nil {
 			return
@@ -99,10 +111,28 @@ func (h *OrderWSHandler) readPump(c *wsinfra.Client) {
 }
 
 func (h *OrderWSHandler) writePump(c *wsinfra.Client) {
-	defer func() { _ = c.Conn.Close() }()
-	for msg := range c.Send {
-		if err := c.Conn.WriteMessage(gws.TextMessage, msg); err != nil {
-			return
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		_ = c.Conn.Close()
+	}()
+
+	for {
+		select {
+		case msg, ok := <-c.Send:
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if !ok {
+				_ = c.Conn.WriteMessage(gws.CloseMessage, []byte{})
+				return
+			}
+			if err := c.Conn.WriteMessage(gws.TextMessage, msg); err != nil {
+				return
+			}
+		case <-ticker.C:
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.Conn.WriteMessage(gws.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }

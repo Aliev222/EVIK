@@ -309,7 +309,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       }
       return true;
     } catch (error) {
-      _handleSearchError('Не удалось создать заказ: $error');
+      _handleSearchError('Ошибка при поиске водителя. Попробуйте снова.');
       return false;
     }
   }
@@ -547,7 +547,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Не удалось рассчитать цену: $error',
+        errorMessage: 'Не удалось рассчитать цену. Попробуйте позже.',
       );
     }
   }
@@ -621,7 +621,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       if (!mounted) return;
       state = state.copyWith(
         isReceiptLoading: false,
-        receiptError: '�� ������� ��������� ���: $error',
+        receiptError: 'Не удалось загрузить чек. Попробуйте позже.',
       );
     }
   }

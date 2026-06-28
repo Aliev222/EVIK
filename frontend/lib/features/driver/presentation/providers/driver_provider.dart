@@ -81,7 +81,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: e.toString(),
+        errorMessage: 'Произошла ошибка. Попробуйте позже.',
       );
     }
   }
@@ -96,7 +96,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await _repository.setDriverOnlineStatus(driver.userId, newStatus);
       // Статус обновится автоматически через watchDriver
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      state = state.copyWith(errorMessage: 'Ошибка переключения статуса. Попробуйте позже.');
     }
   }
 
@@ -109,7 +109,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
       final location = DriverLocation(lat: lat, lng: lng);
       await _repository.updateDriverLocation(driver.userId, location);
     } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
+      state = state.copyWith(errorMessage: 'Не удалось обновить местоположение.');
     }
   }
 

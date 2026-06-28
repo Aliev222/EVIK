@@ -139,9 +139,9 @@ class _DriverTaxProfileScreenState
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
-              Text(
-                error.toString(),
-                style: Theme.of(context).textTheme.bodyMedium,
+              const Text(
+                'Ошибка загрузки профиля. Попробуйте позже.',
+                style: TextStyle(color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

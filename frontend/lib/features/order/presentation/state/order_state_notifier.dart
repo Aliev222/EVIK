@@ -122,7 +122,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     } catch (e) {
       if (requestVersion != _requestVersion) return;
       // Keep optimistic searching state as safe fallback when backend is unavailable.
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
     }
   }
 
@@ -165,7 +165,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       final order = await _repository.cancelOrder(orderId, reason: reason);
       state = state.copyWith(status: order.state, order: order);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
     }
   }
 
@@ -182,7 +182,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
     _orderStateSub = _repository.watchOrderState(orderId).listen(
       (nextState) => state = state.copyWith(status: nextState),
       onError: (Object e, StackTrace _) {
-        state = state.copyWith(error: e.toString());
+        state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
       },
     );
 
@@ -205,7 +205,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
         }
       },
       onError: (Object e, StackTrace _) {
-        state = state.copyWith(error: e.toString());
+        state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
       },
     );
 
@@ -232,7 +232,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       }
     } catch (e) {
       if (mounted) {
-        state = state.copyWith(error: e.toString());
+        state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
       }
     }
   }

@@ -125,7 +125,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         );
       },
       onError: (Object error) {
-        state = state.copyWith(errorMessage: error.toString());
+        state = state.copyWith(errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
       },
     );
 
@@ -150,7 +150,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         await _notificationService.showOrderNotification(orders.first);
       }
     }, onError: (Object error) {
-      state = state.copyWith(errorMessage: error.toString());
+      state = state.copyWith(errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
     });
   }
 
@@ -208,7 +208,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
       state = state.copyWith(
         isUpdatingOnlineStatus: false,
         hasLocationPermission: false,
-        errorMessage: error.toString(),
+        errorMessage: 'Нет соединения с сервером. Проверьте интернет.',
       );
     }
   }
@@ -254,7 +254,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
       await _notificationService.vibrateFeedback(DriverHapticType.success);
     } catch (_) {
       state = state.copyWith(
-        errorMessage: '����� ��� ������ ������ ���������.',
+        errorMessage: 'Ошибка при принятии заказа. Попробуйте снова.',
       );
     }
   }

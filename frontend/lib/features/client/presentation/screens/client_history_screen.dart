@@ -51,7 +51,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
       });
     } catch (error) {
       setState(() {
-        _error = error.toString();
+        _error = 'Не удалось загрузить заказы. Проверьте интернет и попробуйте снова.';
         _state = HistoryState.error;
       });
     }
