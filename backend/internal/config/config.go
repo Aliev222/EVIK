@@ -58,10 +58,18 @@ func MustLoad() Config {
 	}
 
 	otpFixedCode := getFixedOTPCode()
+	if otpFixedCode != "" {
+		log.Printf("WARN: OTP_FIXED_CODE is set — all OTP verifications will use fixed code. This MUST NOT be used in production!")
+	}
+
+	appEnv := getEnv("APP_ENV", "development")
+	isProduction := strings.EqualFold(appEnv, "production")
+
+	driverGateBypassDefault := otpFixedCode != "" && !isProduction
 
 	cfg := Config{
 		HTTPAddr:                   httpAddr,
-		AppEnv:                     getEnv("APP_ENV", "development"),
+		AppEnv:                     appEnv,
 		PostgresDSN:                normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
 		RedisAddr:                  getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword:              getEnv("REDIS_PASSWORD", ""),
@@ -94,7 +102,7 @@ func MustLoad() Config {
 		OrderExpansionDelay:             getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
 		OrderExpansionRadiusKM:          getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
-		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", otpFixedCode != ""),
+		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		OTPFixedCode:               otpFixedCode,
@@ -126,6 +134,12 @@ func (c Config) IsProduction() bool {
 func validateProductionConfig(cfg Config) {
 	if !cfg.IsProduction() {
 		return
+	}
+	if cfg.OTPFixedCode != "" {
+		log.Fatal("FATAL: OTP_FIXED_CODE must not be set in production. Remove it from environment.")
+	}
+	if cfg.DriverGateBypass {
+		log.Fatal("FATAL: DRIVER_GATE_BYPASS must not be true in production.")
 	}
 	var missing []string
 	if cfg.JWTSecret == "" || cfg.JWTSecret == "evik-dev-insecure-secret" || len(cfg.JWTSecret) < 32 {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -27,9 +28,17 @@ type AuthHandler struct {
 	clock          interface{ Now() time.Time }
 	exposeOTPCodes bool
 	fixedOTPCode   string
+	isProduction   bool
 }
 
-func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool, fixedOTPCode string) *AuthHandler {
+// knownWeakOTPCodes are trivially guessable codes that must never be accepted in production.
+var knownWeakOTPCodes = map[string]struct{}{
+	"123456": {}, "000000": {}, "111111": {}, "222222": {},
+	"333333": {}, "444444": {}, "555555": {}, "666666": {},
+	"777777": {}, "888888": {}, "999999": {}, "123123": {},
+}
+
+func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool, fixedOTPCode string, isProduction bool) *AuthHandler {
 	return &AuthHandler{
 		tokens:         tokens,
 		users:          users,
@@ -39,6 +48,7 @@ func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, admi
 		clock:          clock,
 		exposeOTPCodes: exposeOTPCodes,
 		fixedOTPCode:   strings.TrimSpace(fixedOTPCode),
+		isProduction:   isProduction,
 	}
 }
 
@@ -252,6 +262,13 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	if phone == "" || len(code) != 6 || (role != auth.RoleClient && role != auth.RoleDriver) {
 		writeAuthError(w, http.StatusBadRequest, "phone, 6-digit code and valid role are required")
 		return
+	}
+	if h.isProduction {
+		if _, weak := knownWeakOTPCodes[code]; weak {
+			log.Printf("SECURITY: rejected weak OTP code attempt for phone %s in production", phone)
+			writeAuthError(w, http.StatusUnauthorized, "invalid or expired otp")
+			return
+		}
 	}
 	if _, err := h.users.ConsumePhoneOTP(r.Context(), phone, string(role), otpHash(phone, role, code), h.clock.Now()); err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "invalid or expired otp")

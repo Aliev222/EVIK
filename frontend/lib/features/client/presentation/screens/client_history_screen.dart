@@ -361,7 +361,7 @@ class _HistoryOrder {
       car: car,
       from: order.pickupLocation.address,
       to: order.dropoffLocation.address,
-      driver: '', // Will be filled when we have driver data
+      driver: 'Водитель',
       priceText: priceText,
       status: statusText,
       statusColor: statusColor,

@@ -214,7 +214,7 @@ AvailableOrder availableOrderFromBackend(Map<String, dynamic> map) {
     blockedWheelsCount: _blockedWheelsFromNotes(order.notes),
     severity: _severityFromNotes(order.notes), // Calculate severity from notes instead of hardcoded medium
     createdAt: order.createdAt,
-    clientName: 'Клиент ${order.clientId.substring(0, 8)}', // Show partial client ID instead of fake name
+    clientName: 'Клиент',
     clientPhone: '', // No phone available from order data
   );
 }
