@@ -37,6 +37,7 @@ type Container struct {
 	Router             http.Handler
 	Scheduler          *Scheduler
 	ExpansionScheduler *SearchExpansionScheduler
+	RateLimiter        *httptransport.RateLimiter
 	db                 *sql.DB
 	rdb                *redis.Client
 }
@@ -277,8 +278,9 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.OrderExpansionRadiusKM,
 	)
 
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger)
-	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, db: db, rdb: rdb}, nil
+	limiter := httptransport.NewRateLimiter()
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter)
+	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 
 func EnsureSchema(db *sql.DB) error {

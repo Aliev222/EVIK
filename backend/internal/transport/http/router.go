@@ -26,6 +26,7 @@ func NewRouter(
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
 	exposeSwagger bool,
+	limiter *RateLimiter,
 ) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -45,10 +46,10 @@ func NewRouter(
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/auth/register", authHandler.Register)
-		api.Post("/auth/login", authHandler.Login)
-		api.Post("/auth/otp/request", authHandler.RequestOTP)
-		api.Post("/auth/otp/verify", authHandler.VerifyOTP)
-		api.Post("/auth/admin/login", authHandler.AdminLogin)
+		api.With(RateLimitByIP(limiter, 10)).Post("/auth/login", authHandler.Login)
+		api.With(RateLimitByPhone(limiter, 3)).Post("/auth/otp/request", authHandler.RequestOTP)
+		api.With(RateLimitByPhone(limiter, 5)).Post("/auth/otp/verify", authHandler.VerifyOTP)
+		api.With(RateLimitByIP(limiter, 5)).Post("/auth/admin/login", authHandler.AdminLogin)
 		api.Post("/auth/refresh", authHandler.Refresh)
 		api.Post("/webhooks/yookassa", paymentHandler.HandleYooKassaWebhook)
 		// Dev-only: manually complete a stub payment. Self-gates on stub mode

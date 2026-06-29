@@ -193,10 +193,12 @@ class DriverProfileScreen extends ConsumerWidget {
                       color: EvikColors.primaryBlack,
                       shape: BoxShape.circle,
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
-                        'М',
-                        style: TextStyle(
+                        driver?.fullName?.isNotEmpty == true
+                            ? driver!.fullName![0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
                           color: EvikColors.primaryWhite,
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
@@ -269,7 +271,7 @@ class DriverProfileScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      'Стаж\n2 года',
+                      'Стаж:\nне указан',
                       style: EvikTypography.bodySmall.copyWith(
                         color: EvikColors.successGreen,
                         fontWeight: FontWeight.w600,
@@ -296,12 +298,9 @@ class DriverProfileScreen extends ConsumerWidget {
               _ProfileMenuItem(
                 icon: Icons.description_outlined,
                 title: 'Документы',
-                subtitle: 'Все документы действительны',
+                subtitle: 'Загрузите документы в разделе верификации',
                 onTap: () => _showDriverFeature(context, 'Документы', const [
-                  'Водительское удостоверение: проверено',
-                  'СТС: проверено',
-                  'Лицензия перевозчика: активна',
-                  'Медицинская справка: до 20.12.2025',
+                  'Загрузите документы в разделе верификации',
                 ]),
               ),
               const SizedBox(height: 12),
@@ -319,23 +318,18 @@ class DriverProfileScreen extends ConsumerWidget {
               _ProfileMenuItem(
                 icon: Icons.credit_card_outlined,
                 title: 'Реквизиты',
-                subtitle: 'Сбербанк •••• 4242',
+                subtitle: 'Карта не привязана',
                 onTap: () => _showDriverFeature(context, 'Реквизиты', const [
-                  'Банк: Сбербанк',
-                  'Карта: •••• 4242',
-                  'Выплаты: ежедневно',
-                  'Минимальная сумма: 500 ₽',
+                  'Карта не привязана',
                 ]),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
                 icon: Icons.security_outlined,
                 title: 'Страхование',
-                subtitle: 'ОСАГО до 01.2026',
+                subtitle: 'Страховка не загружена',
                 onTap: () => _showDriverFeature(context, 'Страхование', const [
-                  'ОСАГО: активно до 01.2026',
-                  'Полис: ХХХ 1234567890',
-                  'Страховая: АльфаСтрахование',
+                  'Страховка не загружена',
                 ]),
               ),
               const SizedBox(height: 12),
@@ -353,7 +347,7 @@ class DriverProfileScreen extends ConsumerWidget {
                 onTap: () =>
                     _showDriverFeature(context, 'Поддержка водителей', const [
                   'Чат с диспетчером',
-                  'Приоритетная линия: +7 (800) 555-35-35',
+                  'support@avro.app',
                   'Вопрос по выплатам',
                 ]),
               ),
