@@ -64,6 +64,7 @@ type AdminDriverRepository interface {
 
 type AdminLocationRepository interface {
 	GetLastLocation(ctx context.Context, driverID string) (*locationdomain.Location, error)
+	GetLocations(ctx context.Context, driverIDs []string) (map[string]*locationdomain.Location, error)
 }
 
 type AdminIDGenerator interface {
@@ -631,15 +632,21 @@ func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	driverIDs := make([]string, len(drivers))
+	for i, d := range drivers {
+		driverIDs[i] = d.ID
+	}
+	locations, err := h.locationRepo.GetLocations(r.Context(), driverIDs)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
 	payload := make([]adminDriverLocationResponse, 0, len(drivers))
 	for _, driver := range drivers {
-		loc, err := h.locationRepo.GetLastLocation(r.Context(), driver.ID)
-		if err != nil {
-			if errors.Is(err, locationdomain.ErrLocationNotFound) {
-				continue
-			}
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+		loc, ok := locations[driver.ID]
+		if !ok {
+			continue
 		}
 		payload = append(payload, adminDriverLocationResponse{
 			ID:       driver.ID,

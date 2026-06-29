@@ -249,57 +249,9 @@ final adminDriversTrackingProvider =
     StreamProvider<List<DriverTrackingInfo>>((ref) {
   return Stream.periodic(
     const Duration(seconds: 5),
-    (_) => _generateMockDrivers(),
+    (_) => <DriverTrackingInfo>[],
   );
 });
-
-/// Generate mock drivers for admin panel
-List<DriverTrackingInfo> _generateMockDrivers() {
-  final now = DateTime.now();
-  final baseTime = now.millisecondsSinceEpoch / 1000000;
-
-  return [
-    DriverTrackingInfo(
-      id: 'driver_1',
-      name: 'Алексей Иванов',
-      vehicle: 'ГАЗель Next',
-      location: LocationModel(
-        lat: 55.7558 + sin(baseTime) * 0.01,
-        lng: 37.6173 + cos(baseTime) * 0.01,
-        address: 'В движении',
-      ),
-      status: DriverMarkerStatus.toPickup,
-      speed: 45,
-      lastUpdate: now.subtract(const Duration(seconds: 2)),
-    ),
-    DriverTrackingInfo(
-      id: 'driver_2',
-      name: 'Дмитрий Петров',
-      vehicle: 'Ford Transit',
-      location: LocationModel(
-        lat: 55.7422 + cos(baseTime * 1.5) * 0.008,
-        lng: 37.6156 + sin(baseTime * 1.5) * 0.008,
-        address: 'В движении',
-      ),
-      status: DriverMarkerStatus.toDestination,
-      speed: 38,
-      lastUpdate: now.subtract(const Duration(seconds: 1)),
-    ),
-    DriverTrackingInfo(
-      id: 'driver_3',
-      name: 'Сергей Козлов',
-      vehicle: 'Mercedes Sprinter',
-      location: LocationModel(
-        lat: 55.7811 + sin(baseTime * 0.8) * 0.012,
-        lng: 37.6092 + cos(baseTime * 0.8) * 0.012,
-        address: 'В движении',
-      ),
-      status: DriverMarkerStatus.waiting,
-      speed: 0,
-      lastUpdate: now.subtract(const Duration(seconds: 3)),
-    ),
-  ];
-}
 
 /// Driver tracking info for admin panel
 class DriverTrackingInfo {

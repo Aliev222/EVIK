@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -350,8 +351,18 @@ func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	txs, _ := h.repo.ListWalletTransactions(r.Context(), driverID, 10)
-	payouts, _ := h.repo.ListPayouts(r.Context(), driverID, 10)
+	txs, err := h.repo.ListWalletTransactions(r.Context(), driverID, 10)
+	if err != nil {
+		log.Printf("ERROR: ListWalletTransactions failed: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load transactions"})
+		return
+	}
+	payouts, err := h.repo.ListPayouts(r.Context(), driverID, 10)
+	if err != nil {
+		log.Printf("ERROR: ListPayouts failed: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load payouts"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"available_balance":   wallet.AvailableBalance,
 		"pending_balance":     wallet.PendingBalance,

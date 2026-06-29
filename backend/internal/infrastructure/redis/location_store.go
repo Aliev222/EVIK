@@ -88,6 +88,42 @@ func (s *LocationStore) GetLastLocation(ctx context.Context, driverID string) (*
 	}, nil
 }
 
+func (s *LocationStore) GetLocations(ctx context.Context, driverIDs []string) (map[string]*location.Location, error) {
+	if len(driverIDs) == 0 {
+		return map[string]*location.Location{}, nil
+	}
+	coords, err := s.client.GeoPos(ctx, "drivers:geo", driverIDs...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	pipe := s.client.Pipeline()
+	cmds := make([]*redis.StringCmd, len(driverIDs))
+	for i, id := range driverIDs {
+		cmds[i] = pipe.Get(ctx, "drivers:location:updated_at:"+id)
+	}
+	_, _ = pipe.Exec(ctx)
+
+	result := make(map[string]*location.Location, len(driverIDs))
+	for i, id := range driverIDs {
+		if i >= len(coords) || coords[i] == nil {
+			continue
+		}
+		updatedAt := time.Now().UTC()
+		if ts, cmdErr := cmds[i].Result(); cmdErr == nil {
+			if unix, parseErr := strconv.ParseInt(ts, 10, 64); parseErr == nil {
+				updatedAt = time.Unix(unix, 0).UTC()
+			}
+		}
+		result[id] = &location.Location{
+			Lat:       coords[i].Latitude,
+			Lng:       coords[i].Longitude,
+			UpdatedAt: updatedAt,
+		}
+	}
+	return result, nil
+}
+
 func (s *LocationStore) RemoveDriver(ctx context.Context, driverID string) error {
 	if err := s.client.ZRem(ctx, "drivers:geo", driverID).Err(); err != nil {
 		return err
