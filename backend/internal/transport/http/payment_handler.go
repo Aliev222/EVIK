@@ -307,6 +307,10 @@ func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Re
 		signature = r.Header.Get("X-Webhook-Signature")
 	}
 	if err := h.financeUC.HandleYooKassaWebhook(r.Context(), body, signature); err != nil {
+		if errors.Is(err, paymentuc.ErrWebhookSignatureRequired) || strings.Contains(err.Error(), "invalid webhook signature") {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}

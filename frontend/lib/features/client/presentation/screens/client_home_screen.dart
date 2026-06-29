@@ -54,7 +54,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         ref.watch(orderFlowProvider.select((state) => state.pickupLocation));
     final isLoading =
         ref.watch(orderFlowProvider.select((state) => state.isLoading));
-    final address = _cleanAddress(location?.displayAddress);
+    final address = location?.displayAddress ?? 'Адрес не определён';
     final lat = location?.latitude ?? AppConstants.moscowLat;
     final lng = location?.longitude ?? AppConstants.moscowLng;
 
@@ -110,13 +110,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     );
   }
 
-  String _cleanAddress(String? value) {
-    final text = value?.trim();
-    if (text == null || text.isEmpty) return 'Москва, ЦАО';
-    if (text.contains('Р') || text.contains('СЃ')) return 'Москва, ЦАО';
-    if (text == 'Адрес не указан') return 'Москва, ЦАО';
-    return text;
-  }
+  // TODO: fix UTF-8 encoding in geocoding response
 }
 
 class _Header extends StatelessWidget {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 
@@ -36,20 +35,19 @@ class ServicesPlaceholderScreen extends StatelessWidget {
                 const SizedBox(height: 20),
                 Text(
                   'Услуги',
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: EvikColors.textPrimary,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111111),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
-                  'Скоро будет доступно',
+                  'Шиномонтаж, автоэлектрик, подвоз топлива\nи другие услуги появятся совсем скоро',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: EvikColors.textSecondary,
+                    color: Color(0xFF555555),
                   ),
                 ),
               ],

@@ -40,7 +40,7 @@ class OpenStreetMapService {
           );
 
       if (response.statusCode != 200) return null;
-      final results = jsonDecode(response.body) as List<dynamic>;
+      final results = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
       if (results.isEmpty) return null;
 
       final result = results.first as Map<String, dynamic>;
@@ -108,7 +108,7 @@ class OpenStreetMapService {
           );
 
       if (response.statusCode != 200) return null;
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       return data['display_name']?.toString();
     } catch (e) {
       debugPrint('OSM reverse geocoding error: $e');
@@ -143,7 +143,7 @@ class OpenStreetMapService {
           );
       if (response.statusCode != 200) return null;
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       final routes = data['routes'] as List<dynamic>?;
       if (routes == null || routes.isEmpty) return null;
 

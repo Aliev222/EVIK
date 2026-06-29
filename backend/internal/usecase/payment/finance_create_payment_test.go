@@ -61,7 +61,7 @@ func sampleOrder(userID string) *orderdomain.Order {
 
 func newCreatePaymentUC(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricing PricingService, provider PaymentProvider) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, orderRepo, pricing, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, "")
+	return NewFinanceUseCase(repo, orderRepo, pricing, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, "", true)
 }
 
 func TestCreateOrderPaymentRejectsInvalidMethod(t *testing.T) {

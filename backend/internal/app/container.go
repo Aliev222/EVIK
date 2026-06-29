@@ -203,7 +203,10 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("WARN: YOOKASSA STUB MODE active — payments are faked, no real charges occur")
 	}
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode, yooStubMode)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret)
+	if cfg.YooKassaWebhookSecret == "" && !yooStubMode {
+		logger.Printf("WARN: YOOKASSA_WEBHOOK_SECRET not set — webhooks will be rejected until configured")
+	}
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret, yooStubMode)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON

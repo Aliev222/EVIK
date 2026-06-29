@@ -57,7 +57,7 @@ func (r *webhookRepo) MarkWebhookProcessed(context.Context, string) error {
 
 func newWebhookUC(repo paymentdomain.Repository, webhookSecret string) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, webhookSecret)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, webhookSecret, true)
 }
 
 func computeSignature(payload []byte, secret string) string {

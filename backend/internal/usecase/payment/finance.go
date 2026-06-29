@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -28,6 +29,9 @@ var (
 	ErrProviderUnavailable = errors.New("payment provider is unavailable")
 	// ErrProviderUnauthorized: the provider rejected our credentials.
 	ErrProviderUnauthorized = errors.New("payment provider rejected credentials")
+	// ErrWebhookSignatureRequired is returned when no webhook secret is configured
+	// in a non-stub environment, making it impossible to verify the request origin.
+	ErrWebhookSignatureRequired = errors.New("webhook signature verification is required")
 	// ErrOrderNotOwned: the caller does not own the order they are paying for.
 	ErrOrderNotOwned = errors.New("order does not belong to user")
 )
@@ -81,6 +85,7 @@ type FinanceUseCase struct {
 	holdSeconds       int
 	minimumWithdrawal int64
 	webhookSecret     string
+	stubMode          bool
 }
 
 type DriverSubscriptionStatus struct {
@@ -94,7 +99,7 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, webhookSecret string) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, webhookSecret string, stubMode bool) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
@@ -105,6 +110,7 @@ func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repo
 		holdSeconds:       holdSeconds,
 		minimumWithdrawal: minimumWithdrawal,
 		webhookSecret:     webhookSecret,
+		stubMode:          stubMode,
 	}
 }
 
@@ -227,7 +233,13 @@ func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID 
 }
 
 func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []byte, signature string) error {
-	if uc.webhookSecret != "" && !validSignature(payload, signature, uc.webhookSecret) {
+	if uc.webhookSecret == "" {
+		if !uc.stubMode {
+			log.Printf("SECURITY: webhook signature verification is required but YOOKASSA_WEBHOOK_SECRET is not set — rejecting request")
+			return ErrWebhookSignatureRequired
+		}
+		log.Printf("WARN: YOOKASSA_WEBHOOK_SECRET not set — skipping signature check in stub mode")
+	} else if !validSignature(payload, signature, uc.webhookSecret) {
 		return errors.New("invalid webhook signature")
 	}
 	var event struct {

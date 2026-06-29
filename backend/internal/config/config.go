@@ -160,6 +160,9 @@ func validateProductionConfig(cfg Config) {
 	if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
 		missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
 	}
+	if cfg.YooKassaWebhookSecret == "" && !cfg.YooKassaStubMode {
+		missing = append(missing, "YOOKASSA_WEBHOOK_SECRET")
+	}
 	if len(missing) > 0 {
 		log.Fatalf("invalid production config: %s", strings.Join(missing, ", "))
 	}

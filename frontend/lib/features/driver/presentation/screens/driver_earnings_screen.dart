@@ -566,7 +566,7 @@ class DriverSubscriptionScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '1 990 ₽ / месяц',
+                  'Подписка активна',
                   style: EvikTypography.h3
                       .copyWith(color: EvikColors.accentOrange),
                 ),
