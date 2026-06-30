@@ -47,7 +47,9 @@ type CityDetector interface {
 
 // CityCache persists the driver→city mapping for fast lookup elsewhere.
 type CityCache interface {
+	GetDriverCity(ctx context.Context, driverID string) (string, error)
 	SetDriverCity(ctx context.Context, driverID, cityID string) error
+	SetLastCity(ctx context.Context, driverID, cityID string) error
 }
 
 type SetStatusUseCase struct {
@@ -138,7 +140,7 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 			}); err != nil {
 				return nil, err
 			}
-			uc.cacheDriverCity(ctx, input.DriverID, *input.Lat, *input.Lng)
+			// Do NOT update city tracking while busy — city stays as it was when order was accepted.
 		}
 		return current, nil
 	}
@@ -166,14 +168,15 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 	return drv, nil
 }
 
-// cacheDriverCity detects the service area for the given coords and caches it.
-// Errors are logged and swallowed — a missed cache write degrades push targeting
-// but must never fail a location update.
+// cacheDriverCity detects the service area for the given coords, records a
+// last_city entry when the driver crosses a city boundary, then updates the
+// current city. Errors are logged and swallowed — a missed cache write degrades
+// push targeting but must never fail a location update.
 func (uc *SetStatusUseCase) cacheDriverCity(ctx context.Context, driverID string, lat, lng float64) {
 	if uc.cityDetector == nil || uc.cityCache == nil {
 		return
 	}
-	areaID, found, err := uc.cityDetector.DetectCity(ctx, lat, lng)
+	newCityID, found, err := uc.cityDetector.DetectCity(ctx, lat, lng)
 	if err != nil {
 		uc.logger.Error("city detection failed for driver", err, "driver_id", driverID)
 		return
@@ -181,8 +184,14 @@ func (uc *SetStatusUseCase) cacheDriverCity(ctx context.Context, driverID string
 	if !found {
 		return
 	}
-	if err := uc.cityCache.SetDriverCity(ctx, driverID, areaID); err != nil {
-		uc.logger.Error("failed to cache driver city", err, "driver_id", driverID, "city_id", areaID)
+	prevCityID, prevErr := uc.cityCache.GetDriverCity(ctx, driverID)
+	if prevErr == nil && prevCityID != "" && prevCityID != newCityID {
+		if err := uc.cityCache.SetLastCity(ctx, driverID, prevCityID); err != nil {
+			uc.logger.Error("failed to cache driver last city", err, "driver_id", driverID, "city_id", prevCityID)
+		}
+	}
+	if err := uc.cityCache.SetDriverCity(ctx, driverID, newCityID); err != nil {
+		uc.logger.Error("failed to cache driver city", err, "driver_id", driverID, "city_id", newCityID)
 	}
 }
 

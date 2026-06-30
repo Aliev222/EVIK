@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
+    if (dart.library.io) '../../../core/network/api_client_io.dart'
+    as platform_api;
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
@@ -21,6 +24,14 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
+  bool _serviceAreaChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkServiceArea());
+  }
+
   void _openPickupSelection() {
     ref.read(orderFlowProvider.notifier).startOrderFlow();
     context.push('/order/pickup');
@@ -46,6 +57,81 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           ),
         ),
       );
+  }
+
+  Future<void> _checkServiceArea() async {
+    if (_serviceAreaChecked) return;
+    _serviceAreaChecked = true;
+
+    final location = ref.read(orderFlowProvider).pickupLocation;
+    final lat = location?.latitude ?? AppConstants.moscowLat;
+    final lng = location?.longitude ?? AppConstants.moscowLng;
+
+    try {
+      final apiClient = platform_api.createPlatformApiClient();
+      final response = await apiClient.get(
+        '/api/v1/service-areas/check?lat=$lat&lng=$lng',
+      );
+      final isAllowed = response['allowed'] == true;
+      if (!isAllowed && mounted) {
+        _showServiceUnavailableSheet();
+      }
+    } catch (_) {
+    }
+  }
+
+  void _showServiceUnavailableSheet() {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.location_off,
+              size: 48,
+              color: EvikColors.accentOrange,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Сервис пока недоступен',
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: EvikColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'В вашем регионе Авро ещё не работает.\nМы скоро появимся в вашем городе!',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: EvikColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: EvikColors.accentOrange,
+                  foregroundColor: EvikColors.primaryWhite,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Понятно'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override

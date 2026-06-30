@@ -18,6 +18,7 @@ type expansionOrderRepo interface {
 type expansionLocationStore interface {
 	GetNearbyDrivers(ctx context.Context, pickup locationdomain.Location, radiusKM float64, limit int) ([]locationdomain.DriverLocation, error)
 	GetDriverCity(ctx context.Context, driverID string) (string, error)
+	GetLastCity(ctx context.Context, driverID string) (cityID string, leftAt time.Time, err error)
 }
 
 type expansionPushSender interface {
@@ -39,6 +40,7 @@ type SearchExpansionScheduler struct {
 	checkInterval  time.Duration
 	delay          time.Duration
 	radiusKM       float64
+	lastCityTTL    time.Duration
 }
 
 func NewSearchExpansionScheduler(
@@ -49,6 +51,7 @@ func NewSearchExpansionScheduler(
 	logger *log.Logger,
 	checkInterval, delay time.Duration,
 	radiusKM float64,
+	lastCityTTL time.Duration,
 ) *SearchExpansionScheduler {
 	if checkInterval <= 0 {
 		checkInterval = 10 * time.Second
@@ -68,6 +71,7 @@ func NewSearchExpansionScheduler(
 		checkInterval:  checkInterval,
 		delay:          delay,
 		radiusKM:       radiusKM,
+		lastCityTTL:    lastCityTTL,
 	}
 }
 
@@ -118,6 +122,8 @@ func (s *SearchExpansionScheduler) expandOrder(ctx context.Context, ord *orderdo
 	}
 
 	// Exclude drivers already in the order's city — they were notified at creation.
+	// Exception: include drivers who recently left that city (last_city within TTL),
+	// since they may loop back and the order is still unclaimed.
 	cityID := ""
 	if ord.CityID != nil {
 		cityID = *ord.CityID
@@ -132,7 +138,19 @@ func (s *SearchExpansionScheduler) expandOrder(ctx context.Context, ord *orderdo
 		if cityID != "" {
 			driverCity, _ := s.locationStore.GetDriverCity(ctx, dl.DriverID)
 			if driverCity == cityID {
+				// Still in the city — already notified at order creation.
+				// Check if their last_city indicates they briefly left and returned;
+				// if so, still skip (they can see the order via ListOrders).
 				continue
+			}
+			// Driver is outside the city. If they recently left this city,
+			// include them with priority since they know the area.
+			if s.lastCityTTL > 0 {
+				lastCity, leftAt, lcErr := s.locationStore.GetLastCity(ctx, dl.DriverID)
+				if lcErr == nil && lastCity == cityID && time.Since(leftAt) < s.lastCityTTL {
+					newDrivers = append(newDrivers, driverDist{dl.DriverID, dl.DistanceKM})
+					continue
+				}
 			}
 		}
 		newDrivers = append(newDrivers, driverDist{dl.DriverID, dl.DistanceKM})

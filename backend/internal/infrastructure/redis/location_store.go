@@ -163,3 +163,37 @@ func (s *LocationStore) SetDriverCity(ctx context.Context, driverID, cityID stri
 func (s *LocationStore) GetDriverCity(ctx context.Context, driverID string) (string, error) {
 	return s.client.Get(ctx, "driver:"+driverID+":city_id").Result()
 }
+
+func (s *LocationStore) SetLastCity(ctx context.Context, driverID, cityID string) error {
+	const ttl = 2 * time.Hour
+	pipe := s.client.Pipeline()
+	pipe.Set(ctx, "driver:"+driverID+":last_city_id", cityID, ttl)
+	pipe.Set(ctx, "driver:"+driverID+":last_city_at", time.Now().UTC().Unix(), ttl)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+func (s *LocationStore) GetLastCity(ctx context.Context, driverID string) (string, time.Time, error) {
+	pipe := s.client.Pipeline()
+	cityCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_id")
+	atCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_at")
+	_, _ = pipe.Exec(ctx)
+
+	cityID, err := cityCmd.Result()
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	atStr, err := atCmd.Result()
+	if err != nil {
+		return cityID, time.Now().UTC(), nil
+	}
+	unix, err := strconv.ParseInt(atStr, 10, 64)
+	if err != nil {
+		return cityID, time.Now().UTC(), nil
+	}
+	return cityID, time.Unix(unix, 0).UTC(), nil
+}
+
+func (s *LocationStore) ClearLastCity(ctx context.Context, driverID string) error {
+	return s.client.Del(ctx, "driver:"+driverID+":last_city_id", "driver:"+driverID+":last_city_at").Err()
+}

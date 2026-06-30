@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"evik/backend/internal/auth"
 	driverdomain "evik/backend/internal/domain/driver"
@@ -22,6 +23,8 @@ import (
 // DriverCityCache reads the city cached in Redis for a given driver.
 type DriverCityCache interface {
 	GetDriverCity(ctx context.Context, driverID string) (string, error)
+	GetLastCity(ctx context.Context, driverID string) (cityID string, leftAt time.Time, err error)
+	ClearLastCity(ctx context.Context, driverID string) error
 }
 
 // DriverLocationCache reads the last known location of a driver from Redis.
@@ -40,6 +43,7 @@ type OrderHandler struct {
 	cityCache       DriverCityCache
 	locationCache   DriverLocationCache
 	expansionRadius float64
+	lastCityTTL     time.Duration
 }
 
 type orderAccessRepository interface {
@@ -61,6 +65,7 @@ func NewOrderHandler(
 	cityCache DriverCityCache,
 	locationCache DriverLocationCache,
 	expansionRadiusKM float64,
+	lastCityTTL time.Duration,
 ) *OrderHandler {
 	return &OrderHandler{
 		createUC:        createUC,
@@ -73,6 +78,7 @@ func NewOrderHandler(
 		cityCache:       cityCache,
 		locationCache:   locationCache,
 		expansionRadius: expansionRadiusKM,
+		lastCityTTL:     lastCityTTL,
 	}
 }
 
@@ -279,7 +285,21 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 				}
-				// Driver outside all cities or no cached city → only expanded orders below.
+				// Append unclaimed orders from the city the driver recently left.
+				lastCityID, leftAt, lcErr := h.cityCache.GetLastCity(r.Context(), userID)
+				if lcErr == nil && lastCityID != "" {
+					if h.lastCityTTL > 0 && time.Since(leftAt) < h.lastCityTTL {
+						lastCityOrders, _ := h.orderRepo.ListByStatusAndCity(r.Context(), status, lastCityID, limit)
+						cutoff := time.Now().UTC().Add(-60 * time.Second)
+						for _, o := range lastCityOrders {
+							if o.CreatedAt.Before(cutoff) {
+								orders = append(orders, o)
+							}
+						}
+					} else if h.lastCityTTL > 0 {
+						_ = h.cityCache.ClearLastCity(r.Context(), userID)
+					}
+				}
 			}
 			h.writeJSON(w, http.StatusOK, map[string]any{
 				"orders": h.buildDriverSearchingResponse(r.Context(), userID, orders),

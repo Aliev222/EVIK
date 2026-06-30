@@ -44,6 +44,7 @@ type Config struct {
 	OrderExpansionCheckInterval     time.Duration
 	OrderExpansionDelay             time.Duration
 	OrderExpansionRadiusKM          float64
+	DriverLastCityTTL               time.Duration
 	DriverSubscriptionRequired      bool
 	DriverGateBypass           bool
 	ExposeSwagger              bool
@@ -101,6 +102,7 @@ func MustLoad() Config {
 		OrderExpansionCheckInterval:     getEnvDuration("ORDER_EXPANSION_CHECK_INTERVAL", 10*time.Second),
 		OrderExpansionDelay:             getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
 		OrderExpansionRadiusKM:          getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
+		DriverLastCityTTL:          getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),

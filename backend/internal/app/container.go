@@ -233,7 +233,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL)
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
@@ -279,6 +279,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.OrderExpansionCheckInterval,
 		cfg.OrderExpansionDelay,
 		cfg.OrderExpansionRadiusKM,
+		cfg.DriverLastCityTTL,
 	)
 
 	limiter := httptransport.NewRateLimiter()
