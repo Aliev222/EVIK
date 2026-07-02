@@ -33,17 +33,19 @@ type DriverLocationCache interface {
 }
 
 type OrderHandler struct {
-	createUC        *orderuc.CreateOrderUseCase
-	acceptUC        *orderuc.AcceptOrderUseCase
-	updateUC        *orderuc.UpdateStatusUseCase
-	cancelUC        *orderuc.CancelOrderUseCase
-	orderRepo       orderAccessRepository
-	areas           servicearea.Repository
-	gates           *driveruc.GateService
-	cityCache       DriverCityCache
-	locationCache   DriverLocationCache
-	expansionRadius float64
-	lastCityTTL     time.Duration
+	createUC          *orderuc.CreateOrderUseCase
+	acceptUC          *orderuc.AcceptOrderUseCase
+	updateUC          *orderuc.UpdateStatusUseCase
+	cancelUC          *orderuc.CancelOrderUseCase
+	orderRepo         orderAccessRepository
+	areas             servicearea.Repository
+	gates             *driveruc.GateService
+	cityCache         DriverCityCache
+	locationCache     DriverLocationCache
+	expansionRadius   float64
+	lastCityTTL       time.Duration
+	allowMockLocation bool
+	isProduction      bool
 }
 
 type orderAccessRepository interface {
@@ -66,19 +68,23 @@ func NewOrderHandler(
 	locationCache DriverLocationCache,
 	expansionRadiusKM float64,
 	lastCityTTL time.Duration,
+	allowMockLocation bool,
+	isProduction bool,
 ) *OrderHandler {
 	return &OrderHandler{
-		createUC:        createUC,
-		acceptUC:        acceptUC,
-		updateUC:        updateUC,
-		cancelUC:        cancelUC,
-		orderRepo:       orderRepo,
-		areas:           areas,
-		gates:           gates,
-		cityCache:       cityCache,
-		locationCache:   locationCache,
-		expansionRadius: expansionRadiusKM,
-		lastCityTTL:     lastCityTTL,
+		createUC:          createUC,
+		acceptUC:          acceptUC,
+		updateUC:          updateUC,
+		cancelUC:          cancelUC,
+		orderRepo:         orderRepo,
+		areas:             areas,
+		gates:             gates,
+		cityCache:         cityCache,
+		locationCache:     locationCache,
+		expansionRadius:   expansionRadiusKM,
+		lastCityTTL:       lastCityTTL,
+		allowMockLocation: allowMockLocation,
+		isProduction:      isProduction,
 	}
 }
 
@@ -92,6 +98,7 @@ type createOrderRequest struct {
 	TowTruckType   string  `json:"tow_truck_type"`
 	PaymentMethod  string  `json:"payment_method"`
 	AutoDispatch   bool    `json:"auto_dispatch"`
+	IsMock         bool    `json:"is_mock"`
 }
 
 type acceptOrderRequest struct {
@@ -141,6 +148,7 @@ type orderResponse struct {
 	CreatedAt       string             `json:"created_at"`
 	UpdatedAt       string             `json:"updated_at"`
 	CancelledAt     *string            `json:"cancelled_at"`
+	CancelReason    string             `json:"cancel_reason,omitempty"`
 }
 
 // CreateOrder creates a new tow truck order on behalf of the authenticated client.
@@ -176,6 +184,10 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.PaymentMethod != "" && req.PaymentMethod != "cash" && req.PaymentMethod != "card" {
 		h.writeError(w, http.StatusBadRequest, errors.New("payment_method must be cash or card"))
+		return
+	}
+	if req.IsMock && !h.allowMockLocation {
+		h.writeError(w, http.StatusBadRequest, errors.New("Обнаружено поддельное местоположение"))
 		return
 	}
 	area, err := h.ensureServiceAreaAllows(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
@@ -642,6 +654,7 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		CreatedAt:       ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		UpdatedAt:       ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		CancelledAt:     cancelledAt,
+		CancelReason:    ord.CancelReason,
 	}
 }
 

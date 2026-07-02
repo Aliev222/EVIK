@@ -37,6 +37,7 @@ class HttpOrderRepository implements OrderRepository {
       'dropoff_lng': command.dropoffLocation.lng,
       'payment_method': command.paymentMethod.name,
       'auto_dispatch': false,
+      'is_mock': command.pickupLocation.isMocked || command.dropoffLocation.isMocked,
     };
 
     // Add tow truck type if specified

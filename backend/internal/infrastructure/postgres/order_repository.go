@@ -67,9 +67,9 @@ func scanNullableString(ns sql.NullString) string {
 func (r *OrderRepository) Update(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 UPDATE orders
-SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = cents_to_rub($9), is_cross_city = $10, surcharge_amount = $11, surcharge_percent = $12
+SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = cents_to_rub($9), is_cross_city = $10, surcharge_amount = $11, surcharge_percent = $12, cancel_reason = $13
 WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt, ord.PriceTotal, ord.IsCrossCity, ord.SurchargeAmount, ord.SurchargePercent)
+	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt, ord.PriceTotal, ord.IsCrossCity, ord.SurchargeAmount, ord.SurchargePercent, toNullString(ord.CancelReason))
 	return err
 }
 
@@ -176,7 +176,7 @@ func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now 
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason
 FROM orders
 WHERE id = $1`
 
@@ -188,6 +188,7 @@ WHERE id = $1`
 		towTruckType   string
 		status         string
 		expandedAt     sql.NullTime
+		cancelReason   sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&ord.ID,
@@ -211,6 +212,7 @@ WHERE id = $1`
 		&cityID,
 		&ord.IsExpanded,
 		&expandedAt,
+		&cancelReason,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -229,6 +231,7 @@ WHERE id = $1`
 		t := expandedAt.Time
 		ord.ExpandedAt = &t
 	}
+	ord.CancelReason = scanNullableString(cancelReason)
 	return &ord, nil
 }
 

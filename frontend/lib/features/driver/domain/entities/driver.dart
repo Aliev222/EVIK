@@ -32,15 +32,18 @@ class DriverLocation {
   const DriverLocation({
     required this.lat,
     required this.lng,
+    this.isMocked = false,
   });
 
   final double lat;
   final double lng;
+  final bool isMocked;
 
   factory DriverLocation.fromMap(Map<String, dynamic> map) {
     return DriverLocation(
       lat: (map['lat'] as num).toDouble(),
       lng: (map['lng'] as num).toDouble(),
+      isMocked: map['is_mock'] == true,
     );
   }
 
@@ -48,6 +51,7 @@ class DriverLocation {
     return {
       'lat': lat,
       'lng': lng,
+      'is_mock': isMocked,
     };
   }
 }

@@ -37,11 +37,13 @@ class LocationModel {
     required this.lat,
     required this.lng,
     required this.address,
+    this.isMocked = false,
   });
 
   final double lat;
   final double lng;
   final String address;
+  final bool isMocked;
 
   factory LocationModel.fromMap(Map<String, dynamic> map) {
     return LocationModel(
@@ -81,6 +83,9 @@ class Order {
     this.paymentId,
     this.paymentStatus,
     this.paymentConfirmationUrl,
+    this.isCrossCity = false,
+    this.surchargeAmount = 0,
+    this.surchargePercent = 0,
   });
 
   final String id;
@@ -102,6 +107,9 @@ class Order {
   final String? paymentId;
   final String? paymentStatus;
   final String? paymentConfirmationUrl;
+  final bool isCrossCity;
+  final int surchargeAmount;
+  final int surchargePercent;
 
   String get userId => clientId;
   OrderState get state => _statusToState(status);
@@ -126,6 +134,9 @@ class Order {
     String? paymentId,
     String? paymentStatus,
     String? paymentConfirmationUrl,
+    bool? isCrossCity,
+    int? surchargeAmount,
+    int? surchargePercent,
   }) {
     return Order(
       id: id ?? this.id,
@@ -148,6 +159,9 @@ class Order {
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paymentConfirmationUrl:
           paymentConfirmationUrl ?? this.paymentConfirmationUrl,
+      isCrossCity: isCrossCity ?? this.isCrossCity,
+      surchargeAmount: surchargeAmount ?? this.surchargeAmount,
+      surchargePercent: surchargePercent ?? this.surchargePercent,
     );
   }
 
@@ -200,6 +214,9 @@ class Order {
         paymentId: map['payment_id']?.toString(),
         paymentStatus: map['payment_status']?.toString(),
         paymentConfirmationUrl: map['confirmation_url']?.toString(),
+        isCrossCity: map['is_cross_city'] ?? false,
+        surchargeAmount: (map['surcharge_amount'] as num?)?.toInt() ?? 0,
+        surchargePercent: (map['surcharge_percent'] as num?)?.toInt() ?? 0,
       );
     }
 
@@ -234,6 +251,9 @@ class Order {
       paymentId: map['paymentId'] as String?,
       paymentStatus: map['paymentStatus'] as String?,
       paymentConfirmationUrl: map['paymentConfirmationUrl'] as String?,
+      isCrossCity: map['isCrossCity'] ?? false,
+      surchargeAmount: (map['surchargeAmount'] as num?)?.toInt() ?? 0,
+      surchargePercent: (map['surchargePercent'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -258,6 +278,9 @@ class Order {
       'paymentId': paymentId,
       'paymentStatus': paymentStatus,
       'paymentConfirmationUrl': paymentConfirmationUrl,
+      'isCrossCity': isCrossCity,
+      'surchargeAmount': surchargeAmount,
+      'surchargePercent': surchargePercent,
     };
   }
 

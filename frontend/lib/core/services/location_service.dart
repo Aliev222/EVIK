@@ -18,33 +18,57 @@ class LocationService {
   factory LocationService() => instance;
 
   Future<LocationModel?> getCurrentLocation() async {
-    try {
-      final permission = await _ensureLocationPermission();
-      if (!permission) {
-        throw const LocationException('Доступ к геолокации не разрешен');
-      }
-
-      final cachedPosition = await Geolocator.getLastKnownPosition();
-      final position = cachedPosition ??
-          await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.medium,
-            timeLimit: const Duration(seconds: 6),
-          );
-
-      final address = await _getAddressByCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      return LocationModel(
-        lat: position.latitude,
-        lng: position.longitude,
-        address: address ??
-            _coordinatesAddress(position.latitude, position.longitude),
-      );
-    } catch (e) {
-      throw LocationException('Ошибка получения геолокации: $e');
+    final permission = await _ensureLocationPermission();
+    if (!permission) {
+      throw const LocationException('Доступ к геолокации не разрешен');
     }
+
+    final position = await getCurrentPositionWithFallback();
+    final isMocked = position.isMocked;
+
+    final address = await _getAddressByCoordinates(
+      position.latitude,
+      position.longitude,
+    );
+
+    return LocationModel(
+      lat: position.latitude,
+      lng: position.longitude,
+      address: address ??
+          _coordinatesAddress(position.latitude, position.longitude),
+      isMocked: isMocked,
+    );
+  }
+
+  static Future<Position> getCurrentPositionWithFallback() async {
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+    } catch (_) {
+      // fallback to medium accuracy (Wi-Fi + towers)
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+    } catch (_) {
+      // fallback to last known position
+    }
+
+    final lastKnown = await Geolocator.getLastKnownPosition();
+    if (lastKnown != null) {
+      return lastKnown;
+    }
+
+    throw const LocationException('Не удалось определить местоположение');
   }
 
   Future<LocationModel?> getLocationByAddress(String address) async {

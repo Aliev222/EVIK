@@ -33,6 +33,7 @@ func (uc *CancelOrderUseCase) Execute(ctx context.Context, orderID string, reaso
 	if err := ord.TransitionTo(orderdomain.StatusCancelled, now); err != nil {
 		return nil, err
 	}
+	ord.CancelReason = cancelReason
 	if err := uc.orderRepo.Update(ctx, ord); err != nil {
 		return nil, err
 	}

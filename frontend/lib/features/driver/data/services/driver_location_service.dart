@@ -2,6 +2,8 @@
 
 import 'package:geolocator/geolocator.dart';
 
+import 'package:tow_truck_frontend/core/services/location_service.dart';
+
 class DriverLocationService {
   StreamSubscription<Position>? _positionSubscription;
 
@@ -30,12 +32,7 @@ class DriverLocationService {
 
   Future<Position> getCurrentPosition() async {
     await checkPermissions();
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 10),
-      ),
-    );
+    return LocationService.getCurrentPositionWithFallback();
   }
 
   Future<void> startLocationTracking({

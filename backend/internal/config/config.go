@@ -50,6 +50,7 @@ type Config struct {
 	ExposeSwagger              bool
 	FirebaseCredentialsJSON    string
 	OTPFixedCode               string
+	AllowMockLocation          bool
 }
 
 func MustLoad() Config {
@@ -108,6 +109,7 @@ func MustLoad() Config {
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		OTPFixedCode:               otpFixedCode,
+		AllowMockLocation:          getEnvBool("ALLOW_MOCK_LOCATION", !isProduction),
 	}
 	validateProductionConfig(cfg)
 	return cfg

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'location_service.dart';
 
 class OpenStreetMapService {
   static const String _userAgent = 'Avro mobile app';
@@ -72,11 +73,12 @@ class OpenStreetMapService {
       return null;
     }
 
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    ).timeout(const Duration(seconds: 10));
+    Position position;
+    try {
+      position = await LocationService.getCurrentPositionWithFallback();
+    } catch (_) {
+      return null;
+    }
 
     final address = await reverseGeocode(
       lat: position.latitude,

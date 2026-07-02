@@ -25,7 +25,7 @@ func (r *DriverVerificationRepository) GetVerificationStatus(ctx context.Context
 	verificationQuery := `
 		SELECT id, status, submitted_at, updated_at, admin_comments
 		FROM driver_verifications
-		WHERE driver_id = $1
+		WHERE user_id = $1
 		ORDER BY submitted_at DESC
 		LIMIT 1
 	`
@@ -97,9 +97,9 @@ func (r *DriverVerificationRepository) CreateVerification(ctx context.Context, d
 
 	// Insert or update verification record
 	verificationQuery := `
-		INSERT INTO driver_verifications (driver_id, status, submitted_at, updated_at)
+		INSERT INTO driver_verifications (user_id, status, submitted_at, updated_at)
 		VALUES ($1, 'pending', NOW(), NOW())
-		ON CONFLICT (driver_id)
+		ON CONFLICT (user_id)
 		DO UPDATE SET status = 'pending', submitted_at = NOW(), updated_at = NOW(), admin_comments = ''
 		RETURNING id
 	`

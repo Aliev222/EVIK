@@ -46,6 +46,7 @@ type Order struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	CancelledAt     *time.Time
+	CancelReason    string
 }
 
 func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTruckType, now time.Time) (*Order, error) {

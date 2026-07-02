@@ -92,6 +92,7 @@ class RealTimeLocationService {
     required double speed,
     required DriverMarkerStatus status,
     String? orderId,
+    bool isMock = false,
   }) async {
     if (!_isConnected || _userType != 'driver') return;
 
@@ -105,6 +106,7 @@ class RealTimeLocationService {
         'speed': speed,
         'status': status.name,
         'order_id': orderId,
+        'is_mock': isMock,
       },
       'timestamp': DateTime.now().toIso8601String(),
     };
@@ -116,6 +118,7 @@ class RealTimeLocationService {
     required double lat,
     required double lng,
     String? orderId,
+    bool isMock = false,
   }) async {
     if (!_isConnected || _userType != 'client') return;
 
@@ -126,6 +129,7 @@ class RealTimeLocationService {
         'lat': lat,
         'lng': lng,
         'order_id': orderId,
+        'is_mock': isMock,
       },
       'timestamp': DateTime.now().toIso8601String(),
     };
@@ -141,6 +145,7 @@ class RealTimeLocationService {
     required double dropoffLng,
     required VehicleType vehicleType,
     String? notes,
+    bool isMock = false,
   }) async {
     if (!_isConnected || _userType != 'client') return;
 
@@ -154,6 +159,7 @@ class RealTimeLocationService {
         'dropoff_lng': dropoffLng,
         'vehicle_type': vehicleType.name,
         'notes': notes,
+        'is_mock': isMock,
       },
       'timestamp': DateTime.now().toIso8601String(),
     };

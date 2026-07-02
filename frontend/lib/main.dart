@@ -35,7 +35,11 @@ import 'features/order/presentation/providers/order_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase not configured for this platform — app works without it
+  }
 
   // Initialize global error handler
   GlobalErrorHandler.initialize();
@@ -177,24 +181,47 @@ class _SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<_SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+
   late Animation<double> _logoScale;
+  late Animation<double> _glow;
+  late Animation<double> _slide;
+  late Animation<double> _textFade;
 
   @override
   void initState() {
     super.initState();
 
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
       vsync: this,
+      duration: const Duration(milliseconds: 1400),
     );
 
-    _logoScale = Tween<double>(
-      begin: 0.5,
-      end: 2.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
+    _logoScale = TweenSequence([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.85, end: 1.08)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.08, end: 1.0),
+        weight: 50,
+      ),
+    ]).animate(_controller);
+
+    _glow = Tween<double>(begin: 0.0, end: 1.0)
+        .chain(CurveTween(curve: Curves.easeOut))
+        .animate(_controller);
+
+    _slide = Tween<double>(begin: -1.0, end: 1.0)
+        .chain(CurveTween(curve: Curves.easeInOut))
+        .animate(_controller);
+
+    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 0.85, curve: Curves.easeIn),
+      ),
+    );
 
     Vibration.vibrate(duration: 800, amplitude: 64);
     _controller.forward();
@@ -209,36 +236,76 @@ class _SplashScreenState extends State<_SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0B1220),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ScaleTransition(
-              scale: _logoScale,
-              child: Image.asset(
-                'assets/img/load.png',
-                width: 250,
-                height: 250,
-                fit: BoxFit.contain,
+            SizedBox(
+              width: 250,
+              height: 250,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // glow ring
+                  Container(
+                    width: 240,
+                    height: 240,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFF2F80FF)
+                              .withOpacity(0.25 * _glow.value),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                  // moving pulse (route effect)
+                  Transform.translate(
+                    offset: Offset(40 * _slide.value, 0),
+                    child: Container(
+                      width: 120,
+                      height: 2,
+                      color: const Color(0xFF27E0A3)
+                          .withOpacity(0.6 * _glow.value),
+                    ),
+                  ),
+                  // logo
+                  Transform.scale(
+                    scale: _logoScale.value,
+                    child: Image.asset(
+                      'assets/img/load.png',
+                      width: 140,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 27),
-            Text(
-              'Авро',
-              style: GoogleFonts.inter(
-                fontSize: 60,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1F1F1F),
+            FadeTransition(
+              opacity: _textFade,
+              child: Text(
+                'Авро',
+                style: GoogleFonts.inter(
+                  fontSize: 60,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              'Помощь на дороге',
-              style: GoogleFonts.inter(
-                fontSize: 20,
-                fontWeight: FontWeight.w400,
-                color: const Color(0xFF9CA3AF),
+            FadeTransition(
+              opacity: _textFade,
+              child: Text(
+                'Помощь на дороге',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF9CA3AF),
+                ),
               ),
             ),
           ],

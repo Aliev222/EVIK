@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -53,15 +54,17 @@ type DocumentInfo struct {
 }
 
 type DriverHandler struct {
-	setStatusUC      *driveruc.SetStatusUseCase
-	driverRepo       DriverRepository
-	locationRepo     DriverLocationRepository
-	profileRepo      DriverProfileRepository
-	verificationRepo DriverVerificationRepository
-	orderChecker     ActiveOrderChecker
-	gates            *driveruc.GateService
-	npd              *driveruc.NPDService
-	clock            interface{ Now() time.Time }
+	setStatusUC       *driveruc.SetStatusUseCase
+	driverRepo        DriverRepository
+	locationRepo      DriverLocationRepository
+	profileRepo       DriverProfileRepository
+	verificationRepo  DriverVerificationRepository
+	orderChecker      ActiveOrderChecker
+	gates             *driveruc.GateService
+	npd               *driveruc.NPDService
+	clock             interface{ Now() time.Time }
+	allowMockLocation bool
+	isProduction      bool
 }
 
 func NewDriverHandler(
@@ -74,17 +77,21 @@ func NewDriverHandler(
 	gates *driveruc.GateService,
 	npd *driveruc.NPDService,
 	clock interface{ Now() time.Time },
+	allowMockLocation bool,
+	isProduction bool,
 ) *DriverHandler {
 	return &DriverHandler{
-		setStatusUC:      setStatusUC,
-		driverRepo:       driverRepo,
-		locationRepo:     locationRepo,
-		profileRepo:      profileRepo,
-		verificationRepo: verificationRepo,
-		orderChecker:     orderChecker,
-		gates:            gates,
-		npd:              npd,
-		clock:            clock,
+		setStatusUC:       setStatusUC,
+		driverRepo:        driverRepo,
+		locationRepo:      locationRepo,
+		profileRepo:       profileRepo,
+		verificationRepo:  verificationRepo,
+		orderChecker:      orderChecker,
+		gates:             gates,
+		npd:               npd,
+		clock:             clock,
+		allowMockLocation: allowMockLocation,
+		isProduction:      isProduction,
 	}
 }
 
@@ -96,8 +103,9 @@ type setDriverStatusRequest struct {
 }
 
 type setDriverLocationRequest struct {
-	Lat *float64 `json:"lat"`
-	Lng *float64 `json:"lng"`
+	Lat    *float64 `json:"lat"`
+	Lng    *float64 `json:"lng"`
+	IsMock bool     `json:"is_mock"`
 }
 
 type taxProfileRequest struct {
@@ -226,9 +234,14 @@ func (h *DriverHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	lat, lng := req.Lat, req.Lng
+	var isMock bool
 	if req.Location != nil {
 		lat = req.Location.Lat
 		lng = req.Location.Lng
+		isMock = req.Location.IsMock
+	}
+	if isMock && h.isProduction {
+		log.Printf("SECURITY WARN: driver %s sent mock location", driverID)
 	}
 
 	drv, err := h.setStatusUC.Execute(r.Context(), driveruc.SetStatusInput{

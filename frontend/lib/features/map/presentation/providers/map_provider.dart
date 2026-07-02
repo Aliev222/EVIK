@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 
@@ -80,12 +81,7 @@ class MapNotifier extends StateNotifier<MapState> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
+      final position = await LocationService.getCurrentPositionWithFallback();
 
       final address = await reverseGeocode(
         position.latitude,

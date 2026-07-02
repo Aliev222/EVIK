@@ -233,12 +233,14 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL)
+	allowMockLocation := cfg.AllowMockLocation
+	isProduction := cfg.IsProduction()
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL, allowMockLocation, isProduction)
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
-	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, orderRepo, driverGates, npdService, clock)
+	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, orderRepo, driverGates, npdService, clock, allowMockLocation, isProduction)
 	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock, yooStubMode)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
@@ -372,6 +374,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS financial_status TEXT NOT NULL DEFAU
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS financially_completed_at TIMESTAMPTZ;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_expanded BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS expanded_at TIMESTAMPTZ;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_cross_city BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS surcharge_amount INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS surcharge_percent INTEGER NOT NULL DEFAULT 0;
@@ -635,6 +638,7 @@ CREATE TABLE IF NOT EXISTS driver_verifications (
 	decision_reason TEXT,
 	reviewed_by TEXT,
 	reviewed_at TIMESTAMPTZ,
+	admin_comments TEXT NOT NULL DEFAULT '',
 	submitted_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL
 );

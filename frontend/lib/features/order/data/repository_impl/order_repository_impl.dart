@@ -19,10 +19,11 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<Order> createOrder(CreateOrderCommand command) async {
     final dto = await remote.createOrder(
       userId: command.userId,
-      pickupLat: command.pickup.lat,
-      pickupLng: command.pickup.lng,
-      dropoffLat: command.dropoff.lat,
-      dropoffLng: command.dropoff.lng,
+      pickupLat: command.pickupLocation.lat,
+      pickupLng: command.pickupLocation.lng,
+      dropoffLat: command.dropoffLocation.lat,
+      dropoffLng: command.dropoffLocation.lng,
+      isMock: command.pickupLocation.isMocked || command.dropoffLocation.isMocked,
     );
     final order = dto.toDomain();
     _orders[order.id] = order;
@@ -88,6 +89,7 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
     required double pickupLng,
     required double dropoffLat,
     required double dropoffLng,
+    bool isMock = false,
   }) async {
     final json = await apiClient.post(
       '/api/v1/orders',
@@ -98,6 +100,7 @@ class HttpOrderRemoteDataSource implements OrderRemoteDataSource {
         'dropoff_lat': dropoffLat,
         'dropoff_lng': dropoffLng,
         'auto_dispatch': true,
+        'is_mock': isMock,
       },
       headers: _authHeaders,
     );

@@ -260,6 +260,7 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
         speed: speed,
         status: state.status,
         orderId: state.currentOrder,
+        isMock: location.isMocked,
       );
 
       debugPrint(

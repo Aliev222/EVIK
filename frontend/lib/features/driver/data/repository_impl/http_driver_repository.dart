@@ -66,6 +66,7 @@ class HttpDriverRepository implements DriverRepository {
       isOnline: true,
       lat: location.lat,
       lng: location.lng,
+      isMock: location.isMocked,
     );
   }
 
@@ -84,12 +85,13 @@ class HttpDriverRepository implements DriverRepository {
     required bool isOnline,
     required double lat,
     required double lng,
+    bool isMock = false,
   }) async {
     await _apiClient.post(
         '/api/v1/drivers/$driverId/status',
         <String, dynamic>{
           'status': isOnline ? 'online' : 'offline',
-          'location': <String, dynamic>{'lat': lat, 'lng': lng},
+          'location': <String, dynamic>{'lat': lat, 'lng': lng, 'is_mock': isMock},
         },
         headers: _authHeaders);
   }

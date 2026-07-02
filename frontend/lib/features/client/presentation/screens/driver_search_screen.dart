@@ -116,9 +116,138 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     context.go('/');
   }
 
-  void _goToDriverInfo() {
+  Future<void> _goToDriverInfo() async {
     if (_isNavigatingToDriverInfo) return;
     _isNavigatingToDriverInfo = true;
+
+    final activeOrder = ref.read(orderFlowProvider).activeOrder;
+    if (activeOrder != null && activeOrder.isCrossCity && activeOrder.surchargeAmount > 0) {
+      final accepted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Водитель из другого города',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF111111),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Водитель приедет из соседнего города. '
+                'К стоимости будет добавлена надбавка за подачу.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF555555),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F7F7),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFEEEEEE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Эвакуация',
+                          style: TextStyle(fontSize: 14, color: Color(0xFF555555)),
+                        ),
+                        Text(
+                          '${((activeOrder.surchargeAmount > 0 ? (activeOrder.surchargeAmount * 100 / activeOrder.surchargePercent).round() : 0) / 100).toStringAsFixed(0)} ₽',
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF111111)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Подача из другого города',
+                          style: TextStyle(fontSize: 14, color: Color(0xFFFF6B00)),
+                        ),
+                        Text(
+                          '+${(activeOrder.surchargeAmount / 100).toStringAsFixed(0)} ₽',
+                          style: const TextStyle(fontSize: 14, color: Color(0xFFFF6B00)),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Итого',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF111111),
+                          ),
+                        ),
+                        Text(
+                          '${((activeOrder.surchargeAmount > 0 ? (activeOrder.surchargeAmount * 100 / activeOrder.surchargePercent).round() + activeOrder.surchargeAmount : 0) / 100).toStringAsFixed(0)} ₽',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF111111),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text(
+                'Отменить заказ',
+                style: TextStyle(color: Color(0xFF555555)),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6B00),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('Согласен'),
+            ),
+          ],
+        ),
+      );
+
+      if (accepted != true) {
+        ref.read(orderFlowProvider.notifier).cancelSearch();
+        if (mounted) {
+          _isNavigatingToDriverInfo = false;
+          context.go('/');
+        }
+        return;
+      }
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.go('/order/driver-info');

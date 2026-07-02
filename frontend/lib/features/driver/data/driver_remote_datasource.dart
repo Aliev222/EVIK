@@ -47,6 +47,7 @@ abstract class DriverRemoteDataSource {
     required String status,
     double? lat,
     double? lng,
+    bool isMock = false,
   });
 
   Future<DriverStatusDto> getDriver(String driverId);
@@ -65,12 +66,14 @@ class HttpDriverRemoteDataSource implements DriverRemoteDataSource {
     required String status,
     double? lat,
     double? lng,
+    bool isMock = false,
   }) async {
     final payload = <String, dynamic>{
       'user_id': userId,
       'status': status,
       if (lat != null) 'lat': lat,
       if (lng != null) 'lng': lng,
+      'is_mock': isMock,
     };
     final json =
         await apiClient.post('/api/v1/drivers/$driverId/status', payload);
