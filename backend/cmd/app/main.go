@@ -22,7 +22,7 @@ import (
 
 // @title           Tow Truck Backend API
 // @version         1.0
-// @description     Tow truck marketplace API — orders, drivers, payments, payouts, admin.
+// @description     Tow truck marketplace API — auth, orders, drivers, payments, payouts, admin, reviews, routing, pricing, cities, webhooks, real-time.
 // @BasePath        /api/v1
 //
 // @securityDefinitions.apikey  BearerAuth

@@ -151,16 +151,41 @@ func (s *Sender) sendMulticast(ctx context.Context, tokens []string, title, body
 				},
 			},
 		}
-		resp, err := s.client.SendEachForMulticast(ctx, msg)
+		resp, err := s.sendBatchWithRetry(ctx, msg)
 		if err != nil {
-			// Whole-batch failure: log and keep going; one bad batch should
-			// not silence the rest of the broadcast.
-			s.logger.Error("fcm batch send failed", err, "batch_size", len(batch))
+			s.logger.Error("fcm batch send failed after retries", err, "batch_size", len(batch))
 			continue
 		}
 		s.handleResponses(ctx, batch, resp, ownerUserID, ownerRole)
 	}
 	return nil
+}
+
+// sendBatchWithRetry sends a multicast batch with up to 3 attempts and
+// exponential backoff (1s, 2s). Token-level registration errors are not
+// retried — they are surfaced inside the BatchResponse and handled by
+// handleResponses which revokes dead tokens. Only transient failures
+// (network, server unavailable) trigger a retry.
+func (s *Sender) sendBatchWithRetry(ctx context.Context, msg *messaging.MulticastMessage) (*messaging.BatchResponse, error) {
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(attempt) * time.Second
+			select {
+			case <-time.After(delay):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		resp, err := s.client.SendEachForMulticast(ctx, msg)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		s.logger.Error("fcm batch send attempt failed", err, "attempt", attempt+1)
+	}
+	s.logger.Error("CRITICAL: FCM batch send failed after 3 attempts", lastErr)
+	return nil, lastErr
 }
 
 // handleResponses walks per-token results and revokes tokens that FCM

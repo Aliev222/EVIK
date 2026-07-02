@@ -52,8 +52,17 @@ type centerPayload struct {
 	Lng float64 `json:"lng"`
 }
 
-// Search geocodes a name via Nominatim and returns a preview without saving.
-// POST /admin/cities/search
+// @Summary      Search city (admin)
+// @Description  Geocodes a city name via Nominatim and returns a preview with bounding box and center coordinates.
+// @Tags         cities
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      CityNameRequest  true  "City name to search"
+// @Success      200  {object}  map[string]any  "city geocoding result"
+// @Failure      400  {object}  ErrorResponse  "invalid request"
+// @Failure      404  {object}  ErrorResponse  "city not found"
+// @Router       /admin/cities/search [post]
 func (h *CityHandler) Search(w http.ResponseWriter, r *http.Request) {
 	name, ok := h.decodeName(w, r)
 	if !ok {
@@ -90,8 +99,14 @@ type autocompleteResult struct {
 	OSMID       string  `json:"osm_id"`
 }
 
-// Autocomplete returns up to 5 Nominatim suggestions for a partial city name.
-// GET /admin/cities/autocomplete?q=...
+// @Summary      Autocomplete city name (admin)
+// @Description  Returns up to 5 Nominatim suggestions for a partial city name. Requires at least 3 characters.
+// @Tags         cities
+// @Produce      json
+// @Security     BearerAuth
+// @Param        q  query  string  true  "Partial city name (min 3 chars)"
+// @Success      200  {object}  []autocompleteResult  "city suggestions"
+// @Router       /admin/cities/autocomplete [get]
 func (h *CityHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len([]rune(q)) < 3 {
@@ -122,8 +137,17 @@ func (h *CityHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// Create geocodes a name, rejects duplicate slugs, and persists an active area.
-// POST /admin/cities
+// @Summary      Create city (admin)
+// @Description  Geocodes a city name, checks for duplicate slugs, and creates an active service area.
+// @Tags         cities
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      CityNameRequest  true  "City name"
+// @Success      201  {object}  map[string]any  "created city"
+// @Failure      400  {object}  ErrorResponse  "invalid request"
+// @Failure      409  {object}  ErrorResponse  "city with this slug already exists"
+// @Router       /admin/cities [post]
 func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	name, ok := h.decodeName(w, r)
 	if !ok {
@@ -162,8 +186,13 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"city": cityResponse(area)})
 }
 
-// List returns all service areas, active and inactive.
-// GET /admin/cities
+// @Summary      List cities (admin)
+// @Description  Returns all service areas (cities), both active and inactive.
+// @Tags         cities
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of cities"
+// @Router       /admin/cities [get]
 func (h *CityHandler) List(w http.ResponseWriter, r *http.Request) {
 	areas, err := h.repo.List(r.Context())
 	if err != nil {
@@ -181,8 +210,17 @@ type cityPatchRequest struct {
 	IsActive *bool `json:"is_active"`
 }
 
-// Patch toggles is_active for a city and returns the updated record.
-// PATCH /admin/cities/{id}
+// @Summary      Update city (admin)
+// @Description  Toggles the active status of a service area (city).
+// @Tags         cities
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id    path  string  true  "City ID"
+// @Success      200  {object}  map[string]any  "updated city"
+// @Failure      400  {object}  ErrorResponse  "invalid request"
+// @Failure      404  {object}  ErrorResponse  "city not found"
+// @Router       /admin/cities/{id} [patch]
 func (h *CityHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 	if id == "" {
@@ -214,8 +252,17 @@ func (h *CityHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"city": cityResponse(*updated)})
 }
 
-// Delete hard-deletes a city unless it still has active orders within bounds.
-// DELETE /admin/cities/{id}
+// @Summary      Delete city (admin)
+// @Description  Hard-deletes a service area. Fails if there are active orders in this city.
+// @Tags         cities
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path  string  true  "City ID"
+// @Success      200  {object}  map[string]any  "deleted confirmation"
+// @Failure      400  {object}  ErrorResponse  "invalid request"
+// @Failure      404  {object}  ErrorResponse  "city not found"
+// @Failure      409  {object}  ErrorResponse  "city has active orders"
+// @Router       /admin/cities/{id} [delete]
 func (h *CityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 	if id == "" {

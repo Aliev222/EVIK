@@ -54,7 +54,16 @@ type tariffResponse struct {
 	UpdatedAt    string `json:"updated_at"`
 }
 
-// CalculatePrice calculates the price for a potential order
+// @Summary      Calculate price
+// @Description  Calculates the estimated price for a potential tow truck order based on distance and vehicle type.
+// @Tags         pricing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      CalculatePriceRequest  true  "Price calculation params"
+// @Success      200  {object}  map[string]any  "price breakdown"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Router       /pricing/calculate [post]
 func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) {
 	var req calculatePriceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -102,7 +111,13 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetTariffs returns all active tariffs
+// @Summary      Get all tariffs
+// @Description  Returns all active pricing tariffs for all tow truck types.
+// @Tags         pricing
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of tariffs"
+// @Router       /pricing/tariffs [get]
 func (h *PricingHandler) GetTariffs(w http.ResponseWriter, r *http.Request) {
 	tariffs, err := h.service.GetAllTariffs(r.Context())
 	if err != nil {
@@ -130,7 +145,16 @@ func (h *PricingHandler) GetTariffs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetTariffByType returns the active tariff for a specific tow truck type
+// @Summary      Get tariff by type
+// @Description  Returns the active tariff for a specific tow truck type (winch, platform, manipulator).
+// @Tags         pricing
+// @Produce      json
+// @Security     BearerAuth
+// @Param        type  path  string  true  "Tow truck type"  Enums(winch,platform,manipulator)
+// @Success      200  {object}  map[string]any  "tariff details"
+// @Failure      400  {object}  ErrorResponse  "invalid tow truck type"
+// @Failure      404  {object}  ErrorResponse  "tariff not found"
+// @Router       /pricing/tariffs/{type} [get]
 func (h *PricingHandler) GetTariffByType(w http.ResponseWriter, r *http.Request) {
 	truckTypeStr := chi.URLParam(r, "type")
 	truckType := orderdomain.TowTruckType(truckTypeStr)

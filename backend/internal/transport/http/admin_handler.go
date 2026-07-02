@@ -187,6 +187,13 @@ type adminDriverLocationResponse struct {
 	LastSeen string  `json:"last_seen"`
 }
 
+// @Summary      Admin overview
+// @Description  Returns admin dashboard overview with KPIs, recent stats, and GMV data.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "overview with KPIs and charts"
+// @Router       /admin/overview [get]
 func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 	overview, err := h.repo.Overview(r.Context())
 	if err != nil {
@@ -233,6 +240,13 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      List driver verifications (admin)
+// @Description  Returns all driver verification requests for admin review.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of driver verifications"
+// @Router       /admin/driver-verifications [get]
 func (h *AdminHandler) ListDriverVerifications(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.ListDriverVerifications(r.Context(), parseAdminLimit(r, 50, 100))
 	if err != nil {
@@ -263,6 +277,13 @@ func (h *AdminHandler) ListDriverVerifications(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
 }
 
+// @Summary      List users (admin)
+// @Description  Returns a list of all platform users for admin management.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of users"
+// @Router       /admin/users [get]
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.ListUsers(r.Context(), parseAdminLimit(r, 100, 200))
 	if err != nil {
@@ -284,6 +305,13 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
 }
 
+// @Summary      List reviews (admin)
+// @Description  Returns all driver reviews across the platform.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of reviews"
+// @Router       /admin/reviews [get]
 func (h *AdminHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.ListReviews(r.Context(), parseAdminLimit(r, 50, 100))
 	if err != nil {
@@ -308,6 +336,17 @@ func (h *AdminHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
 }
 
+// @Summary      Submit driver verification
+// @Description  Submits driver documents and personal info for verification. Drivers submit their own; admins can submit on behalf.
+// @Tags         drivers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      SubmitDriverVerificationRequest  true  "Verification payload"
+// @Success      201   {object}  map[string]any  "created verification"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /driver-verifications [post]
 func (h *AdminHandler) SubmitDriverVerification(w http.ResponseWriter, r *http.Request) {
 	var req submitDriverVerificationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -375,6 +414,17 @@ func (h *AdminHandler) SubmitDriverVerification(w http.ResponseWriter, r *http.R
 	})
 }
 
+// @Summary      Create review
+// @Description  Creates a review (rating with optional text) for a completed order and driver.
+// @Tags         reviews
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      CreateReviewRequest  true  "Review payload"
+// @Success      201   {object}  map[string]any  "created review"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /reviews [post]
 func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	var req createDriverReviewRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -466,6 +516,15 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Get driver reviews
+// @Description  Returns reviews and rating stats for a specific driver.
+// @Tags         reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "reviews with rating stats"
+// @Failure      400  {object}  ErrorResponse  "driver_id is required"
+// @Router       /drivers/{driverID}/reviews [get]
 func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	if driverID == "" {
@@ -501,6 +560,16 @@ func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// @Summary      Get order review
+// @Description  Returns the review for a specific order.
+// @Tags         reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Success      200  {object}  map[string]any  "review details"
+// @Failure      400  {object}  ErrorResponse  "order_id is required"
+// @Failure      404  {object}  ErrorResponse  "review not found"
+// @Router       /orders/{orderID}/review [get]
 func (h *AdminHandler) GetOrderReview(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	if orderID == "" {
@@ -534,6 +603,19 @@ func (h *AdminHandler) GetOrderReview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Upload document
+// @Description  Uploads a driver document (passport, license, vehicle photo, selfie) to S3-compatible storage. Multipart form.
+// @Tags         drivers
+// @Accept       mpfd
+// @Produce      json
+// @Security     BearerAuth
+// @Param        document_type  formData  string  true  "Document type"  Enums(passport,license,vehicleDocs,vehiclePhoto,selfie)
+// @Param        file            formData  file    true  "Document file"
+// @Success      200  {object}  map[string]any  "uploaded document info"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      501  {object}  ErrorResponse  "storage not configured"
+// @Router       /driver-documents/uploads [post]
 func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Request) {
 	if h.docStorage == nil {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "document storage is not configured"})
@@ -625,6 +707,13 @@ func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// @Summary      List online drivers (admin)
+// @Description  Returns currently online drivers with their last known locations for the live map.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "online drivers with locations"
+// @Router       /admin/drivers-online [get]
 func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request) {
 	drivers, err := h.driverRepo.ListActive(r.Context(), parseAdminLimit(r, 100, 200))
 	if err != nil {
@@ -663,18 +752,62 @@ func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
 }
 
+// @Summary      Approve verification (admin)
+// @Description  Approves a driver's document verification with optional vehicle details.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        verificationID  path  string                true  "Verification ID"
+// @Param        body            body  AdminDecisionRequest  true  "Decision with vehicle details"
+// @Success      200  {object}  map[string]any  "approval status"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Router       /admin/moderation/driver-verifications/{verificationID}/approve [post]
 func (h *AdminHandler) ApproveDriverVerification(w http.ResponseWriter, r *http.Request) {
 	h.decideDriverVerification(w, r, "approved", false)
 }
 
+// @Summary      Reject verification (admin)
+// @Description  Rejects a driver's document verification with a reason.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        verificationID  path  string                true  "Verification ID"
+// @Param        body            body  AdminDecisionRequest  true  "Decision with reason"
+// @Success      200  {object}  map[string]any  "rejection status"
+// @Failure      400  {object}  ErrorResponse  "reason required"
+// @Router       /admin/moderation/driver-verifications/{verificationID}/reject [post]
 func (h *AdminHandler) RejectDriverVerification(w http.ResponseWriter, r *http.Request) {
 	h.decideDriverVerification(w, r, "rejected", true)
 }
 
+// @Summary      Request verification changes (admin)
+// @Description  Requests changes to a driver's verification submission with admin feedback.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        verificationID  path  string                true  "Verification ID"
+// @Param        body            body  AdminDecisionRequest  true  "Decision with reason"
+// @Success      200  {object}  map[string]any  "update status"
+// @Failure      400  {object}  ErrorResponse  "reason required"
+// @Router       /admin/moderation/driver-verifications/{verificationID}/request-changes [post]
 func (h *AdminHandler) RequestDriverVerificationChanges(w http.ResponseWriter, r *http.Request) {
 	h.decideDriverVerification(w, r, "changes_requested", true)
 }
 
+// @Summary      Block verification (admin)
+// @Description  Blocks a driver's verification. Admin-only endpoint.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        verificationID  path  string                true  "Verification ID"
+// @Param        body            body  AdminDecisionRequest  true  "Decision with reason"
+// @Success      200  {object}  map[string]any  "block status"
+// @Failure      400  {object}  ErrorResponse  "reason required"
+// @Router       /admin/moderation/driver-verifications/{verificationID}/block [post]
 func (h *AdminHandler) BlockDriverVerification(w http.ResponseWriter, r *http.Request) {
 	h.decideDriverVerification(w, r, "blocked", true)
 }
@@ -765,10 +898,22 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 	})
 }
 
-// ListAdminOrders serves GET /admin/orders with filters. All money values
-// in the response are in kopecks (minor units). The response shape is:
-//
-//	{ "items": [...], "total": N, "limit": L, "offset": O }
+// @Summary      List orders (admin)
+// @Description  Returns paginated orders with filters. All money values in kopecks.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        status           query  string  false  "Filter by status"  Enums(searching,accepted,arrived,in_progress,completed,cancelled)
+// @Param        payment_method   query  string  false  "Filter by payment method"  Enums(cash,card)
+// @Param        financial_status query  string  false  "Filter by financial status"
+// @Param        driver_id        query  string  false  "Filter by driver ID"
+// @Param        client_id        query  string  false  "Filter by client ID"
+// @Param        from             query  string  false  "Start date (RFC3339)"
+// @Param        to               query  string  false  "End date (RFC3339)"
+// @Param        limit            query  int     false  "Max items (default 50, max 200)"
+// @Param        offset           query  int     false  "Pagination offset"
+// @Success      200  {object}  map[string]any  "paginated orders"
+// @Router       /admin/orders [get]
 func (h *AdminHandler) ListAdminOrders(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := orderdomain.AdminOrderFilter{
@@ -805,7 +950,16 @@ func (h *AdminHandler) ListAdminOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetAdminOrderDetails serves GET /admin/orders/{orderID}.
+// @Summary      Get order details (admin)
+// @Description  Returns full order details with financial breakdown, payment info, driver profile, and wallet transactions.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Success      200  {object}  map[string]any  "full order details"
+// @Failure      400  {object}  ErrorResponse  "order_id is required"
+// @Failure      404  {object}  ErrorResponse  "order not found"
+// @Router       /admin/orders/{orderID} [get]
 func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Request) {
 	orderID := strings.TrimSpace(chi.URLParam(r, "orderID"))
 	if orderID == "" {
@@ -901,8 +1055,13 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// ListTaxProfiles serves GET /admin/tax-profiles.
-// Returns all driver tax profiles for admin review and verification.
+// @Summary      List tax profiles (admin)
+// @Description  Returns all driver tax profiles for admin review and verification.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of tax profiles"
+// @Router       /admin/tax-profiles [get]
 func (h *AdminHandler) ListTaxProfiles(w http.ResponseWriter, r *http.Request) {
 	profiles, err := h.repo.ListTaxProfiles(r.Context(), parseAdminLimit(r, 50, 100))
 	if err != nil {
@@ -926,20 +1085,43 @@ func (h *AdminHandler) ListTaxProfiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
 }
 
-// VerifyTaxProfile serves POST /admin/tax-profiles/{driverID}/verify.
-// Marks a driver's tax profile as verified by admin.
+// @Summary      Verify tax profile (admin)
+// @Description  Marks a driver's tax profile as verified.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "updated status"
+// @Failure      400  {object}  ErrorResponse  "driver ID required"
+// @Router       /admin/tax-profiles/{driverID}/verify [post]
 func (h *AdminHandler) VerifyTaxProfile(w http.ResponseWriter, r *http.Request) {
 	h.updateTaxProfileStatus(w, r, "verified", false)
 }
 
-// RejectTaxProfile serves POST /admin/tax-profiles/{driverID}/reject.
-// Marks a driver's tax profile as rejected by admin with optional reason.
+// @Summary      Reject tax profile (admin)
+// @Description  Rejects a driver's tax profile with admin comments.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "updated status"
+// @Failure      400  {object}  ErrorResponse  "comments required or driver ID required"
+// @Router       /admin/tax-profiles/{driverID}/reject [post]
 func (h *AdminHandler) RejectTaxProfile(w http.ResponseWriter, r *http.Request) {
 	h.updateTaxProfileStatus(w, r, "rejected", true)
 }
 
-// RequestTaxProfileChanges serves POST /admin/tax-profiles/{driverID}/request-changes.
-// Requests changes to a driver's tax profile with admin comments.
+// @Summary      Request tax profile changes (admin)
+// @Description  Requests changes to a driver's tax profile with admin comments.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "updated status"
+// @Failure      400  {object}  ErrorResponse  "comments required or driver ID required"
+// @Router       /admin/tax-profiles/{driverID}/request-changes [post]
 func (h *AdminHandler) RequestTaxProfileChanges(w http.ResponseWriter, r *http.Request) {
 	h.updateTaxProfileStatus(w, r, "changes_requested", true)
 }

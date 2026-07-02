@@ -54,8 +54,17 @@ type driverLocationResponse struct {
 	LastSeenAt   string  `json:"last_seen_at"`
 }
 
-// List returns live driver locations for the admin map.
-// GET /admin/drivers/locations?city_id=...&status=online|busy|offline
+// @Summary      List driver locations (admin)
+// @Description  Returns live driver locations for the admin map. Can be filtered by city and status.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        city_id  query  string  false  "Filter by city ID"
+// @Param        status   query  string  false  "Filter by status"  Enums(online,offline,busy)
+// @Success      200  {object}  []driverLocationResponse  "driver locations"
+// @Failure      400  {object}  ErrorResponse  "invalid params"
+// @Failure      404  {object}  ErrorResponse  "city not found"
+// @Router       /admin/drivers/locations [get]
 func (h *DriverLocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 	cityID := strings.TrimSpace(r.URL.Query().Get("city_id"))
 	statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))

@@ -217,31 +217,35 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 // driver. Payload includes order_id and price so the Flutter app can render
 // a richer notification or jump straight into the order screen on tap.
 //
-// The push goes out on a detached context with a 5s timeout so the HTTP
-// request that triggered order creation is not held hostage by a slow FCM
-// round-trip, and is skipped entirely when no sender is wired (test paths).
+// The push runs in a background goroutine with a detached 15s context so the
+// HTTP response is not blocked by FCM retries. Errors are logged but never
+// propagated — a failed FCM broadcast must not abort order creation.
 func (uc *CreateOrderUseCase) broadcastNewOrderPush(parent context.Context, ord *orderdomain.Order, priceKopecks int64) {
 	if uc.pushSender == nil {
 		return
 	}
-	pushCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
-	defer cancel()
+	go func() {
+		pushCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 15*time.Second)
+		defer cancel()
 
-	title := "Новый заказ"
-	body := fmt.Sprintf("Эвакуатор %s — %.0f ₽", ord.TowTruckType, float64(priceKopecks)/100)
-	data := map[string]string{
-		"type":           "new_order",
-		"order_id":       ord.ID,
-		"tow_truck_type": string(ord.TowTruckType),
-		"price_kopecks":  fmt.Sprintf("%d", priceKopecks),
-	}
-	var pushErr error
-	if ord.CityID != nil && *ord.CityID != "" {
-		pushErr = uc.pushSender.BroadcastToDriversInCity(pushCtx, *ord.CityID, title, body, data)
-	} else {
-		pushErr = uc.pushSender.BroadcastToAvailableDrivers(pushCtx, title, body, data)
-	}
-	if pushErr != nil {
-		uc.logger.Error("failed to broadcast new order push", pushErr, "order_id", ord.ID)
-	}
+		title := "Новый заказ"
+		body := fmt.Sprintf("Эвакуатор %s — %.0f ₽", ord.TowTruckType, float64(priceKopecks)/100)
+		data := map[string]string{
+			"type":           "new_order",
+			"order_id":       ord.ID,
+			"tow_truck_type": string(ord.TowTruckType),
+			"price_kopecks":  fmt.Sprintf("%d", priceKopecks),
+		}
+		var pushErr error
+		if ord.CityID != nil && *ord.CityID != "" {
+			pushErr = uc.pushSender.BroadcastToDriversInCity(pushCtx, *ord.CityID, title, body, data)
+		} else {
+			pushErr = uc.pushSender.BroadcastToAvailableDrivers(pushCtx, title, body, data)
+		}
+		if pushErr != nil {
+			uc.logger.Error("CRITICAL: FCM push failed after retries for order", pushErr, "order_id", ord.ID)
+		} else {
+			uc.logger.Info("FCM push sent for order", "order_id", ord.ID)
+		}
+	}()
 }

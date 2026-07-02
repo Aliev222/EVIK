@@ -515,6 +515,14 @@ func (h *PaymentHandler) RequestDriverPayout(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusCreated, map[string]any{"payout": payout})
 }
 
+// @Summary      List driver payout methods
+// @Description  Returns saved payout methods (bank cards, wallets) for the authenticated driver.
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of payout methods"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/payout-methods [get]
 func (h *PaymentHandler) ListDriverPayoutMethods(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -529,6 +537,17 @@ func (h *PaymentHandler) ListDriverPayoutMethods(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, map[string]any{"payout_methods": methods})
 }
 
+// @Summary      Add payout method
+// @Description  Saves a new payout method (bank card or wallet) for the driver.
+// @Tags         driver
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      AddPayoutMethodRequest  true  "Payout method payload"
+// @Success      201   {object}  map[string]any  "created payout method"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/payout-methods [post]
 func (h *PaymentHandler) AddDriverPayoutMethod(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -556,6 +575,17 @@ func (h *PaymentHandler) AddDriverPayoutMethod(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusCreated, map[string]any{"payout_method": method})
 }
 
+// @Summary      Create driver subscription payment
+// @Description  Creates a payment for a driver subscription plan (e.g. monthly fee).
+// @Tags         driver
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      SubscriptionPaymentRequest  true  "Plan ID"
+// @Success      201   {object}  map[string]any  "payment details"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/subscription/payment [post]
 func (h *PaymentHandler) CreateDriverSubscriptionPayment(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -575,6 +605,14 @@ func (h *PaymentHandler) CreateDriverSubscriptionPayment(w http.ResponseWriter, 
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+// @Summary      Get driver subscription status
+// @Description  Returns the driver's current subscription status (active, expired, none).
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "subscription status"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/subscription/status [get]
 func (h *PaymentHandler) GetDriverSubscriptionStatus(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -589,6 +627,16 @@ func (h *PaymentHandler) GetDriverSubscriptionStatus(w http.ResponseWriter, r *h
 	writeJSON(w, http.StatusOK, status)
 }
 
+// @Summary      Create refund (admin)
+// @Description  Creates a refund for a completed payment. Admin-only endpoint.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      RefundRequest  true  "Refund payload"
+// @Success      201   {object}  map[string]any  "created refund"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Router       /admin/finance/refunds [post]
 func (h *PaymentHandler) AdminCreateRefund(w http.ResponseWriter, r *http.Request) {
 	var req refundRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -603,6 +651,15 @@ func (h *PaymentHandler) AdminCreateRefund(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusCreated, map[string]any{"refund": refund})
 }
 
+// @Summary      Export finance report (admin)
+// @Description  Exports a finance report as CSV. Admin-only endpoint.
+// @Tags         admin
+// @Produce      text/csv
+// @Security     BearerAuth
+// @Param        type  query  string  true  "Report type"  Enums(payments,payouts,orders)
+// @Success      200  {object}  string  "CSV file"
+// @Failure      400  {object}  ErrorResponse  "invalid report type"
+// @Router       /admin/finance/export [get]
 func (h *PaymentHandler) AdminExportFinance(w http.ResponseWriter, r *http.Request) {
 	reportType := r.URL.Query().Get("type")
 	records, err := h.repo.ExportFinanceReport(r.Context(), reportType)
@@ -615,6 +672,15 @@ func (h *PaymentHandler) AdminExportFinance(w http.ResponseWriter, r *http.Reque
 	_ = csv.NewWriter(w).WriteAll(records)
 }
 
+// @Summary      Finance report (admin)
+// @Description  Returns a finance report as JSON. Admin-only endpoint.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        reportType  path  string  true  "Report type"
+// @Success      200  {object}  map[string]any  "report rows"
+// @Failure      400  {object}  ErrorResponse  "invalid report type"
+// @Router       /admin/finance/report/{reportType} [get]
 func (h *PaymentHandler) AdminFinanceReport(w http.ResponseWriter, r *http.Request) {
 	reportType := chi.URLParam(r, "reportType")
 	records, err := h.repo.ExportFinanceReport(r.Context(), reportType)
@@ -629,8 +695,21 @@ type adminRejectPayoutRequest struct {
 	Reason string `json:"reason"`
 }
 
-// AdminListRefunds serves GET /admin/finance/refunds with filters.
-// Money amounts in the response are in kopecks (minor units).
+// @Summary      List refunds (admin)
+// @Description  Returns paginated refunds with optional filters. Admin-only.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        status     query  string  false  "Filter by status"  Enums(pending,succeeded,failed)
+// @Param        payment_id query  string  false  "Filter by payment ID"
+// @Param        order_id   query  string  false  "Filter by order ID"
+// @Param        from       query  string  false  "Start date (RFC3339)"
+// @Param        to         query  string  false  "End date (RFC3339)"
+// @Param        limit      query  int     false  "Max items (default 50, max 200)"
+// @Param        offset     query  int     false  "Pagination offset"
+// @Success      200  {object}  map[string]any  "paginated refunds with total count"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Router       /admin/finance/refunds [get]
 func (h *PaymentHandler) AdminListRefunds(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := paymentdomain.AdminRefundFilter{
@@ -665,7 +744,17 @@ func (h *PaymentHandler) AdminListRefunds(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// AdminApprovePayout serves POST /admin/finance/payouts/{id}/approve.
+// @Summary      Approve payout (admin)
+// @Description  Approves a pending driver payout. Admin-only endpoint.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        payoutID  path  string  true  "Payout ID"
+// @Success      200  {object}  map[string]any  "approved payout"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      404  {object}  ErrorResponse  "payout not found"
+// @Failure      409  {object}  ErrorResponse  "payout not in approvable status"
+// @Router       /admin/finance/payouts/{payoutID}/approve [post]
 func (h *PaymentHandler) AdminApprovePayout(w http.ResponseWriter, r *http.Request) {
 	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutID"))
 	if payoutID == "" {
@@ -692,7 +781,19 @@ func (h *PaymentHandler) AdminApprovePayout(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"payout": adminPayoutJSON(payout)})
 }
 
-// AdminRejectPayout serves POST /admin/finance/payouts/{id}/reject.
+// @Summary      Reject payout (admin)
+// @Description  Rejects a pending driver payout with a reason. Admin-only endpoint.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        payoutID  path  string  true  "Payout ID"
+// @Success      200  {object}  map[string]any  "rejected payout"
+// @Failure      400  {object}  ErrorResponse  "reason is required (min 8 chars)"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      404  {object}  ErrorResponse  "payout not found"
+// @Failure      409  {object}  ErrorResponse  "payout not in rejectable status"
+// @Router       /admin/finance/payouts/{payoutID}/reject [post]
 func (h *PaymentHandler) AdminRejectPayout(w http.ResponseWriter, r *http.Request) {
 	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutID"))
 	if payoutID == "" {
@@ -853,6 +954,16 @@ func (h *PaymentHandler) addCardLegacyDisabled(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusCreated, map[string]any{"card": newPaymentMethodResponse(method)})
 }
 
+// @Summary      Set default card
+// @Description  Marks a saved card as the default payment method. Client-only endpoint.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        cardID  path  string  true  "Card ID"
+// @Success      200  {object}  map[string]any  "updated card"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      404  {object}  ErrorResponse  "card not found"
+// @Router       /payments/cards/{cardID}/default [post]
 func (h *PaymentHandler) SetDefaultCard(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -872,6 +983,16 @@ func (h *PaymentHandler) SetDefaultCard(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"card": newPaymentMethodResponse(*method)})
 }
 
+// @Summary      Delete card
+// @Description  Removes a saved payment card. Client-only endpoint.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        cardID  path  string  true  "Card ID"
+// @Success      200  {object}  map[string]any  "deleted: true"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      404  {object}  ErrorResponse  "card not found"
+// @Router       /payments/cards/{cardID} [delete]
 func (h *PaymentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -890,6 +1011,16 @@ func (h *PaymentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
 }
 
+// @Summary      Apply promocode
+// @Description  Applies a discount promocode to the client's account.
+// @Tags         payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      ApplyPromocodeRequest  true  "Promocode code"
+// @Success      200  {object}  map[string]any  "promocode details with discount"
+// @Failure      400  {object}  ErrorResponse  "invalid promocode"
+// @Router       /payments/promocode/apply [post]
 func (h *PaymentHandler) ApplyPromocode(w http.ResponseWriter, r *http.Request) {
 	var req applyPromocodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -15,6 +15,15 @@ func NewServiceAreaHandler(repo servicearea.Repository) *ServiceAreaHandler {
 	return &ServiceAreaHandler{repo: repo}
 }
 
+// @Summary      Check service area
+// @Description  Checks whether the given coordinates are inside an active service area.
+// @Tags         service-areas
+// @Produce      json
+// @Param        lat  query  number  true  "Latitude"
+// @Param        lng  query  number  true  "Longitude"
+// @Success      200  {object}  map[string]any  "allowed status with optional service area"
+// @Failure      400  {object}  ErrorResponse  "lat/lng required"
+// @Router       /service-areas/check [get]
 func (h *ServiceAreaHandler) Check(w http.ResponseWriter, r *http.Request) {
 	lat, err := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
 	if err != nil {

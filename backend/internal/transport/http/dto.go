@@ -227,6 +227,83 @@ type SubscriptionPaymentRequest struct {
 	PlanID string `json:"plan_id" example:"plan-monthly"`
 }
 
+// SetDriverStatusRequest is the body of POST /drivers/{driverID}/status.
+type SetDriverStatusRequest struct {
+	Status string  `json:"status" example:"online" enums:"online,offline"`
+	Lat    *float64 `json:"lat,omitempty" example:"55.7522"`
+	Lng    *float64 `json:"lng,omitempty" example:"37.6156"`
+}
+
+// TaxProfileRequest is the body of PUT /drivers/{driverID}/tax-profile.
+type TaxProfileRequest struct {
+	INN          string `json:"inn" example:"1234567890"`
+	TaxpayerType string `json:"taxpayer_type" example:"self_employed" enums:"self_employed,ip"`
+}
+
+// NPDConnectRequest is the body of POST /drivers/{driverID}/npd/connect.
+type NPDConnectRequest struct {
+	INN string `json:"inn" example:"1234567890"`
+}
+
+// AdminDecisionRequest is the body for admin verification decisions.
+type AdminDecisionRequest struct {
+	Reason       string `json:"reason,omitempty" example:"Documents are valid"`
+	VehiclePlate string `json:"vehicle_plate,omitempty" example:"A123BC777"`
+	VehicleModel string `json:"vehicle_model,omitempty" example:"Toyota Camry"`
+	VehicleType  string `json:"vehicle_type,omitempty" example:"winch" enums:"winch,platform,manipulator"`
+}
+
+// SubmitDriverVerificationRequest is the body of POST /driver-verifications.
+type SubmitDriverVerificationRequest struct {
+	FullName     string   `json:"full_name" example:"Ivan Ivanov"`
+	Phone        string   `json:"phone" example:"+79991234567"`
+	City         string   `json:"city" example:"Moscow"`
+	VehicleModel string   `json:"vehicle_model" example:"Toyota Camry"`
+	VehiclePlate string   `json:"vehicle_plate" example:"A123BC777"`
+	VehicleType  string   `json:"vehicle_type" example:"winch" enums:"winch,platform,manipulator"`
+	Documents    []string `json:"documents" example:"passport,license,vehicleDocs"`
+	UserID       string   `json:"user_id,omitempty" example:"driver-123"`
+}
+
+// CreateReviewRequest is the body of POST /reviews.
+type CreateReviewRequest struct {
+	OrderID  string `json:"order_id" example:"order-123"`
+	DriverID string `json:"driver_id" example:"driver-123"`
+	Stars    int    `json:"stars" example:"5" minimum:"1" maximum:"5"`
+	Text     string `json:"text,omitempty" example:"Great service!"`
+}
+
+// DriverDocumentUploadRequest is the multipart form for POST /driver-documents/uploads.
+type DriverDocumentUploadRequest struct {
+	DocumentType string `json:"document_type" example:"passport" enums:"passport,license,vehicleDocs,vehiclePhoto,selfie"`
+}
+
+// CalculatePriceRequest is the body of POST /pricing/calculate.
+type CalculatePriceRequest struct {
+	PickupLat    float64 `json:"pickup_lat" example:"55.7522"`
+	PickupLng    float64 `json:"pickup_lng" example:"37.6156"`
+	DropoffLat   float64 `json:"dropoff_lat" example:"55.7600"`
+	DropoffLng   float64 `json:"dropoff_lng" example:"37.6200"`
+	TowTruckType string  `json:"tow_truck_type" example:"winch" enums:"winch,platform,manipulator"`
+}
+
+// CalculateRouteRequest is the body of POST /routing/orders/{orderID}/route.
+type CalculateRouteRequest struct {
+	DriverLat float64 `json:"driver_lat" example:"55.7500"`
+	DriverLng float64 `json:"driver_lng" example:"37.6000"`
+}
+
+// CityNameRequest is the body of POST /admin/cities/search and POST /admin/cities.
+type CityNameRequest struct {
+	Name string `json:"name" example:"Moscow"`
+}
+type DriverDocumentUploadRequest struct {
+	DocumentType string `json:"document_type" example:"passport" enums:"passport,license,vehicleDocs,vehiclePhoto,selfie"`
+}
+type NPDConnectRequest struct {
+	INN string `json:"inn" example:"1234567890"`
+}
+
 // RefundRequest is the body of POST /admin/finance/refunds.
 type RefundRequest struct {
 	PaymentID string `json:"payment_id" example:"pay-123"`

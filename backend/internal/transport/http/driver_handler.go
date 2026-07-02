@@ -164,6 +164,17 @@ func (h *DriverHandler) canAccessDriver(ctx context.Context, callerID string, ca
 	return false
 }
 
+// @Summary      Get driver
+// @Description  Returns a driver's basic info. Access control: admins see all, drivers see themselves, clients see drivers they have an active order with.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "driver info"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "driver not found"
+// @Router       /drivers/{driverID} [get]
 func (h *DriverHandler) GetDriver(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	callerID, err := userIDFromContext(r.Context())
@@ -188,9 +199,17 @@ func (h *DriverHandler) GetDriver(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"driver": newDriverResponse(drv)})
 }
 
-// GetDriverProfile serves GET /drivers/{driverID}/profile.
-// Returns complete driver profile including name, phone, vehicle info, and ratings.
-// Used by frontend to display real driver data instead of hardcoded values.
+// @Summary      Get driver profile
+// @Description  Returns the full driver profile including name, phone, vehicle info, and ratings.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "driver profile"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "driver not found"
+// @Router       /drivers/{driverID}/profile [get]
 func (h *DriverHandler) GetDriverProfile(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.authorizeDriverScope(w, r)
 	if !ok {
@@ -206,6 +225,19 @@ func (h *DriverHandler) GetDriverProfile(w http.ResponseWriter, r *http.Request)
 	h.writeJSON(w, http.StatusOK, map[string]any{"profile": newDriverProfileResponse(profile)})
 }
 
+// @Summary      Set driver status
+// @Description  Changes the driver's online/offline status. Going online requires passing driver gates (docs, tax, subscription).
+// @Tags         drivers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string                   true  "Driver ID"
+// @Param        body      body  SetDriverStatusRequest   true  "Status and optional location"
+// @Success      200  {object}  map[string]any  "updated driver"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden or gate check failed"
+// @Router       /drivers/{driverID}/status [post]
 func (h *DriverHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	var req setDriverStatusRequest
@@ -258,6 +290,19 @@ func (h *DriverHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"driver": newDriverResponse(drv)})
 }
 
+// @Summary      Upsert tax profile
+// @Description  Creates or updates the driver's tax profile (INN and taxpayer type). Admin updates are auto-verified.
+// @Tags         drivers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string               true  "Driver ID"
+// @Param        body      body  TaxProfileRequest     true  "Tax profile payload"
+// @Success      200  {object}  map[string]any  "tax profile"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Router       /drivers/{driverID}/tax-profile [put]
 func (h *DriverHandler) UpsertTaxProfile(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	authUserID, err := userIDFromContext(r.Context())
@@ -303,10 +348,16 @@ func (h *DriverHandler) UpsertTaxProfile(w http.ResponseWriter, r *http.Request)
 	h.writeJSON(w, http.StatusOK, map[string]any{"tax_profile": taxProfileJSON(profile)})
 }
 
-// GetVerificationStatus serves GET /drivers/{driverID}/verification-status.
-// Returns the current document verification status for a driver, including
-// uploaded documents and moderation status. Used by Flutter frontend to
-// show verification progress and handle re-submissions.
+// @Summary      Get verification status
+// @Description  Returns the driver's document verification status, uploaded documents, and moderation state.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "verification status with documents"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Router       /drivers/{driverID}/verification-status [get]
 func (h *DriverHandler) GetVerificationStatus(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.authorizeDriverScope(w, r)
 	if !ok {
@@ -340,6 +391,17 @@ func (h *DriverHandler) GetVerificationStatus(w http.ResponseWriter, r *http.Req
 	h.writeJSON(w, http.StatusOK, status)
 }
 
+// @Summary      Get tax profile
+// @Description  Returns the driver's tax profile (INN, taxpayer type, verification status).
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "tax profile"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "tax profile not found"
+// @Router       /drivers/{driverID}/tax-profile [get]
 func (h *DriverHandler) GetTaxProfile(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	authUserID, err := userIDFromContext(r.Context())
@@ -368,6 +430,17 @@ func (h *DriverHandler) GetTaxProfile(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"tax_profile": taxProfileJSON(profile)})
 }
 
+// @Summary      Get driver location
+// @Description  Returns the driver's last known location. Access control mirrors GetDriver.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "location with lat/lng/updated_at"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "location not found"
+// @Router       /drivers/{driverID}/location [get]
 func (h *DriverHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	driverID := chi.URLParam(r, "driverID")
 	callerID, err := userIDFromContext(r.Context())
@@ -503,12 +576,16 @@ type npdConnectRequest struct {
 	INN string `json:"inn"`
 }
 
-// GetNPDStatus serves GET /drivers/{driverID}/npd/status.
-// Returns the driver's current Moy Nalog (FNS НПД) partner connection
-// state without ever exposing OAuth2 tokens. Driver UI uses this to
-// decide whether to render the "Подключите Мой Налог" screen, the
-// "Скоро" banner (while integration is in stub mode), or the connected
-// confirmation block.
+// @Summary      Get NPD status
+// @Description  Returns the driver's Moy Nalog (FNS NPD/self-employment) connection status.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  map[string]any  "NPD status with connection state"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Router       /drivers/{driverID}/npd/status [get]
 func (h *DriverHandler) GetNPDStatus(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.authorizeDriverScope(w, r)
 	if !ok {
@@ -530,11 +607,20 @@ func (h *DriverHandler) GetNPDStatus(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"profile": taxProfileJSON(profile)})
 }
 
-// ConnectNPD serves POST /drivers/{driverID}/npd/connect.
-// Driver enters their INN in our app after granting partner access in
-// the Moy Nalog app — we exchange the grant for tokens via NPDProvider.
-// Returns 503 Service Unavailable while the integration is stubbed; the
-// driver UI translates that into the "Скоро" banner.
+// @Summary      Connect NPD
+// @Description  Connects the driver to Moy Nalog (FNS) via INN for self-employment tax verification.
+// @Tags         drivers
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string              true  "Driver ID"
+// @Param        body      body  NPDConnectRequest   true  "INN payload"
+// @Success      200  {object}  map[string]any  "updated tax profile"
+// @Failure      400  {object}  ErrorResponse  "INN required"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      503  {object}  ErrorResponse  "NPD not configured"
+// @Router       /drivers/{driverID}/npd/connect [post]
 func (h *DriverHandler) ConnectNPD(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.authorizeDriverScope(w, r)
 	if !ok {
@@ -565,9 +651,17 @@ func (h *DriverHandler) ConnectNPD(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"profile": taxProfileJSON(profile)})
 }
 
-// DisconnectNPD serves POST /drivers/{driverID}/npd/disconnect.
-// Wipes tokens locally and flips status to "revoked". Does not call FNS —
-// FNS-side revocation must be done by the driver from the Moy Nalog app.
+// @Summary      Disconnect NPD
+// @Description  Revokes the NPD (Moy Nalog) connection for the driver. Only local tokens are removed.
+// @Tags         drivers
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  EmptyResponse
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "tax profile not found"
+// @Router       /drivers/{driverID}/npd/disconnect [post]
 func (h *DriverHandler) DisconnectNPD(w http.ResponseWriter, r *http.Request) {
 	driverID, ok := h.authorizeDriverScope(w, r)
 	if !ok {

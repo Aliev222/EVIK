@@ -38,7 +38,18 @@ type routePoint struct {
 	Lng float64 `json:"lng"`
 }
 
-// CalculateRoute calculates route from driver to order pickup location
+// @Summary      Calculate route to pickup
+// @Description  Calculates the optimal driving route from the driver's current location to the order's pickup point.
+// @Tags         routing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string                  true  "Order ID"
+// @Param        body     body  CalculateRouteRequest   true  "Driver location"
+// @Success      200  {object}  map[string]any  "route with polyline, distance, duration"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      404  {object}  ErrorResponse  "order not found"
+// @Router       /routing/orders/{orderID}/route [post]
 func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	if orderID == "" {
@@ -80,7 +91,18 @@ func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(route)
 }
 
-// GetDirections gets turn-by-turn directions for the driver
+// @Summary      Get turn-by-turn directions
+// @Description  Returns turn-by-turn driving directions from the driver's location to the order's pickup point.
+// @Tags         routing
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string                  true  "Order ID"
+// @Param        body     body  CalculateRouteRequest   true  "Driver location"
+// @Success      200  {object}  map[string]any  "directions with order_id"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      404  {object}  ErrorResponse  "order not found"
+// @Router       /routing/orders/{orderID}/directions [post]
 func (h *RoutingHandler) GetDirections(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	if orderID == "" {
@@ -125,6 +147,18 @@ func (h *RoutingHandler) GetDirections(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Preview route
+// @Description  Returns a route preview between two coordinates without requiring an order. Used for map display.
+// @Tags         routing
+// @Produce      json
+// @Security     BearerAuth
+// @Param        fromLat  query  number  true  "Start latitude"
+// @Param        fromLng  query  number  true  "Start longitude"
+// @Param        toLat    query  number  true  "End latitude"
+// @Param        toLng    query  number  true  "End longitude"
+// @Success      200  {object}  routePreviewResponse  "route preview with points, distance, duration"
+// @Failure      400  {object}  ErrorResponse  "missing or invalid parameters"
+// @Router       /routing/preview [get]
 func (h *RoutingHandler) Preview(w http.ResponseWriter, r *http.Request) {
 	fromLat, ok := parseRequiredFloatQuery(w, r, "fromLat")
 	if !ok {
