@@ -118,13 +118,14 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	}
 
 	// Publish order created event first
+	// Best-effort: order is already in Postgres (source of truth),
+	// drivers will find it via polling even without the push event.
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventOrderCreated,
 		OrderID: ord.ID,
 		Payload: map[string]any{"status": ord.Status},
 	}); err != nil {
-		uc.logger.Error("failed to publish order created", err, "order_id", ord.ID)
-		return nil, err
+		uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", ord.ID)
 	}
 
 	// Calculate price for the order
@@ -168,17 +169,16 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 		return nil, err
 	}
 
-	// Publish searching event to notify drivers
+	// Publish searching event to notify drivers (best-effort — order is already in DB)
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventSearching,
 		OrderID: ord.ID,
 		Payload: map[string]any{
 			"status": ord.Status,
-			"order":  ord, // Include full order details for drivers
+			"order":  ord,
 		},
 	}); err != nil {
-		uc.logger.Error("failed to publish searching status", err, "order_id", ord.ID)
-		return nil, err
+		uc.logger.Error("failed to publish searching event", err, "order_id", ord.ID)
 	}
 
 	// Fan a push out to every currently-available driver. Mirrors the WS

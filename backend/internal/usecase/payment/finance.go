@@ -125,16 +125,23 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 	if ord.UserID != userID {
 		return nil, ErrOrderNotOwned
 	}
-	calculation, err := uc.pricingService.CalculatePrice(ctx, pricingdomain.CalculatePriceInput{
-		OrderID:      ord.ID,
-		PickupLat:    ord.Pickup.Lat,
-		PickupLng:    ord.Pickup.Lng,
-		DropoffLat:   ord.Dropoff.Lat,
-		DropoffLng:   ord.Dropoff.Lng,
-		TowTruckType: ord.TowTruckType,
-	})
-	if err != nil {
-		return nil, err
+	// Use the stored PriceTotal (which already includes cross-city surcharge
+	// from accept_order.go) as the payment amount. Fall back to a fresh
+	// calculation only when PriceTotal is zero (legacy orders).
+	amount := ord.PriceTotal
+	if amount <= 0 {
+		calculation, err := uc.pricingService.CalculatePrice(ctx, pricingdomain.CalculatePriceInput{
+			OrderID:      ord.ID,
+			PickupLat:    ord.Pickup.Lat,
+			PickupLng:    ord.Pickup.Lng,
+			DropoffLat:   ord.Dropoff.Lat,
+			DropoffLng:   ord.Dropoff.Lng,
+			TowTruckType: ord.TowTruckType,
+		})
+		if err != nil {
+			return nil, err
+		}
+		amount = calculation.TotalPrice
 	}
 	now := uc.clock.Now()
 	idempotencyKey := "order_payment:" + orderID + ":" + string(method)
@@ -146,7 +153,7 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 		Provider:       paymentdomain.ProviderYooKassa,
 		PaymentMethod:  method,
 		Purpose:        paymentdomain.PaymentPurposeOrder,
-		Amount:         calculation.TotalPrice,
+		Amount:         amount,
 		Currency:       paymentdomain.CurrencyRUB,
 		Status:         paymentdomain.PaymentStatusPending,
 		IdempotencyKey: idempotencyKey,
@@ -160,7 +167,7 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 		return uc.repo.CreateOrderPayment(ctx, p)
 	}
 	providerPayment, err := uc.provider.CreatePayment(ctx, ProviderPaymentRequest{
-		Amount:         calculation.TotalPrice,
+		Amount:         amount,
 		Currency:       paymentdomain.CurrencyRUB,
 		Description:    "Tow Truck order " + orderID,
 		IdempotencyKey: idempotencyKey,
@@ -397,7 +404,9 @@ func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID stri
 		IdempotencyKey:      idempotencyKey,
 	})
 	if err != nil {
-		_ = uc.repo.MarkPayoutFailed(ctx, created.ID, err.Error())
+		if markErr := uc.repo.MarkPayoutFailed(ctx, created.ID, err.Error()); markErr != nil {
+			log.Printf("CRITICAL: failed to mark payout %s as failed: %v (original error: %v)", created.ID, markErr, err)
+		}
 		return nil, err
 	}
 	if providerPayout.Status == string(paymentdomain.PayoutStatusPaid) || providerPayout.Status == "succeeded" {

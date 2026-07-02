@@ -469,10 +469,17 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	user, err := h.users.GetByID(r.Context(), userID)
+	if err != nil {
+		writeAuthError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user": map[string]any{
-			"id":   userID,
-			"role": role,
+			"id":        user.ID,
+			"role":      role,
+			"full_name": user.Name,
+			"phone":     user.Phone,
 		},
 	})
 }
