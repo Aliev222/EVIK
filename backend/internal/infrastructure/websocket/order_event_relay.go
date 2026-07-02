@@ -71,6 +71,12 @@ func (r *OrderEventRelay) handleEvent(payload string) {
 		r.hub.SendToDriversWhere(func(_ *Client) bool { return true }, []byte(payload))
 		r.logger.Printf("relay: order_expanded broadcast for order %s", event.OrderID)
 
+	case orderdomain.EventDriverLocationUpdated:
+		// Send driver location ONLY to the client watching this order
+		if userID != "" {
+			r.hub.SendToUser(userID, []byte(payload))
+		}
+
 	default:
 		if userID != "" {
 			r.hub.SendToUser(userID, []byte(payload))

@@ -97,11 +97,26 @@ class IoWebSocketClient implements WebSocketClient {
 
           try {
             final jsonData = jsonDecode(data as String);
-            if (jsonData is Map<String, dynamic> &&
-                jsonData.containsKey('order')) {
+            if (jsonData is! Map<String, dynamic>) return;
+
+            debugPrint('WS raw data: ${jsonData['type']}');
+
+            // Extract order from payload.order (new format) or root order (legacy)
+            final Map<String, dynamic>? payload =
+                jsonData['payload'] as Map<String, dynamic>?;
+            final Map<String, dynamic>? orderData =
+                payload?['order'] as Map<String, dynamic>?;
+            final Map<String, dynamic>? orderDataLegacy =
+                jsonData['order'] as Map<String, dynamic>?;
+
+            final Map<String, dynamic>? finalOrderData =
+                orderData ?? orderDataLegacy;
+
+            if (finalOrderData != null) {
               final order =
-                  Order.fromMap(jsonData['order'] as Map<String, dynamic>);
+                  Order.fromMap(finalOrderData);
               _orderUpdatesController?.add(order);
+              debugPrint('WS order update: ${order.id} status=${order.state}');
             }
           } catch (e) {
             debugPrint('Error parsing WebSocket message: $e');

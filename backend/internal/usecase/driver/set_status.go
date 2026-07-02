@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
@@ -53,14 +54,16 @@ type CityCache interface {
 }
 
 type SetStatusUseCase struct {
-	driverRepo     DriverRepository
-	orderRepo      OrderRepository
-	locationRepo   LocationRepository
-	eventPublisher EventPublisher
-	cityDetector   CityDetector
-	cityCache      CityCache
-	clock          Clock
-	logger         Logger
+	driverRepo           DriverRepository
+	orderRepo            OrderRepository
+	locationRepo         LocationRepository
+	eventPublisher       EventPublisher
+	cityDetector         CityDetector
+	cityCache            CityCache
+	clock                Clock
+	logger               Logger
+	lastLocationPublish  map[string]time.Time
+	lastLocationPublishMu sync.Mutex
 }
 
 type SetStatusInput struct {
@@ -82,14 +85,15 @@ func NewSetStatusUseCase(
 	logger Logger,
 ) *SetStatusUseCase {
 	return &SetStatusUseCase{
-		driverRepo:     driverRepo,
-		orderRepo:      orderRepo,
-		locationRepo:   locationRepo,
-		eventPublisher: eventPublisher,
-		cityDetector:   cityDetector,
-		cityCache:      cityCache,
-		clock:          clock,
-		logger:         logger,
+		driverRepo:          driverRepo,
+		orderRepo:           orderRepo,
+		locationRepo:        locationRepo,
+		eventPublisher:      eventPublisher,
+		cityDetector:        cityDetector,
+		cityCache:           cityCache,
+		clock:               clock,
+		logger:              logger,
+		lastLocationPublish: make(map[string]time.Time),
 	}
 }
 
@@ -141,6 +145,8 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 				return nil, err
 			}
 			// Do NOT update city tracking while busy — city stays as it was when order was accepted.
+
+			uc.publishDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
 		}
 		return current, nil
 	}
@@ -192,6 +198,44 @@ func (uc *SetStatusUseCase) cacheDriverCity(ctx context.Context, driverID string
 	}
 	if err := uc.cityCache.SetDriverCity(ctx, driverID, newCityID); err != nil {
 		uc.logger.Error("failed to cache driver city", err, "driver_id", driverID, "city_id", newCityID)
+	}
+}
+
+func (uc *SetStatusUseCase) publishDriverLocation(ctx context.Context, driverID string, now time.Time, lat, lng float64) {
+	uc.lastLocationPublishMu.Lock()
+	lastPub := uc.lastLocationPublish[driverID]
+	elapsed := now.Sub(lastPub)
+	if elapsed < 2*time.Second {
+		uc.lastLocationPublishMu.Unlock()
+		return
+	}
+	uc.lastLocationPublish[driverID] = now
+	uc.lastLocationPublishMu.Unlock()
+
+	orderID := ""
+	userID := ""
+	drv, err := uc.driverRepo.GetByID(ctx, driverID)
+	if err == nil && drv != nil && drv.CurrentOrderID != nil {
+		orderID = *drv.CurrentOrderID
+		ord, ordErr := uc.orderRepo.GetByID(ctx, orderID)
+		if ordErr == nil && ord != nil {
+			userID = ord.UserID
+		}
+	}
+	if userID == "" {
+		return
+	}
+	if pubErr := uc.eventPublisher.Publish(ctx, orderdomain.Event{
+		Type:    orderdomain.EventDriverLocationUpdated,
+		OrderID: orderID,
+		Payload: map[string]any{
+			"driver_id": driverID,
+			"user_id":   userID,
+			"lat":       lat,
+			"lng":       lng,
+		},
+	}); pubErr != nil {
+		uc.logger.Error("failed to publish driver location", pubErr, "driver_id", driverID)
 	}
 }
 

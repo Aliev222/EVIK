@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import 'websocket_client.dart';
 
 class Event {
@@ -85,10 +87,12 @@ class WsEventDispatcher implements EventDispatcher {
       case 'completed':
       case 'cancelled':
       case 'no_driver_found':
-        // TODO: Route event into feature-specific state handlers.
+      case 'order_expanded':
+        debugPrint('WS event dispatched: type=${event.type} orderId=${event.orderId}');
         _orderEvents.add(event);
         break;
       default:
+        debugPrint('WS event ignored (unknown type): ${event.type}');
         break;
     }
   }

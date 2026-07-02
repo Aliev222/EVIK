@@ -170,7 +170,6 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	orderRepo := postgres.NewOrderRepository(db)
-	driverRepo := postgres.NewDriverRepository(db)
 	paymentRepo := postgres.NewPaymentRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	serviceAreaRepo := postgres.NewServiceAreaRepository(db)
@@ -178,6 +177,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	adminRepo := postgres.NewAdminRepository(db)
 	verificationRepo := postgres.NewDriverVerificationRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
+	driverRepo := postgres.NewDriverRepository(db, locationRepo)
 	matchingService := domainmatching.NewNearestMatchingService(locationRepo, driverRepo)
 	eventPublisher := redisinfra.NewOrderEventPublisher(rdb, "orders:status")
 

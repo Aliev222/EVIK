@@ -4,18 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
+	"evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
+	redisinfra "evik/backend/internal/infrastructure/redis"
 )
 
 type DriverRepository struct {
-	db *sql.DB
+	db          *sql.DB
+	locationRepo *redisinfra.LocationStore
 }
 
-func NewDriverRepository(db *sql.DB) *DriverRepository {
-	return &DriverRepository{db: db}
+func NewDriverRepository(db *sql.DB, locationRepo *redisinfra.LocationStore) *DriverRepository {
+	return &DriverRepository{db: db, locationRepo: locationRepo}
 }
 
 func (r *DriverRepository) Upsert(ctx context.Context, driver *driverdomain.Driver) error {
@@ -290,9 +296,68 @@ WHERE id = $1 AND current_order_id = $2`
 }
 
 func (r *DriverRepository) FindNearestAvailable(ctx context.Context, pickup orderdomain.Coordinate, radiusKM float64, limit int) ([]driverdomain.Driver, error) {
-	_ = ctx
-	_ = pickup
-	_ = radiusKM
-	_ = limit
-	return []driverdomain.Driver{}, nil
+	nearby, err := r.locationRepo.GetNearbyDrivers(ctx, location.Location{Lat: pickup.Lat, Lng: pickup.Lng}, radiusKM, limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(nearby) == 0 {
+		return []driverdomain.Driver{}, nil
+	}
+
+	ids := make([]string, 0, len(nearby))
+	distMap := make(map[string]float64, len(nearby))
+	for _, d := range nearby {
+		ids = append(ids, d.DriverID)
+		distMap[d.DriverID] = d.DistanceKM
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, string(driverdomain.StatusOnline))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, id)
+	}
+
+	query := fmt.Sprintf(`
+SELECT id, user_id, status, current_order_id, last_seen_at, updated_at
+FROM drivers
+WHERE status = $1 AND current_order_id IS NULL AND id IN (%s)`, strings.Join(placeholders, ","))
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]driverdomain.Driver, 0, len(ids))
+	for rows.Next() {
+		var drv driverdomain.Driver
+		var status string
+		if err := rows.Scan(
+			&drv.ID,
+			&drv.UserID,
+			&status,
+			&drv.CurrentOrderID,
+			&drv.LastSeenAt,
+			&drv.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		drv.Status = driverdomain.Status(status)
+		result = append(result, drv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return distMap[result[i].ID] < distMap[result[j].ID]
+	})
+
+	if limit > 0 && len(result) > limit {
+		result = result[:limit]
+	}
+
+	return result, nil
 }
