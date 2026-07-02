@@ -12,12 +12,24 @@ class ChannelWebSocketClient implements WebSocketClient {
   WebSocketChannel? _channel;
   StreamController<String>? _messages;
   StreamSubscription<dynamic>? _subscription;
+  final StreamController<WebSocketConnectionStatus> _connectionStatusController =
+      StreamController<WebSocketConnectionStatus>.broadcast();
+  final StreamController<void> _onReconnectedController =
+      StreamController<void>.broadcast();
+
+  @override
+  Stream<WebSocketConnectionStatus> get connectionStatus =>
+      _connectionStatusController.stream;
+
+  @override
+  Stream<void> get onReconnected => _onReconnectedController.stream;
 
   @override
   Future<void> connect(String url) async {
     await disconnect();
     _messages = StreamController<String>.broadcast();
     _channel = WebSocketChannel.connect(Uri.parse(url));
+    _connectionStatusController.add(WebSocketConnectionStatus.connected);
     _subscription = _channel!.stream.listen(
       (dynamic message) {
         if (message is String) {
@@ -26,12 +38,14 @@ class ChannelWebSocketClient implements WebSocketClient {
       },
       onError: (Object error, StackTrace stackTrace) {
         _messages?.addError(error, stackTrace);
+        _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
       },
       onDone: () {
         final controller = _messages;
         if (controller != null && !controller.isClosed) {
           controller.close();
         }
+        _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
       },
     );
   }
@@ -60,5 +74,6 @@ class ChannelWebSocketClient implements WebSocketClient {
     if (controller != null && !controller.isClosed) {
       await controller.close();
     }
+    _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
   }
 }

@@ -1,5 +1,63 @@
 basePath: /api/v1
 definitions:
+  http.AcceptOrderRequest:
+    properties:
+      driver_id:
+        example: driver-123
+        type: string
+    type: object
+  http.AddPayoutMethodRequest:
+    properties:
+      is_default:
+        example: true
+        type: boolean
+      masked_value:
+        example: '****1234'
+        type: string
+      provider_recipient_id:
+        example: account-123
+        type: string
+      type:
+        enum:
+        - bank_card
+        - wallet
+        example: bank_card
+        type: string
+    type: object
+  http.AdminDecisionRequest:
+    properties:
+      reason:
+        example: Documents are valid
+        type: string
+      vehicle_model:
+        example: Toyota Camry
+        type: string
+      vehicle_plate:
+        example: A123BC777
+        type: string
+      vehicle_type:
+        enum:
+        - winch
+        - platform
+        - manipulator
+        example: winch
+        type: string
+    type: object
+  http.AdminLoginRequest:
+    properties:
+      password:
+        example: admin123
+        type: string
+      user_id:
+        example: admin
+        type: string
+    type: object
+  http.ApplyPromocodeRequest:
+    properties:
+      code:
+        example: EVIK2025
+        type: string
+    type: object
   http.AuthTokens:
     properties:
       access_token:
@@ -22,6 +80,49 @@ definitions:
         type: string
       role:
         example: client
+        type: string
+    type: object
+  http.CalculatePriceRequest:
+    properties:
+      dropoff_lat:
+        example: 55.76
+        type: number
+      dropoff_lng:
+        example: 37.62
+        type: number
+      pickup_lat:
+        example: 55.7522
+        type: number
+      pickup_lng:
+        example: 37.6156
+        type: number
+      tow_truck_type:
+        enum:
+        - winch
+        - platform
+        - manipulator
+        example: winch
+        type: string
+    type: object
+  http.CalculateRouteRequest:
+    properties:
+      driver_lat:
+        example: 55.75
+        type: number
+      driver_lng:
+        example: 37.6
+        type: number
+    type: object
+  http.CancelOrderRequest:
+    properties:
+      reason:
+        example: cancel reason
+        type: string
+    type: object
+  http.CityNameRequest:
+    properties:
+      name:
+        example: Moscow
         type: string
     type: object
   http.CoordinateDTO:
@@ -84,6 +185,38 @@ definitions:
       payment:
         $ref: '#/definitions/http.PaymentDTO'
     type: object
+  http.CreateReviewRequest:
+    properties:
+      driver_id:
+        example: driver-123
+        type: string
+      order_id:
+        example: order-123
+        type: string
+      stars:
+        example: 5
+        maximum: 5
+        minimum: 1
+        type: integer
+      text:
+        example: Great service!
+        type: string
+    type: object
+  http.DeviceTokenRequest:
+    properties:
+      app_version:
+        example: 1.1.0
+        type: string
+      fcm_token:
+        example: fcm-token-123
+        type: string
+      platform:
+        example: android
+        type: string
+      role:
+        example: driver
+        type: string
+    type: object
   http.EmptyResponse:
     properties:
       ok:
@@ -118,6 +251,47 @@ definitions:
       user:
         $ref: '#/definitions/http.AuthUser'
     type: object
+  http.MeResponse:
+    properties:
+      user:
+        $ref: '#/definitions/http.AuthUser'
+    type: object
+  http.NPDConnectRequest:
+    properties:
+      inn:
+        example: "1234567890"
+        type: string
+    type: object
+  http.OTPRequest:
+    properties:
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - client
+        - driver
+        example: client
+        type: string
+    type: object
+  http.OTPVerifyRequest:
+    properties:
+      code:
+        example: "123456"
+        type: string
+      full_name:
+        example: Ivan Ivanov
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - client
+        - driver
+        example: client
+        type: string
+    type: object
   http.OrderDTO:
     properties:
       cancelled_at:
@@ -137,6 +311,8 @@ definitions:
         type: number
       id:
         type: string
+      is_cross_city:
+        type: boolean
       pickup:
         $ref: '#/definitions/http.CoordinateDTO'
       pickup_address:
@@ -149,6 +325,10 @@ definitions:
       status:
         example: searching
         type: string
+      surcharge_amount:
+        type: integer
+      surcharge_percent:
+        type: integer
       tow_truck_type:
         example: winch
         type: string
@@ -195,10 +375,132 @@ definitions:
       user_id:
         type: string
     type: object
+  http.RefreshRequest:
+    properties:
+      refresh_token:
+        example: eyJhbGciOiJIUzI1NiIs...
+        type: string
+    type: object
+  http.RefundRequest:
+    properties:
+      amount:
+        example: 800000
+        type: integer
+      payment_id:
+        example: pay-123
+        type: string
+      reason:
+        example: Customer request
+        type: string
+    type: object
+  http.RegisterRequest:
+    properties:
+      full_name:
+        example: Ivan Ivanov
+        type: string
+      password:
+        example: secret123
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      role:
+        enum:
+        - client
+        - driver
+        example: client
+        type: string
+    type: object
+  http.RequestPayoutRequest:
+    properties:
+      amount:
+        example: 500000
+        type: integer
+    type: object
+  http.SetDriverStatusRequest:
+    properties:
+      lat:
+        example: 55.7522
+        type: number
+      lng:
+        example: 37.6156
+        type: number
+      status:
+        enum:
+        - online
+        - offline
+        example: online
+        type: string
+    type: object
   http.SingleOrderResponse:
     properties:
       order:
         $ref: '#/definitions/http.OrderDTO'
+    type: object
+  http.SubmitDriverVerificationRequest:
+    properties:
+      city:
+        example: Moscow
+        type: string
+      documents:
+        example:
+        - passport
+        - license
+        - vehicleDocs
+        items:
+          type: string
+        type: array
+      full_name:
+        example: Ivan Ivanov
+        type: string
+      phone:
+        example: "+79991234567"
+        type: string
+      user_id:
+        example: driver-123
+        type: string
+      vehicle_model:
+        example: Toyota Camry
+        type: string
+      vehicle_plate:
+        example: A123BC777
+        type: string
+      vehicle_type:
+        enum:
+        - winch
+        - platform
+        - manipulator
+        example: winch
+        type: string
+    type: object
+  http.SubscriptionPaymentRequest:
+    properties:
+      plan_id:
+        example: plan-monthly
+        type: string
+    type: object
+  http.TaxProfileRequest:
+    properties:
+      inn:
+        example: "1234567890"
+        type: string
+      taxpayer_type:
+        enum:
+        - self_employed
+        - ip
+        example: self_employed
+        type: string
+    type: object
+  http.UpdateOrderStatusRequest:
+    properties:
+      status:
+        enum:
+        - accepted
+        - arrived
+        - in_progress
+        - completed
+        example: arrived
+        type: string
     type: object
   http.YooKassaWebhookObject:
     properties:
@@ -227,12 +529,942 @@ definitions:
         example: notification
         type: string
     type: object
+  http.autocompleteResult:
+    properties:
+      display_name:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
+      max_lat:
+        type: number
+      max_lng:
+        type: number
+      min_lat:
+        type: number
+      min_lng:
+        type: number
+      osm_id:
+        type: string
+      type:
+        type: string
+    type: object
+  http.driverLocationResponse:
+    properties:
+      avatar_url:
+        type: string
+      driver_id:
+        type: string
+      full_name:
+        type: string
+      last_seen_at:
+        type: string
+      lat:
+        type: number
+      lng:
+        type: number
+      phone:
+        type: string
+      status:
+        type: string
+      vehicle_plate:
+        type: string
+    type: object
+  http.routePoint:
+    properties:
+      lat:
+        type: number
+      lng:
+        type: number
+    type: object
+  http.routePreviewResponse:
+    properties:
+      distanceMeters:
+        type: number
+      durationSeconds:
+        type: integer
+      points:
+        items:
+          $ref: '#/definitions/http.routePoint'
+        type: array
+    type: object
 info:
   contact: {}
-  description: Tow truck marketplace API — orders, drivers, payments, payouts, admin.
+  description: Tow truck marketplace API — auth, orders, drivers, payments, payouts,
+    admin, reviews, routing, pricing, cities, webhooks, real-time.
   title: Tow Truck Backend API
   version: "1.0"
 paths:
+  /admin/cities:
+    get:
+      description: Returns all service areas (cities), both active and inactive.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of cities
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List cities (admin)
+      tags:
+      - cities
+    post:
+      consumes:
+      - application/json
+      description: Geocodes a city name, checks for duplicate slugs, and creates an
+        active service area.
+      parameters:
+      - description: City name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CityNameRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created city
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: city with this slug already exists
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create city (admin)
+      tags:
+      - cities
+  /admin/cities/{id}:
+    delete:
+      description: Hard-deletes a service area. Fails if there are active orders in
+        this city.
+      parameters:
+      - description: City ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted confirmation
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: city not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: city has active orders
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete city (admin)
+      tags:
+      - cities
+    patch:
+      consumes:
+      - application/json
+      description: Toggles the active status of a service area (city).
+      parameters:
+      - description: City ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated city
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: city not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update city (admin)
+      tags:
+      - cities
+  /admin/cities/autocomplete:
+    get:
+      description: Returns up to 5 Nominatim suggestions for a partial city name.
+        Requires at least 3 characters.
+      parameters:
+      - description: Partial city name (min 3 chars)
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: city suggestions
+          schema:
+            items:
+              $ref: '#/definitions/http.autocompleteResult'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Autocomplete city name (admin)
+      tags:
+      - cities
+  /admin/cities/search:
+    post:
+      consumes:
+      - application/json
+      description: Geocodes a city name via Nominatim and returns a preview with bounding
+        box and center coordinates.
+      parameters:
+      - description: City name to search
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CityNameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: city geocoding result
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: city not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Search city (admin)
+      tags:
+      - cities
+  /admin/driver-verifications:
+    get:
+      description: Returns all driver verification requests for admin review.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of driver verifications
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List driver verifications (admin)
+      tags:
+      - admin
+  /admin/drivers-online:
+    get:
+      description: Returns currently online drivers with their last known locations
+        for the live map.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: online drivers with locations
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List online drivers (admin)
+      tags:
+      - admin
+  /admin/drivers/locations:
+    get:
+      description: Returns live driver locations for the admin map. Can be filtered
+        by city and status.
+      parameters:
+      - description: Filter by city ID
+        in: query
+        name: city_id
+        type: string
+      - description: Filter by status
+        enum:
+        - online
+        - offline
+        - busy
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: driver locations
+          schema:
+            items:
+              $ref: '#/definitions/http.driverLocationResponse'
+            type: array
+        "400":
+          description: invalid params
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: city not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List driver locations (admin)
+      tags:
+      - admin
+  /admin/finance/export:
+    get:
+      description: Exports a finance report as CSV. Admin-only endpoint.
+      parameters:
+      - description: Report type
+        enum:
+        - payments
+        - payouts
+        - orders
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file
+          schema:
+            type: string
+        "400":
+          description: invalid report type
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Export finance report (admin)
+      tags:
+      - admin
+  /admin/finance/payouts/{payoutID}/approve:
+    post:
+      description: Approves a pending driver payout. Admin-only endpoint.
+      parameters:
+      - description: Payout ID
+        in: path
+        name: payoutID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: approved payout
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: payout not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: payout not in approvable status
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve payout (admin)
+      tags:
+      - admin
+  /admin/finance/payouts/{payoutID}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a pending driver payout with a reason. Admin-only endpoint.
+      parameters:
+      - description: Payout ID
+        in: path
+        name: payoutID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: rejected payout
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: reason is required (min 8 chars)
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: payout not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: payout not in rejectable status
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject payout (admin)
+      tags:
+      - admin
+  /admin/finance/refunds:
+    get:
+      description: Returns paginated refunds with optional filters. Admin-only.
+      parameters:
+      - description: Filter by status
+        enum:
+        - pending
+        - succeeded
+        - failed
+        in: query
+        name: status
+        type: string
+      - description: Filter by payment ID
+        in: query
+        name: payment_id
+        type: string
+      - description: Filter by order ID
+        in: query
+        name: order_id
+        type: string
+      - description: Start date (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End date (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated refunds with total count
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List refunds (admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a refund for a completed payment. Admin-only endpoint.
+      parameters:
+      - description: Refund payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.RefundRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created refund
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create refund (admin)
+      tags:
+      - admin
+  /admin/finance/report/{reportType}:
+    get:
+      description: Returns a finance report as JSON. Admin-only endpoint.
+      parameters:
+      - description: Report type
+        in: path
+        name: reportType
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: report rows
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid report type
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Finance report (admin)
+      tags:
+      - admin
+  /admin/moderation/driver-verifications/{verificationID}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approves a driver's document verification with optional vehicle
+        details.
+      parameters:
+      - description: Verification ID
+        in: path
+        name: verificationID
+        required: true
+        type: string
+      - description: Decision with vehicle details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: approval status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Approve verification (admin)
+      tags:
+      - admin
+  /admin/moderation/driver-verifications/{verificationID}/block:
+    post:
+      consumes:
+      - application/json
+      description: Blocks a driver's verification. Admin-only endpoint.
+      parameters:
+      - description: Verification ID
+        in: path
+        name: verificationID
+        required: true
+        type: string
+      - description: Decision with reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: block status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: reason required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Block verification (admin)
+      tags:
+      - admin
+  /admin/moderation/driver-verifications/{verificationID}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a driver's document verification with a reason.
+      parameters:
+      - description: Verification ID
+        in: path
+        name: verificationID
+        required: true
+        type: string
+      - description: Decision with reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: rejection status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: reason required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject verification (admin)
+      tags:
+      - admin
+  /admin/moderation/driver-verifications/{verificationID}/request-changes:
+    post:
+      consumes:
+      - application/json
+      description: Requests changes to a driver's verification submission with admin
+        feedback.
+      parameters:
+      - description: Verification ID
+        in: path
+        name: verificationID
+        required: true
+        type: string
+      - description: Decision with reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminDecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: update status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: reason required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Request verification changes (admin)
+      tags:
+      - admin
+  /admin/orders:
+    get:
+      description: Returns paginated orders with filters. All money values in kopecks.
+      parameters:
+      - description: Filter by status
+        enum:
+        - searching
+        - accepted
+        - arrived
+        - in_progress
+        - completed
+        - cancelled
+        in: query
+        name: status
+        type: string
+      - description: Filter by payment method
+        enum:
+        - cash
+        - card
+        in: query
+        name: payment_method
+        type: string
+      - description: Filter by financial status
+        in: query
+        name: financial_status
+        type: string
+      - description: Filter by driver ID
+        in: query
+        name: driver_id
+        type: string
+      - description: Filter by client ID
+        in: query
+        name: client_id
+        type: string
+      - description: Start date (RFC3339)
+        in: query
+        name: from
+        type: string
+      - description: End date (RFC3339)
+        in: query
+        name: to
+        type: string
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: paginated orders
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List orders (admin)
+      tags:
+      - admin
+  /admin/orders/{orderID}:
+    get:
+      description: Returns full order details with financial breakdown, payment info,
+        driver profile, and wallet transactions.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: full order details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: order_id is required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order details (admin)
+      tags:
+      - admin
+  /admin/overview:
+    get:
+      description: Returns admin dashboard overview with KPIs, recent stats, and GMV
+        data.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: overview with KPIs and charts
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Admin overview
+      tags:
+      - admin
+  /admin/reviews:
+    get:
+      description: Returns all driver reviews across the platform.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of reviews
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List reviews (admin)
+      tags:
+      - admin
+  /admin/tax-profiles:
+    get:
+      description: Returns all driver tax profiles for admin review and verification.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of tax profiles
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List tax profiles (admin)
+      tags:
+      - admin
+  /admin/tax-profiles/{driverID}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects a driver's tax profile with admin comments.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: comments required or driver ID required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reject tax profile (admin)
+      tags:
+      - admin
+  /admin/tax-profiles/{driverID}/request-changes:
+    post:
+      consumes:
+      - application/json
+      description: Requests changes to a driver's tax profile with admin comments.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: comments required or driver ID required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Request tax profile changes (admin)
+      tags:
+      - admin
+  /admin/tax-profiles/{driverID}/verify:
+    post:
+      description: Marks a driver's tax profile as verified.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: driver ID required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify tax profile (admin)
+      tags:
+      - admin
+  /admin/users:
+    get:
+      description: Returns a list of all platform users for admin management.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of users
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List users (admin)
+      tags:
+      - admin
+  /auth/admin/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates an admin user by user ID and password. Uses constant-time
+        comparison.
+      parameters:
+      - description: Admin login payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AdminLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: missing fields
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: invalid credentials
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "503":
+          description: admin auth is not configured
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Admin login
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -268,6 +1500,956 @@ paths:
       summary: Login by phone + password
       tags:
       - auth
+  /auth/me:
+    get:
+      description: Returns the authenticated user's profile. Requires a valid JWT
+        token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.MeResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /auth/otp/request:
+    post:
+      consumes:
+      - application/json
+      description: Sends a 6-digit OTP code to the specified phone number for authentication.
+        OTP expires in 10 minutes.
+      parameters:
+      - description: Phone and role
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.OTPRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: 'otp_required: true, expires_in_seconds: 600'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Request OTP code
+      tags:
+      - auth
+  /auth/otp/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a 6-digit OTP code. If the user does not exist, a new
+        account is created automatically.
+      parameters:
+      - description: OTP verification payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.OTPVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: missing or malformed fields
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: invalid or expired OTP
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: user is blocked
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Verify OTP code
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges a valid refresh token for a new access/refresh token
+        pair. The old refresh token is revoked.
+      parameters:
+      - description: Refresh token payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: missing refresh_token
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: invalid or expired refresh token
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Refresh token pair
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new client or driver account with phone + password. Returns
+        JWT tokens and user info.
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/http.LoginResponse'
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: user already exists
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /client/payment-methods/init:
+    post:
+      consumes:
+      - application/json
+      description: Initializes a YooKassa payment method for the client. Returns a
+        confirmation URL for 3DS redirect.
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: confirmation_url and payment_method_id
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Init payment method
+      tags:
+      - payments
+  /dev/payments/{id}/complete:
+    post:
+      consumes:
+      - application/json
+      description: Manually completes a stub payment for testing. Only available when
+        YOOKASSA_STUB_MODE is enabled.
+      parameters:
+      - description: Provider payment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: missing payment id
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: payment not found or stub mode disabled
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Complete stub payment (dev only)
+      tags:
+      - webhooks
+  /devices/fcm-token:
+    post:
+      consumes:
+      - application/json
+      description: Saves or updates an FCM push token for the authenticated user.
+      parameters:
+      - description: Device token payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.DeviceTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.EmptyResponse'
+        "400":
+          description: missing fcm_token
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Register device token
+      tags:
+      - devices
+  /devices/fcm-token/revoke:
+    post:
+      consumes:
+      - application/json
+      description: Removes an FCM push token for the authenticated user.
+      parameters:
+      - description: Device token payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.DeviceTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.EmptyResponse'
+        "400":
+          description: missing fcm_token
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke device token
+      tags:
+      - devices
+  /driver-documents/uploads:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a driver document (passport, license, vehicle photo, selfie)
+        to S3-compatible storage. Multipart form.
+      parameters:
+      - description: Document type
+        enum:
+        - passport
+        - license
+        - vehicleDocs
+        - vehiclePhoto
+        - selfie
+        in: formData
+        name: document_type
+        required: true
+        type: string
+      - description: Document file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: uploaded document info
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "501":
+          description: storage not configured
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload document
+      tags:
+      - drivers
+  /driver-verifications:
+    post:
+      consumes:
+      - application/json
+      description: Submits driver documents and personal info for verification. Drivers
+        submit their own; admins can submit on behalf.
+      parameters:
+      - description: Verification payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.SubmitDriverVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created verification
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Submit driver verification
+      tags:
+      - drivers
+  /driver/payout-methods:
+    get:
+      description: Returns saved payout methods (bank cards, wallets) for the authenticated
+        driver.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of payout methods
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List driver payout methods
+      tags:
+      - driver
+    post:
+      consumes:
+      - application/json
+      description: Saves a new payout method (bank card or wallet) for the driver.
+      parameters:
+      - description: Payout method payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AddPayoutMethodRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created payout method
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add payout method
+      tags:
+      - driver
+  /driver/payouts:
+    get:
+      description: Returns the driver's recent payout history.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of payouts
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List driver payouts
+      tags:
+      - driver
+  /driver/payouts/request:
+    post:
+      consumes:
+      - application/json
+      description: Creates a payout request from the driver's available balance to
+        their payout method.
+      parameters:
+      - description: Payout amount in kopecks
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.RequestPayoutRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created payout
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: gate check failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Request driver payout
+      tags:
+      - driver
+  /driver/subscription/payment:
+    post:
+      consumes:
+      - application/json
+      description: Creates a payment for a driver subscription plan (e.g. monthly
+        fee).
+      parameters:
+      - description: Plan ID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.SubscriptionPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: payment details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create driver subscription payment
+      tags:
+      - driver
+  /driver/subscription/status:
+    get:
+      description: Returns the driver's current subscription status (active, expired,
+        none).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: subscription status
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver subscription status
+      tags:
+      - driver
+  /driver/wallet:
+    get:
+      description: Returns the driver's wallet balance, recent transactions, and recent
+        payouts.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: wallet info with balance, transactions, payouts
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver wallet
+      tags:
+      - driver
+  /driver/wallet/transactions:
+    get:
+      description: Returns the driver's recent wallet transactions.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of transactions
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List driver wallet transactions
+      tags:
+      - driver
+  /drivers/{driverID}:
+    get:
+      description: 'Returns a driver''s basic info. Access control: admins see all,
+        drivers see themselves, clients see drivers they have an active order with.'
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: driver info
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: driver not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver
+      tags:
+      - drivers
+  /drivers/{driverID}/location:
+    get:
+      description: Returns the driver's last known location. Access control mirrors
+        GetDriver.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: location with lat/lng/updated_at
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: location not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver location
+      tags:
+      - drivers
+  /drivers/{driverID}/npd/connect:
+    post:
+      consumes:
+      - application/json
+      description: Connects the driver to Moy Nalog (FNS) via INN for self-employment
+        tax verification.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      - description: INN payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.NPDConnectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated tax profile
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: INN required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "503":
+          description: NPD not configured
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Connect NPD
+      tags:
+      - drivers
+  /drivers/{driverID}/npd/disconnect:
+    post:
+      description: Revokes the NPD (Moy Nalog) connection for the driver. Only local
+        tokens are removed.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.EmptyResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: tax profile not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Disconnect NPD
+      tags:
+      - drivers
+  /drivers/{driverID}/npd/status:
+    get:
+      description: Returns the driver's Moy Nalog (FNS NPD/self-employment) connection
+        status.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: NPD status with connection state
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get NPD status
+      tags:
+      - drivers
+  /drivers/{driverID}/profile:
+    get:
+      description: Returns the full driver profile including name, phone, vehicle
+        info, and ratings.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: driver profile
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: driver not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver profile
+      tags:
+      - drivers
+  /drivers/{driverID}/reviews:
+    get:
+      description: Returns reviews and rating stats for a specific driver.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: reviews with rating stats
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: driver_id is required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver reviews
+      tags:
+      - reviews
+  /drivers/{driverID}/status:
+    post:
+      consumes:
+      - application/json
+      description: Changes the driver's online/offline status. Going online requires
+        passing driver gates (docs, tax, subscription).
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      - description: Status and optional location
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.SetDriverStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated driver
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden or gate check failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set driver status
+      tags:
+      - drivers
+  /drivers/{driverID}/tax-profile:
+    get:
+      description: Returns the driver's tax profile (INN, taxpayer type, verification
+        status).
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: tax profile
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: tax profile not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get tax profile
+      tags:
+      - drivers
+    put:
+      consumes:
+      - application/json
+      description: Creates or updates the driver's tax profile (INN and taxpayer type).
+        Admin updates are auto-verified.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      - description: Tax profile payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.TaxProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: tax profile
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upsert tax profile
+      tags:
+      - drivers
+  /drivers/{driverID}/verification-status:
+    get:
+      description: Returns the driver's document verification status, uploaded documents,
+        and moderation state.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: verification status with documents
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get verification status
+      tags:
+      - drivers
   /orders:
     get:
       description: Returns orders filtered by status. Clients see their own orders;
@@ -387,6 +2569,140 @@ paths:
       summary: Get order by ID
       tags:
       - orders
+  /orders/{orderID}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Assigns a driver to a searching order. Drivers auto-assign themselves;
+        admins can specify a driver_id.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Accept payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.AcceptOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: driver gate failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: order already taken or invalid transition
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Accept order
+      tags:
+      - orders
+  /orders/{orderID}/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancels an order. Clients and drivers can cancel their own orders;
+        admins can cancel any order.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Cancel payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CancelOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: invalid transition
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel order
+      tags:
+      - orders
+  /orders/{orderID}/payment-status:
+    get:
+      description: Returns the payment details for a specific order.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment details
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: payment not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order payment status
+      tags:
+      - payments
   /orders/{orderID}/payments:
     post:
       consumes:
@@ -427,6 +2743,121 @@ paths:
       summary: Create payment for order
       tags:
       - payments
+  /orders/{orderID}/receipt:
+    get:
+      description: Returns a detailed receipt for a completed order including payment
+        info, commission, and driver details.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: receipt details
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order or payment not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order receipt
+      tags:
+      - payments
+  /orders/{orderID}/review:
+    get:
+      description: Returns the review for a specific order.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: review details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: order_id is required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: review not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get order review
+      tags:
+      - reviews
+  /orders/{orderID}/status:
+    post:
+      consumes:
+      - application/json
+      description: 'Advances an order through its lifecycle: accepted → arrived →
+        in_progress → completed.'
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: New status
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateOrderStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: invalid status transition
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update order status
+      tags:
+      - orders
   /orders/active:
     get:
       description: Returns the single non-terminal order belonging to the authenticated
@@ -451,6 +2882,380 @@ paths:
       summary: Get the caller's active order
       tags:
       - orders
+  /payments/cards/{cardID}:
+    delete:
+      description: Removes a saved payment card. Client-only endpoint.
+      parameters:
+      - description: Card ID
+        in: path
+        name: cardID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'deleted: true'
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: card not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete card
+      tags:
+      - payments
+  /payments/cards/{cardID}/default:
+    post:
+      description: Marks a saved card as the default payment method. Client-only endpoint.
+      parameters:
+      - description: Card ID
+        in: path
+        name: cardID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: updated card
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: card not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set default card
+      tags:
+      - payments
+  /payments/promocode/apply:
+    post:
+      consumes:
+      - application/json
+      description: Applies a discount promocode to the client's account.
+      parameters:
+      - description: Promocode code
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.ApplyPromocodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: promocode details with discount
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid promocode
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Apply promocode
+      tags:
+      - payments
+  /payments/wallet:
+    get:
+      description: Returns saved payment cards and recent payment transactions for
+        the authenticated client.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: cards and payments lists
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get client wallet
+      tags:
+      - payments
+  /pricing/calculate:
+    post:
+      consumes:
+      - application/json
+      description: Calculates the estimated price for a potential tow truck order
+        based on distance and vehicle type.
+      parameters:
+      - description: Price calculation params
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CalculatePriceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: price breakdown
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Calculate price
+      tags:
+      - pricing
+  /pricing/tariffs:
+    get:
+      description: Returns all active pricing tariffs for all tow truck types.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: list of tariffs
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all tariffs
+      tags:
+      - pricing
+  /pricing/tariffs/{type}:
+    get:
+      description: Returns the active tariff for a specific tow truck type (winch,
+        platform, manipulator).
+      parameters:
+      - description: Tow truck type
+        enum:
+        - winch
+        - platform
+        - manipulator
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: tariff details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid tow truck type
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: tariff not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get tariff by type
+      tags:
+      - pricing
+  /reviews:
+    post:
+      consumes:
+      - application/json
+      description: Creates a review (rating with optional text) for a completed order
+        and driver.
+      parameters:
+      - description: Review payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CreateReviewRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: created review
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create review
+      tags:
+      - reviews
+  /routing/orders/{orderID}/directions:
+    post:
+      consumes:
+      - application/json
+      description: Returns turn-by-turn driving directions from the driver's location
+        to the order's pickup point.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Driver location
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CalculateRouteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: directions with order_id
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get turn-by-turn directions
+      tags:
+      - routing
+  /routing/orders/{orderID}/route:
+    post:
+      consumes:
+      - application/json
+      description: Calculates the optimal driving route from the driver's current
+        location to the order's pickup point.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Driver location
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.CalculateRouteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: route with polyline, distance, duration
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Calculate route to pickup
+      tags:
+      - routing
+  /routing/preview:
+    get:
+      description: Returns a route preview between two coordinates without requiring
+        an order. Used for map display.
+      parameters:
+      - description: Start latitude
+        in: query
+        name: fromLat
+        required: true
+        type: number
+      - description: Start longitude
+        in: query
+        name: fromLng
+        required: true
+        type: number
+      - description: End latitude
+        in: query
+        name: toLat
+        required: true
+        type: number
+      - description: End longitude
+        in: query
+        name: toLng
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: route preview with points, distance, duration
+          schema:
+            $ref: '#/definitions/http.routePreviewResponse'
+        "400":
+          description: missing or invalid parameters
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Preview route
+      tags:
+      - routing
+  /service-areas/check:
+    get:
+      description: Checks whether the given coordinates are inside an active service
+        area.
+      parameters:
+      - description: Latitude
+        in: query
+        name: lat
+        required: true
+        type: number
+      - description: Longitude
+        in: query
+        name: lng
+        required: true
+        type: number
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: allowed status with optional service area
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: lat/lng required
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Check service area
+      tags:
+      - service-areas
   /webhooks/yookassa:
     post:
       consumes:

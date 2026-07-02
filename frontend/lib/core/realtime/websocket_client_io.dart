@@ -23,29 +23,78 @@ class IoWebSocketClient implements WebSocketClient {
   StreamController<Order>? _orderUpdatesController;
   StreamController<String>? _messagesController;
   String? _currentToken;
+  String? _wsUrl;
   Timer? _reconnectTimer;
   Timer? _heartbeatTimer;
   int _reconnectAttempts = 0;
+  bool _shouldReconnect = true;
+  bool _wasConnectedBefore = false;
+  final math.Random _random = math.Random();
 
-  static const int _maxReconnectAttempts = 5;
+  final StreamController<WebSocketConnectionStatus> _connectionStatusController =
+      StreamController<WebSocketConnectionStatus>.broadcast();
+  final StreamController<void> _onReconnectedController =
+      StreamController<void>.broadcast();
+
+  @override
+  Stream<WebSocketConnectionStatus> get connectionStatus =>
+      _connectionStatusController.stream;
+
+  @override
+  Stream<void> get onReconnected => _onReconnectedController.stream;
 
   @override
   Future<void> connect(String url) async {
-    final wsUri = Uri.parse(url);
-    _channel = IOWebSocketChannel.connect(wsUri);
-    _messagesController ??= StreamController<String>.broadcast();
+    _wsUrl = url;
+    _shouldReconnect = true;
+    _reconnectAttempts = 0;
+    _connectionStatusController.add(WebSocketConnectionStatus.connecting);
+    _doConnect();
+  }
 
-    _channel!.stream.listen(
-      (data) {
-        _messagesController?.add(data as String);
-      },
-      onError: (error) {
-        debugPrint('WebSocket error: $error');
-      },
-      onDone: () {
-        debugPrint('WebSocket connection closed');
-      },
-    );
+  void _doConnect() {
+    if (_wsUrl == null) return;
+    _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
+
+    try {
+      final wsUri = Uri.parse(_wsUrl!);
+      _channel = IOWebSocketChannel.connect(wsUri);
+      _reconnectAttempts = 0;
+
+      _messagesController ??= StreamController<String>.broadcast();
+
+      _connectionStatusController.add(WebSocketConnectionStatus.connected);
+      if (_wasConnectedBefore) {
+        _onReconnectedController.add(null);
+      }
+      _wasConnectedBefore = true;
+
+      _channel!.stream.listen(
+        (data) {
+          _heartbeatTimer?.cancel();
+          _startHeartbeat();
+          _messagesController?.add(data as String);
+        },
+        onError: (error) {
+          debugPrint('WebSocket error: $error');
+          _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+          _scheduleReconnect();
+        },
+        onDone: () {
+          debugPrint('WebSocket connection closed');
+          _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+          _scheduleReconnect();
+        },
+      );
+
+      _startHeartbeat();
+      debugPrint('WebSocket connected successfully');
+    } catch (e) {
+      debugPrint('Failed to connect WebSocket: $e');
+      _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+      _scheduleReconnect();
+    }
   }
 
   @override
@@ -61,10 +110,15 @@ class IoWebSocketClient implements WebSocketClient {
 
   @override
   Future<void> disconnect() async {
+    _shouldReconnect = false;
+    _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
     _channel?.sink.close();
     _channel = null;
     await _messagesController?.close();
     _messagesController = null;
+    _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+    _wsUrl = null;
   }
 
   Stream<Order> watchOrderUpdates({required String accessToken}) {
@@ -83,6 +137,7 @@ class IoWebSocketClient implements WebSocketClient {
 
   void _connect(String accessToken) {
     _reconnectTimer?.cancel();
+    _currentToken = accessToken;
 
     try {
       final wsUri = Uri.parse('$defaultWsUrl?access_token=$accessToken');
@@ -101,7 +156,6 @@ class IoWebSocketClient implements WebSocketClient {
 
             debugPrint('WS raw data: ${jsonData['type']}');
 
-            // Extract order from payload.order (new format) or root order (legacy)
             final Map<String, dynamic>? payload =
                 jsonData['payload'] as Map<String, dynamic>?;
             final Map<String, dynamic>? orderData =
@@ -147,31 +201,45 @@ class IoWebSocketClient implements WebSocketClient {
         _channel?.sink.add('{"type":"ping"}');
       } catch (e) {
         debugPrint('Heartbeat failed: $e');
-        _scheduleReconnect();
+        if (_shouldReconnect) {
+          _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+          _scheduleReconnect();
+        }
       }
     });
   }
 
   void _scheduleReconnect() {
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      debugPrint('Max reconnect attempts reached. Stopping reconnection.');
-      return;
-    }
+    if (!_shouldReconnect) return;
 
+    _reconnectTimer?.cancel();
     _reconnectAttempts++;
-    final delay = Duration(seconds: math.min(30, 5 * _reconnectAttempts));
-    debugPrint(
-      'Scheduling reconnect attempt $_reconnectAttempts in ${delay.inSeconds}s',
+
+    final baseDelay = math.min(30, 1 << (_reconnectAttempts - 1));
+    final jitter = _random.nextDouble();
+    final totalDelay = Duration(
+      seconds: baseDelay,
+      milliseconds: (jitter * 1000).toInt(),
     );
 
-    _reconnectTimer = Timer(delay, () {
+    debugPrint(
+      'Scheduling reconnect attempt $_reconnectAttempts in ${totalDelay.inSeconds}s (base: ${baseDelay}s)',
+    );
+
+    _connectionStatusController.add(WebSocketConnectionStatus.connecting);
+
+    _reconnectTimer = Timer(totalDelay, () {
+      if (!_shouldReconnect) return;
       if (_currentToken != null) {
         _connect(_currentToken!);
+      } else if (_wsUrl != null) {
+        _doConnect();
       }
     });
   }
 
   void _disconnect() {
+    _shouldReconnect = false;
     _channel?.sink.close();
     _channel = null;
     _orderUpdatesController?.close();
@@ -180,8 +248,11 @@ class IoWebSocketClient implements WebSocketClient {
   }
 
   void dispose() {
+    _shouldReconnect = false;
     _reconnectTimer?.cancel();
     _heartbeatTimer?.cancel();
     _disconnect();
+    _connectionStatusController.close();
+    _onReconnectedController.close();
   }
 }

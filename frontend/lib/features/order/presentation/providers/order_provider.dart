@@ -62,12 +62,30 @@ final orderUpdatesProvider = StreamProvider<Order>((ref) {
   }
 
   final repository = ref.watch(orderRepositoryProvider);
+  final client = ref.watch(webSocketClientProvider);
   final controller = StreamController<Order>.broadcast();
   StreamSubscription<Event>? subscription;
+  StreamSubscription<void>? reconnectionSub;
 
   Future<void> start() async {
     try {
       await dispatcher.start();
+
+      reconnectionSub = client.onReconnected.listen((_) async {
+        debugPrint('WS reconnected, fetching active order for catch-up');
+        try {
+          final activeOrder = await repository.getActiveOrder();
+          if (activeOrder != null && !controller.isClosed) {
+            controller.add(activeOrder);
+            debugPrint(
+              'Catch-up: active order ${activeOrder.id} status=${activeOrder.state}',
+            );
+          }
+        } catch (e) {
+          debugPrint('Catch-up fetch failed: $e');
+        }
+      });
+
       subscription = dispatcher.events().listen(
         (event) async {
           try {
@@ -92,10 +110,16 @@ final orderUpdatesProvider = StreamProvider<Order>((ref) {
 
   unawaited(start());
   ref.onDispose(() async {
+    await reconnectionSub?.cancel();
     await subscription?.cancel();
     await controller.close();
   });
   return controller.stream;
+});
+
+final webSocketStatusProvider = StreamProvider<WebSocketConnectionStatus>((ref) {
+  final client = ref.watch(webSocketClientProvider);
+  return client.connectionStatus;
 });
 
 class OrderProviderState {
