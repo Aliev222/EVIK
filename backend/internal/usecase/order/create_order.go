@@ -117,13 +117,22 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 		return nil, err
 	}
 
+	cityID := ""
+	if ord.CityID != nil {
+		cityID = *ord.CityID
+	}
+
 	// Publish order created event first
 	// Best-effort: order is already in Postgres (source of truth),
 	// drivers will find it via polling even without the push event.
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventOrderCreated,
 		OrderID: ord.ID,
-		Payload: map[string]any{"status": ord.Status},
+		Payload: map[string]any{
+			"status":  ord.Status,
+			"user_id": input.UserID,
+			"city_id": cityID,
+		},
 	}); err != nil {
 		uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", ord.ID)
 	}

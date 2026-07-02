@@ -54,6 +54,20 @@ func (r *OrderEventRelay) handleEvent(payload string) {
 	driverID, _ := pm["driver_id"].(string)
 
 	switch event.Type {
+	case orderdomain.EventOrderCreated:
+		if userID != "" {
+			r.hub.SendToUser(userID, []byte(payload))
+		}
+		cityID, _ := pm["city_id"].(string)
+		if cityID != "" && r.cityGetter != nil {
+			r.hub.SendToDriversWhere(func(c *Client) bool {
+				city, err := r.cityGetter.GetDriverCity(context.Background(), c.UserID)
+				return err == nil && city == cityID
+			}, []byte(payload))
+		} else {
+			r.hub.SendToDriversWhere(func(_ *Client) bool { return true }, []byte(payload))
+		}
+
 	case orderdomain.EventSearching:
 		cityID := extractOrderCityID(pm)
 		if cityID != "" && r.cityGetter != nil {

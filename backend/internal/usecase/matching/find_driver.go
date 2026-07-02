@@ -3,6 +3,7 @@ package matching
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
@@ -81,11 +82,11 @@ func (uc *FindDriverUseCase) Execute(ctx context.Context, orderID string) (*orde
 				return nil, err
 			}
 			if err := ord.TransitionTo(orderdomain.StatusAccepted, now); err != nil {
-				_ = uc.driverRepo.ReleaseOrder(ctx, drv.ID, ord.ID, now)
+				releaseOrderWithRetry(ctx, uc.driverRepo, drv.ID, ord.ID, now)
 				return nil, err
 			}
 			if err := uc.orderRepo.Update(ctx, ord); err != nil {
-				_ = uc.driverRepo.ReleaseOrder(ctx, drv.ID, ord.ID, now)
+				releaseOrderWithRetry(ctx, uc.driverRepo, drv.ID, ord.ID, now)
 				return nil, err
 			}
 			if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
@@ -143,4 +144,21 @@ func (uc *FindDriverUseCase) Execute(ctx context.Context, orderID string) (*orde
 		return nil, err
 	}
 	return latest, nil
+}
+
+// releaseOrderWithRetry attempts to release a driver from an order up to 3 times with
+// 100ms delays. If all attempts fail, a CRITICAL message is logged so an admin can
+// intervene — the driver would otherwise be stuck in busy status permanently.
+func releaseOrderWithRetry(ctx context.Context, repo DriverOrderRepository, driverID, orderID string, now time.Time) {
+	var err error
+	for i := range 3 {
+		if i > 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
+		err = repo.ReleaseOrder(ctx, driverID, orderID, now)
+		if err == nil {
+			return
+		}
+	}
+	log.Printf("CRITICAL: failed to release driver %s from order %s after 3 attempts: %v — manual admin intervention required", driverID, orderID, err)
 }
