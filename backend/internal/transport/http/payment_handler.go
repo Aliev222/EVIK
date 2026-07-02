@@ -127,6 +127,14 @@ type paymentTransactionResponse struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// @Summary      Get client wallet
+// @Description  Returns saved payment cards and recent payment transactions for the authenticated client.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "cards and payments lists"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /payments/wallet [get]
 func (h *PaymentHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -194,6 +202,16 @@ func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+// @Summary      Init payment method
+// @Description  Initializes a YooKassa payment method for the client. Returns a confirmation URL for 3DS redirect.
+// @Tags         payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      201  {object}  map[string]any  "confirmation_url and payment_method_id"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Router       /client/payment-methods/init [post]
 func (h *PaymentHandler) InitClientPaymentMethod(w http.ResponseWriter, r *http.Request) {
 	role, err := roleFromContext(r.Context())
 	if err != nil {
@@ -220,6 +238,17 @@ func (h *PaymentHandler) InitClientPaymentMethod(w http.ResponseWriter, r *http.
 	})
 }
 
+// @Summary      Get order payment status
+// @Description  Returns the payment details for a specific order.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Success      200  {object}  map[string]any  "payment details"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "payment not found"
+// @Router       /orders/{orderID}/payment-status [get]
 func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Request) {
 	if !h.canAccessOrderPayment(r, chi.URLParam(r, "orderID")) {
 		writeAuthError(w, http.StatusForbidden, "forbidden")
@@ -237,6 +266,17 @@ func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+// @Summary      Get order receipt
+// @Description  Returns a detailed receipt for a completed order including payment info, commission, and driver details.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Success      200  {object}  map[string]any  "receipt details"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "forbidden"
+// @Failure      404  {object}  ErrorResponse  "order or payment not found"
+// @Router       /orders/{orderID}/receipt [get]
 func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	if !h.canAccessOrderPayment(r, orderID) {
@@ -317,11 +357,16 @@ func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]bool{"processed": true})
 }
 
-// DevCompletePayment manually marks a stub payment as succeeded for testing the
-// webhook/confirmation flow without real YooKassa. It is a no-op route unless
-// YOOKASSA_STUB_MODE is enabled — when disabled it returns 404 so it is
-// invisible in production. The {id} path param is the provider payment id
-// returned in the payment's confirmation_url (https://stub.local/payment/{id}).
+// @Summary      Complete stub payment (dev only)
+// @Description  Manually completes a stub payment for testing. Only available when YOOKASSA_STUB_MODE is enabled.
+// @Tags         webhooks
+// @Accept       json
+// @Produce      json
+// @Param        id  path  string  true  "Provider payment ID"
+// @Success      200  {object}  map[string]any  "payment details"
+// @Failure      400  {object}  ErrorResponse  "missing payment id"
+// @Failure      404  {object}  ErrorResponse  "payment not found or stub mode disabled"
+// @Router       /dev/payments/{id}/complete [post]
 func (h *PaymentHandler) DevCompletePayment(w http.ResponseWriter, r *http.Request) {
 	if !h.stubMode {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -344,6 +389,14 @@ func (h *PaymentHandler) DevCompletePayment(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+// @Summary      Get driver wallet
+// @Description  Returns the driver's wallet balance, recent transactions, and recent payouts.
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "wallet info with balance, transactions, payouts"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/wallet [get]
 func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -377,6 +430,14 @@ func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// @Summary      List driver wallet transactions
+// @Description  Returns the driver's recent wallet transactions.
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of transactions"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/wallet/transactions [get]
 func (h *PaymentHandler) ListDriverWalletTransactions(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -391,6 +452,14 @@ func (h *PaymentHandler) ListDriverWalletTransactions(w http.ResponseWriter, r *
 	writeJSON(w, http.StatusOK, map[string]any{"transactions": txs})
 }
 
+// @Summary      List driver payouts
+// @Description  Returns the driver's recent payout history.
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "list of payouts"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/payouts [get]
 func (h *PaymentHandler) ListDriverPayouts(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -405,6 +474,18 @@ func (h *PaymentHandler) ListDriverPayouts(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"payouts": payouts})
 }
 
+// @Summary      Request driver payout
+// @Description  Creates a payout request from the driver's available balance to their payout method.
+// @Tags         driver
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      RequestPayoutRequest  true  "Payout amount in kopecks"
+// @Success      201   {object}  map[string]any  "created payout"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Failure      403   {object}  ErrorResponse  "gate check failed"
+// @Router       /driver/payouts/request [post]
 func (h *PaymentHandler) RequestDriverPayout(w http.ResponseWriter, r *http.Request) {
 	driverID, err := userIDFromContext(r.Context())
 	if err != nil {

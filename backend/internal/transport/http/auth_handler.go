@@ -160,6 +160,16 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Register a new user
+// @Description  Creates a new client or driver account with phone + password. Returns JWT tokens and user info.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      RegisterRequest  true  "Registration payload"
+// @Success      201   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      409   {object}  ErrorResponse  "user already exists"
+// @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -209,6 +219,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Request OTP code
+// @Description  Sends a 6-digit OTP code to the specified phone number for authentication. OTP expires in 10 minutes.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      OTPRequest  true  "Phone and role"
+// @Success      202   {object}  map[string]any  "otp_required: true, expires_in_seconds: 600"
+// @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Router       /auth/otp/request [post]
 func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	var req otpRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -250,6 +269,17 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, payload)
 }
 
+// @Summary      Verify OTP code
+// @Description  Verifies a 6-digit OTP code. If the user does not exist, a new account is created automatically.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      OTPVerifyRequest  true  "OTP verification payload"
+// @Success      200   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse  "missing or malformed fields"
+// @Failure      401   {object}  ErrorResponse  "invalid or expired OTP"
+// @Failure      403   {object}  ErrorResponse  "user is blocked"
+// @Router       /auth/otp/verify [post]
 func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	var req otpVerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -313,6 +343,17 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Admin login
+// @Description  Authenticates an admin user by user ID and password. Uses constant-time comparison.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      AdminLoginRequest  true  "Admin login payload"
+// @Success      200   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse  "missing fields"
+// @Failure      401   {object}  ErrorResponse  "invalid credentials"
+// @Failure      503   {object}  ErrorResponse  "admin auth is not configured"
+// @Router       /auth/admin/login [post]
 func (h *AuthHandler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	var req adminLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -353,6 +394,16 @@ func (h *AuthHandler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Refresh token pair
+// @Description  Exchanges a valid refresh token for a new access/refresh token pair. The old refresh token is revoked.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      RefreshRequest  true  "Refresh token payload"
+// @Success      200   {object}  LoginResponse
+// @Failure      400   {object}  ErrorResponse  "missing refresh_token"
+// @Failure      401   {object}  ErrorResponse  "invalid or expired refresh token"
+// @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -458,6 +509,14 @@ func tokenHash(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// @Summary      Get current user
+// @Description  Returns the authenticated user's profile. Requires a valid JWT token.
+// @Tags         auth
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  MeResponse
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /auth/me [get]
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -484,6 +543,17 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary      Register device token
+// @Description  Saves or updates an FCM push token for the authenticated user.
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      DeviceTokenRequest  true  "Device token payload"
+// @Success      200   {object}  EmptyResponse
+// @Failure      400   {object}  ErrorResponse  "missing fcm_token"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /devices/fcm-token [post]
 func (h *AuthHandler) UpsertDeviceToken(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
@@ -527,6 +597,17 @@ func (h *AuthHandler) UpsertDeviceToken(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
+// @Summary      Revoke device token
+// @Description  Removes an FCM push token for the authenticated user.
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body      DeviceTokenRequest  true  "Device token payload"
+// @Success      200   {object}  EmptyResponse
+// @Failure      400   {object}  ErrorResponse  "missing fcm_token"
+// @Failure      401   {object}  ErrorResponse  "unauthorized"
+// @Router       /devices/fcm-token/revoke [post]
 func (h *AuthHandler) RevokeDeviceToken(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {

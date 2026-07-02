@@ -430,6 +430,21 @@ func (h *OrderHandler) GetActiveOrder(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": nil})
 }
 
+// @Summary      Accept order
+// @Description  Assigns a driver to a searching order. Drivers auto-assign themselves; admins can specify a driver_id.
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string              true  "Order ID"
+// @Param        body     body      AcceptOrderRequest  true  "Accept payload"
+// @Success      200      {object}  SingleOrderResponse
+// @Failure      400      {object}  ErrorResponse  "validation failed"
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "driver gate failed"
+// @Failure      404      {object}  ErrorResponse  "order not found"
+// @Failure      409      {object}  ErrorResponse  "order already taken or invalid transition"
+// @Router       /orders/{orderID}/accept [post]
 func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	var req acceptOrderRequest
@@ -471,6 +486,21 @@ func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 
+// @Summary      Update order status
+// @Description  Advances an order through its lifecycle: accepted → arrived → in_progress → completed.
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string                      true  "Order ID"
+// @Param        body     body      UpdateOrderStatusRequest     true  "New status"
+// @Success      200      {object}  SingleOrderResponse
+// @Failure      400      {object}  ErrorResponse  "validation failed"
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "forbidden"
+// @Failure      404      {object}  ErrorResponse  "order not found"
+// @Failure      409      {object}  ErrorResponse  "invalid status transition"
+// @Router       /orders/{orderID}/status [post]
 func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	var req updateOrderStatusRequest
@@ -497,6 +527,21 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 
+// @Summary      Cancel order
+// @Description  Cancels an order. Clients and drivers can cancel their own orders; admins can cancel any order.
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string                true  "Order ID"
+// @Param        body     body      CancelOrderRequest    true  "Cancel payload"
+// @Success      200      {object}  SingleOrderResponse
+// @Failure      400      {object}  ErrorResponse  "validation failed"
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "forbidden"
+// @Failure      404      {object}  ErrorResponse  "order not found"
+// @Failure      409      {object}  ErrorResponse  "invalid transition"
+// @Router       /orders/{orderID}/cancel [post]
 func (h *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
 	var req cancelOrderRequest

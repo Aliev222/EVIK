@@ -134,6 +134,106 @@ type YooKassaWebhookObject struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
+// RegisterRequest is the body of POST /auth/register.
+type RegisterRequest struct {
+	Phone    string `json:"phone" example:"+79991234567"`
+	Password string `json:"password" example:"secret123"`
+	FullName string `json:"full_name" example:"Ivan Ivanov"`
+	Role     string `json:"role" example:"client" enums:"client,driver"`
+}
+
+// OTPRequest is the body of POST /auth/otp/request.
+type OTPRequest struct {
+	Phone string `json:"phone" example:"+79991234567"`
+	Role  string `json:"role" example:"client" enums:"client,driver"`
+}
+
+// OTPVerifyRequest is the body of POST /auth/otp/verify.
+type OTPVerifyRequest struct {
+	Phone    string `json:"phone" example:"+79991234567"`
+	Code     string `json:"code" example:"123456"`
+	Role     string `json:"role" example:"client" enums:"client,driver"`
+	FullName string `json:"full_name,omitempty" example:"Ivan Ivanov"`
+}
+
+// AdminLoginRequest is the body of POST /auth/admin/login.
+type AdminLoginRequest struct {
+	UserID   string `json:"user_id,omitempty" example:"admin"`
+	Password string `json:"password" example:"admin123"`
+}
+
+// RefreshRequest is the body of POST /auth/refresh.
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token" example:"eyJhbGciOiJIUzI1NiIs..."`
+}
+
+// MeResponse is the response of GET /auth/me.
+type MeResponse struct {
+	User AuthUser `json:"user"`
+}
+
+// DeviceTokenRequest is the body of POST /devices/fcm-token.
+type DeviceTokenRequest struct {
+	FCMToken   string `json:"fcm_token" example:"fcm-token-123"`
+	Role       string `json:"role,omitempty" example:"driver"`
+	Platform   string `json:"platform,omitempty" example:"android"`
+	AppVersion string `json:"app_version,omitempty" example:"1.1.0"`
+}
+
+// AcceptOrderRequest is the body of POST /orders/{orderID}/accept.
+type AcceptOrderRequest struct {
+	DriverID string `json:"driver_id,omitempty" example:"driver-123"`
+}
+
+// UpdateOrderStatusRequest is the body of POST /orders/{orderID}/status.
+type UpdateOrderStatusRequest struct {
+	Status string `json:"status" example:"arrived" enums:"accepted,arrived,in_progress,completed"`
+}
+
+// CancelOrderRequest is the body of POST /orders/{orderID}/cancel.
+type CancelOrderRequest struct {
+	Reason string `json:"reason,omitempty" example:"cancel reason"`
+}
+
+// AddCardRequest is the body of POST /payments/cards.
+type AddCardRequest struct {
+	CardNumber string `json:"card_number" example:"4111111111111111"`
+	ExpMonth   int    `json:"exp_month" example:"12"`
+	ExpYear    int    `json:"exp_year" example:"2028"`
+	Holder     string `json:"holder" example:"IVAN IVANOV"`
+	SetDefault bool   `json:"set_default" example:"true"`
+}
+
+// ApplyPromocodeRequest is the body of POST /payments/promocode/apply.
+type ApplyPromocodeRequest struct {
+	Code string `json:"code" example:"EVIK2025"`
+}
+
+// RequestPayoutRequest is the body of POST /driver/payouts/request.
+type RequestPayoutRequest struct {
+	Amount int64 `json:"amount" example:"500000"`
+}
+
+// AddPayoutMethodRequest is the body of POST /driver/payout-methods.
+type AddPayoutMethodRequest struct {
+	ProviderRecipientID string `json:"provider_recipient_id" example:"account-123"`
+	Type                string `json:"type" example:"bank_card" enums:"bank_card,wallet"`
+	MaskedValue         string `json:"masked_value" example:"****1234"`
+	IsDefault           bool   `json:"is_default" example:"true"`
+}
+
+// SubscriptionPaymentRequest is the body of POST /driver/subscription/payment.
+type SubscriptionPaymentRequest struct {
+	PlanID string `json:"plan_id" example:"plan-monthly"`
+}
+
+// RefundRequest is the body of POST /admin/finance/refunds.
+type RefundRequest struct {
+	PaymentID string `json:"payment_id" example:"pay-123"`
+	Amount    int64  `json:"amount" example:"800000"`
+	Reason    string `json:"reason" example:"Customer request"`
+}
+
 // EmptyResponse is the 200 OK acknowledgement for webhook callbacks.
 type EmptyResponse struct {
 	OK bool `json:"ok" example:"true"`
