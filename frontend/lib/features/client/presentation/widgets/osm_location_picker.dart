@@ -40,6 +40,8 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   late String _selectedAddress;
   bool _isLoading = false;
   bool _hasSelection = false;
+  double _pendingLat = 0;
+  double _pendingLng = 0;
   Timer? _cameraReverseGeocodeTimer;
 
   @override
@@ -79,17 +81,20 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   }
 
   void _onCameraMove(double lat, double lng) {
-    _cameraReverseGeocodeTimer?.cancel();
+    _pendingLat = lat;
+    _pendingLng = lng;
+  }
+
+  void _onCameraEnd() {
     setState(() {
-      _selectedLat = lat;
-      _selectedLng = lng;
-      _selectedAddress =
-          'Точка на карте: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+      _selectedLat = _pendingLat;
+      _selectedLng = _pendingLng;
       _hasSelection = true;
     });
+    _cameraReverseGeocodeTimer?.cancel();
     _cameraReverseGeocodeTimer = Timer(
       const Duration(milliseconds: 700),
-      () => _reverseGeocode(lat, lng),
+      () => _reverseGeocode(_pendingLat, _pendingLng),
     );
   }
 
@@ -193,6 +198,7 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
               initialZoom: 16,
               onTap: _onMapTap,
               onCameraMove: _onCameraMove,
+              onCameraEnd: _onCameraEnd,
               onLocationButtonPressed: (lat, lng, address) {
                 setState(() {
                   _selectedLat = lat;

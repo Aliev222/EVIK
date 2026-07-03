@@ -19,6 +19,7 @@ class EvikOsmMapView extends StatefulWidget {
     this.initialZoom = 14,
     this.onTap,
     this.onCameraMove,
+    this.onCameraEnd,
     this.markers = const <EvikMapMarker>[],
     this.routePoints = const <LatLng>[],
     this.showControls = true,
@@ -36,6 +37,7 @@ class EvikOsmMapView extends StatefulWidget {
   final double initialZoom;
   final void Function(double lat, double lng)? onTap;
   final void Function(double lat, double lng)? onCameraMove;
+  final VoidCallback? onCameraEnd;
   final List<EvikMapMarker> markers;
   final List<LatLng> routePoints;
   final bool showControls;
@@ -122,6 +124,11 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                     center.latitude,
                     center.longitude,
                   );
+                },
+                onMapEvent: (event) {
+                  if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+                    widget.onCameraEnd?.call();
+                  }
                 },
               ),
               children: [

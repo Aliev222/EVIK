@@ -22,8 +22,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
-  Timer? _resendTimer;
-  int _secondsLeft = 75;
+  int _timerKey = 0;
   bool _hasCodeError = false;
 
   String get _smsCode =>
@@ -40,8 +39,6 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
       _controllers[i].addListener(() => _onCodeChanged(i));
     }
 
-    _startResendTimer();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focusNodes.first.requestFocus();
     });
@@ -49,7 +46,6 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
   @override
   void dispose() {
-    _resendTimer?.cancel();
     for (final controller in _controllers) {
       controller.dispose();
     }
@@ -130,7 +126,13 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
                 ),
               ],
               const SizedBox(height: 28),
-              Center(child: _buildTimerOrResend()),
+              Center(
+                child: _CountdownTimer(
+                  key: ValueKey(_timerKey),
+                  totalSeconds: 75,
+                  onFinished: _resendCode,
+                ),
+              ),
               const Spacer(),
               EvikButton(
                 text: 'Войти',
@@ -146,47 +148,10 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     );
   }
 
-  Widget _buildTimerOrResend() {
-    if (_secondsLeft > 0) {
-      final minutes = (_secondsLeft / 60).floor();
-      final seconds = _secondsLeft % 60;
-      final timeText =
-          '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-
-      return RichText(
-        text: TextSpan(
-          style: EvikTypography.bodyLarge.copyWith(color: AvroClientColors.textSecondary),
-          children: [
-            const TextSpan(text: 'Повторить через '),
-            TextSpan(
-              text: timeText,
-              style: EvikTypography.bodyLarge.copyWith(
-                color: AvroClientColors.textPrimary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: _resendCode,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Text(
-          'Отправить повторно',
-          style: EvikTypography.bodyLarge.copyWith(
-            color: AvroClientColors.accent,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-
   void _onCodeChanged(int index) {
-    if (_hasCodeError) _hasCodeError = false;
+    if (_hasCodeError) {
+      setState(() => _hasCodeError = false);
+    }
     final text = _controllers[index].text;
     if (text.isNotEmpty && index < _codeLength - 1) {
       _focusNodes[index + 1].requestFocus();
@@ -197,8 +162,6 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
         if (mounted && _isComplete) _verifySmsCode();
       });
     }
-
-    setState(() {});
   }
 
   void _showCodeError() {
@@ -208,24 +171,12 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     });
   }
 
-  void _startResendTimer() {
-    _resendTimer?.cancel();
-    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsLeft > 0) {
-        setState(() => _secondsLeft--);
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
   void _resendCode() {
     ref.read(authProvider.notifier).resendSmsCode();
     setState(() {
-      _secondsLeft = 75;
+      _timerKey++;
       _hasCodeError = false;
     });
-    _startResendTimer();
   }
 
   void _verifySmsCode() {
@@ -255,31 +206,60 @@ class _CodeInput extends StatefulWidget {
 }
 
 class _CodeInputState extends State<_CodeInput> {
+  int? _focusedIndex;
+  late List<bool> _filledStates;
+  late List<VoidCallback> _textListeners;
+  late List<VoidCallback> _focusListeners;
+
   @override
   void initState() {
     super.initState();
-    for (final focusNode in widget.focusNodes) {
-      focusNode.addListener(_handleFocusChanged);
+    _filledStates = widget.controllers.map((c) => c.text.isNotEmpty).toList();
+    _textListeners = List.generate(widget.controllers.length, _createTextListener);
+    _focusListeners = List.generate(widget.controllers.length, _createFocusListener);
+    for (int i = 0; i < widget.controllers.length; i++) {
+      widget.controllers[i].addListener(_textListeners[i]);
+      widget.focusNodes[i].addListener(_focusListeners[i]);
     }
+  }
+
+  VoidCallback _createTextListener(int index) {
+    return () {
+      if (mounted) {
+        setState(() => _filledStates[index] = widget.controllers[index].text.isNotEmpty);
+      }
+    };
+  }
+
+  VoidCallback _createFocusListener(int index) {
+    return () {
+      if (!mounted) return;
+      setState(() {
+        if (widget.focusNodes[index].hasFocus) {
+          _focusedIndex = index;
+        } else if (_focusedIndex == index) {
+          _focusedIndex = null;
+        }
+      });
+    };
   }
 
   @override
   void dispose() {
-    for (final focusNode in widget.focusNodes) {
-      focusNode.removeListener(_handleFocusChanged);
+    for (int i = 0; i < widget.controllers.length; i++) {
+      widget.controllers[i].removeListener(_textListeners[i]);
+      widget.focusNodes[i].removeListener(_focusListeners[i]);
     }
     super.dispose();
   }
-
-  void _handleFocusChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(6, (index) {
-        final filled = widget.controllers[index].text.isNotEmpty;
-        final focused = widget.focusNodes[index].hasFocus;
+        final filled = _filledStates[index];
+        final focused = _focusedIndex == index;
         final borderColor = widget.hasError
             ? AvroClientColors.error
             : focused || filled
@@ -335,6 +315,80 @@ class _CodeInputState extends State<_CodeInput> {
           ),
         );
       }),
+    );
+  }
+}
+
+class _CountdownTimer extends StatefulWidget {
+  final int totalSeconds;
+  final VoidCallback onFinished;
+  const _CountdownTimer({super.key, required this.totalSeconds, required this.onFinished});
+
+  @override
+  State<_CountdownTimer> createState() => _CountdownTimerState();
+}
+
+class _CountdownTimerState extends State<_CountdownTimer> {
+  late int _secondsLeft;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _secondsLeft = widget.totalSeconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_secondsLeft <= 0) {
+        _timer?.cancel();
+        widget.onFinished();
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_secondsLeft > 0) {
+      final minutes = (_secondsLeft / 60).floor();
+      final seconds = _secondsLeft % 60;
+      final timeText =
+          '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+      return RichText(
+        text: TextSpan(
+          style: EvikTypography.bodyLarge.copyWith(color: AvroClientColors.textSecondary),
+          children: [
+            const TextSpan(text: 'Повторить через '),
+            TextSpan(
+              text: timeText,
+              style: EvikTypography.bodyLarge.copyWith(
+                color: AvroClientColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: widget.onFinished,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          'Отправить повторно',
+          style: EvikTypography.bodyLarge.copyWith(
+            color: AvroClientColors.accent,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
     );
   }
 }
