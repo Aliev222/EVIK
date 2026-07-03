@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"log"
 	"strconv"
 	"time"
 
@@ -102,7 +103,9 @@ func (s *LocationStore) GetLocations(ctx context.Context, driverIDs []string) (m
 	for i, id := range driverIDs {
 		cmds[i] = pipe.Get(ctx, "drivers:location:updated_at:"+id)
 	}
-	_, _ = pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		log.Printf("ERROR: Redis pipeline failed: %v", err)
+	}
 
 	result := make(map[string]*location.Location, len(driverIDs))
 	for i, id := range driverIDs {
@@ -122,6 +125,10 @@ func (s *LocationStore) GetLocations(ctx context.Context, driverIDs []string) (m
 		}
 	}
 	return result, nil
+}
+
+func (s *LocationStore) GetLastLocations(ctx context.Context, driverIDs []string) (map[string]*location.Location, error) {
+	return s.GetLocations(ctx, driverIDs)
 }
 
 func (s *LocationStore) RemoveDriver(ctx context.Context, driverID string) error {
@@ -177,7 +184,9 @@ func (s *LocationStore) GetLastCity(ctx context.Context, driverID string) (strin
 	pipe := s.client.Pipeline()
 	cityCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_id")
 	atCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_at")
-	_, _ = pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		log.Printf("ERROR: Redis pipeline failed: %v", err)
+	}
 
 	cityID, err := cityCmd.Result()
 	if err != nil {

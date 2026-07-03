@@ -21,7 +21,7 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, cents_to_rub($12), $13, $14, $15, $16, $17, $18, $19, $20, $21)`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, cents_to_rub($12), $13, cents_to_rub($14), $15, $16, $17, $18, $19, $20, $21)`
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -67,7 +67,7 @@ func scanNullableString(ns sql.NullString) string {
 func (r *OrderRepository) Update(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 UPDATE orders
-SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = cents_to_rub($9), is_cross_city = $10, surcharge_amount = $11, surcharge_percent = $12, cancel_reason = $13
+SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = cents_to_rub($9), is_cross_city = $10, surcharge_amount = cents_to_rub($11), surcharge_percent = $12, cancel_reason = $13
 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt, ord.PriceTotal, ord.IsCrossCity, ord.SurchargeAmount, ord.SurchargePercent, toNullString(ord.CancelReason))
 	return err
@@ -90,7 +90,7 @@ RETURNING id, user_id, driver_id,
           pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
           pickup_address, dropoff_address,
           tow_truck_type, status, rub_to_cents(price_total),
-          is_cross_city, surcharge_amount, surcharge_percent,
+          is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent,
           created_at, updated_at, cancelled_at,
           city_id, is_expanded, expanded_at`
 
@@ -176,7 +176,7 @@ func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now 
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason
 FROM orders
 WHERE id = $1`
 
@@ -241,7 +241,7 @@ func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.S
 	}
 
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = $1
 ORDER BY created_at ASC
@@ -313,7 +313,7 @@ func (r *OrderRepository) ListByStatusAndCity(ctx context.Context, status orderd
 		limit = 20
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = $1 AND city_id = $2
 ORDER BY created_at ASC
@@ -326,7 +326,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, statu
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE user_id = $1`
 	args := []any{userID}
@@ -345,7 +345,7 @@ func (r *OrderRepository) ListByDriverID(ctx context.Context, driverID string, s
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE driver_id = $1`
 	args := []any{driverID}
@@ -366,7 +366,7 @@ func (r *OrderRepository) ListSearchingForExpansion(ctx context.Context, olderTh
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = 'searching' AND is_expanded = FALSE AND created_at < $1
 ORDER BY created_at ASC
@@ -381,7 +381,7 @@ func (r *OrderRepository) ListExpandedSearching(ctx context.Context, limit int) 
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at
 FROM orders
 WHERE status = 'searching' AND is_expanded = TRUE
 ORDER BY created_at ASC

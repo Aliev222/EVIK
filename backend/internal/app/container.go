@@ -273,7 +273,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager)
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, logger)
 	go eventRelay.Run(context.Background())
-	scheduler := NewScheduler(financeUC, logger, cfg.BalanceReleaseInterval)
+	scheduler := NewScheduler(financeUC, paymentRepo, logger, cfg.BalanceReleaseInterval)
 	expansionScheduler := NewSearchExpansionScheduler(
 		orderRepo,
 		locationRepo,
@@ -433,15 +433,17 @@ CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods (user_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_methods_provider_method_id ON payment_methods (provider, provider_payment_method_id) WHERE provider_payment_method_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payment_methods_provider_payment_id ON payment_methods (provider_payment_id) WHERE provider_payment_id IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS payment_transactions (
-	id TEXT PRIMARY KEY,
-	user_id TEXT NOT NULL,
-	order_id TEXT NOT NULL,
-	title TEXT NOT NULL,
-	amount BIGINT NOT NULL,
-	status TEXT NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL
-);
+	// DEPRECATED: legacy table, created inline instead of via goose migration.
+	// TODO: migrate all reads/writes to payments table, then remove.
+	CREATE TABLE IF NOT EXISTS payment_transactions (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		order_id TEXT NOT NULL,
+		title TEXT NOT NULL,
+		amount BIGINT NOT NULL,
+		status TEXT NOT NULL,
+		created_at TIMESTAMPTZ NOT NULL
+	);
 
 CREATE INDEX IF NOT EXISTS idx_payment_transactions_user_id_created_at ON payment_transactions (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_transactions_order_id ON payment_transactions (order_id);

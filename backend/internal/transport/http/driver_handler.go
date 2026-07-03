@@ -137,6 +137,7 @@ type driverProfileResponse struct {
 	RatingAverage  float64 `json:"rating_average"`
 	RatingCount    int     `json:"rating_count"`
 	TotalOrders    int     `json:"total_orders"`
+	AvatarURL      *string `json:"avatar_url,omitempty"`
 }
 
 type locationResponse struct {
@@ -534,6 +535,7 @@ func newDriverProfileResponse(profile *driverdomain.DriverProfile) driverProfile
 		RatingAverage:  profile.RatingAverage,
 		RatingCount:    profile.RatingCount,
 		TotalOrders:    profile.TotalOrders,
+		AvatarURL:      profile.AvatarURL,
 	}
 }
 

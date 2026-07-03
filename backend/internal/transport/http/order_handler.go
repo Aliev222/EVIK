@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -192,7 +194,12 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	area, err := h.ensureServiceAreaAllows(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
 	if err != nil {
-		h.writeError(w, http.StatusForbidden, err)
+		if errors.Is(err, servicearea.ErrOutsideServiceArea) {
+			h.writeError(w, http.StatusForbidden, errors.New("Сервис недоступен в вашем регионе"))
+		} else {
+			log.Printf("ERROR: service area check failed: %v", err)
+			h.writeError(w, http.StatusInternalServerError, errors.New("Internal server error"))
+		}
 		return
 	}
 
@@ -581,12 +588,12 @@ func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, p
 		return nil, err
 	}
 	if !ok {
-		return nil, errors.New("pickup is outside active service areas")
+		return nil, fmt.Errorf("%w: pickup is outside active service areas", servicearea.ErrOutsideServiceArea)
 	}
 	if _, ok, err := h.areas.CheckPoint(ctx, dropoffLat, dropoffLng); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, errors.New("dropoff is outside active service areas")
+		return nil, fmt.Errorf("%w: dropoff is outside active service areas", servicearea.ErrOutsideServiceArea)
 	}
 	return area, nil
 }

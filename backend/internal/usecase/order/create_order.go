@@ -125,17 +125,22 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	// Publish order created event first
 	// Best-effort: order is already in Postgres (source of truth),
 	// drivers will find it via polling even without the push event.
-	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
-		Type:    orderdomain.EventOrderCreated,
-		OrderID: ord.ID,
-		Payload: map[string]any{
-			"status":  ord.Status,
-			"user_id": input.UserID,
-			"city_id": cityID,
-		},
-	}); err != nil {
-		uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", ord.ID)
-	}
+	// Delayed 500ms in a goroutine so WebSocket clients have time to
+	// connect before the first event is published.
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		if err := uc.eventPublisher.Publish(context.Background(), orderdomain.Event{
+			Type:    orderdomain.EventOrderCreated,
+			OrderID: ord.ID,
+			Payload: map[string]any{
+				"status":  ord.Status,
+				"user_id": input.UserID,
+				"city_id": cityID,
+			},
+		}); err != nil {
+			uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", ord.ID)
+		}
+	}()
 
 	// Calculate price for the order
 	priceInput := pricingdomain.CalculatePriceInput{

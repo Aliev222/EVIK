@@ -91,7 +91,12 @@ SELECT
 	COALESCE(d.vehicle_type, '') as vehicle_type,
 	COALESCE(d.rating_average, 0.0) as rating_average,
 	COALESCE(d.rating_count, 0) as rating_count,
-	COALESCE(d.total_orders, 0) as total_orders
+	COALESCE(d.total_orders, 0) as total_orders,
+	(SELECT dd.public_url
+	 FROM driver_documents dd
+	 JOIN driver_verifications dv ON dv.id = dd.verification_id
+	 WHERE dv.user_id = d.user_id AND dd.document_type = 'selfie'
+	 LIMIT 1) AS avatar_url
 FROM drivers d
 LEFT JOIN users u ON u.id = d.user_id
 WHERE d.id = $1`
@@ -115,6 +120,7 @@ WHERE d.id = $1`
 		&profile.RatingAverage,
 		&profile.RatingCount,
 		&profile.TotalOrders,
+		&profile.AvatarURL,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -12,6 +12,9 @@ var ErrNotFound = errors.New("service area not found")
 // non-terminal orders whose pickup or dropoff falls within its bounds.
 var ErrAreaHasActiveOrders = errors.New("service area has active orders")
 
+// ErrOutsideServiceArea is returned when a coordinate falls outside any active service area.
+var ErrOutsideServiceArea = errors.New("координаты вне зоны обслуживания")
+
 type Repository interface {
 	// CheckPoint reports whether the coordinate falls inside an active area.
 	CheckPoint(ctx context.Context, lat, lng float64) (*ServiceArea, bool, error)

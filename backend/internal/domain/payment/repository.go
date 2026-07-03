@@ -53,6 +53,7 @@ type Repository interface {
 
 	// Phase 1 admin endpoints.
 	GetPayout(ctx context.Context, payoutID string) (*Payout, error)
+	ListStuckPayouts(ctx context.Context, olderThan time.Duration) ([]Payout, error)
 	ApprovePayout(ctx context.Context, payoutID, moderatorID, providerPayoutID string, now time.Time) (*Payout, error)
 	RejectPayout(ctx context.Context, payoutID, moderatorID, reason string, now time.Time) (*Payout, error)
 	ListAdminRefunds(ctx context.Context, filter AdminRefundFilter) ([]Refund, int64, error)

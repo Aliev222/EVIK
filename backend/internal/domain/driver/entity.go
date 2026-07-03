@@ -42,6 +42,9 @@ type DriverProfile struct {
 	RatingAverage float64
 	RatingCount   int
 	TotalOrders   int
+
+	// Avatar (selfie document URL)
+	AvatarURL *string
 }
 
 func (d Driver) IsAvailable() bool {

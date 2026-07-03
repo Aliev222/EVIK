@@ -185,7 +185,7 @@ func (uc *AcceptOrderUseCase) applySurchargeIfCrossCity(ctx context.Context, ord
 	original := ord.PriceTotal
 	ord.IsCrossCity = true
 	ord.SurchargePercent = 50
-	ord.SurchargeAmount = original * 50 / 100
+	ord.SurchargeAmount = (original*50 + 50) / 100
 	ord.PriceTotal = original + ord.SurchargeAmount
 	uc.logger.Info("applied cross-city surcharge",
 		"order_id", ord.ID,

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ type DriverProfileLister interface {
 // DriverLocationReader resolves a driver's last known coordinate from Redis.
 type DriverLocationReader interface {
 	GetLastLocation(ctx context.Context, driverID string) (*locationdomain.Location, error)
+	GetLastLocations(ctx context.Context, driverIDs []string) (map[string]*locationdomain.Location, error)
 }
 
 // CityLookup resolves a service area (city) bbox by id, for map filtering.
@@ -89,16 +91,21 @@ func (h *DriverLocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	driverIDs := make([]string, len(drivers))
+	for i, d := range drivers {
+		driverIDs[i] = d.ID
+	}
+	locMap, err := h.locations.GetLastLocations(r.Context(), driverIDs)
+	if err != nil {
+		log.Printf("ERROR: batch get locations: %v", err)
+	}
+
 	now := time.Now().UTC()
 	out := make([]driverLocationResponse, 0, len(drivers))
 	for _, d := range drivers {
-		loc, err := h.locations.GetLastLocation(r.Context(), d.ID)
-		if err != nil {
-			if errors.Is(err, locationdomain.ErrLocationNotFound) {
-				continue
-			}
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+		loc, ok := locMap[d.ID]
+		if !ok {
+			continue
 		}
 
 		if bounds != nil && !withinCityBounds(loc.Lat, loc.Lng, bounds) {

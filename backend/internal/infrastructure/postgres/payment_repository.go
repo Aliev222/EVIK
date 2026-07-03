@@ -253,6 +253,7 @@ WHERE id = (
 }
 
 func (r *PaymentRepository) ListTransactions(ctx context.Context, userID string, limit int) ([]paymentdomain.PaymentTransaction, error) {
+	// DEPRECATED: uses legacy payment_transactions table. Migrate to payments table.
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, user_id, order_id, title, amount, status, created_at
 FROM payment_transactions
@@ -322,6 +323,7 @@ LIMIT $2 OFFSET $3
 }
 
 func (r *PaymentRepository) CreateTransaction(ctx context.Context, transaction *paymentdomain.PaymentTransaction) error {
+	// DEPRECATED: uses legacy payment_transactions table. Migrate to payments table.
 	const query = `
 		INSERT INTO payment_transactions (id, user_id, order_id, title, amount, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -539,6 +541,7 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 	var paymentMethod string
 	var orderAmount sql.NullInt64
 	var surchargeAmount int64
+	// DEPRECATED: uses legacy payment_transactions table as fallback. Migrate to payments table.
 	err = tx.QueryRowContext(ctx, `
 SELECT o.driver_id,
 	COALESCE((SELECT payment_method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1), o.payment_method, 'cash'),
@@ -574,7 +577,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 
 	total := orderAmount.Int64
 	base := total - surchargeAmount
-	commission := base * defaultCommissionPercent / 100
+	commission := (base*defaultCommissionPercent + 50) / 100
 	now := time.Now().UTC()
 	if paymentMethod == string(paymentdomain.PaymentMethodCash) {
 		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance + cents_to_rub($1), updated_at = NOW() WHERE id = $2`, commission, walletID); err != nil {
@@ -891,6 +894,29 @@ FROM payouts WHERE id = $1 FOR UPDATE`, payoutID).Scan(&payout.ID, &payout.Drive
 func (r *PaymentRepository) MarkPayoutFailed(ctx context.Context, payoutID, reason string) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE payouts SET status = 'failed', failure_reason = $2, updated_at = NOW() WHERE id = $1`, payoutID, reason)
 	return err
+}
+
+func (r *PaymentRepository) ListStuckPayouts(ctx context.Context, olderThan time.Duration) ([]paymentdomain.Payout, error) {
+	threshold := time.Now().Add(-olderThan)
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts
+WHERE status = 'created'
+  AND created_at < $1
+ORDER BY created_at ASC`, threshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var payouts []paymentdomain.Payout
+	for rows.Next() {
+		p, err := scanPayoutRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		payouts = append(payouts, p)
+	}
+	return payouts, rows.Err()
 }
 
 // GetPayout fetches a single payout by ID. Returns ErrPayoutNotFound on missing.

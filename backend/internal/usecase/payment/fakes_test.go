@@ -112,6 +112,9 @@ func (noopFinanceRepo) ListAdminRefunds(context.Context, paymentdomain.AdminRefu
 func (noopFinanceRepo) ListWalletTransactionsByOrder(context.Context, string) ([]paymentdomain.WalletTransaction, error) {
 	return nil, nil
 }
+func (noopFinanceRepo) ListStuckPayouts(context.Context, time.Duration) ([]paymentdomain.Payout, error) {
+	return nil, nil
+}
 
 // Compile-time check: if a new method is added to paymentdomain.Repository,
 // the test suite will fail to compile here, flagging that the no-op base

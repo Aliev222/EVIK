@@ -8,7 +8,7 @@ import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     as platform_api;
 import 'package:tow_truck_frontend/core/realtime/event_dispatcher.dart';
 import 'package:tow_truck_frontend/core/realtime/websocket_client.dart';
-import 'package:tow_truck_frontend/core/realtime/websocket_client_stub.dart'
+import 'package:tow_truck_frontend/core/realtime/websocket_client_channel.dart'
     if (dart.library.io) '../../../../core/realtime/websocket_client_io.dart'
     as platform_ws;
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
