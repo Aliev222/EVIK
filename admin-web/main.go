@@ -49,8 +49,16 @@ func main() {
 		proxy.ServeHTTP(w, r)
 	})
 
+	mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
+		proxy.ServeHTTP(w, r)
+	})
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/ws/") {
 			http.NotFound(w, r)
 			return
 		}

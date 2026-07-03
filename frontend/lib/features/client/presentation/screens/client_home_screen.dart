@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
-    if (dart.library.io) '../../../core/network/api_client_io.dart'
+    if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';

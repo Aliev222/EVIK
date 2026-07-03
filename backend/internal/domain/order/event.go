@@ -13,6 +13,7 @@ const (
 	EventNoDriverFound      EventType = "no_driver_found"
 	EventOrderExpanded      EventType = "order_expanded"
 	EventDriverLocationUpdated EventType = "driver_location"
+	EventAdminDriverLocation   EventType = "admin_driver_location"
 )
 
 type Event struct {

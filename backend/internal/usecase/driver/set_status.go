@@ -147,6 +147,7 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 			// Do NOT update city tracking while busy — city stays as it was when order was accepted.
 
 			uc.publishDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
+			uc.publishAdminDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
 		}
 		return current, nil
 	}
@@ -170,6 +171,7 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 			return nil, err
 		}
 		uc.cacheDriverCity(ctx, input.DriverID, *input.Lat, *input.Lng)
+		uc.publishAdminDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
 	}
 	return drv, nil
 }
@@ -237,6 +239,19 @@ func (uc *SetStatusUseCase) publishDriverLocation(ctx context.Context, driverID 
 	}); pubErr != nil {
 		uc.logger.Error("failed to publish driver location", pubErr, "driver_id", driverID)
 	}
+}
+
+func (uc *SetStatusUseCase) publishAdminDriverLocation(ctx context.Context, driverID string, now time.Time, lat, lng float64) {
+	_ = uc.eventPublisher.Publish(ctx, orderdomain.Event{
+		Type:    orderdomain.EventAdminDriverLocation,
+		OrderID: "",
+		Payload: map[string]any{
+			"driver_id": driverID,
+			"lat":       lat,
+			"lng":       lng,
+			"timestamp": now.Format("2006-01-02T15:04:05Z07:00"),
+		},
+	})
 }
 
 func (uc *SetStatusUseCase) cancelActiveOrder(ctx context.Context, drv *driverdomain.Driver, now time.Time) error {

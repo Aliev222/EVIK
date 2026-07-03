@@ -86,10 +86,16 @@ func (r *OrderEventRelay) handleEvent(payload string) {
 		r.logger.Printf("relay: order_expanded broadcast for order %s", event.OrderID)
 
 	case orderdomain.EventDriverLocationUpdated:
-		// Send driver location ONLY to the client watching this order
+		// Send driver location to the client watching this order
 		if userID != "" {
 			r.hub.SendToUser(userID, []byte(payload))
 		}
+		// Also send to all admin clients for the live map
+		r.hub.SendToRole("admin", []byte(payload))
+
+	case orderdomain.EventAdminDriverLocation:
+		// Admin-specific driver location update for the live map
+		r.hub.SendToRole("admin", []byte(payload))
 
 	default:
 		if userID != "" {

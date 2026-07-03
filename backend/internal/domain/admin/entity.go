@@ -93,5 +93,6 @@ type Review struct {
 	ClientName string
 	Stars      int
 	Text       string
+	IsHidden   bool
 	CreatedAt  time.Time
 }

@@ -5,8 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
+	"time"
 
 	admindomain "evik/backend/internal/domain/admin"
+	orderdomain "evik/backend/internal/domain/order"
 	httptransport "evik/backend/internal/transport/http"
 )
 
@@ -442,12 +446,48 @@ LIMIT $1`
 	return items, rows.Err()
 }
 
-func (r *AdminRepository) ListReviews(ctx context.Context, limit int) ([]admindomain.Review, error) {
-	if limit <= 0 || limit > 100 {
+func (r *AdminRepository) ListReviews(ctx context.Context, limit int, offset int, stars int, driverQuery string) ([]admindomain.Review, int64, error) {
+	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
+	if offset < 0 {
+		offset = 0
+	}
 
-	const query = `
+	args := make([]any, 0, 4)
+	conditions := make([]string, 0, 3)
+	argIdx := 1
+
+	if stars > 0 {
+		conditions = append(conditions, fmt.Sprintf("r.stars = $%d", argIdx))
+		args = append(args, stars)
+		argIdx++
+	}
+	if driverQuery != "" {
+		conditions = append(conditions, fmt.Sprintf("(r.driver_id ILIKE $%d OR COALESCE(v.full_name, '') ILIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+driverQuery+"%")
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// Count query
+	countQuery := fmt.Sprintf(`
+SELECT COUNT(*)
+FROM driver_reviews r
+LEFT JOIN driver_verifications v ON v.user_id = r.driver_id
+%s`, whereClause)
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Data query
+	dataQuery := fmt.Sprintf(`
 SELECT
 	r.id,
 	r.order_id,
@@ -457,15 +497,19 @@ SELECT
 	r.client_id AS client_name,
 	r.stars,
 	r.comment,
+	r.is_hidden,
 	r.created_at
 FROM driver_reviews r
 LEFT JOIN driver_verifications v ON v.user_id = r.driver_id
+%s
 ORDER BY r.created_at DESC
-LIMIT $1`
+LIMIT $%d OFFSET $%d`, whereClause, argIdx, argIdx+1)
 
-	rows, err := r.db.QueryContext(ctx, query, limit)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, dataQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -481,13 +525,14 @@ LIMIT $1`
 			&item.ClientName,
 			&item.Stars,
 			&item.Text,
+			&item.IsHidden,
 			&item.CreatedAt,
 		); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	return items, total, rows.Err()
 }
 
 func (r *AdminRepository) CreateReview(ctx context.Context, item admindomain.Review) error {
@@ -507,6 +552,51 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)`
 		item.CreatedAt,
 	)
 	return err
+}
+
+func (r *AdminRepository) HideReview(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE driver_reviews SET is_hidden = true WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *AdminRepository) ShowReview(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE driver_reviews SET is_hidden = false WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *AdminRepository) DeleteReview(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, `DELETE FROM driver_reviews WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (r *AdminRepository) GetDriverReviews(ctx context.Context, driverID string, limit int) ([]admindomain.Review, httptransport.DriverReviewsStats, error) {
@@ -683,6 +773,402 @@ func (r *AdminRepository) UpdateTaxProfileStatus(ctx context.Context, driverID, 
 	}
 
 	return nil
+}
+
+func (r *AdminRepository) ListAdminPayments(ctx context.Context, limit, offset int) ([]httptransport.AdminListPayment, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM payments`).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT id, order_id, user_id, provider, COALESCE(provider_payment_id,''), payment_method, rub_to_cents(amount), currency, status, created_at
+FROM payments ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]httptransport.AdminListPayment, 0, limit)
+	for rows.Next() {
+		var item httptransport.AdminListPayment
+		var createdAt time.Time
+		if err := rows.Scan(&item.ID, &item.OrderID, &item.UserID, &item.Provider, &item.ProviderPayment, &item.PaymentMethod, &item.Amount, &item.Currency, &item.Status, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *AdminRepository) ListAdminWallets(ctx context.Context, limit, offset int, search string) ([]httptransport.AdminListWallet, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	args := []any{limit, offset}
+	where := ""
+	argIdx := 3
+	if search != "" {
+		where = fmt.Sprintf("WHERE driver_id::text ILIKE $%d", argIdx)
+		args = append(args, "%"+search+"%")
+	}
+	var total int64
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM driver_wallets %s`, where)
+	if err := r.db.QueryRowContext(ctx, countQuery, args[2:]...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	query := fmt.Sprintf(`
+SELECT id, driver_id, available_balance, pending_balance, debt_balance, currency, updated_at
+FROM driver_wallets %s ORDER BY updated_at DESC NULLS LAST LIMIT $1 OFFSET $2`, where)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]httptransport.AdminListWallet, 0, limit)
+	for rows.Next() {
+		var item httptransport.AdminListWallet
+		var updatedAt sql.NullTime
+		if err := rows.Scan(&item.ID, &item.DriverID, &item.Available, &item.Pending, &item.Debt, &item.Currency, &updatedAt); err != nil {
+			return nil, 0, err
+		}
+		if updatedAt.Valid {
+			item.UpdatedAt = updatedAt.Time.Format(time.RFC3339)
+		}
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *AdminRepository) ListAdminTransactions(ctx context.Context, limit, offset int, txType, driverID string) ([]httptransport.AdminListTransaction, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	args := []any{limit, offset}
+	conditions := []string{}
+	argIdx := 3
+	if txType != "" {
+		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
+		args = append(args, txType)
+		argIdx++
+	}
+	if driverID != "" {
+		conditions = append(conditions, fmt.Sprintf("driver_id = $%d", argIdx))
+		args = append(args, driverID)
+		argIdx++
+	}
+	where := ""
+	if len(conditions) > 0 {
+		where = "WHERE " + strings.Join(conditions, " AND ")
+	}
+	var total int64
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM wallet_transactions %s`, where)
+	if err := r.db.QueryRowContext(ctx, countQuery, args[2:]...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	query := fmt.Sprintf(`
+SELECT COALESCE(id,''), COALESCE(wallet_id,''), COALESCE(driver_id,''), COALESCE(order_id,''), COALESCE(payment_id,''), COALESCE(payout_id,''),
+	type, direction, rub_to_cents(amount), currency, status, COALESCE(description,''), created_at
+FROM wallet_transactions %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`, where)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]httptransport.AdminListTransaction, 0, limit)
+	for rows.Next() {
+		var item httptransport.AdminListTransaction
+		var createdAt time.Time
+		if err := rows.Scan(&item.ID, &item.WalletID, &item.DriverID, &item.OrderID, &item.PaymentID, &item.PayoutID, &item.Type, &item.Direction, &item.Amount, &item.Currency, &item.Status, &item.Description, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *AdminRepository) ListAdminSubscriptions(ctx context.Context, limit, offset int, status string) ([]httptransport.AdminListSubscription, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	args := []any{limit, offset}
+	where := ""
+	if status != "" {
+		where = "WHERE status = $3"
+		args = append(args, status)
+	}
+	var total int64
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM subscriptions %s`, where)
+	if err := r.db.QueryRowContext(ctx, countQuery, args[2:]...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	query := fmt.Sprintf(`
+SELECT COALESCE(id,''), COALESCE(driver_id,''), COALESCE(plan_id,''), COALESCE(payment_id,''), rub_to_cents(amount), currency, status, created_at
+FROM subscriptions %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`, where)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]httptransport.AdminListSubscription, 0, limit)
+	for rows.Next() {
+		var item httptransport.AdminListSubscription
+		var createdAt time.Time
+		if err := rows.Scan(&item.ID, &item.DriverID, &item.PlanID, &item.PaymentID, &item.Amount, &item.Currency, &item.Status, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *AdminRepository) ListAuditLog(ctx context.Context, limit, offset int, entityType, action string) ([]httptransport.AdminAuditLogEntry, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	args := []any{limit, offset}
+	conditions := []string{}
+	argIdx := 3
+	if entityType != "" {
+		conditions = append(conditions, fmt.Sprintf("entity_type = $%d", argIdx))
+		args = append(args, entityType)
+		argIdx++
+	}
+	if action != "" {
+		conditions = append(conditions, fmt.Sprintf("action = $%d", argIdx))
+		args = append(args, action)
+		argIdx++
+	}
+	where := ""
+	if len(conditions) > 0 {
+		where = "WHERE " + strings.Join(conditions, " AND ")
+	}
+	var total int64
+	countQuery := fmt.Sprintf(`SELECT COUNT(*) FROM moderation_audit_log %s`, where)
+	if err := r.db.QueryRowContext(ctx, countQuery, args[2:]...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	query := fmt.Sprintf(`
+SELECT id, entity_type, entity_id, action, COALESCE(reason,'') as reason, COALESCE(moderator_id,'') as moderator_id, created_at
+FROM moderation_audit_log %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`, where)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := make([]httptransport.AdminAuditLogEntry, 0, limit)
+	for rows.Next() {
+		var item httptransport.AdminAuditLogEntry
+		var createdAt time.Time
+		if err := rows.Scan(&item.ID, &item.EntityType, &item.EntityID, &item.Action, &item.Reason, &item.ModeratorID, &createdAt); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = createdAt.Format(time.RFC3339)
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
+}
+
+func (r *AdminRepository) GetDriverDetail(ctx context.Context, driverID string) (*httptransport.AdminDriverDetail, error) {
+	// Get basic info + verification
+	var detail httptransport.AdminDriverDetail
+
+	// Try to find driver by driver_id or user_id
+	const driverQuery = `
+SELECT
+	COALESCE(d.id, '') AS driver_id,
+	COALESCE(d.user_id, '') AS user_id,
+	COALESCE(v.full_name, '') AS full_name,
+	COALESCE(v.phone, '') AS phone,
+	COALESCE(d.status, 'offline') AS status,
+	COALESCE((SELECT COUNT(*) FROM orders o WHERE o.driver_id = $1), 0) AS orders_count
+FROM drivers d
+LEFT JOIN driver_verifications v ON v.user_id = d.id OR v.user_id = d.user_id
+WHERE d.id = $1 OR d.user_id = $1
+LIMIT 1`
+
+	err := r.db.QueryRowContext(ctx, driverQuery, driverID).Scan(
+		&detail.DriverID,
+		&detail.UserID,
+		&detail.FullName,
+		&detail.Phone,
+		&detail.Status,
+		&detail.OrdersCount,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Verification info
+	const verifQuery = `
+SELECT id, vehicle_model, vehicle_plate, vehicle_type, status, risk, submitted_at, documents_json, decision_reason
+FROM driver_verifications
+WHERE user_id = $1
+LIMIT 1`
+	var verifID, vehicle, plate, vtype, vstatus, risk string
+	var submittedAt sql.NullTime
+	var documentsJSON sql.NullString
+	var decisionReason *string
+	err = r.db.QueryRowContext(ctx, verifQuery, driverID).Scan(
+		&verifID, &vehicle, &plate, &vtype, &vstatus, &risk, &submittedAt, &documentsJSON, &decisionReason,
+	)
+	if err == nil {
+		docs := []string{}
+		if documentsJSON.Valid && documentsJSON.String != "" {
+			docs = decodeStringList(documentsJSON.String)
+		}
+		submitted := ""
+		if submittedAt.Valid {
+			submitted = submittedAt.Time.Format(time.RFC3339)
+		}
+		detail.Verification = &httptransport.AdminVerificationInfo{
+			ID:             verifID,
+			Vehicle:        vehicle,
+			Plate:          plate,
+			VehicleType:    vtype,
+			Status:         vstatus,
+			Risk:           risk,
+			SubmittedAt:    submitted,
+			Documents:      docs,
+			DecisionReason: decisionReason,
+		}
+	}
+
+	// Tax profile
+	const taxQuery = `
+SELECT COALESCE(inn, ''), COALESCE(taxpayer_type, ''), COALESCE(verification_status, ''), created_at
+FROM driver_tax_profiles WHERE driver_id = $1 LIMIT 1`
+	var inn, taxpayerType, taxStatus string
+	var taxCreatedAt sql.NullTime
+	err = r.db.QueryRowContext(ctx, taxQuery, driverID).Scan(&inn, &taxpayerType, &taxStatus, &taxCreatedAt)
+	if err == nil {
+		created := ""
+		if taxCreatedAt.Valid {
+			created = taxCreatedAt.Time.Format(time.RFC3339)
+		}
+		detail.TaxProfile = &httptransport.AdminTaxProfileInfo{
+			INN:                inn,
+			TaxpayerType:       taxpayerType,
+			VerificationStatus: taxStatus,
+			CreatedAt:          created,
+		}
+	}
+
+	// Wallet
+	const walletQuery = `
+SELECT COALESCE(available_balance, 0), COALESCE(pending_balance, 0), COALESCE(debt_balance, 0), COALESCE(currency, 'RUB'), updated_at
+FROM driver_wallets WHERE driver_id = $1 LIMIT 1`
+	var avail, pending, debt int64
+	var currency string
+	var walletUpdatedAt sql.NullTime
+	err = r.db.QueryRowContext(ctx, walletQuery, driverID).Scan(&avail, &pending, &debt, &currency, &walletUpdatedAt)
+	if err == nil {
+		updated := ""
+		if walletUpdatedAt.Valid {
+			updated = walletUpdatedAt.Time.Format(time.RFC3339)
+		}
+		detail.Wallet = &httptransport.AdminWalletInfo{
+			Available: avail,
+			Pending:   pending,
+			Debt:      debt,
+			Currency:  currency,
+			UpdatedAt: updated,
+		}
+	}
+
+	// Reviews summary
+	const reviewStatsQuery = `
+SELECT COUNT(*), COALESCE(AVG(stars), 0), COUNT(*)
+FROM driver_reviews WHERE driver_id = $1 AND is_hidden = false`
+	var revTotal int
+	var revAvg float64
+	var revCount int
+	err = r.db.QueryRowContext(ctx, reviewStatsQuery, driverID).Scan(&revTotal, &revAvg, &revCount)
+	if err == nil {
+		detail.Reviews = &httptransport.AdminReviewsSummary{
+			Total:         revTotal,
+			RatingAverage: revAvg,
+			RatingCount:   revCount,
+		}
+	}
+
+	// If no phone was found in verification, try users table
+	if detail.Phone == "" {
+		_ = r.db.QueryRowContext(ctx, `SELECT COALESCE(phone, '') FROM users WHERE id = $1 LIMIT 1`, driverID).Scan(&detail.Phone)
+	}
+
+	return &detail, nil
+}
+
+func (r *AdminRepository) ListDriverOrders(ctx context.Context, driverID string, limit int, offset int) ([]orderdomain.AdminOrderListItem, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	var total int64
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM orders WHERE driver_id = $1`, driverID).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	const query = `
+SELECT
+	o.id, o.user_id, '', '', o.driver_id, '', '',
+	o.status, o.payment_method, '', '',
+	rub_to_cents(o.price_total), rub_to_cents(o.commission_amount), rub_to_cents(o.driver_amount),
+	o.created_at, o.completed_at, o.cancelled_at
+FROM orders o
+WHERE o.driver_id = $1
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3`
+
+	rows, err := r.db.QueryContext(ctx, query, driverID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	items := make([]orderdomain.AdminOrderListItem, 0, limit)
+	for rows.Next() {
+		var item orderdomain.AdminOrderListItem
+		if err := rows.Scan(
+			&item.OrderID, &item.ClientID, &item.ClientName, &item.ClientPhone,
+			&item.DriverID, &item.DriverName, &item.DriverPhone,
+			&item.Status, &item.PaymentMethod, &item.PaymentStatus,
+			&item.PriceTotal, &item.CommissionAmount, &item.DriverAmount,
+			&item.CreatedAt, &item.CompletedAt, &item.CancelledAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		item.FinancialStatus = ""
+		items = append(items, item)
+	}
+	return items, total, rows.Err()
 }
 
 func decodeStringList(raw string) []string {

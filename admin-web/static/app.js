@@ -44,6 +44,7 @@ const ROUTES = [
   { id: 'reviews',       title: 'Отзывы',                  group: 'Система'  },
   { id: 'users',         title: 'Пользователи',            group: 'Система'  },
   { id: 'online-map',    title: 'Online водители',         group: 'Система'  },
+  { id: 'audit-log',     title: 'Аудит',                   group: 'Система'  },
   { id: 'settings',      title: 'Настройки',               group: 'Система'  },
 ];
 
@@ -208,6 +209,7 @@ function parseHash() {
   if (!knownIds.includes(name)) return { name: 'dashboard', params: {} };
   const params = {};
   if (name === 'orders' && rest[0]) params.orderId = rest[0];
+  if (name === 'drivers' && rest[0]) params.driverId = rest[0];
   return { name, params };
 }
 function navigate(hash) {
@@ -1712,6 +1714,15 @@ function matchesDriverFilters(rec, f) {
   }
   if (f.onlineOnly && !(rec.online && !isStale(rec.online.last_seen))) return false;
   if (f.hasOrder && !rec.active_order_id) return false;
+  if (f.vehicleType && f.vehicleType !== 'all') {
+    const vt = (rec.verification && rec.verification.vehicle_type) || '';
+    if (vt !== f.vehicleType) return false;
+  }
+  if (f.ratingMin) {
+    const min = Number(f.ratingMin);
+    const stars = (rec.verification && rec.verification.stars) || 0;
+    if (stars < min) return false;
+  }
   return true;
 }
 
@@ -1729,6 +1740,8 @@ function driversActiveChips(f) {
   if (f.status && f.status !== 'all') chips.push(driverChip('Статус', f.status, 'status'));
   if (f.docs && f.docs !== 'all') chips.push(driverChip('Документы', f.docs, 'docs'));
   if (f.tax && f.tax !== 'all') chips.push(driverChip('Tax', f.tax, 'tax'));
+  if (f.vehicleType && f.vehicleType !== 'all') chips.push(driverChip('Тип ТС', f.vehicleType, 'vehicleType'));
+  if (f.ratingMin) chips.push(driverChip('Рейтинг от', f.ratingMin, 'ratingMin'));
   if (f.onlineOnly) chips.push(driverChip('Только онлайн', 'да', 'onlineOnly'));
   if (f.hasOrder) chips.push(driverChip('С активным заказом', 'да', 'hasOrder'));
   if (chips.length === 0) return '';
@@ -1736,6 +1749,10 @@ function driversActiveChips(f) {
 }
 
 async function pageDrivers(main) {
+  // If a specific driver ID is in the route, show detail page instead.
+  if (state.route.params.driverId) {
+    return pageDriverDetail(main, state.route.params.driverId);
+  }
   // Cleanup map / timers from any previous pageDrivers instance.
   if (driversPageState.unmount) {
     try { driversPageState.unmount(); } catch (_) {}
@@ -1745,7 +1762,7 @@ async function pageDrivers(main) {
     try { return localStorage.getItem(DRIVERS_VIEW_KEY) || 'table'; } catch (_) { return 'table'; }
   })();
   if (!driversPageState.filters) {
-    driversPageState.filters = { search: '', status: 'all', docs: 'all', tax: 'all', onlineOnly: false, hasOrder: false, view: initialView };
+    driversPageState.filters = { search: '', status: 'all', docs: 'all', tax: 'all', vehicleType: 'all', ratingMin: '', onlineOnly: false, hasOrder: false, view: initialView };
   } else {
     driversPageState.filters.view = initialView;
   }
@@ -1816,6 +1833,22 @@ async function pageDrivers(main) {
               <option value="missing">Без профиля</option>
             </select>
           </label>
+          <label class="ord-field"><span>Тип ТС</span>
+            <select name="vehicleType">
+              <option value="all">Все</option>
+              <option value="winch">Лебедка</option>
+              <option value="platform">Платформа</option>
+              <option value="manipulator">Манипулятор</option>
+            </select>
+          </label>
+          <label class="ord-field"><span>Рейтинг от</span>
+            <select name="ratingMin">
+              <option value="">Любой</option>
+              <option value="4">4 ★</option>
+              <option value="4.5">4.5 ★</option>
+              <option value="5">5 ★</option>
+            </select>
+          </label>
           <label class="ord-field drv-checkbox"><input type="checkbox" name="onlineOnly" /><span>Только онлайн</span></label>
           <label class="ord-field drv-checkbox"><input type="checkbox" name="hasOrder" /><span>С активным заказом</span></label>
         </div>
@@ -1827,7 +1860,7 @@ async function pageDrivers(main) {
   `;
 
   // Restore filter values.
-  for (const k of ['search','status','docs','tax']) {
+  for (const k of ['search','status','docs','tax','vehicleType','ratingMin']) {
     const el = main.querySelector(`[name="${k}"]`);
     if (el) el.value = state.filters[k];
   }
@@ -1843,14 +1876,16 @@ async function pageDrivers(main) {
     state.filters.status = main.querySelector('[name="status"]').value;
     state.filters.docs = main.querySelector('[name="docs"]').value;
     state.filters.tax = main.querySelector('[name="tax"]').value;
+    state.filters.vehicleType = main.querySelector('[name="vehicleType"]').value;
+    state.filters.ratingMin = main.querySelector('[name="ratingMin"]').value;
     state.filters.onlineOnly = !!main.querySelector('[name="onlineOnly"]').checked;
     state.filters.hasOrder = !!main.querySelector('[name="hasOrder"]').checked;
     renderCurrentView();
     renderChips();
   };
   $('#drv-reset', main).onclick = () => {
-    state.filters = { search: '', status: 'all', docs: 'all', tax: 'all', onlineOnly: false, hasOrder: false, view: state.filters.view };
-    for (const k of ['search','status','docs','tax']) main.querySelector(`[name="${k}"]`).value = (k === 'search' ? '' : 'all');
+    state.filters = { search: '', status: 'all', docs: 'all', tax: 'all', vehicleType: 'all', ratingMin: '', onlineOnly: false, hasOrder: false, view: state.filters.view };
+    for (const k of ['search','status','docs','tax','vehicleType','ratingMin']) main.querySelector(`[name="${k}"]`).value = (k === 'search' ? '' : k === 'ratingMin' ? '' : 'all');
     for (const k of ['onlineOnly','hasOrder']) main.querySelector(`[name="${k}"]`).checked = false;
     renderCurrentView();
     renderChips();
@@ -1881,6 +1916,8 @@ async function pageDrivers(main) {
         else if (k === 'status') { state.filters.status = 'all'; main.querySelector('[name="status"]').value = 'all'; }
         else if (k === 'docs') { state.filters.docs = 'all'; main.querySelector('[name="docs"]').value = 'all'; }
         else if (k === 'tax') { state.filters.tax = 'all'; main.querySelector('[name="tax"]').value = 'all'; }
+        else if (k === 'vehicleType') { state.filters.vehicleType = 'all'; main.querySelector('[name="vehicleType"]').value = 'all'; }
+        else if (k === 'ratingMin') { state.filters.ratingMin = ''; main.querySelector('[name="ratingMin"]').value = ''; }
         else if (k === 'onlineOnly') { state.filters.onlineOnly = false; main.querySelector('[name="onlineOnly"]').checked = false; }
         else if (k === 'hasOrder') { state.filters.hasOrder = false; main.querySelector('[name="hasOrder"]').checked = false; }
         renderChips();
@@ -2006,14 +2043,17 @@ async function pageDrivers(main) {
         if (e.target.closest('[data-drv-copy]') || e.target.closest('[data-action="open-driver"]')) return;
         const key = tr.dataset.key;
         const rec = findRecordByKey(key);
-        if (rec) openDriverDrawer(rec);
+        const id = rec && (rec.driver_id || rec.user_id);
+        if (id) navigate('#/drivers/' + encodeURIComponent(id));
       };
     });
     slot.querySelectorAll('[data-action="open-driver"]').forEach(b => {
       b.onclick = (e) => {
         e.stopPropagation();
-        const rec = findRecordByKey(b.dataset.key);
-        if (rec) openDriverDrawer(rec);
+        const key = b.dataset.key;
+        const rec = findRecordByKey(key);
+        const id = rec && (rec.driver_id || rec.user_id);
+        if (id) navigate('#/drivers/' + encodeURIComponent(id));
       };
     });
     slot.querySelectorAll('[data-drv-copy]').forEach(b => {
@@ -2386,17 +2426,200 @@ function openDriverDrawer(rec) {
   });
 }
 
+/* ---------- 7.3b Driver Detail Page ---------- */
+async function pageDriverDetail(main, driverId) {
+  main.innerHTML = `
+    <div class="ord-root">
+      <div class="drv-detail-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title" id="dd-name">Загрузка...</h1>
+            <p class="dash-subtitle" id="dd-sub">${escapeHtml(driverId)}</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-ghost btn-sm" id="dd-back">${icon('arrow-left','w-4 h-4')} Назад к списку</button>
+          </div>
+        </header>
+        <div id="dd-content">${LoadingState('Загрузка данных водителя...')}</div>
+      </div>
+    </div>`;
+  $('#dd-back', main).onclick = () => navigate('#/drivers');
+
+  async function load() {
+    const slot = $('#dd-content', main);
+    slot.innerHTML = LoadingState();
+
+    let detail, ordersData, reviewsData;
+    try {
+      [detail, ordersData, reviewsData] = await Promise.all([
+        api.get('/api/v1/admin/drivers/' + encodeURIComponent(driverId)),
+        api.get('/api/v1/admin/drivers/' + encodeURIComponent(driverId) + '/orders', { query: { limit: 10, offset: 0 } }),
+        api.get('/api/v1/admin/drivers/' + encodeURIComponent(driverId) + '/reviews'),
+      ]);
+    } catch (e) {
+      slot.innerHTML = ErrorState(e.message, load);
+      return;
+    }
+
+    const d = detail;
+    const name = d.full_name || '—';
+    $('#dd-name', main).textContent = name;
+    $('#dd-sub', main).innerHTML = `${driverStatusBadge(d.status)} <span class="ord-cell-mono" style="margin-left:8px;">${escapeHtml(d.phone || '—')}</span>`;
+
+    const orders = (ordersData && ordersData.items) || [];
+    const totalOrders = d.orders_count || 0;
+    const reviews = (reviewsData && reviewsData.items) || [];
+    const reviewStats = d.reviews || {};
+
+    // --- Sections ---
+    const profileHtml = `<div class="ord-kv">
+      <div class="ord-kv-row"><div class="ord-kv-k">Driver ID</div><div class="ord-kv-v mono">${escapeHtml(d.driver_id || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">User ID</div><div class="ord-kv-v mono">${escapeHtml(d.user_id || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Телефон</div><div class="ord-kv-v mono">${escapeHtml(d.phone || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Статус</div><div class="ord-kv-v">${driverStatusBadge(d.status)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Всего заказов</div><div class="ord-kv-v">${formatBigInt(totalOrders)}</div></div>
+    </div>`;
+
+    const v = d.verification;
+    const verifHtml = v ? `<div class="ord-kv">
+      <div class="ord-kv-row"><div class="ord-kv-k">Номер машины</div><div class="ord-kv-v">${escapeHtml(v.plate || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Модель</div><div class="ord-kv-v">${escapeHtml(v.vehicle || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Тип техники</div><div class="ord-kv-v">${escapeHtml(v.vehicle_type || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Статус верификации</div><div class="ord-kv-v">${documentsBadge(v.status)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Risk</div><div class="ord-kv-v">${escapeHtml(v.risk || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Подана</div><div class="ord-kv-v">${formatDate(v.submitted_at)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Причина решения</div><div class="ord-kv-v">${escapeHtml(v.decision_reason || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Документы</div><div class="ord-kv-v">${(v.documents && v.documents.length) ? v.documents.map(doc => `<a class="drv-doc-link" href="${escapeHtml(doc)}" target="_blank" rel="noopener">📄 Документ</a>`).join(' · ') : '—'}</div></div>
+    </div>` : `<div class="ord-empty-section">Верификация не подана</div>`;
+
+    const t = d.tax_profile;
+    const taxHtml = t ? `<div class="ord-kv">
+      <div class="ord-kv-row"><div class="ord-kv-k">ИНН</div><div class="ord-kv-v mono">${escapeHtml(t.inn || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Тип</div><div class="ord-kv-v">${escapeHtml(t.taxpayer_type || '—')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Статус</div><div class="ord-kv-v">${taxBadge(t.verification_status)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Создан</div><div class="ord-kv-v">${formatDate(t.created_at)}</div></div>
+    </div>` : `<div class="ord-empty-section">Налоговый профиль не заполнен</div>`;
+
+    const w = d.wallet;
+    const walletHtml = w ? `<div class="ord-kv">
+      <div class="ord-kv-row"><div class="ord-kv-k">Доступно</div><div class="ord-kv-v num">${formatMoneyMinor(w.available)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">В обработке</div><div class="ord-kv-v num">${formatMoneyMinor(w.pending)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Задолженность</div><div class="ord-kv-v num">${formatMoneyMinor(w.debt)}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Валюта</div><div class="ord-kv-v">${escapeHtml(w.currency || 'RUB')}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Обновлён</div><div class="ord-kv-v">${formatDate(w.updated_at)}</div></div>
+    </div>` : `<div class="ord-empty-section">Кошелёк не найден</div>`;
+
+    const reviewsHtml = reviewStats.total > 0
+      ? `<div class="ord-kv">
+          <div class="ord-kv-row"><div class="ord-kv-k">Всего отзывов</div><div class="ord-kv-v">${formatBigInt(reviewStats.total)}</div></div>
+          <div class="ord-kv-row"><div class="ord-kv-k">Средний рейтинг</div><div class="ord-kv-v">${reviewStats.rating_average ? Number(reviewStats.rating_average).toFixed(2) + ' ★' : '—'}</div></div>
+        </div>
+        ${reviews.length ? `<div class="dd-reviews-list">${reviews.map(r => `
+          <div class="dd-review-item">
+            <div class="dd-review-head">
+              <span>${'★'.repeat(r.stars || 0)}${'☆'.repeat(Math.max(0, 5 - (r.stars || 0)))}</span>
+              <span class="ord-cell-mono">${escapeHtml(r.client_name || r.client_id || '—')} · ${formatDate(r.created_at)}</span>
+            </div>
+            <div class="dd-review-text">${escapeHtml(r.text || '—')}</div>
+          </div>`).join('')}</div>` : ''}`
+      : `<div class="ord-empty-section">Нет отзывов</div>`;
+
+    const ordersHtml = orders.length
+      ? `<div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr>
+            <th>Order ID</th><th>Статус</th><th>Оплата</th><th class="num">Сумма</th><th class="num">Комиссия</th><th>Создан</th>
+          </tr></thead>
+          <tbody>${orders.map(o => `<tr data-id="${escapeHtml(o.order_id)}" style="cursor:pointer">
+            <td class="mono">${shortId(o.order_id)}</td>
+            <td>${orderStatusBadge(o.status)}</td>
+            <td>${paymentMethodBadge(o.payment_method)}</td>
+            <td class="num">${formatMoneyMinor(o.price_total)}</td>
+            <td class="num">${formatMoneyMinor(o.commission_amount)}</td>
+            <td>${formatDate(o.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        <div style="margin-top:8px;"><button class="btn btn-ghost btn-sm" data-dd-orders-all="${escapeHtml(driverId)}">Все заказы →</button></div>`
+      : `<div class="ord-empty-section">Нет заказов</div>`;
+
+    const section = (title, iconName, body) => `
+      <div class="dash-card" style="margin-bottom:16px;">
+        <div class="dash-card-head">
+          <div class="ord-section-title">${icon(iconName,'kpi-icon')}<span>${escapeHtml(title)}</span></div>
+        </div>
+        <div style="padding:16px;">${body}</div>
+      </div>`;
+
+    slot.innerHTML = `
+      <div class="drv-detail-grid">
+        ${section('Профиль','user',profileHtml)}
+        ${section('Верификация','file-text',verifHtml)}
+        ${section('Налоги','receipt',taxHtml)}
+        ${section('Кошелёк','wallet',walletHtml)}
+        ${section('Отзывы','star',reviewsHtml)}
+        ${section('Заказы','shopping-cart',`<div>${ordersHtml}</div>`)}
+      </div>`;
+
+    slot.querySelectorAll('tbody tr').forEach(tr => {
+      tr.onclick = () => {
+        const id = tr.dataset.id;
+        if (id) navigate('#/orders');
+      };
+    });
+    const allOrdersBtn = slot.querySelector('[data-dd-orders-all]');
+    if (allOrdersBtn) {
+      allOrdersBtn.onclick = () => {
+        state.filters = state.filters || {};
+        state.filters.orders = Object.assign({}, state.filters.orders || {}, { driver_id: driverId, limit: 50, offset: 0 });
+        navigate('#/orders');
+      };
+    }
+  }
+  await load();
+}
+
 /* ---------- 7.4 Documents / Moderation ---------- */
+/* ---------- 7.4 Documents / Moderation ---------- */
+const documentsState = { offset: 0, limit: 50, statusFilter: '' };
+
 async function pageDocuments(main) {
-  main.innerHTML = LoadingState();
+  documentsState.offset = 0;
+  main.innerHTML = `
+    <div class="filter-bar glass">
+      <div class="filter-header">${svgIcon('filter')}<span>Фильтры модерации</span></div>
+      <div class="filter-content">
+        <div class="form-group"><label>Статус</label>
+          <select id="doc-status">
+            <option value="">Все</option>
+            <option value="pending">Ожидают</option>
+            <option value="approved">Одобрены</option>
+            <option value="rejected">Отклонены</option>
+            <option value="changes_requested">Правки</option>
+            <option value="blocked">Заблокированы</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" id="doc-apply">Применить</button>
+      </div>
+    </div>
+    <div id="doc-list">${LoadingState()}</div>`;
+  $('#doc-apply').onclick = () => { documentsState.statusFilter = $('#doc-status').value; documentsState.offset = 0; renderDocuments(main); };
+  $('#doc-status').onchange = () => $('#doc-apply').click();
+  await renderDocuments(main);
+}
+
+async function renderDocuments(main) {
+  const container = $('#doc-list', main);
+  container.innerHTML = LoadingState();
   try {
-    const data = await api.get('/api/v1/admin/driver-verifications', { query: { limit: 100 } });
-    const items = data.items || [];
-    if (items.length === 0) { main.innerHTML = EmptyState('Нет заявок на верификацию'); return; }
-    main.innerHTML = `<div class="table-wrap glass">
+    const data = await api.get('/api/v1/admin/driver-verifications', { query: { limit: 200 } });
+    let items = data.items || [];
+    if (documentsState.statusFilter) items = items.filter(v => v.status === documentsState.statusFilter);
+    const total = items.length;
+    const pageItems = items.slice(documentsState.offset, documentsState.offset + documentsState.limit);
+    if (total === 0) { container.innerHTML = EmptyState('Нет заявок на верификацию'); return; }
+    container.innerHTML = `<div class="table-wrap glass">
       <div class="table-header">
         <h3>${svgIcon('file-text')} Документы на модерации</h3>
-        <div class="table-meta">Всего заявок: ${items.length}</div>
+        <div class="table-meta">Показано: ${pageItems.length} из ${total}</div>
       </div>
       <table class="glass-table">
       <thead><tr>
@@ -2405,7 +2628,7 @@ async function pageDocuments(main) {
         <th>Статус</th><th>Подана</th>
       </tr></thead>
       <tbody>
-        ${items.map(v => `<tr data-id="${escapeHtml(v.id)}">
+        ${pageItems.map(v => `<tr data-id="${escapeHtml(v.id)}">
           <td class="mono">${shortId(v.id)}</td>
           <td>${escapeHtml(v.driver_name || '—')}</td>
           <td class="mono">${escapeHtml(v.phone || '')}</td>
@@ -2413,14 +2636,15 @@ async function pageDocuments(main) {
           <td class="mono">${escapeHtml(v.plate || '—')}</td>
           <td>${escapeHtml(v.vehicle || '—')}</td>
           <td>${escapeHtml(v.vehicle_type || '—')}</td>
-          <td>${statusBadge(v.status, { approved:'badge-success', rejected:'badge-danger', pending:'badge-warning', blocked:'badge-danger' })}</td>
+          <td>${statusBadge(v.status, { approved:'badge-success', rejected:'badge-danger', pending:'badge-warning', changes_requested:'badge-warning', blocked:'badge-danger' })}</td>
           <td>${formatDate(v.submitted_at)}</td>
         </tr>`).join('')}
       </tbody>
-    </table></div>`;
-    $$('tbody tr', main).forEach(tr => tr.onclick = () => openVerificationDrawer(items.find(v => v.id === tr.dataset.id)));
+    </table></div>
+    <div class="pagination-bar">${Pagination(total, documentsState.limit, documentsState.offset, (off) => { documentsState.offset = off; renderDocuments(main); })}</div>`;
+    $$('tbody tr', container).forEach(tr => tr.onclick = () => openVerificationDrawer(items.find(v => v.id === tr.dataset.id)));
   } catch (e) {
-    main.innerHTML = ErrorState(e.message, () => pageDocuments(main));
+    container.innerHTML = ErrorState(e.message, () => renderDocuments(main));
   }
 }
 
@@ -2504,14 +2728,92 @@ function moderationReasonModal(id, action, title) {
   ]);
 }
 
-/* ---------- 7.5 Tax Profiles (missing) ---------- */
-function pageTaxProfiles(main) {
-  main.innerHTML = `
-    <div class="card">
-      <div class="card-header"><div class="card-title">Налоговые профили</div></div>
-      ${MissingEndpointState('Backend endpoint /api/v1/admin/tax-profiles отсутствует')}
-      <p class="muted" style="margin-top:8px">Доступны только per-driver endpoints: <code>GET/PUT /api/v1/drivers/{driverID}/tax-profile</code>. Списка всех налоговых профилей и admin verify/reject пока нет.</p>
+/* ---------- 7.5 Tax Profiles ---------- */
+async function pageTaxProfiles(main) {
+  main.innerHTML = LoadingState();
+  try {
+    const data = await api.get('/api/v1/admin/tax-profiles', { query: { limit: 100 } });
+    const items = data.items || [];
+    if (items.length === 0) {
+      main.innerHTML = EmptyState('Нет налоговых профилей', 'Ни один водитель ещё не заполнил налоговые данные');
+      return;
+    }
+    main.innerHTML = `<div class="table-wrap glass">
+      <div class="table-header">
+        <h3>${svgIcon('receipt')} Налоговые профили водителей</h3>
+        <div class="table-meta">Всего: ${items.length}</div>
+      </div>
+      <table class="glass-table">
+      <thead><tr>
+        <th>Водитель</th><th>ИНН</th><th>Тип</th><th>Статус</th><th>Создан</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(p => `<tr data-driver="${escapeHtml(p.driver_id)}">
+          <td>${escapeHtml(p.full_name || p.driver_id || '—')}</td>
+          <td class="mono">${escapeHtml(p.inn || '—')}</td>
+          <td>${escapeHtml(p.taxpayer_type || '—')}</td>
+          <td>${statusBadge(p.verification_status, { verified:'badge-success', rejected:'badge-danger', pending:'badge-warning', changes_requested:'badge-warning' })}</td>
+          <td>${formatDate(p.created_at)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+    $$('tbody tr', main).forEach(tr => tr.onclick = () => openTaxProfileDrawer(items.find(p => p.driver_id === tr.dataset.driver)));
+  } catch (e) {
+    main.innerHTML = ErrorState(e.message, () => pageTaxProfiles(main));
+  }
+}
+
+function openTaxProfileDrawer(p) {
+  if (!p) return;
+  const body = `
+    <div class="drawer-section"><h3>Водитель</h3>
+      <div class="kv">
+        <div class="k">ID</div><div class="mono">${escapeHtml(p.driver_id)}</div>
+        <div class="k">Имя</div><div>${escapeHtml(p.full_name || '—')}</div>
+        <div class="k">ИНН</div><div class="mono">${escapeHtml(p.inn || '—')}</div>
+        <div class="k">Тип налогоплательщика</div><div>${escapeHtml(p.taxpayer_type || '—')}</div>
+        <div class="k">Статус</div><div>${statusBadge(p.verification_status)}</div>
+        <div class="k">Создан</div><div>${formatDate(p.created_at)}</div>
+        <div class="k">Обновлён</div><div>${formatDate(p.updated_at)}</div>
+      </div>
     </div>`;
+  const canVerify = p.verification_status !== 'verified';
+  const footer = [];
+  if (canVerify) footer.push('<button class="btn btn-success" id="tp-verify">Верифицировать</button>');
+  footer.push('<button class="btn btn-warning" id="tp-changes">Запросить правки</button>');
+  footer.push('<button class="btn btn-danger" id="tp-reject">Отклонить</button>');
+  openDrawer('Налоговый профиль ' + shortId(p.driver_id), body, footer.join(''));
+  if (canVerify) $('#tp-verify').onclick = () => taxProfileVerify(p.driver_id);
+  $('#tp-changes').onclick = () => taxProfileReasonModal(p.driver_id, 'request-changes', 'Запросить правки');
+  $('#tp-reject').onclick = () => taxProfileReasonModal(p.driver_id, 'reject', 'Отклонить профиль');
+}
+
+function taxProfileVerify(driverId) {
+  openModal('Верификация профиля', '<p>Подтвердить налоговый профиль водителя?</p>', [
+    { label: 'Отмена', onClick: ({ close }) => close() },
+    { label: 'Верифицировать', cls: 'btn-success', onClick: async ({ close }) => {
+      try {
+        await api.post(`/api/v1/admin/tax-profiles/${encodeURIComponent(driverId)}/verify`);
+        toast('Профиль верифицирован', 'success');
+        close(); closeDrawer(); pageTaxProfiles($('.main'));
+      } catch (e) { toast(e.message, 'error'); }
+    }},
+  ]);
+}
+
+function taxProfileReasonModal(driverId, action, title) {
+  openModal(title, `<div class="form-group"><label>Комментарий</label><textarea name="comments"></textarea></div>`, [
+    { label: 'Отмена', onClick: ({ close }) => close() },
+    { label: 'Подтвердить', cls: 'btn-danger', onClick: async ({ getInput, close }) => {
+      const comments = (getInput('comments') || '').trim();
+      if (!comments) { toast('Комментарий обязателен', 'warning'); return; }
+      try {
+        await api.post(`/api/v1/admin/tax-profiles/${encodeURIComponent(driverId)}/${action}`, { comments });
+        toast('Готово', 'success');
+        close(); closeDrawer(); pageTaxProfiles($('.main'));
+      } catch (e) { toast(e.message, 'error'); }
+    }},
+  ]);
 }
 
 /* ---------- 7.6 Service Areas (autocomplete + interactive map + driver layer) ---------- */
@@ -3048,7 +3350,7 @@ function pageServiceAreas(main) {
 }
 
 /* ---------- Helpers for finance report-shaped tabs ---------- */
-async function loadFinanceReport(reportType, container) {
+async function loadFinanceReport(reportType, container, onRender) {
   container.innerHTML = LoadingState(`Загрузка отчёта "${reportType}"...`);
   try {
     const data = await api.get('/api/v1/admin/finance/' + reportType);
@@ -3063,11 +3365,15 @@ async function loadFinanceReport(reportType, container) {
       container.innerHTML = EmptyState('Отчёт пуст - нет заголовков');
       return null;
     }
-    container.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr>${header.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
-      <tbody>${body.map(r => `<tr class="no-hover">${r.map(c => `<td>${escapeHtml(c || '—')}</td>`).join('')}</tr>`).join('')}</tbody>
-    </table></div>
-    <div style="margin-top:8px" class="muted">Записей: ${body.length}</div>`;
+    if (onRender) {
+      onRender(container, header, body);
+    } else {
+      container.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr>${header.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+        <tbody>${body.map(r => `<tr class="no-hover">${r.map(c => `<td>${escapeHtml(c || '—')}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <div style="margin-top:8px" class="muted">Записей: ${body.length}</div>`;
+    }
     return { header, body };
   } catch (e) {
     console.error(`Finance report ${reportType} error:`, e);
@@ -3077,84 +3383,326 @@ async function loadFinanceReport(reportType, container) {
 }
 
 /* ---------- 7.7 Payments ---------- */
-function pagePayments(main) {
-  main.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-header"><div class="card-title">Платежи</div></div>
-      <p style="margin:0">Источник данных: отчёт сервера. Структурированные фильтры пока не поддерживаются.</p>
-    </div>
-    <div id="rep"></div>`;
-  loadFinanceReport('payments', $('#rep', main));
+const paymentsState = { offset: 0, limit: 50 };
+
+async function pagePayments(main) {
+  paymentsState.offset = 0;
+  const render = () => {
+    main.innerHTML = `
+      <div class="ord-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title">Платежи</h1>
+            <p class="dash-subtitle">Все платежи платформы</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-secondary btn-sm" id="py-refresh">${icon('refresh-cw','w-4 h-4')} Обновить</button>
+          </div>
+        </header>
+        <div id="py-table">${LoadingState()}</div>
+      </div>`;
+    $('#py-refresh', main).onclick = () => load();
+    load();
+  };
+  async function load() {
+    const slot = $('#py-table', main);
+    slot.innerHTML = LoadingState();
+    try {
+      const data = await api.get('/api/v1/admin/finance-v2/payments', { query: { limit: paymentsState.limit, offset: paymentsState.offset } });
+      const items = data.items || [];
+      const total = data.total || 0;
+      if (!items.length) { slot.innerHTML = EmptyState('Нет платежей'); return; }
+      slot.innerHTML = `<div class="ord-table-card">
+        <div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr><th>Payment ID</th><th>Order</th><th>Provider</th><th>Метод</th><th class="num">Сумма</th><th>Статус</th><th>Создан</th></tr></thead>
+          <tbody>${items.map(p => `<tr class="no-hover">
+            <td class="mono">${shortId(p.id)}</td>
+            <td class="mono">${shortId(p.order_id)}</td>
+            <td>${escapeHtml(p.provider || '—')}</td>
+            <td>${escapeHtml(p.payment_method || '—')}</td>
+            <td class="num">${formatMoneyMinor(p.amount)}</td>
+            <td>${paymentStatusBadge(p.status)}</td>
+            <td>${formatDate(p.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${Pagination(total, paymentsState.limit, paymentsState.offset, (off) => { paymentsState.offset = off; load(); })}
+      </div>`;
+    } catch (e) { slot.innerHTML = ErrorState(e.message, load); }
+  }
+  render();
 }
 
 /* ---------- 7.8 Payouts ---------- */
 async function pagePayouts(main) {
   main.innerHTML = `
-    <p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/payouts</code>. Approve/Reject — по ID через кнопки ниже.</p>
-    <div id="rep" class="mb-16"></div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Действия по payout</div></div>
-      <div class="row">
-        <div class="form-group" style="flex:1 1 240px"><label>Payout ID</label><input name="pid" /></div>
-        <button class="btn btn-success" id="po-appr">Одобрить</button>
-        <button class="btn btn-danger"  id="po-rej">Отклонить</button>
-      </div>
-    </div>`;
-  loadFinanceReport('payouts', $('#rep', main));
-  $('#po-appr', main).onclick = async () => {
-    const pid = $('[name="pid"]', main).value.trim();
-    if (!pid) { toast('Укажите Payout ID', 'warning'); return; }
-    confirmDialog('Approve payout ' + pid + '?', async () => {
-      try { await api.post(`/api/v1/admin/finance/payouts/${encodeURIComponent(pid)}/approve`, {}); toast('Approved', 'success'); loadFinanceReport('payouts', $('#rep', main)); }
-      catch (e) { toast(e.message, 'error'); }
-    });
-  };
-  $('#po-rej', main).onclick = () => {
-    const pid = $('[name="pid"]', main).value.trim();
-    if (!pid) { toast('Укажите Payout ID', 'warning'); return; }
-    openModal('Reject payout', `<div class="form-group"><label>Причина (мин. 8 символов)</label><textarea name="reason"></textarea></div>`, [
-      { label: 'Отмена', onClick: ({ close }) => close() },
-      { label: 'Reject', cls: 'btn-danger', onClick: async ({ getInput, close }) => {
-        const reason = (getInput('reason') || '').trim();
-        if (reason.length < 8) { toast('Минимум 8 символов', 'warning'); return; }
-        try { await api.post(`/api/v1/admin/finance/payouts/${encodeURIComponent(pid)}/reject`, { reason }); toast('Rejected', 'success'); close(); loadFinanceReport('payouts', $('#rep', main)); }
-        catch (e) { toast(e.message, 'error'); }
-      }},
-    ]);
-  };
+    <p class="muted mb-12">Источник: отчёт <code>/api/v1/admin/finance/payouts</code>. Кнопки действий в таблице.</p>
+    <div id="rep" class="mb-16"></div>`;
+  await loadFinanceReport('payouts', $('#rep', main), payoutTableRender);
+}
+
+function payoutTableRender(container, header, body) {
+  const idIdx = 0;
+  const statusIdx = header.findIndex(h => h.toLowerCase().includes('статус') || h.toLowerCase().includes('status'));
+  container.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>${header.map(h => `<th>${escapeHtml(h)}</th>`).join('')}<th>Действия</th></tr></thead>
+    <tbody>${body.map((r, i) => {
+      const pid = r[idIdx] || '';
+      const pstatus = statusIdx >= 0 ? (r[statusIdx] || '') : '';
+      const canApprove = pstatus.toLowerCase() === 'created' || pstatus.toLowerCase() === 'processing' || pstatus.toLowerCase() === 'pending';
+      return `<tr>
+        ${r.map(c => `<td>${escapeHtml(c || '—')}</td>`).join('')}
+        <td>${canApprove ? `<button class="btn btn-success btn-xs po-appr" data-pid="${escapeHtml(pid)}">Одобрить</button> ` : ''}
+            <button class="btn btn-danger btn-xs po-rej" data-pid="${escapeHtml(pid)}">Отклонить</button>
+            <span class="po-msg" style="display:none;font-size:12px;color:var(--success);"></span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>
+  <div style="margin-top:8px" class="muted">Записей: ${body.length}</div>`;
+
+  $$('.po-appr', container).forEach(btn => {
+    btn.onclick = async () => {
+      const pid = btn.dataset.pid;
+      const msg = btn.parentElement.querySelector('.po-msg');
+      btn.disabled = true; btn.textContent = '...';
+          try { await api.post(`/api/v1/admin/finance/payouts/${encodeURIComponent(pid)}/approve`, {}); toast('Выплата одобрена', 'success'); pagePayouts($('.main-content')); }
+      catch (e) { msg.textContent = e.message; msg.style.display = 'inline'; btn.disabled = false; btn.textContent = 'Одобрить'; }
+    };
+  });
+  $$('.po-rej', container).forEach(btn => {
+    btn.onclick = () => {
+      const pid = btn.dataset.pid;
+      openModal('Отклонить выплату', `<div class="form-group"><label>Причина (мин. 8 символов)</label><textarea name="reason"></textarea></div>`, [
+        { label: 'Отмена', onClick: ({ close }) => close() },
+        { label: 'Отклонить', cls: 'btn-danger', onClick: async ({ getInput, close }) => {
+          const reason = (getInput('reason') || '').trim();
+          if (reason.length < 8) { toast('Минимум 8 символов', 'warning'); return; }
+          try { await api.post(`/api/v1/admin/finance/payouts/${encodeURIComponent(pid)}/reject`, { reason }); toast('Выплата отклонена', 'success'); close(); pagePayouts($('.main')); }
+          catch (e) { toast(e.message, 'error'); }
+        }},
+      ]);
+    };
+  });
 }
 
 /* ---------- 7.9 Wallets ---------- */
-function pageWallets(main) {
-  main.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-header"><div class="card-title">Кошельки водителей</div></div>
-      <p style="margin:0">Балансы и задолженности по комиссии. Поле «Расчёты с Tow Truck» показывает долг водителя.</p>
-    </div>
-    <div id="rep"></div>`;
-  loadFinanceReport('wallets', $('#rep', main));
+const walletsState = { offset: 0, limit: 50, search: '' };
+
+async function pageWallets(main) {
+  walletsState.offset = 0;
+  const render = () => {
+    main.innerHTML = `
+      <div class="ord-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title">Кошельки водителей</h1>
+            <p class="dash-subtitle">Балансы и задолженности</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-secondary btn-sm" id="wl-refresh">${icon('refresh-cw','w-4 h-4')} Обновить</button>
+          </div>
+        </header>
+        <div class="ord-filter-card" style="margin-bottom:16px;">
+          <div class="ord-filter-head">
+            <div class="ord-filter-title">${icon('settings','kpi-icon')} Фильтры</div>
+            <div class="ord-filter-actions">
+              <button class="btn btn-primary btn-sm" id="wl-apply">Применить</button>
+              <button class="btn btn-ghost btn-sm" id="wl-reset">Сбросить</button>
+            </div>
+          </div>
+          <div class="ord-filter-grid" style="grid-template-columns:1fr;">
+            <label class="ord-field"><span>Поиск по Driver ID</span><input name="search" placeholder="UUID водителя" /></label>
+          </div>
+        </div>
+        <div id="wl-table">${LoadingState()}</div>
+      </div>`;
+    const inp = main.querySelector('[name="search"]');
+    if (inp) inp.value = walletsState.search;
+    $('#wl-refresh', main).onclick = () => load();
+    $('#wl-apply', main).onclick = () => { walletsState.search = (main.querySelector('[name="search"]').value || '').trim(); walletsState.offset = 0; load(); };
+    $('#wl-reset', main).onclick = () => { walletsState.search = ''; walletsState.offset = 0; load(); const i = main.querySelector('[name="search"]'); if (i) i.value = ''; };
+    load();
+  };
+  async function load() {
+    const slot = $('#wl-table', main);
+    slot.innerHTML = LoadingState();
+    try {
+      const q = { limit: walletsState.limit, offset: walletsState.offset };
+      if (walletsState.search) q.search = walletsState.search;
+      const data = await api.get('/api/v1/admin/finance-v2/wallets', { query: q });
+      const items = data.items || [];
+      const total = data.total || 0;
+      if (!items.length) { slot.innerHTML = EmptyState('Нет кошельков'); return; }
+      slot.innerHTML = `<div class="ord-table-card">
+        <div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr><th>Driver ID</th><th class="num">Баланс</th><th class="num">В обработке</th><th class="num">Долг</th><th>Валюта</th><th>Обновлён</th></tr></thead>
+          <tbody>${items.map(w => `<tr class="no-hover">
+            <td class="mono">${shortId(w.driver_id)}</td>
+            <td class="num">${formatMoneyMinor(w.available_balance)}</td>
+            <td class="num">${formatMoneyMinor(w.pending_balance)}</td>
+            <td class="num">${formatMoneyMinor(w.debt_balance)}</td>
+            <td>${escapeHtml(w.currency || 'RUB')}</td>
+            <td>${formatDate(w.updated_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${Pagination(total, walletsState.limit, walletsState.offset, (off) => { walletsState.offset = off; load(); })}
+      </div>`;
+    } catch (e) { slot.innerHTML = ErrorState(e.message, load); }
+  }
+  render();
 }
 
 /* ---------- 7.10 Transactions ---------- */
-function pageTransactions(main) {
-  main.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-header"><div class="card-title">Транзакции по кошелькам</div></div>
-      <p style="margin:0">Все операции по кошелькам водителей: доходы, удержания, выплаты.</p>
-    </div>
-    <div id="rep"></div>`;
-  loadFinanceReport('transactions', $('#rep', main));
+const transactionsState = { offset: 0, limit: 50, type: '', driverId: '' };
+
+async function pageTransactions(main) {
+  transactionsState.offset = 0;
+  const render = () => {
+    main.innerHTML = `
+      <div class="ord-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title">Транзакции по кошелькам</h1>
+            <p class="dash-subtitle">Операции по кошелькам водителей</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-secondary btn-sm" id="tx-refresh">${icon('refresh-cw','w-4 h-4')} Обновить</button>
+          </div>
+        </header>
+        <div class="ord-filter-card" style="margin-bottom:16px;">
+          <div class="ord-filter-head">
+            <div class="ord-filter-title">${icon('settings','kpi-icon')} Фильтры</div>
+            <div class="ord-filter-actions">
+              <button class="btn btn-primary btn-sm" id="tx-apply">Применить</button>
+              <button class="btn btn-ghost btn-sm" id="tx-reset">Сбросить</button>
+            </div>
+          </div>
+          <div class="ord-filter-grid">
+            <label class="ord-field"><span>Тип</span>
+              <select name="type">
+                <option value="">Все</option>
+                <option value="commission">Комиссия</option>
+                <option value="cash_commission_debt">Долг комиссии</option>
+                <option value="debt_repayment">Погашение долга</option>
+                <option value="payout">Выплата</option>
+                <option value="order_payment">Оплата заказа</option>
+                <option value="subscription">Подписка</option>
+              </select>
+            </label>
+            <label class="ord-field"><span>Driver ID</span><input name="driver_id" placeholder="UUID водителя" /></label>
+          </div>
+        </div>
+        <div id="tx-table">${LoadingState()}</div>
+      </div>`;
+    if (transactionsState.type) { const s = main.querySelector('[name="type"]'); if (s) s.value = transactionsState.type; }
+    if (transactionsState.driverId) { const i = main.querySelector('[name="driver_id"]'); if (i) i.value = transactionsState.driverId; }
+    $('#tx-refresh', main).onclick = () => load();
+    $('#tx-apply', main).onclick = () => { transactionsState.type = main.querySelector('[name="type"]').value; transactionsState.driverId = (main.querySelector('[name="driver_id"]').value || '').trim(); transactionsState.offset = 0; load(); };
+    $('#tx-reset', main).onclick = () => { transactionsState.type = ''; transactionsState.driverId = ''; transactionsState.offset = 0; const i = main.querySelector('[name="driver_id"]'); if (i) i.value = ''; main.querySelector('[name="type"]').value = ''; load(); };
+    load();
+  };
+  async function load() {
+    const slot = $('#tx-table', main);
+    slot.innerHTML = LoadingState();
+    try {
+      const q = { limit: transactionsState.limit, offset: transactionsState.offset };
+      if (transactionsState.type) q.type = transactionsState.type;
+      if (transactionsState.driverId) q.driver_id = transactionsState.driverId;
+      const data = await api.get('/api/v1/admin/finance-v2/transactions', { query: q });
+      const items = data.items || [];
+      const total = data.total || 0;
+      if (!items.length) { slot.innerHTML = EmptyState('Нет транзакций'); return; }
+      slot.innerHTML = `<div class="ord-table-card">
+        <div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr><th>Driver</th><th>Тип</th><th>Направление</th><th class="num">Сумма</th><th>Статус</th><th>Описание</th><th>Создан</th></tr></thead>
+          <tbody>${items.map(t => `<tr class="no-hover">
+            <td class="mono">${shortId(t.driver_id)}</td>
+            <td>${escapeHtml(t.type || '—')}</td>
+            <td>${escapeHtml(t.direction || '—')}</td>
+            <td class="num">${formatMoneyMinor(t.amount)}</td>
+            <td>${paymentStatusBadge(t.status)}</td>
+            <td>${escapeHtml(t.description || '—')}</td>
+            <td>${formatDate(t.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${Pagination(total, transactionsState.limit, transactionsState.offset, (off) => { transactionsState.offset = off; load(); })}
+      </div>`;
+    } catch (e) { slot.innerHTML = ErrorState(e.message, load); }
+  }
+  render();
 }
 
 /* ---------- 7.11 Subscriptions ---------- */
-function pageSubscriptions(main) {
-  main.innerHTML = `
-    <div class="card mb-16">
-      <div class="card-header"><div class="card-title">Подписки водителей</div></div>
-      <p style="margin:0">Подписки водителей на премиум-функции. Подписка не обязательна для работы в сервисе.</p>
-    </div>
-    <div id="rep"></div>`;
-  loadFinanceReport('subscriptions', $('#rep', main));
+const subscriptionsState = { offset: 0, limit: 50, status: '' };
+
+async function pageSubscriptions(main) {
+  subscriptionsState.offset = 0;
+  const render = () => {
+    main.innerHTML = `
+      <div class="ord-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title">Подписки водителей</h1>
+            <p class="dash-subtitle">Премиум-подписки водителей</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-secondary btn-sm" id="sb-refresh">${icon('refresh-cw','w-4 h-4')} Обновить</button>
+          </div>
+        </header>
+        <div class="ord-filter-card" style="margin-bottom:16px;">
+          <div class="ord-filter-head">
+            <div class="ord-filter-title">${icon('settings','kpi-icon')} Фильтры</div>
+            <div class="ord-filter-actions">
+              <button class="btn btn-primary btn-sm" id="sb-apply">Применить</button>
+              <button class="btn btn-ghost btn-sm" id="sb-reset">Сбросить</button>
+            </div>
+          </div>
+          <div class="ord-filter-grid" style="grid-template-columns:1fr;">
+            <label class="ord-field"><span>Статус</span>
+              <select name="status">
+                <option value="">Все</option>
+                <option value="active">Активна</option>
+                <option value="cancelled">Отменена</option>
+                <option value="expired">Истекла</option>
+                <option value="pending">Ожидает</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div id="sb-table">${LoadingState()}</div>
+      </div>`;
+    if (subscriptionsState.status) { const s = main.querySelector('[name="status"]'); if (s) s.value = subscriptionsState.status; }
+    $('#sb-refresh', main).onclick = () => load();
+    $('#sb-apply', main).onclick = () => { subscriptionsState.status = main.querySelector('[name="status"]').value; subscriptionsState.offset = 0; load(); };
+    $('#sb-reset', main).onclick = () => { subscriptionsState.status = ''; subscriptionsState.offset = 0; main.querySelector('[name="status"]').value = ''; load(); };
+    load();
+  };
+  async function load() {
+    const slot = $('#sb-table', main);
+    slot.innerHTML = LoadingState();
+    try {
+      const q = { limit: subscriptionsState.limit, offset: subscriptionsState.offset };
+      if (subscriptionsState.status) q.status = subscriptionsState.status;
+      const data = await api.get('/api/v1/admin/finance-v2/subscriptions', { query: q });
+      const items = data.items || [];
+      const total = data.total || 0;
+      if (!items.length) { slot.innerHTML = EmptyState('Нет подписок'); return; }
+      slot.innerHTML = `<div class="ord-table-card">
+        <div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr><th>Driver ID</th><th>Plan</th><th class="num">Сумма</th><th>Валюта</th><th>Статус</th><th>Создан</th></tr></thead>
+          <tbody>${items.map(s => `<tr class="no-hover">
+            <td class="mono">${shortId(s.driver_id)}</td>
+            <td>${escapeHtml(s.plan_id || '—')}</td>
+            <td class="num">${formatMoneyMinor(s.amount)}</td>
+            <td>${escapeHtml(s.currency || 'RUB')}</td>
+            <td>${statusBadge(s.status, { active:'badge-success', cancelled:'badge-muted', expired:'badge-warning', pending:'badge-warning' })}</td>
+            <td>${formatDate(s.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${Pagination(total, subscriptionsState.limit, subscriptionsState.offset, (off) => { subscriptionsState.offset = off; load(); })}
+      </div>`;
+    } catch (e) { slot.innerHTML = ErrorState(e.message, load); }
+  }
+  render();
 }
 
 /* ---------- 7.12 Refunds ---------- */
@@ -3262,117 +3810,542 @@ function pageReports(main) {
 }
 
 /* ---------- 7.14 Reviews ---------- */
+const reviewsState = { offset: 0, limit: 50, stars: '', driverQuery: '' };
+
 async function pageReviews(main) {
-  main.innerHTML = LoadingState();
+  reviewsState.offset = 0;
+  main.innerHTML = `
+    <div class="filter-bar glass">
+      <div class="filter-header">${svgIcon('filter')}<span>Фильтры отзывов</span></div>
+      <div class="filter-content">
+        <div class="form-group"><label>Звёзды</label><select id="rv-stars"><option value="">Все</option><option value="5">5 ★</option><option value="4">4 ★</option><option value="3">3 ★</option><option value="2">2 ★</option><option value="1">1 ★</option></select></div>
+        <div class="form-group"><label>Поиск по водителю</label><input id="rv-driver" placeholder="ID или имя" /></div>
+        <button class="btn btn-secondary" id="rv-apply">Применить</button>
+      </div>
+    </div>
+    <div id="rv-list">${LoadingState()}</div>`;
+  $('#rv-apply').onclick = () => { reviewsState.stars = $('#rv-stars').value; reviewsState.driverQuery = $('#rv-driver').value.trim(); reviewsState.offset = 0; renderReviews(main); };
+  $('#rv-stars').onchange = () => $('#rv-apply').click();
+  await renderReviews(main);
+}
+
+async function renderReviews(main) {
+  const container = $('#rv-list', main);
+  container.innerHTML = LoadingState();
   try {
-    const data = await api.get('/api/v1/admin/reviews', { query: { limit: 100 } });
+    const q = { limit: reviewsState.limit, offset: reviewsState.offset };
+    if (reviewsState.stars) q.stars = reviewsState.stars;
+    if (reviewsState.driverQuery) q.driver_query = reviewsState.driverQuery;
+    const data = await api.get('/api/v1/admin/reviews', { query: q });
     const items = data.items || [];
-    if (items.length === 0) { main.innerHTML = EmptyState(); return; }
-    main.innerHTML = `<p class="muted mb-12">Read-only — действий модерации в backend нет.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>ID</th><th>Order</th><th>Клиент</th><th>Водитель</th><th>★</th><th>Комментарий</th><th>Создан</th></tr></thead>
+    const total = data.total || items.length;
+    if (items.length === 0) { container.innerHTML = EmptyState('Нет отзывов'); return; }
+
+    async function actionReview(reviewId, action, label) {
+      try {
+        await api.post(`/api/v1/admin/reviews/${encodeURIComponent(reviewId)}/${action}`, {});
+        toast(label, 'success');
+        renderReviews(main);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteReview(reviewId) {
+      try {
+        await api.del(`/api/v1/admin/reviews/${encodeURIComponent(reviewId)}`);
+        toast('Отзыв удалён', 'success');
+        renderReviews(main);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    container.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>Order</th><th>Клиент</th><th>Водитель</th><th>★</th><th>Комментарий</th><th>Статус</th><th>Создан</th><th>Действия</th></tr></thead>
       <tbody>${items.map(r => `<tr class="no-hover">
         <td class="mono">${shortId(r.id)}</td>
         <td class="mono">${shortId(r.order_id)}</td>
         <td>${escapeHtml(r.client_name || r.client_id || '—')}</td>
         <td>${escapeHtml(r.driver_name || r.driver_id || '—')}</td>
-        <td>${r.stars ?? '—'}</td>
+        <td>${'★'.repeat(r.stars || 0)}${'☆'.repeat(Math.max(0, 5 - (r.stars || 0)))}</td>
         <td>${escapeHtml(r.text || '')}</td>
+        <td>${r.is_hidden ? '<span class="badge badge-muted">Скрыт</span>' : '<span class="badge badge-success">Виден</span>'}</td>
         <td>${formatDate(r.created_at)}</td>
+        <td class="ord-cell-actions">
+          ${r.is_hidden
+            ? `<button class="btn btn-ghost btn-xs" onclick="(async()=>{await actionReview('${escapeHtml(r.id)}','show','Отзыв показан')})()">Показать</button>`
+            : `<button class="btn btn-ghost btn-xs" onclick="(async()=>{await actionReview('${escapeHtml(r.id)}','hide','Отзыв скрыт')})()">Скрыть</button>`}
+          <button class="btn btn-danger btn-xs" onclick="if(confirm('Удалить отзыв?')){deleteReview('${escapeHtml(r.id)}')}">Удалить</button>
+        </td>
       </tr>`).join('')}</tbody>
-    </table></div>`;
-  } catch (e) { main.innerHTML = ErrorState(e.message, () => pageReviews(main)); }
+    </table></div>
+    <div class="pagination-bar">${Pagination(total, reviewsState.limit, reviewsState.offset, (off) => { reviewsState.offset = off; renderReviews(main); })}</div>`;
+  } catch (e) { container.innerHTML = ErrorState(e.message, () => renderReviews(main)); }
 }
 
 /* ---------- 7.15 Users ---------- */
+const usersState = { offset: 0, limit: 50, all: [] };
+
 async function pageUsers(main) {
+  usersState.offset = 0;
   main.innerHTML = `
     <div class="filter-bar glass">
-      <div class="filter-header">
-        ${svgIcon('filter')}
-        <span>Фильтры пользователей</span>
-      </div>
+      <div class="filter-header">${svgIcon('filter')}<span>Фильтры пользователей</span></div>
       <div class="filter-content">
         <div class="form-group"><label>Роль</label>
-          <select name="role">
-            <option value="">Все</option>
-            <option value="client">client</option>
-            <option value="driver">driver</option>
-            <option value="admin">admin</option>
-          </select>
+          <select name="role"><option value="">Все</option><option value="client">client</option><option value="driver">driver</option><option value="admin">admin</option></select>
         </div>
         <div class="form-group" style="flex:1 1 240px"><label>Поиск</label><input name="search" placeholder="имя или телефон" /></div>
       </div>
     </div>
     <div id="usr-table">${LoadingState()}</div>`;
-  let all = [];
   try {
     const data = await api.get('/api/v1/admin/users', { query: { limit: 200 } });
-    all = data.items || [];
+    usersState.all = data.items || [];
   } catch (e) {
     $('#usr-table', main).innerHTML = ErrorState(e.message);
     return;
   }
-  function render() {
+  const filterFn = () => {
     const role = $('[name="role"]', main).value;
     const q = $('[name="search"]', main).value.toLowerCase().trim();
-    let rows = all;
+    let rows = usersState.all;
     if (role) rows = rows.filter(u => String(u.role).toLowerCase() === role);
     if (q) rows = rows.filter(u => (u.name || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q));
+    return rows;
+  };
+  function render() {
+    const filtered = filterFn();
+    const pageItems = filtered.slice(usersState.offset, usersState.offset + usersState.limit);
     const tbl = $('#usr-table', main);
-    if (rows.length === 0) { tbl.innerHTML = `<div class="table-wrap glass">${EmptyState('Пользователи не найдены')}</div>`; return; }
+    if (pageItems.length === 0) { tbl.innerHTML = `<div class="table-wrap glass">${EmptyState('Пользователи не найдены')}</div>`; return; }
     tbl.innerHTML = `<div class="table-wrap glass">
       <div class="table-header">
         <h3>${svgIcon('users')} Пользователи</h3>
-        <div class="table-meta">Найдено: ${rows.length} из ${all.length}</div>
+        <div class="table-meta">Показано: ${pageItems.length} из ${filtered.length}</div>
       </div>
       <table class="glass-table">
       <thead><tr><th>ID</th><th>Телефон</th><th>Имя</th><th>Роль</th><th>Заказов</th><th>Статус</th></tr></thead>
-      <tbody>${rows.map(u => `<tr class="no-hover">
+      <tbody>${pageItems.map(u => `<tr class="no-hover">
         <td class="mono">${shortId(u.id)}</td>
         <td class="mono">${escapeHtml(u.phone || '')}</td>
         <td>${escapeHtml(u.name || '—')}</td>
         <td>${escapeHtml(u.role || '—')}</td>
         <td class="num">${u.orders ?? 0}</td>
         <td>${statusBadge(u.status)}</td>
-      </tr>`).join('')}</tbody></table></div>`;
+      </tr>`).join('')}</tbody></table></div>
+      <div class="pagination-bar">${Pagination(filtered.length, usersState.limit, usersState.offset, (off) => { usersState.offset = off; render(); })}</div>`;
   }
-  $('[name="role"]', main).onchange = render;
-  $('[name="search"]', main).oninput = debounce(render, 200);
+  const resetPagination = () => { usersState.offset = 0; render(); };
+  $('[name="role"]', main).onchange = resetPagination;
+  $('[name="search"]', main).oninput = debounce(resetPagination, 200);
   render();
 }
 
-/* ---------- 7.16 Online Map ---------- */
-async function pageOnlineMap(main) {
-  main.innerHTML = LoadingState();
-  try {
-    const data = await api.get('/api/v1/admin/drivers-online', { query: { limit: 200 } });
-    const items = data.items || [];
-    if (items.length === 0) { main.innerHTML = EmptyState('Нет водителей онлайн'); return; }
-    main.innerHTML = `<p class="muted mb-12">Карта-провайдер в admin-web не подключён — показаны координаты в виде таблицы.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>ID</th><th>Имя</th><th>Lat</th><th>Lng</th><th>Машина</th><th>Статус</th><th>Last seen</th></tr></thead>
-      <tbody>${items.map(d => `<tr class="no-hover">
-        <td class="mono">${shortId(d.id)}</td>
-        <td>${escapeHtml(d.name || '—')}</td>
-        <td class="mono">${d.lat}</td>
-        <td class="mono">${d.lng}</td>
-        <td>${escapeHtml(d.vehicle || '—')}</td>
-        <td>${statusBadge(d.status, { online:'badge-success', busy:'badge-warning' })}</td>
-        <td>${formatDate(d.last_seen)}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
-  } catch (e) { main.innerHTML = ErrorState(e.message, () => pageOnlineMap(main)); }
+/* ---------- 7.16 Audit Log ---------- */
+const auditLogState = { offset: 0, limit: 50, entityType: '', action: '' };
+
+async function pageAuditLog(main) {
+  auditLogState.offset = 0;
+  const render = () => {
+    main.innerHTML = `
+      <div class="ord-root">
+        <header class="ord-header">
+          <div>
+            <h1 class="dash-title">Аудит модерации</h1>
+            <p class="dash-subtitle">Журнал действий модераторов</p>
+          </div>
+          <div class="ord-header-meta">
+            <button class="btn btn-secondary btn-sm" id="al-refresh">${icon('refresh-cw','w-4 h-4')} Обновить</button>
+          </div>
+        </header>
+        <div class="ord-filter-card" style="margin-bottom:16px;">
+          <div class="ord-filter-head">
+            <div class="ord-filter-title">${icon('settings','kpi-icon')} Фильтры</div>
+            <div class="ord-filter-actions">
+              <button class="btn btn-primary btn-sm" id="al-apply">Применить</button>
+              <button class="btn btn-ghost btn-sm" id="al-reset">Сбросить</button>
+            </div>
+          </div>
+          <div class="ord-filter-grid">
+            <label class="ord-field"><span>Тип сущности</span>
+              <select name="entity_type">
+                <option value="">Все</option>
+                <option value="driver_verification">Верификация</option>
+                <option value="payout">Выплата</option>
+              </select>
+            </label>
+            <label class="ord-field"><span>Действие</span>
+              <select name="action">
+                <option value="">Все</option>
+                <option value="approved">Одобрено</option>
+                <option value="rejected">Отклонено</option>
+                <option value="changes_requested">Запрошены правки</option>
+                <option value="blocked">Заблокировано</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div id="al-table">${LoadingState()}</div>
+      </div>`;
+    if (auditLogState.entityType) { const s = main.querySelector('[name="entity_type"]'); if (s) s.value = auditLogState.entityType; }
+    if (auditLogState.action) { const s = main.querySelector('[name="action"]'); if (s) s.value = auditLogState.action; }
+    $('#al-refresh', main).onclick = () => load();
+    $('#al-apply', main).onclick = () => { auditLogState.entityType = main.querySelector('[name="entity_type"]').value; auditLogState.action = main.querySelector('[name="action"]').value; auditLogState.offset = 0; load(); };
+    $('#al-reset', main).onclick = () => { auditLogState.entityType = ''; auditLogState.action = ''; auditLogState.offset = 0; main.querySelector('[name="entity_type"]').value = ''; main.querySelector('[name="action"]').value = ''; load(); };
+    load();
+  };
+  async function load() {
+    const slot = $('#al-table', main);
+    slot.innerHTML = LoadingState();
+    try {
+      const q = { limit: auditLogState.limit, offset: auditLogState.offset };
+      if (auditLogState.entityType) q.entity_type = auditLogState.entityType;
+      if (auditLogState.action) q.action = auditLogState.action;
+      const data = await api.get('/api/v1/admin/audit-log', { query: q });
+      const items = data.items || [];
+      const total = data.total || 0;
+      if (!items.length) { slot.innerHTML = EmptyState('Нет записей аудита'); return; }
+      slot.innerHTML = `<div class="ord-table-card">
+        <div class="ord-table-wrap"><table class="ord-table">
+          <thead><tr><th>ID</th><th>Сущность</th><th>Entity ID</th><th>Действие</th><th>Причина</th><th>Модератор</th><th>Когда</th></tr></thead>
+          <tbody>${items.map(e => `<tr class="no-hover">
+            <td class="mono">${shortId(e.id)}</td>
+            <td>${escapeHtml(e.entity_type || '—')}</td>
+            <td class="mono">${shortId(e.entity_id)}</td>
+            <td>${statusBadge(e.action, { approved:'badge-success', rejected:'badge-danger', changes_requested:'badge-warning', blocked:'badge-danger' })}</td>
+            <td>${escapeHtml(e.reason || '—')}</td>
+            <td class="mono">${shortId(e.moderator_id)}</td>
+            <td>${formatDate(e.created_at)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${Pagination(total, auditLogState.limit, auditLogState.offset, (off) => { auditLogState.offset = off; load(); })}
+      </div>`;
+    } catch (e) { slot.innerHTML = ErrorState(e.message, load); }
+  }
+  render();
 }
 
-/* ---------- 7.17 Settings (missing) ---------- */
-function pageSettings(main) {
+/* ---------- 7.17 Online Map ---------- */
+const onlineMapState = {
+  map: null,
+  markersById: new Map(),
+  drivers: [],
+  pollId: null,
+  ws: null,
+  selectedStatus: null,
+};
+
+async function pageOnlineMap(main) {
   main.innerHTML = `
-    <div class="card">
-      <div class="card-header"><div class="card-title">Настройки</div></div>
-      ${MissingEndpointState('Backend settings endpoint отсутствует')}
-      <p class="muted" style="margin-top:8px">В будущем здесь будут: процент комиссии, режим выплат, таймаут оффера, лимит раундов диспетчеризации, дефолтные зоны, цена подписки.</p>
+    <div class="online-map-layout">
+      <div class="card glass">
+        <div class="sa-map-toolbar">
+          <div class="sa-map-legend">
+            <span class="drv-legend-item"><span class="sa-driver-dot is-online"></span>На смене</span>
+            <span class="drv-legend-item"><span class="sa-driver-dot is-busy"></span>Занят</span>
+            <span class="drv-legend-item"><span class="sa-driver-dot is-offline"></span>Оффлайн</span>
+          </div>
+          <div class="sa-map-stats" id="om-stats"></div>
+          <div class="sa-map-controls">
+            <select id="om-status-filter" class="form-input" style="width:auto;padding:4px 8px;font-size:13px;">
+              <option value="">Все статусы</option>
+              <option value="online">На смене</option>
+              <option value="busy">Занят</option>
+              <option value="offline">Оффлайн</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" id="om-refresh">${icon('refresh-cw', 'w-4 h-4')}</button>
+          </div>
+        </div>
+        <div id="om-map" style="height:500px;border-radius:8px;"></div>
+        <div id="om-map-unavailable" style="display:none;height:500px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);">
+          ${icon('alert-triangle', 'state-icon')}
+          <div>Карта недоступна. Leaflet не загрузился.</div>
+        </div>
+      </div>
+      <div id="om-table-wrap" class="table-wrap glass" style="margin-top:16px;">
+        <div class="table-header"><h3>${svgIcon('map-pin')} Водители онлайн</h3><div class="table-meta" id="om-count">Загрузка...</div></div>
+        <table class="glass-table"><thead><tr><th>ID</th><th>Имя</th><th>Телефон</th><th>Машина</th><th>Статус</th><th>Lat</th><th>Lng</th><th>Last seen</th></tr></thead><tbody id="om-tbody"></tbody></table>
+      </div>
     </div>`;
+
+  onlineMapState.selectedStatus = null;
+
+  $('#om-status-filter').onchange = function () {
+    onlineMapState.selectedStatus = this.value || null;
+    renderOnlineMapTable();
+    drawOnlineDriverMarkers();
+  };
+
+  $('#om-refresh').onclick = () => loadOnlineDrivers(main);
+
+  if (typeof L === 'undefined') {
+    $('#om-map').style.display = 'none';
+    $('#om-map-unavailable').style.display = 'flex';
+  } else {
+    const mapEl = $('#om-map');
+    if (onlineMapState.map) { onlineMapState.map.remove(); onlineMapState.map = null; }
+    onlineMapState.map = L.map(mapEl, { zoomControl: true }).setView([55.75, 37.61], 10);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap',
+    }).addTo(onlineMapState.map);
+    onlineMapState.markersById = new Map();
+    setTimeout(() => { try { onlineMapState.map.invalidateSize(); } catch (_) {} }, 60);
+  }
+
+  await loadOnlineDrivers(main);
+
+  // WebSocket real-time updates instead of polling.
+  if (onlineMapState.pollId) clearInterval(onlineMapState.pollId);
+  connectOnlineMapWS(main);
+  // Fallback polling every 30s in case WS drops.
+  onlineMapState.pollId = setInterval(() => loadOnlineDrivers(main), 30000);
+}
+
+function connectOnlineMapWS(main) {
+  if (onlineMapState.ws) {
+    try { onlineMapState.ws.close(); } catch (_) {}
+  }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = proto + '//' + location.host + '/ws/orders?token=' + encodeURIComponent(state.token);
+  let ws;
+  try {
+    ws = new WebSocket(wsUrl);
+  } catch (_) { return; }
+  onlineMapState.ws = ws;
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'admin_driver_location') {
+        const p = msg.payload || {};
+        const driverId = p.driver_id;
+        if (!driverId || typeof p.lat !== 'number' || typeof p.lng !== 'number') return;
+        // Update existing driver or add new one
+        let drv = onlineMapState.drivers.find(d => d.driver_id === driverId);
+        if (drv) {
+          drv.lat = p.lat;
+          drv.lng = p.lng;
+          drv.last_seen_at = p.timestamp || new Date().toISOString();
+        } else {
+          onlineMapState.drivers.push({
+            driver_id: driverId,
+            full_name: '',
+            phone: '',
+            vehicle_plate: '',
+            status: 'online',
+            lat: p.lat,
+            lng: p.lng,
+            last_seen_at: p.timestamp || new Date().toISOString(),
+          });
+        }
+        renderOnlineMapTable();
+        drawOnlineDriverMarkers();
+      }
+    } catch (_) {}
+  };
+  ws.onclose = () => {
+    onlineMapState.ws = null;
+    // Reconnect after 5s
+    setTimeout(() => connectOnlineMapWS(main), 5000);
+  };
+  ws.onerror = () => {
+    // onclose will fire after this
+  };
+}
+
+async function loadOnlineDrivers(main) {
+  try {
+    const data = await api.get('/api/v1/admin/drivers/locations', { query: { limit: 500 } });
+    onlineMapState.drivers = Array.isArray(data) ? data : [];
+    renderOnlineMapTable();
+    drawOnlineDriverMarkers();
+  } catch (_) {
+    if (main && main.innerHTML) {
+      /* keep stale data on transient errors */
+    }
+  }
+}
+
+function omDriverStatusMeta(status) {
+  const map = {
+    online:  { color: '#22C55E', label: 'На смене',  pulse: true  },
+    busy:    { color: '#3B82F6', label: 'Занят',     pulse: false },
+    offline: { color: '#EF4444', label: 'Оффлайн',   pulse: false },
+  };
+  return map[status] || map.offline;
+}
+
+function buildOnlineDriverIcon(status) {
+  const meta = omDriverStatusMeta(status);
+  return L.divIcon({
+    className: 'sa-driver-marker',
+    html: `<div class="sa-driver-dot-wrap">${meta.pulse ? '<div class="sa-driver-pulse"></div>' : ''}<div class="sa-driver-dot is-${status}"></div></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+  });
+}
+
+function onlineDriverPopupHtml(d) {
+  const meta = omDriverStatusMeta(d.status);
+  return `<div class="sa-driver-popup">
+    <div class="sa-driver-popup-head">
+      <div class="sa-driver-avatar sa-driver-avatar-fallback">${escapeHtml((d.full_name || '?')[0])}</div>
+      <div>
+        <div class="sa-driver-popup-name">${escapeHtml(d.full_name || '—')}</div>
+        <span class="badge" style="background:${meta.color}22; color:${meta.color};">${escapeHtml(meta.label)}</span>
+      </div>
+    </div>
+    <div class="sa-driver-popup-row"><span>Телефон</span>${d.phone ? '<span>' + escapeHtml(d.phone) + '</span>' : '<span>—</span>'}</div>
+    <div class="sa-driver-popup-row"><span>Машина</span><span>${escapeHtml(d.vehicle_plate || '—')}</span></div>
+    <div class="sa-driver-popup-row"><span>Последний раз</span><span>${formatDate(d.last_seen_at)}</span></div>
+  </div>`;
+}
+
+function drawOnlineDriverMarkers() {
+  if (!onlineMapState.map) return;
+  const drivers = onlineMapState.drivers;
+  const filterStatus = onlineMapState.selectedStatus;
+  const visible = drivers.filter(d =>
+    typeof d.lat === 'number' && typeof d.lng === 'number' &&
+    (!filterStatus || d.status === filterStatus)
+  );
+
+  const seen = new Set();
+  for (const d of visible) {
+    seen.add(d.driver_id);
+    let marker = onlineMapState.markersById.get(d.driver_id);
+    if (!marker) {
+      marker = L.marker([d.lat, d.lng], { icon: buildOnlineDriverIcon(d.status) });
+      marker.bindPopup(onlineDriverPopupHtml(d), { maxWidth: 260, className: 'sa-driver-popup-wrap' });
+      marker.addTo(onlineMapState.map);
+      onlineMapState.markersById.set(d.driver_id, marker);
+      marker._omStatus = d.status;
+    } else {
+      marker.setLatLng([d.lat, d.lng]);
+      if (marker._omStatus !== d.status) {
+        marker.setIcon(buildOnlineDriverIcon(d.status));
+        marker._omStatus = d.status;
+        if (marker.isPopupOpen()) marker.setPopupContent(onlineDriverPopupHtml(d));
+      }
+    }
+  }
+  for (const [id, marker] of onlineMapState.markersById.entries()) {
+    if (!seen.has(id)) {
+      onlineMapState.map.removeLayer(marker);
+      onlineMapState.markersById.delete(id);
+    }
+  }
+
+  if (visible.length > 0) {
+    const group = L.featureGroup(Array.from(onlineMapState.markersById.values()));
+    onlineMapState.map.fitBounds(group.getBounds().pad(0.1), { animate: true, maxZoom: 14 });
+  }
+}
+
+function renderOnlineMapTable() {
+  const tbody = $('#om-tbody');
+  const count = $('#om-count');
+  if (!tbody) return;
+  const drivers = onlineMapState.drivers;
+  const filterStatus = onlineMapState.selectedStatus;
+  const filtered = filterStatus ? drivers.filter(d => d.status === filterStatus) : drivers;
+  if (count) count.textContent = 'Всего: ' + filtered.length;
+  tbody.innerHTML = filtered.map(d => `<tr class="no-hover">
+    <td class="mono">${shortId(d.driver_id)}</td>
+    <td>${escapeHtml(d.full_name || '—')}</td>
+    <td class="mono">${escapeHtml(d.phone || '—')}</td>
+    <td>${escapeHtml(d.vehicle_plate || '—')}</td>
+    <td>${statusBadge(d.status, { online:'badge-success', busy:'badge-warning', offline:'badge-muted' })}</td>
+    <td class="mono">${typeof d.lat === 'number' ? d.lat.toFixed(4) : '—'}</td>
+    <td class="mono">${typeof d.lng === 'number' ? d.lng.toFixed(4) : '—'}</td>
+    <td>${formatDate(d.last_seen_at)}</td>
+  </tr>`).join('');
+}
+
+/* ---------- 7.17 Settings ---------- */
+async function pageSettings(main) {
+  main.innerHTML = LoadingState();
+  try {
+    const data = await api.get('/api/v1/admin/settings');
+    const items = data.items || [];
+    if (items.length === 0) { main.innerHTML = EmptyState('Нет настроек'); return; }
+
+    const groups = {
+      'Финансы': ['commission_percent', 'payout_mode', 'min_withdrawal_kopecks', 'subscription_price'],
+      'Диспетчеризация': ['offer_timeout_seconds', 'dispatch_round_limit'],
+    };
+
+    const settingsMap = {};
+    for (const s of items) settingsMap[s.key] = s;
+
+    const groupHtml = Object.entries(groups).map(([groupName, keys]) => `
+      <div class="card glass" style="margin-bottom:16px;">
+        <div class="card-header"><div class="card-title">${escapeHtml(groupName)}</div></div>
+        <div class="card-body">
+          ${keys.map(key => {
+            const s = settingsMap[key];
+            if (!s) return '';
+            return `<div class="form-group" data-key="${escapeHtml(key)}">
+              <label>${escapeHtml(s.description || key)}</label>
+              <div class="settings-row">
+                <input class="form-input setting-input" value="${escapeHtml(formatSettingValue(s.value))}" />
+                <button class="btn btn-primary btn-sm setting-save">Сохранить</button>
+                <span class="setting-msg" style="display:none;margin-left:8px;font-size:13px;color:var(--success);"></span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    main.innerHTML = `
+      <div class="settings-page">
+        <div class="dash-header" style="margin-bottom:20px;">
+          <div><h1 class="dash-title">Настройки платформы</h1><p class="dash-subtitle">Управление конфигурацией Tow Truck</p></div>
+        </div>
+        ${groupHtml}
+      </div>`;
+
+    $$('.setting-save').forEach(btn => {
+      btn.onclick = async () => {
+        const group = btn.closest('.form-group');
+        const key = group.dataset.key;
+        const input = group.querySelector('.setting-input');
+        const msg = group.querySelector('.setting-msg');
+        const rawValue = input.value.trim();
+        const parsed = parseSettingValue(rawValue);
+        msg.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Сохранение...';
+        try {
+          await api.put('/api/v1/admin/settings', { key, value: parsed });
+          msg.textContent = 'Сохранено';
+          msg.style.display = 'inline';
+          msg.style.color = 'var(--success)';
+          setTimeout(() => { msg.style.display = 'none'; }, 2000);
+        } catch (e) {
+          msg.textContent = 'Ошибка: ' + e.message;
+          msg.style.display = 'inline';
+          msg.style.color = 'var(--danger)';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Сохранить';
+        }
+      };
+    });
+  } catch (e) {
+    main.innerHTML = ErrorState(e.message, () => pageSettings(main));
+  }
+}
+
+function formatSettingValue(v) {
+  if (v === null || v === undefined) return '';
+  return String(v);
+}
+
+function parseSettingValue(raw) {
+  const num = Number(raw);
+  if (!isNaN(num) && raw.trim() !== '') return num;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return raw;
 }
 
 /* ============================================================
@@ -3395,6 +4368,7 @@ const PAGE_FN = {
   'reviews':       pageReviews,
   'users':         pageUsers,
   'online-map':    pageOnlineMap,
+  'audit-log':     pageAuditLog,
   'settings':      pageSettings,
 };
 
@@ -3464,6 +4438,7 @@ function icon(name, className = 'nav-item-icon') {
     'trending-up': '<polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/>',
     'dollar-sign': '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>',
+    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/>',
   };
   return `<svg class="${className}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${icons[name] || ''}</svg>`;
 }
@@ -3491,6 +4466,7 @@ function renderShell() {
     'reviews': 'star',
     'users': 'user',
     'online-map': 'map-pin',
+    'audit-log': 'clock',
     'settings': 'settings'
   };
 

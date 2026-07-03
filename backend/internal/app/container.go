@@ -248,6 +248,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cityGeocoder := geocoding.NewNominatim()
 	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
 	driverLocationsHandler := httptransport.NewDriverLocationsHandler(driverRepo, locationRepo, serviceAreaRepo)
+	settingsRepo := postgres.NewSettingsRepository(db)
+	settingsHandler := httptransport.NewSettingsHandler(settingsRepo)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
 		driverRepo,
@@ -285,7 +287,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	)
 
 	limiter := httptransport.NewRateLimiter()
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 
@@ -696,6 +698,22 @@ CREATE INDEX IF NOT EXISTS idx_driver_tax_profiles_npd_status
 	ON driver_tax_profiles (npd_connection_status, updated_at DESC);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS fns_full_name TEXT;
+
+CREATE TABLE IF NOT EXISTS platform_settings (
+	key TEXT PRIMARY KEY,
+	value JSONB NOT NULL,
+	description TEXT NOT NULL DEFAULT '',
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO platform_settings (key, value, description) VALUES
+	('commission_percent', '15.00', 'Комиссия платформы, %'),
+	('payout_mode', '"manual"', 'Режим выплат: auto или manual'),
+	('offer_timeout_seconds', '30', 'Таймаут оффера для водителя, секунд'),
+	('dispatch_round_limit', '3', 'Лимит раундов диспетчеризации'),
+	('subscription_price', '0', 'Цена подписки для водителя, копейки'),
+	('min_withdrawal_kopecks', '100000', 'Мин. сумма вывода, копейки')
+ON CONFLICT (key) DO NOTHING;
 `
 	_, err := db.Exec(schema)
 	return err

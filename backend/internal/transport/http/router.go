@@ -19,6 +19,7 @@ func NewRouter(
 	pricingHandler *PricingHandler,
 	routingHandler *RoutingHandler,
 	adminHandler *AdminHandler,
+	settingsHandler *SettingsHandler,
 	serviceAreaHandler *ServiceAreaHandler,
 	cityHandler *CityHandler,
 	driverLocationsHandler *DriverLocationsHandler,
@@ -118,11 +119,16 @@ func NewRouter(
 				admin.Get("/driver-verifications", adminHandler.ListDriverVerifications)
 				admin.Get("/users", adminHandler.ListUsers)
 				admin.Get("/reviews", adminHandler.ListReviews)
+				admin.Post("/reviews/{reviewID}/hide", adminHandler.HideReview)
+				admin.Post("/reviews/{reviewID}/show", adminHandler.ShowReview)
+				admin.Delete("/reviews/{reviewID}", adminHandler.DeleteReview)
 				admin.Get("/drivers-online", adminHandler.ListOnlineDrivers)
 				admin.Post("/moderation/driver-verifications/{verificationID}/approve", adminHandler.ApproveDriverVerification)
 				admin.Post("/moderation/driver-verifications/{verificationID}/reject", adminHandler.RejectDriverVerification)
 				admin.Post("/moderation/driver-verifications/{verificationID}/request-changes", adminHandler.RequestDriverVerificationChanges)
 				admin.Post("/moderation/driver-verifications/{verificationID}/block", adminHandler.BlockDriverVerification)
+				admin.Post("/moderation/batch/approve", adminHandler.BatchApproveVerifications)
+				admin.Post("/moderation/batch/reject", adminHandler.BatchRejectVerifications)
 				admin.Get("/orders", adminHandler.ListAdminOrders)
 				admin.Get("/orders/{orderID}", adminHandler.GetAdminOrderDetails)
 				admin.Get("/finance/refunds", paymentHandler.AdminListRefunds)
@@ -150,6 +156,17 @@ func NewRouter(
 
 				// Live driver map.
 				admin.Get("/drivers/locations", driverLocationsHandler.List)
+				admin.Get("/drivers/{driverID}", adminHandler.GetDriverDetail)
+				admin.Get("/drivers/{driverID}/orders", adminHandler.ListDriverOrders)
+				admin.Get("/finance-v2/payments", adminHandler.ListAdminPayments)
+				admin.Get("/finance-v2/wallets", adminHandler.ListAdminWallets)
+				admin.Get("/finance-v2/transactions", adminHandler.ListAdminTransactions)
+				admin.Get("/finance-v2/subscriptions", adminHandler.ListAdminSubscriptions)
+
+				// Platform settings.
+				admin.Get("/settings", settingsHandler.List)
+				admin.Put("/settings", settingsHandler.Update)
+				admin.Get("/audit-log", adminHandler.ListAuditLog)
 			})
 		})
 	})

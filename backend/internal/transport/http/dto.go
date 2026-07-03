@@ -274,10 +274,6 @@ type CreateReviewRequest struct {
 }
 
 // DriverDocumentUploadRequest is the multipart form for POST /driver-documents/uploads.
-type DriverDocumentUploadRequest struct {
-	DocumentType string `json:"document_type" example:"passport" enums:"passport,license,vehicleDocs,vehiclePhoto,selfie"`
-}
-
 // CalculatePriceRequest is the body of POST /pricing/calculate.
 type CalculatePriceRequest struct {
 	PickupLat    float64 `json:"pickup_lat" example:"55.7522"`
@@ -296,12 +292,6 @@ type CalculateRouteRequest struct {
 // CityNameRequest is the body of POST /admin/cities/search and POST /admin/cities.
 type CityNameRequest struct {
 	Name string `json:"name" example:"Moscow"`
-}
-type DriverDocumentUploadRequest struct {
-	DocumentType string `json:"document_type" example:"passport" enums:"passport,license,vehicleDocs,vehiclePhoto,selfie"`
-}
-type NPDConnectRequest struct {
-	INN string `json:"inn" example:"1234567890"`
 }
 
 // RefundRequest is the body of POST /admin/finance/refunds.

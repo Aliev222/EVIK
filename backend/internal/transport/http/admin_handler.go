@@ -20,18 +20,88 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type AdminListPayment struct {
+	ID              string `json:"id"`
+	OrderID         string `json:"order_id"`
+	UserID          string `json:"user_id"`
+	Provider        string `json:"provider"`
+	ProviderPayment string `json:"provider_payment_id"`
+	PaymentMethod   string `json:"payment_method"`
+	Amount          int64  `json:"amount"`
+	Currency        string `json:"currency"`
+	Status          string `json:"status"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type AdminListWallet struct {
+	ID              string `json:"id"`
+	DriverID        string `json:"driver_id"`
+	Available       int64  `json:"available_balance"`
+	Pending         int64  `json:"pending_balance"`
+	Debt            int64  `json:"debt_balance"`
+	Currency        string `json:"currency"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
+type AdminListTransaction struct {
+	ID          string `json:"id"`
+	WalletID    string `json:"wallet_id"`
+	DriverID    string `json:"driver_id"`
+	OrderID     string `json:"order_id"`
+	PaymentID   string `json:"payment_id"`
+	PayoutID    string `json:"payout_id"`
+	Type        string `json:"type"`
+	Direction   string `json:"direction"`
+	Amount      int64  `json:"amount"`
+	Currency    string `json:"currency"`
+	Status      string `json:"status"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type AdminListSubscription struct {
+	ID        string `json:"id"`
+	DriverID  string `json:"driver_id"`
+	PlanID    string `json:"plan_id"`
+	PaymentID string `json:"payment_id"`
+	Amount    int64  `json:"amount"`
+	Currency  string `json:"currency"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at"`
+}
+
+type AdminAuditLogEntry struct {
+	ID           string `json:"id"`
+	EntityType   string `json:"entity_type"`
+	EntityID     string `json:"entity_id"`
+	Action       string `json:"action"`
+	Reason       string `json:"reason"`
+	ModeratorID  string `json:"moderator_id"`
+	CreatedAt    string `json:"created_at"`
+}
+
 type AdminRepository interface {
 	Overview(ctx context.Context) (admindomain.Overview, error)
 	ListDriverVerifications(ctx context.Context, limit int) ([]admindomain.DriverVerification, error)
 	UpsertDriverVerification(ctx context.Context, item admindomain.DriverVerification) error
 	DecideDriverVerification(ctx context.Context, decision admindomain.DriverVerificationDecision) error
 	ListUsers(ctx context.Context, limit int) ([]admindomain.User, error)
-	ListReviews(ctx context.Context, limit int) ([]admindomain.Review, error)
+	ListReviews(ctx context.Context, limit int, offset int, stars int, driverQuery string) ([]admindomain.Review, int64, error)
 	CreateReview(ctx context.Context, item admindomain.Review) error
 	GetDriverReviews(ctx context.Context, driverID string, limit int) ([]admindomain.Review, DriverReviewsStats, error)
 	GetOrderReview(ctx context.Context, orderID string) (*admindomain.Review, error)
+	HideReview(ctx context.Context, id string) error
+	ShowReview(ctx context.Context, id string) error
+	DeleteReview(ctx context.Context, id string) error
 	ListTaxProfiles(ctx context.Context, limit int) ([]AdminTaxProfile, error)
 	UpdateTaxProfileStatus(ctx context.Context, driverID, status, adminComments string) error
+	GetDriverDetail(ctx context.Context, driverID string) (*AdminDriverDetail, error)
+	ListDriverOrders(ctx context.Context, driverID string, limit int, offset int) ([]orderdomain.AdminOrderListItem, int64, error)
+	ListAdminPayments(ctx context.Context, limit, offset int) ([]AdminListPayment, int64, error)
+	ListAdminWallets(ctx context.Context, limit, offset int, search string) ([]AdminListWallet, int64, error)
+	ListAdminTransactions(ctx context.Context, limit, offset int, txType, driverID string) ([]AdminListTransaction, int64, error)
+	ListAdminSubscriptions(ctx context.Context, limit, offset int, status string) ([]AdminListSubscription, int64, error)
+	ListAuditLog(ctx context.Context, limit, offset int, entityType, action string) ([]AdminAuditLogEntry, int64, error)
 }
 
 type AdminTaxProfile struct {
@@ -45,6 +115,52 @@ type AdminTaxProfile struct {
 }
 
 type DriverReviewsStats struct {
+	Total         int     `json:"total"`
+	RatingAverage float64 `json:"rating_average"`
+	RatingCount   int     `json:"rating_count"`
+}
+
+type AdminDriverDetail struct {
+	DriverID     string               `json:"driver_id"`
+	UserID       string               `json:"user_id"`
+	FullName     string               `json:"full_name"`
+	Phone        string               `json:"phone"`
+	Status       string               `json:"status"`
+	OrdersCount  int64                `json:"orders_count"`
+	Verification *AdminVerificationInfo `json:"verification,omitempty"`
+	TaxProfile   *AdminTaxProfileInfo   `json:"tax_profile,omitempty"`
+	Wallet       *AdminWalletInfo       `json:"wallet,omitempty"`
+	Reviews      *AdminReviewsSummary   `json:"reviews,omitempty"`
+}
+
+type AdminVerificationInfo struct {
+	ID             string   `json:"id"`
+	Vehicle        string   `json:"vehicle"`
+	Plate          string   `json:"plate"`
+	VehicleType    string   `json:"vehicle_type"`
+	Status         string   `json:"status"`
+	Risk           string   `json:"risk"`
+	SubmittedAt    string   `json:"submitted_at"`
+	Documents      []string `json:"documents"`
+	DecisionReason *string  `json:"decision_reason"`
+}
+
+type AdminTaxProfileInfo struct {
+	INN                string `json:"inn"`
+	TaxpayerType       string `json:"taxpayer_type"`
+	VerificationStatus string `json:"verification_status"`
+	CreatedAt          string `json:"created_at"`
+}
+
+type AdminWalletInfo struct {
+	Available int64  `json:"available"`
+	Pending   int64  `json:"pending"`
+	Debt      int64  `json:"debt"`
+	Currency  string `json:"currency"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type AdminReviewsSummary struct {
 	Total         int     `json:"total"`
 	RatingAverage float64 `json:"rating_average"`
 	RatingCount   int     `json:"rating_count"`
@@ -310,10 +426,23 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 // @Tags         admin
 // @Produce      json
 // @Security     BearerAuth
+// @Param        limit        query  int     false  "Max items (default 50, max 200)"
+// @Param        offset       query  int     false  "Pagination offset"
+// @Param        stars        query  int     false  "Filter by star rating (1-5)"
+// @Param        driver_query query  string  false  "Search by driver ID or name"
 // @Success      200  {object}  map[string]any  "list of reviews"
 // @Router       /admin/reviews [get]
 func (h *AdminHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.ListReviews(r.Context(), parseAdminLimit(r, 50, 100))
+	q := r.URL.Query()
+	stars := 0
+	if s := strings.TrimSpace(q.Get("stars")); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 1 && v <= 5 {
+			stars = v
+		}
+	}
+	driverQuery := strings.TrimSpace(q.Get("driver_query"))
+
+	items, total, err := h.repo.ListReviews(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), stars, driverQuery)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -330,10 +459,79 @@ func (h *AdminHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
 			"client_name": item.ClientName,
 			"stars":       item.Stars,
 			"text":        item.Text,
+			"is_hidden":   item.IsHidden,
 			"created_at":  item.CreatedAt.Format(time.RFC3339),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  payload,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      Hide review (admin)
+// @Description  Hides a driver review from public view.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        reviewID  path  string  true  "Review ID"
+// @Success      200  {object}  map[string]any  "hidden status"
+// @Router       /admin/reviews/{reviewID}/hide [post]
+func (h *AdminHandler) HideReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := strings.TrimSpace(chi.URLParam(r, "reviewID"))
+	if reviewID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "review id is required"})
+		return
+	}
+	if err := h.repo.HideReview(r.Context(), reviewID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "hidden"})
+}
+
+// @Summary      Show review (admin)
+// @Description  Unhides a previously hidden driver review.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        reviewID  path  string  true  "Review ID"
+// @Success      200  {object}  map[string]any  "shown status"
+// @Router       /admin/reviews/{reviewID}/show [post]
+func (h *AdminHandler) ShowReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := strings.TrimSpace(chi.URLParam(r, "reviewID"))
+	if reviewID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "review id is required"})
+		return
+	}
+	if err := h.repo.ShowReview(r.Context(), reviewID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "shown"})
+}
+
+// @Summary      Delete review (admin)
+// @Description  Permanently deletes a driver review.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        reviewID  path  string  true  "Review ID"
+// @Success      200  {object}  map[string]any  "deleted status"
+// @Router       /admin/reviews/{reviewID} [delete]
+func (h *AdminHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
+	reviewID := strings.TrimSpace(chi.URLParam(r, "reviewID"))
+	if reviewID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "review id is required"})
+		return
+	}
+	if err := h.repo.DeleteReview(r.Context(), reviewID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
 }
 
 // @Summary      Submit driver verification
@@ -750,6 +948,291 @@ func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"items": payload})
+}
+
+// @Summary      Get driver detail (admin)
+// @Description  Returns full driver profile with verification, tax, wallet, orders, and reviews.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Success      200  {object}  AdminDriverDetail  "driver detail"
+// @Router       /admin/drivers/{driverID} [get]
+func (h *AdminHandler) GetDriverDetail(w http.ResponseWriter, r *http.Request) {
+	driverID := strings.TrimSpace(chi.URLParam(r, "driverID"))
+	if driverID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "driver id is required"})
+		return
+	}
+
+	detail, err := h.repo.GetDriverDetail(r.Context(), driverID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if detail == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "driver not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+// @Summary      List driver orders (admin)
+// @Description  Returns paginated orders for a specific driver.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        driverID  path  string  true  "Driver ID"
+// @Param        limit     query  int     false  "Max items (default 50, max 200)"
+// @Param        offset    query  int     false  "Pagination offset"
+// @Success      200  {object}  map[string]any  "driver orders"
+// @Router       /admin/drivers/{driverID}/orders [get]
+func (h *AdminHandler) ListDriverOrders(w http.ResponseWriter, r *http.Request) {
+	driverID := strings.TrimSpace(chi.URLParam(r, "driverID"))
+	if driverID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "driver id is required"})
+		return
+	}
+
+	items, total, err := h.repo.ListDriverOrders(r.Context(), driverID, parseAdminLimit(r, 50, 200), parseAdminOffset(r))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	payload := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, adminOrderItemJSON(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  payload,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      List payments (admin)
+// @Description  Returns paginated list of payments with filters.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit   query  int     false  "Max items (default 50, max 200)"
+// @Param        offset  query  int     false  "Pagination offset"
+// @Success      200  {object}  map[string]any  "payments list"
+// @Router       /admin/finance-v2/payments [get]
+func (h *AdminHandler) ListAdminPayments(w http.ResponseWriter, r *http.Request) {
+	items, total, err := h.repo.ListAdminPayments(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      List wallets (admin)
+// @Description  Returns paginated list of driver wallets with filters.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit   query  int     false  "Max items (default 50, max 200)"
+// @Param        offset  query  int     false  "Pagination offset"
+// @Param        search  query  string  false  "Search by driver ID"
+// @Success      200  {object}  map[string]any  "wallets list"
+// @Router       /admin/finance-v2/wallets [get]
+func (h *AdminHandler) ListAdminWallets(w http.ResponseWriter, r *http.Request) {
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	items, total, err := h.repo.ListAdminWallets(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), search)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      List transactions (admin)
+// @Description  Returns paginated list of wallet transactions with filters.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit     query  int     false  "Max items (default 50, max 200)"
+// @Param        offset    query  int     false  "Pagination offset"
+// @Param        type      query  string  false  "Filter by transaction type"
+// @Param        driver_id query  string  false  "Filter by driver ID"
+// @Success      200  {object}  map[string]any  "transactions list"
+// @Router       /admin/finance-v2/transactions [get]
+func (h *AdminHandler) ListAdminTransactions(w http.ResponseWriter, r *http.Request) {
+	txType := strings.TrimSpace(r.URL.Query().Get("type"))
+	driverID := strings.TrimSpace(r.URL.Query().Get("driver_id"))
+	items, total, err := h.repo.ListAdminTransactions(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), txType, driverID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      List subscriptions (admin)
+// @Description  Returns paginated list of driver subscriptions with filters.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit   query  int     false  "Max items (default 50, max 200)"
+// @Param        offset  query  int     false  "Pagination offset"
+// @Param        status  query  string  false  "Filter by status"
+// @Success      200  {object}  map[string]any  "subscriptions list"
+// @Router       /admin/finance-v2/subscriptions [get]
+func (h *AdminHandler) ListAdminSubscriptions(w http.ResponseWriter, r *http.Request) {
+	status := strings.TrimSpace(r.URL.Query().Get("status"))
+	items, total, err := h.repo.ListAdminSubscriptions(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), status)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+// @Summary      List audit log (admin)
+// @Description  Returns moderation audit log entries.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Param        limit       query  int     false  "Max items (default 50, max 200)"
+// @Param        offset      query  int     false  "Pagination offset"
+// @Param        entity_type query  string  false  "Filter by entity type"
+// @Param        action      query  string  false  "Filter by action"
+// @Success      200  {object}  map[string]any  "audit log entries"
+// @Router       /admin/audit-log [get]
+func (h *AdminHandler) ListAuditLog(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	entityType := strings.TrimSpace(q.Get("entity_type"))
+	action := strings.TrimSpace(q.Get("action"))
+	items, total, err := h.repo.ListAuditLog(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), entityType, action)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  parseAdminLimit(r, 50, 200),
+		"offset": parseAdminOffset(r),
+	})
+}
+
+type batchModerationRequest struct {
+	IDs          []string `json:"ids"`
+	Reason       string   `json:"reason"`
+	VehiclePlate string   `json:"vehicle_plate,omitempty"`
+	VehicleModel string   `json:"vehicle_model,omitempty"`
+	VehicleType  string   `json:"vehicle_type,omitempty"`
+}
+
+// @Summary      Batch approve verifications (admin)
+// @Description  Approves multiple driver verifications at once.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body  batchModerationRequest  true  "IDs and vehicle details"
+// @Success      200  {object}  map[string]any  "batch results"
+// @Router       /admin/moderation/batch/approve [post]
+func (h *AdminHandler) BatchApproveVerifications(w http.ResponseWriter, r *http.Request) {
+	var req batchModerationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ids are required"})
+		return
+	}
+	moderatorID, _ := userIDFromContext(r.Context())
+	now := h.clock.Now()
+	results := make([]map[string]any, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		err := h.repo.DecideDriverVerification(r.Context(), admindomain.DriverVerificationDecision{
+			ID:           id,
+			Status:       "approved",
+			Reason:       req.Reason,
+			ModeratorID:  moderatorID,
+			AuditID:      h.idGen.NewID(),
+			Now:          now,
+			VehiclePlate: req.VehiclePlate,
+			VehicleModel: req.VehicleModel,
+			VehicleType:  req.VehicleType,
+		})
+		if err != nil {
+			results = append(results, map[string]any{"id": id, "status": "error", "error": err.Error()})
+		} else {
+			results = append(results, map[string]any{"id": id, "status": "approved"})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+}
+
+// @Summary      Batch reject verifications (admin)
+// @Description  Rejects multiple driver verifications at once.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        body  body  batchModerationRequest  true  "IDs and reason"
+// @Success      200  {object}  map[string]any  "batch results"
+// @Router       /admin/moderation/batch/reject [post]
+func (h *AdminHandler) BatchRejectVerifications(w http.ResponseWriter, r *http.Request) {
+	var req batchModerationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ids are required"})
+		return
+	}
+	if len(req.Reason) < 8 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "reason is required (min 8 chars)"})
+		return
+	}
+	moderatorID, _ := userIDFromContext(r.Context())
+	now := h.clock.Now()
+	results := make([]map[string]any, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		err := h.repo.DecideDriverVerification(r.Context(), admindomain.DriverVerificationDecision{
+			ID:          id,
+			Status:      "rejected",
+			Reason:      req.Reason,
+			ModeratorID: moderatorID,
+			AuditID:     h.idGen.NewID(),
+			Now:         now,
+		})
+		if err != nil {
+			results = append(results, map[string]any{"id": id, "status": "error", "error": err.Error()})
+		} else {
+			results = append(results, map[string]any{"id": id, "status": "rejected"})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
 
 // @Summary      Approve verification (admin)

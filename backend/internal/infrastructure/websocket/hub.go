@@ -118,3 +118,18 @@ func (h *Hub) SendToDriversWhere(predicate func(c *Client) bool, payload []byte)
 		}
 	}
 }
+
+// SendToRole sends payload to every connected client with the given role.
+func (h *Hub) SendToRole(role string, payload []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for c := range h.clients {
+		if c.Role == role {
+			select {
+			case c.Send <- payload:
+			default:
+			}
+		}
+	}
+}
