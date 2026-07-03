@@ -433,8 +433,8 @@ CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON payment_methods (user_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_methods_provider_method_id ON payment_methods (provider, provider_payment_method_id) WHERE provider_payment_method_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payment_methods_provider_payment_id ON payment_methods (provider_payment_id) WHERE provider_payment_id IS NOT NULL;
 
-	// DEPRECATED: legacy table, created inline instead of via goose migration.
-	// TODO: migrate all reads/writes to payments table, then remove.
+	-- DEPRECATED: legacy table, created inline instead of via goose migration.
+	-- TODO: migrate all reads/writes to payments table, then remove.
 	CREATE TABLE IF NOT EXISTS payment_transactions (
 		id TEXT PRIMARY KEY,
 		user_id TEXT NOT NULL,
