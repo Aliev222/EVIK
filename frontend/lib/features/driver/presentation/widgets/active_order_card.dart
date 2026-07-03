@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_navigation_provider.dart';
 
@@ -39,7 +39,7 @@ class DriverActiveOrderCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE4E7EC)),
+        border: Border.all(color: AvroDriverColors.borderLight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,7 +53,7 @@ class DriverActiveOrderCard extends ConsumerWidget {
             _statusSubtitle(order.status),
             style: const TextStyle(
               fontSize: 14,
-              color: EvikColors.textSecondaryDark,
+              color: AvroDriverColors.textSecondary,
             ),
           ),
           const SizedBox(height: 14),
@@ -242,7 +242,7 @@ class _InfoRow extends StatelessWidget {
               title,
               style: const TextStyle(
                 fontSize: 13,
-                color: EvikColors.textSecondaryDark,
+                color: AvroDriverColors.textSecondary,
               ),
             ),
           ),

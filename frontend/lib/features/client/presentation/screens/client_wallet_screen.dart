@@ -2,7 +2,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -49,7 +49,7 @@ class _ClientWalletScreenState extends ConsumerState<ClientWalletScreen>
     final walletState = ref.watch(paymentWalletProvider);
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
         title: Text('Оплата', style: EvikTypography.h2.copyWith(fontSize: 24)),
         backgroundColor: Colors.transparent,
@@ -61,7 +61,7 @@ class _ClientWalletScreenState extends ConsumerState<ClientWalletScreen>
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(
                   Icons.arrow_back_ios,
-                  color: EvikColors.primaryBlack,
+                  color: AvroClientColors.textPrimary,
                   size: 20,
                 ),
               )
@@ -114,7 +114,7 @@ class _PaymentMethodsSection extends ConsumerWidget {
             children: [
               const Icon(
                 Icons.credit_card_rounded,
-                color: EvikColors.accentOrange,
+                color: AvroClientColors.accent,
               ),
               const SizedBox(width: 10),
               Text('Способы оплаты', style: EvikTypography.h3),
@@ -198,7 +198,7 @@ class _PaymentMethodsSection extends ConsumerWidget {
               _ActionSheetTile(
                 icon: Icons.delete_outline_rounded,
                 title: 'Удалить',
-                color: EvikColors.errorRed,
+                color: AvroClientColors.error,
                 onTap: () {
                   Navigator.of(sheetContext).pop();
                   _confirmDeleteCard(context, ref, card);
@@ -283,10 +283,10 @@ class _PaymentCardTile extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 72),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: card.isDefault ? EvikColors.accentOrange : EvikColors.gray200,
+          color: card.isDefault ? AvroClientColors.accent : AvroClientColors.surface,
         ),
       ),
       child: Row(
@@ -295,12 +295,12 @@ class _PaymentCardTile extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: EvikColors.accentOrange.withValues(alpha: 0.10),
+              color: AvroClientColors.accent.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
               Icons.credit_card_rounded,
-              color: EvikColors.accentOrange,
+              color: AvroClientColors.accent,
             ),
           ),
           const SizedBox(width: 12),
@@ -322,7 +322,7 @@ class _PaymentCardTile extends StatelessWidget {
                       const SizedBox(width: 6),
                       const Icon(
                         Icons.star_rounded,
-                        color: EvikColors.accentOrange,
+                        color: AvroClientColors.accent,
                         size: 18,
                       ),
                     ],
@@ -339,7 +339,7 @@ class _PaymentCardTile extends StatelessWidget {
           IconButton(
             onPressed: onMenuTap,
             icon: const Icon(Icons.more_vert_rounded),
-            color: EvikColors.gray600,
+            color: AvroClientColors.textSecondary,
           ),
         ],
       ),
@@ -366,7 +366,7 @@ class _PaymentHistorySection extends StatelessWidget {
             children: [
               const Icon(
                 Icons.receipt_long_rounded,
-                color: EvikColors.accentOrange,
+                color: AvroClientColors.accent,
               ),
               const SizedBox(width: 10),
               Text('История платежей', style: EvikTypography.h3),
@@ -376,7 +376,7 @@ class _PaymentHistorySection extends StatelessWidget {
           for (var index = 0; index < visiblePayments.length; index++) ...[
             _PaymentRow(payment: visiblePayments[index]),
             if (index != visiblePayments.length - 1)
-              const Divider(height: 18, color: EvikColors.gray100),
+              Divider(height: 18, color: AvroClientColors.surface),
           ],
         ],
       ),
@@ -389,7 +389,7 @@ class _ActionSheetTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.onTap,
-    this.color = EvikColors.primaryBlack,
+    this.color = AvroClientColors.textPrimary,
   });
 
   final IconData icon;
@@ -444,9 +444,9 @@ class _PaymentRow extends StatelessWidget {
 
 BoxDecoration _surfaceDecoration() {
   return BoxDecoration(
-    color: EvikColors.primaryWhite,
+    color: AvroClientColors.background,
     borderRadius: BorderRadius.circular(14),
-    border: Border.all(color: EvikColors.gray200),
+    border: Border.all(color: AvroClientColors.surface),
   );
 }
 

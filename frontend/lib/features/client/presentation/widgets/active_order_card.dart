@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
@@ -37,9 +37,9 @@ class ActiveOrderCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x14000000),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: Offset(0, 8),
               ),
@@ -72,7 +72,7 @@ class ActiveOrderCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 '${order.pickupLocation.address} -> ${order.dropoffLocation.address}',
-                style: const TextStyle(color: EvikColors.textSecondaryDark),
+                style: TextStyle(color: AvroClientColors.textSecondary),
               ),
               const SizedBox(height: 8),
               Text(

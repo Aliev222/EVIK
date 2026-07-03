@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver_map.dart';
@@ -81,12 +81,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
-        backgroundColor: EvikColors.primaryWhite,
+        backgroundColor: AvroClientColors.background,
         title: Text(
           'Авро Админ',
-          style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
+          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
         ),
         centerTitle: true,
         actions: [
@@ -95,7 +95,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color:
-                  _isConnected ? EvikColors.successGreen : EvikColors.errorRed,
+                  _isConnected ? AvroClientColors.success : AvroClientColors.error,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -103,14 +103,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               children: [
                 Icon(
                   _isConnected ? Icons.wifi : Icons.wifi_off,
-                  color: EvikColors.primaryWhite,
+                  color: AvroClientColors.background,
                   size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   _isConnected ? 'ONLINE' : 'OFFLINE',
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.primaryWhite,
+                    color: AvroClientColors.background,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -125,7 +125,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           Expanded(
             flex: 1,
             child: Container(
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +133,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   Text(
                     'Real-Time Statistics',
                     style: EvikTypography.h3.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -142,27 +142,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     'Active Drivers',
                     '${_activeDrivers.length}',
                     Icons.local_shipping,
-                    EvikColors.infoBlue,
+                    AvroClientColors.info,
                   ),
                   const SizedBox(height: 16),
                   _buildStatCard(
                     'Recent Orders',
                     '${_recentOrders.length}',
                     Icons.receipt,
-                    EvikColors.accentOrange,
+                    AvroClientColors.accent,
                   ),
                   const SizedBox(height: 16),
                   _buildStatCard(
                     'Online Drivers',
                     '${_activeDrivers.where((d) => d.status != DriverMarkerStatus.toPickup).length}',
                     Icons.check_circle,
-                    EvikColors.successGreen,
+                    AvroClientColors.success,
                   ),
                   const SizedBox(height: 30),
                   Text(
                     'Recent Orders',
                     style: EvikTypography.h3.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -187,7 +187,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             child: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: EvikColors.primaryWhite,
+                color: AvroClientColors.background,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ClipRRect(
@@ -226,7 +226,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               color: color,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: EvikColors.primaryWhite, size: 24),
+            child: Icon(icon, color: AvroClientColors.background, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -236,14 +236,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 Text(
                   value,
                   style: EvikTypography.h2.copyWith(
-                    color: EvikColors.primaryBlack,
+                    color: AvroClientColors.textPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 Text(
                   title,
                   style: EvikTypography.bodyMedium.copyWith(
-                    color: EvikColors.gray600,
+                    color: AvroClientColors.textSecondary,
                   ),
                 ),
               ],
@@ -259,7 +259,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EvikColors.gray50,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -276,7 +276,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 child: Text(
                   _getOrderStatusText(order.status),
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.primaryWhite,
+                    color: AvroClientColors.background,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -285,7 +285,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               Text(
                 order.orderId,
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray600,
+                  color: AvroClientColors.textSecondary,
                   fontFamily: 'monospace',
                 ),
               ),
@@ -296,7 +296,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             Text(
               order.message!,
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
               ),
             ),
           ],
@@ -308,13 +308,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Color _getOrderStatusColor(OrderUpdateType status) {
     switch (status) {
       case OrderUpdateType.driverFound:
-        return EvikColors.successGreen;
+        return AvroClientColors.success;
       case OrderUpdateType.newOrderAssigned:
-        return EvikColors.infoBlue;
+        return AvroClientColors.info;
       case OrderUpdateType.noDriversAvailable:
-        return EvikColors.errorRed;
+        return AvroClientColors.error;
       case OrderUpdateType.orderCompleted:
-        return EvikColors.accentOrange;
+        return AvroClientColors.accent;
     }
   }
 

@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/map/presentation/providers/map_provider.dart';
 import 'evik_osm_map_view.dart';
@@ -61,7 +61,7 @@ class EvikMapWidget extends ConsumerWidget {
             child: Icon(
               Icons.add_circle,
               size: 34,
-              color: EvikColors.accent,
+              color: AvroClientColors.accent,
             ),
           ),
         Positioned(

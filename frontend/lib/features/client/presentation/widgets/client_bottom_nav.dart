@@ -2,7 +2,7 @@
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 enum ClientTab { home, services, history, profile }
 
@@ -24,7 +24,7 @@ class ClientBottomNav extends StatelessWidget {
       child: Container(
         height: 72,
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -95,7 +95,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = tab == activeTab;
-    final color = isActive ? EvikColors.accentOrange : EvikColors.gray600;
+    final color = isActive ? AvroClientColors.accent : AvroClientColors.textSecondary;
 
     return Expanded(
       child: SizedBox(
@@ -119,7 +119,7 @@ class _NavItem extends StatelessWidget {
                     label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.manrope(
+                    style: GoogleFonts.inter(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: color,

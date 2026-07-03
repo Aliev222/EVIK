@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 class EvikAvatar extends StatelessWidget {
   final String? name;
@@ -13,8 +13,8 @@ class EvikAvatar extends StatelessWidget {
     this.name,
     this.imageUrl,
     this.size = 44,
-    this.backgroundColor = EvikColors.accentOrange,
-    this.textColor = EvikColors.primaryWhite,
+    this.backgroundColor = AvroClientColors.accent,
+    this.textColor = AvroClientColors.background,
   });
 
   @override
@@ -92,15 +92,15 @@ class EvikAvatar extends StatelessWidget {
     name: name,
     imageUrl: imageUrl,
     size: size ?? 44,
-    backgroundColor: EvikColors.primaryBlack,
-    textColor: EvikColors.primaryWhite,
+    backgroundColor: AvroClientColors.textPrimary,
+    textColor: AvroClientColors.background,
   );
 
   factory EvikAvatar.gray(String? name, {String? imageUrl, double? size}) => EvikAvatar(
     name: name,
     imageUrl: imageUrl,
     size: size ?? 44,
-    backgroundColor: EvikColors.gray300,
-    textColor: EvikColors.primaryBlack,
+    backgroundColor: AvroClientColors.surface,
+    textColor: AvroClientColors.textPrimary,
   );
 }

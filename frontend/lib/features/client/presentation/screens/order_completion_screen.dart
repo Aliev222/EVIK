@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
@@ -63,7 +63,7 @@ class _OrderCompletionScreenState extends ConsumerState<OrderCompletionScreen> {
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF7F4),
+      backgroundColor: AvroClientColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
@@ -72,7 +72,7 @@ class _OrderCompletionScreenState extends ConsumerState<OrderCompletionScreen> {
               Text(
                 'Заказ завершен',
                 style: EvikTypography.h2.copyWith(
-                  color: EvikColors.primaryBlack,
+                  color: AvroClientColors.textPrimary,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -135,7 +135,7 @@ class _SuccessCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -144,12 +144,12 @@ class _SuccessCard extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: EvikColors.successGreen.withValues(alpha: 0.12),
+              color: AvroClientColors.success.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.check_circle,
-              color: EvikColors.successGreen,
+              color: AvroClientColors.success,
               size: 40,
             ),
           ),
@@ -157,7 +157,7 @@ class _SuccessCard extends StatelessWidget {
           Text(
             'Эвакуация завершена',
             style: EvikTypography.h3.copyWith(
-              color: EvikColors.primaryBlack,
+              color: AvroClientColors.textPrimary,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -209,9 +209,9 @@ class _ReceiptCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.gray200),
+        border: Border.all(color: AvroClientColors.surface),
       ),
       child: ListView(
         children: [
@@ -277,7 +277,7 @@ class _ReceiptRow extends StatelessWidget {
             child: Text(
               label,
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray600,
+                color: AvroClientColors.textSecondary,
               ),
             ),
           ),
@@ -288,7 +288,7 @@ class _ReceiptRow extends StatelessWidget {
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w800,
               ),
             ),

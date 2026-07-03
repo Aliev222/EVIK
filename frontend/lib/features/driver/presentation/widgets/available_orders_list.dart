@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/available_orders_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_status_provider.dart';
@@ -101,7 +101,7 @@ class AvailableOrdersList extends ConsumerWidget {
                         child: Text(
                           'Заказов пока нет. Ожидайте...',
                           style: TextStyle(
-                            color: EvikColors.textSecondaryDark,
+                            color: AvroDriverColors.textSecondary,
                             fontSize: 15,
                           ),
                         ),
@@ -129,7 +129,7 @@ class AvailableOrdersList extends ConsumerWidget {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFE4E7EC)),
+                          border: Border.all(color: AvroDriverColors.borderLight),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +175,7 @@ class AvailableOrdersList extends ConsumerWidget {
         text,
         style: const TextStyle(
           fontSize: 14,
-          color: EvikColors.textPrimaryDark,
+          color: AvroDriverColors.textPrimary,
         ),
       ),
     );

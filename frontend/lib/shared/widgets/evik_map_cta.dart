@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'evik_button.dart';
 
 class EvikMapCTA extends StatelessWidget {
@@ -28,9 +28,9 @@ class EvikMapCTA extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              EvikColors.primaryWhite.withValues(alpha: 0.0),
-              EvikColors.primaryWhite.withValues(alpha: 0.65),
-              EvikColors.primaryWhite,
+              AvroClientColors.background.withValues(alpha: 0.0),
+              AvroClientColors.background.withValues(alpha: 0.65),
+              AvroClientColors.background,
             ],
             stops: const [0.0, 0.35, 1.0],
           ),

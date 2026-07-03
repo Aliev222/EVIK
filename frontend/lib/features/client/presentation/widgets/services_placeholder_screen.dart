@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 /// Заглушка вкладки «Услуги» в нижней навигации клиента.
 /// Полноценный каталог услуг появится позже.
@@ -10,7 +10,7 @@ class ServicesPlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -22,14 +22,14 @@ class ServicesPlaceholderScreen extends StatelessWidget {
                   width: 88,
                   height: 88,
                   decoration: BoxDecoration(
-                    color: EvikColors.primaryWhite,
+                    color: AvroClientColors.background,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: EvikColors.border),
+                    border: Border.all(color: AvroClientColors.surface),
                   ),
                   child: const Icon(
                     Icons.grid_view_rounded,
                     size: 40,
-                    color: EvikColors.accentOrange,
+                    color: AvroClientColors.accent,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -38,7 +38,7 @@ class ServicesPlaceholderScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF111111),
+                    color: AvroClientColors.textPrimary,
                   ),
                 ),
                 SizedBox(height: 8),
@@ -47,7 +47,7 @@ class ServicesPlaceholderScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
-                    color: Color(0xFF555555),
+                    color: AvroClientColors.textSecondary,
                   ),
                 ),
               ],

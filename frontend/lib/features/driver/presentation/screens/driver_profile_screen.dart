@@ -2,10 +2,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
-import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
 import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
 import 'package:tow_truck_frontend/features/review/presentation/providers/review_provider.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
@@ -38,7 +37,7 @@ class DriverProfileScreen extends ConsumerWidget {
 
   static Widget _buildLoadingContent(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
         title: Text(
           'Профиль',
@@ -54,7 +53,7 @@ class DriverProfileScreen extends ConsumerWidget {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroDriverColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -63,7 +62,7 @@ class DriverProfileScreen extends ConsumerWidget {
       ),
       body: const Center(
         child: CircularProgressIndicator(
-          color: EvikColors.accentOrange,
+          color: AvroDriverColors.accent,
         ),
       ),
     );
@@ -71,7 +70,7 @@ class DriverProfileScreen extends ConsumerWidget {
 
   static Widget _buildErrorContent(BuildContext context, WidgetRef ref, Object error) {
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
         title: Text(
           'Профиль',
@@ -87,7 +86,7 @@ class DriverProfileScreen extends ConsumerWidget {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroDriverColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -100,21 +99,21 @@ class DriverProfileScreen extends ConsumerWidget {
           children: [
             const Icon(
               Icons.error_outline,
-              color: EvikColors.errorRed,
+              color: AvroDriverColors.error,
               size: 64,
             ),
             const SizedBox(height: 16),
             Text(
               'Ошибка загрузки профиля',
               style: EvikTypography.h3.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroDriverColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Попробуйте перезайти в приложение',
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray500,
+                color: AvroDriverColors.grayHint,
               ),
             ),
           ],
@@ -142,7 +141,7 @@ class DriverProfileScreen extends ConsumerWidget {
 
   Widget _buildProfileContent(BuildContext context, WidgetRef ref, Driver? driver) {
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
         title: Text(
           'Профиль',
@@ -158,7 +157,7 @@ class DriverProfileScreen extends ConsumerWidget {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroDriverColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -174,7 +173,7 @@ class DriverProfileScreen extends ConsumerWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: EvikColors.primaryWhite,
+                color: AvroDriverColors.background,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -190,7 +189,7 @@ class DriverProfileScreen extends ConsumerWidget {
                     width: 60,
                     height: 60,
                     decoration: const BoxDecoration(
-                      color: EvikColors.primaryBlack,
+                      color: AvroDriverColors.textPrimary,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -199,7 +198,7 @@ class DriverProfileScreen extends ConsumerWidget {
                             ? driver!.fullName![0].toUpperCase()
                             : '?',
                         style: const TextStyle(
-                          color: EvikColors.primaryWhite,
+                          color: AvroDriverColors.background,
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
                         ),
@@ -225,7 +224,7 @@ class DriverProfileScreen extends ConsumerWidget {
                           children: [
                             const Icon(
                               Icons.star,
-                              color: EvikColors.warningAmber,
+                              color: AvroDriverColors.warning,
                               size: 16,
                             ),
                             const SizedBox(width: 4),
@@ -244,7 +243,7 @@ class DriverProfileScreen extends ConsumerWidget {
                                   ? '• ${driver!.totalOrders} заказов'
                                   : '• Нет заказов',
                               style: EvikTypography.bodySmall.copyWith(
-                                color: EvikColors.gray500,
+                                color: AvroDriverColors.grayHint,
                                 fontSize: 12,
                               ),
                             ),
@@ -256,7 +255,7 @@ class DriverProfileScreen extends ConsumerWidget {
                               ? driver!.phone!
                               : 'Телефон не указан',
                           style: EvikTypography.bodyMedium.copyWith(
-                            color: EvikColors.gray500,
+                            color: AvroDriverColors.grayHint,
                             fontSize: 14,
                           ),
                         ),
@@ -267,13 +266,13 @@ class DriverProfileScreen extends ConsumerWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: EvikColors.successGreen.withValues(alpha: 0.1),
+                      color: AvroDriverColors.success.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       'Стаж:\nне указан',
                       style: EvikTypography.bodySmall.copyWith(
-                        color: EvikColors.successGreen,
+                        color: AvroDriverColors.success,
                         fontWeight: FontWeight.w600,
                         fontSize: 11,
                       ),
@@ -359,7 +358,7 @@ class DriverProfileScreen extends ConsumerWidget {
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: EvikColors.primaryWhite,
+                color: AvroDriverColors.background,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
@@ -390,7 +389,7 @@ class DriverProfileScreen extends ConsumerWidget {
                             },
                             child: const Text(
                               'Выйти',
-                              style: TextStyle(color: Color(0xFFEF4444)),
+                              style: TextStyle(color: AvroDriverColors.error),
                             ),
                           ),
                         ],
@@ -404,7 +403,7 @@ class DriverProfileScreen extends ConsumerWidget {
                       child: Text(
                         'Выйти из аккаунта',
                         style: TextStyle(
-                          color: Color(0xFFEF4444),
+                          color: AvroDriverColors.error,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -480,7 +479,7 @@ class _DriverFeatureSheet extends StatelessWidget {
       top: false,
       child: Container(
         decoration: const BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroDriverColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -505,9 +504,9 @@ class _DriverFeatureSheet extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
                 decoration: BoxDecoration(
-                  color: EvikColors.gray50,
+                  color: AvroDriverColors.background,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: EvikColors.gray200),
+                  border: Border.all(color: AvroDriverColors.border),
                 ),
                 child: Text(
                   option,
@@ -541,7 +540,7 @@ class _ProfileMenuItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroDriverColors.background,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -564,12 +563,12 @@ class _ProfileMenuItem extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: EvikColors.gray100,
+                    color: AvroDriverColors.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     icon,
-                    color: EvikColors.gray600,
+                    color: AvroDriverColors.tabInactive,
                     size: 20,
                   ),
                 ),
@@ -589,7 +588,7 @@ class _ProfileMenuItem extends StatelessWidget {
                       Text(
                         subtitle,
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.gray500,
+                          color: AvroDriverColors.grayHint,
                           fontSize: 12,
                         ),
                       ),
@@ -598,7 +597,7 @@ class _ProfileMenuItem extends StatelessWidget {
                 ),
                 const Icon(
                   Icons.chevron_right,
-                  color: EvikColors.gray400,
+                  color: AvroDriverColors.tabInactive,
                   size: 20,
                 ),
               ],
@@ -624,7 +623,7 @@ class _DriverReviewsSheet extends ConsumerWidget {
       child: Container(
         height: MediaQuery.of(context).size.height * 0.8,
         decoration: const BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroDriverColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -647,7 +646,7 @@ class _DriverReviewsSheet extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1, color: EvikColors.gray200),
+            const Divider(height: 1, color: AvroDriverColors.border),
 
             // Reviews content
             Expanded(
@@ -661,21 +660,21 @@ class _DriverReviewsSheet extends ConsumerWidget {
                     children: [
                       const Icon(
                         Icons.error_outline,
-                        color: EvikColors.errorRed,
+                        color: AvroDriverColors.error,
                         size: 64,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'Ошибка загрузки отзывов',
                         style: EvikTypography.h3.copyWith(
-                          color: EvikColors.primaryBlack,
+                          color: AvroDriverColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Попробуйте позже',
                         style: EvikTypography.bodyMedium.copyWith(
-                          color: EvikColors.gray500,
+                          color: AvroDriverColors.grayHint,
                         ),
                       ),
                     ],
@@ -689,21 +688,21 @@ class _DriverReviewsSheet extends ConsumerWidget {
                         children: [
                           const Icon(
                             Icons.star_outline,
-                            color: EvikColors.gray400,
+                            color: AvroDriverColors.tabInactive,
                             size: 64,
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'Отзывов пока нет',
                             style: EvikTypography.h3.copyWith(
-                              color: EvikColors.primaryBlack,
+                              color: AvroDriverColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Первые отзывы появятся после завершения заказов',
                             style: EvikTypography.bodyMedium.copyWith(
-                              color: EvikColors.gray500,
+                              color: AvroDriverColors.grayHint,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -735,7 +734,7 @@ class _DriverReviewsSheet extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const Divider(height: 1, color: EvikColors.gray200),
+                      const Divider(height: 1, color: AvroDriverColors.border),
 
                       // Reviews list
                       Expanded(
@@ -779,7 +778,7 @@ class _ReviewStat extends StatelessWidget {
       children: [
         Icon(
           icon,
-          color: EvikColors.accentOrange,
+          color: AvroDriverColors.accent,
           size: 24,
         ),
         const SizedBox(height: 8),
@@ -794,7 +793,7 @@ class _ReviewStat extends StatelessWidget {
         Text(
           label,
           style: EvikTypography.bodySmall.copyWith(
-            color: EvikColors.gray500,
+            color: AvroDriverColors.grayHint,
           ),
         ),
       ],
@@ -812,9 +811,9 @@ class _ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.gray50,
+        color: AvroDriverColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: EvikColors.gray200),
+        border: Border.all(color: AvroDriverColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,7 +833,7 @@ class _ReviewCard extends StatelessWidget {
                   return Icon(
                     index < review.stars ? Icons.star : Icons.star_border,
                     size: 16,
-                    color: EvikColors.accentOrange,
+                    color: AvroDriverColors.accent,
                   );
                 }),
               ),
@@ -845,7 +844,7 @@ class _ReviewCard extends StatelessWidget {
             Text(
               review.text,
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray700,
+                color: AvroDriverColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -853,7 +852,7 @@ class _ReviewCard extends StatelessWidget {
           Text(
             _formatDate(review.createdAt),
             style: EvikTypography.bodySmall.copyWith(
-              color: EvikColors.gray400,
+              color: AvroDriverColors.tabInactive,
             ),
           ),
         ],

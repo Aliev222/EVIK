@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -39,7 +39,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
         !state.isLoading;
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -146,7 +146,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
           child: Container(
             padding: EdgeInsets.fromLTRB(18, 18, 18, 18 + bottomInset),
             decoration: const BoxDecoration(
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
             ),
             child: Column(
@@ -163,7 +163,7 @@ class VehicleSelectionScreen extends ConsumerWidget {
                   decoration: InputDecoration(
                     hintText: 'Например: подъезд со двора, не сигналить',
                     filled: true,
-                    fillColor: EvikColors.gray100,
+                    fillColor: AvroClientColors.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
@@ -210,7 +210,7 @@ class _Header extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.h2.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -232,21 +232,21 @@ class _RouteSummary extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
           _SummaryRow(
             icon: Icons.trip_origin_rounded,
-            color: EvikColors.successGreen,
+            color: AvroClientColors.success,
             label: 'Точка подачи',
             value: state.pickupLocation?.displayAddress ?? 'Не указано',
           ),
           const SizedBox(height: 8),
           _SummaryRow(
             icon: Icons.flag_rounded,
-            color: EvikColors.accentOrange,
+            color: AvroClientColors.accent,
             label: 'Точка назначения',
             value: state.destinationLocation?.displayAddress ?? 'Не указано',
           ),
@@ -282,7 +282,7 @@ class _SummaryRow extends StatelessWidget {
               Text(
                 label,
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray500,
+                  color: AvroClientColors.tabInactive,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -291,7 +291,7 @@ class _SummaryRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyMedium.copyWith(
-                  color: EvikColors.primaryBlack,
+                  color: AvroClientColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -319,7 +319,7 @@ class _OrderField extends StatelessWidget {
     return _GreyTile(
       child: Row(
         children: [
-          Icon(icon, color: EvikColors.gray500),
+          Icon(icon, color: AvroClientColors.tabInactive),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -329,7 +329,7 @@ class _OrderField extends StatelessWidget {
                 Text(
                   label,
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.gray500,
+                    color: AvroClientColors.tabInactive,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -338,14 +338,14 @@ class _OrderField extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: EvikTypography.bodyLarge.copyWith(
-                    color: EvikColors.primaryBlack,
+                    color: AvroClientColors.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: EvikColors.gray500),
+          const Icon(Icons.chevron_right_rounded, color: AvroClientColors.tabInactive),
         ],
       ),
     );
@@ -371,7 +371,7 @@ class _BlockedWheelsStepper extends StatelessWidget {
             child: Text(
               'Количество\nзаблокированных колёс',
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
               ),
@@ -387,7 +387,7 @@ class _BlockedWheelsStepper extends StatelessWidget {
               '$count',
               textAlign: TextAlign.center,
               style: EvikTypography.h3.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
               ),
             ),
           ),
@@ -416,7 +416,7 @@ class _StepperButton extends StatelessWidget {
       width: 48,
       height: 48,
       child: Material(
-        color: onTap == null ? EvikColors.gray100 : EvikColors.gray200,
+        color: onTap == null ? AvroClientColors.surface : AvroClientColors.surface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -426,7 +426,7 @@ class _StepperButton extends StatelessWidget {
                   HapticFeedback.selectionClick();
                   onTap!();
                 },
-          child: Icon(icon, color: EvikColors.primaryBlack),
+          child: Icon(icon, color: AvroClientColors.textPrimary),
         ),
       ),
     );
@@ -485,10 +485,10 @@ class _VehicleCard extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? EvikColors.accentOrange : EvikColors.gray200,
+            color: selected ? AvroClientColors.accent : AvroClientColors.surface,
             width: selected ? 2 : 1,
           ),
         ),
@@ -512,8 +512,8 @@ class _VehicleCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.bodySmall.copyWith(
                 color: selected
-                    ? EvikColors.accentOrange
-                    : EvikColors.primaryBlack,
+                    ? AvroClientColors.accent
+                    : AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -596,10 +596,10 @@ class _TowTruckCard extends StatelessWidget {
         height: 136,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? EvikColors.primaryBlack : EvikColors.gray200,
+            color: selected ? AvroClientColors.textPrimary : AvroClientColors.surface,
             width: selected ? 2 : 1,
           ),
         ),
@@ -628,7 +628,7 @@ class _TowTruckCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -636,14 +636,14 @@ class _TowTruckCard extends StatelessWidget {
                   Text(
                     '~${_durationLabel(towTruck)}',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray500,
+                      color: AvroClientColors.tabInactive,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     price == null ? '—' : '$price ₽',
                     style: EvikTypography.bodyLarge.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -728,8 +728,8 @@ class _PaymentChip extends StatelessWidget {
     final isSelected = method == selected;
     return Material(
       color: isSelected
-          ? EvikColors.accentOrange.withValues(alpha: 0.1)
-          : EvikColors.primaryWhite,
+          ? AvroClientColors.accent.withValues(alpha: 0.1)
+          : AvroClientColors.background,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -739,7 +739,7 @@ class _PaymentChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? EvikColors.accentOrange : EvikColors.gray200,
+              color: isSelected ? AvroClientColors.accent : AvroClientColors.surface,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -748,7 +748,7 @@ class _PaymentChip extends StatelessWidget {
               Icon(
                 icon,
                 color:
-                    isSelected ? EvikColors.accentOrange : EvikColors.gray500,
+                    isSelected ? AvroClientColors.accent : AvroClientColors.tabInactive,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -758,8 +758,8 @@ class _PaymentChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: EvikTypography.bodyMedium.copyWith(
                     color: isSelected
-                        ? EvikColors.accentOrange
-                        : EvikColors.primaryBlack,
+                        ? AvroClientColors.accent
+                        : AvroClientColors.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -788,7 +788,7 @@ class _CommentTile extends StatelessWidget {
       child: _GreyTile(
         child: Row(
           children: [
-            const Icon(Icons.comment_rounded, color: EvikColors.gray500),
+            const Icon(Icons.comment_rounded, color: AvroClientColors.tabInactive),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -797,13 +797,13 @@ class _CommentTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyLarge.copyWith(
                   color: comment.isEmpty
-                      ? EvikColors.gray500
-                      : EvikColors.primaryBlack,
+                      ? AvroClientColors.tabInactive
+                      : AvroClientColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: EvikColors.gray500),
+            const Icon(Icons.chevron_right_rounded, color: AvroClientColors.tabInactive),
           ],
         ),
       ),
@@ -822,7 +822,7 @@ class _GreyTile extends StatelessWidget {
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: EvikColors.gray200,
+        color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: child,

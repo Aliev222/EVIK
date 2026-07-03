@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 class EvikLocationButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -20,7 +20,7 @@ class EvikLocationButton extends StatelessWidget {
         width: 42,
         height: 42,
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -43,14 +43,14 @@ class EvikLocationButton extends StatelessWidget {
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        EvikColors.accentOrange,
+                        AvroClientColors.accent,
                       ),
                     ),
                   )
                 : const Icon(
                     Icons.navigation_rounded,
                     size: 19,
-                    color: EvikColors.accentOrange,
+                    color: AvroClientColors.accent,
                   ),
             ),
           ),

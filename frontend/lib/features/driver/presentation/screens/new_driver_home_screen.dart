@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:tow_truck_frontend/core/performance/rebuild_tracker.dart';
 
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -93,7 +93,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(message), backgroundColor: EvikColors.errorRed),
+              content: Text(message), backgroundColor: AvroDriverColors.error),
         );
       }
     });
@@ -109,7 +109,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroDriverColors.surface,
       body: workState == DriverWorkState.offline
           ? SafeArea(child: _buildOfflineView(driverState, driverProfile))
           : _BackgroundOptimizer(
@@ -226,14 +226,14 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   width: 44,
                   height: 44,
                   decoration: const BoxDecoration(
-                    color: EvikColors.primaryBlack,
+                    color: AvroDriverColors.textPrimary,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
                       _getDriverInitial(driverProfile),
                       style: const TextStyle(
-                        color: EvikColors.primaryWhite,
+                        color: AvroDriverColors.surface,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
@@ -250,7 +250,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: EvikColors.gray100,
+                color: AvroDriverColors.surface,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
@@ -259,12 +259,12 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: EvikColors.gray200,
+                      color: AvroDriverColors.tabInactive,
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: const Icon(
                       Icons.power_settings_new,
-                      color: EvikColors.gray500,
+                      color: AvroDriverColors.tabInactive,
                       size: 28,
                     ),
                   ),
@@ -277,7 +277,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   Text(
                     'Включите режим работы, чтобы получать заказы',
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.gray500,
+                      color: AvroDriverColors.tabInactive,
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
@@ -293,7 +293,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: EvikColors.gray100,
+                color: AvroDriverColors.surface,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -302,7 +302,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   Text(
                     'ВЧЕРА',
                     style: EvikTypography.sectionLabel.copyWith(
-                      color: EvikColors.gray500,
+                      color: AvroDriverColors.tabInactive,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -369,8 +369,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               routePoints: _routePreview?.points ?? const <LatLng>[],
               controlsBottomOffset:
                   bottomInset + (incomingOrder == null ? 128 : 330),
-              controlsBackgroundColor: EvikColors.primaryWhite,
-              controlsIconColor: EvikColors.accentOrange,
+              controlsBackgroundColor: AvroDriverColors.surface,
+              controlsIconColor: AvroDriverColors.accent,
             ),
           ),
         ),
@@ -455,7 +455,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         Text(
           label,
           style: EvikTypography.bodySmall.copyWith(
-            color: EvikColors.gray500,
+            color: AvroDriverColors.tabInactive,
             fontSize: 11,
           ),
         ),
@@ -469,14 +469,14 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         lat: _moscowLat,
         lng: _moscowLng,
         title: 'Вы',
-        color: EvikColors.successGreen,
+        color: AvroDriverColors.success,
       ),
       if (incoming != null)
         EvikMapMarker(
           lat: incoming.pickupLat,
           lng: incoming.pickupLng,
           title: incoming.pickupAddress,
-          color: EvikColors.accentOrange,
+          color: AvroDriverColors.accent,
         ),
     ];
   }
@@ -518,9 +518,9 @@ class _RouteUnavailableBadge extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+          color: AvroDriverColors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: EvikColors.gray200),
+          border: Border.all(color: AvroDriverColors.tabInactive),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -537,13 +537,13 @@ class _RouteUnavailableBadge extends StatelessWidget {
               const Icon(
                 Icons.route_outlined,
                 size: 18,
-                color: EvikColors.accentOrange,
+                color: AvroDriverColors.accent,
               ),
               const SizedBox(width: 8),
               Text(
                 'Маршрут недоступен',
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.primaryBlack,
+                  color: AvroDriverColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -564,7 +564,7 @@ class _OnlineStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroDriverColors.surface,
       borderRadius: BorderRadius.circular(16),
       elevation: 5,
       shadowColor: Colors.black.withValues(alpha: 0.14),
@@ -576,7 +576,7 @@ class _OnlineStatusBar extends StatelessWidget {
               width: 9,
               height: 9,
               decoration: const BoxDecoration(
-                color: EvikColors.successGreen,
+                color: AvroDriverColors.success,
                 shape: BoxShape.circle,
               ),
             ),
@@ -589,7 +589,7 @@ class _OnlineStatusBar extends StatelessWidget {
                   Text(
                     'В сети',
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.successGreen,
+                      color: AvroDriverColors.success,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -597,7 +597,7 @@ class _OnlineStatusBar extends StatelessWidget {
                   Text(
                     statsText,
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray600,
+                      color: AvroDriverColors.tabInactive,
                     ),
                   ),
                 ],
@@ -613,10 +613,10 @@ class _OnlineStatusBar extends StatelessWidget {
                     : (value) {
                         if (!value) onGoOffline!();
                       },
-                activeThumbColor: EvikColors.primaryWhite,
-                activeTrackColor: EvikColors.successGreen,
-                inactiveThumbColor: EvikColors.primaryWhite,
-                inactiveTrackColor: EvikColors.gray300,
+                activeThumbColor: AvroDriverColors.surface,
+                activeTrackColor: AvroDriverColors.success,
+                inactiveThumbColor: AvroDriverColors.surface,
+                inactiveTrackColor: AvroDriverColors.tabInactive,
               ),
             ),
           ],
@@ -634,7 +634,7 @@ class _WaitingForOrdersCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroDriverColors.surface,
       borderRadius: BorderRadius.circular(20),
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.14),
@@ -649,7 +649,7 @@ class _WaitingForOrdersCard extends StatelessWidget {
                   ? const CircularProgressIndicator(strokeWidth: 3)
                   : const Icon(
                       Icons.radar_rounded,
-                      color: EvikColors.accentOrange,
+                      color: AvroDriverColors.accent,
                       size: 30,
                     ),
             ),
@@ -669,7 +669,7 @@ class _WaitingForOrdersCard extends StatelessWidget {
                   Text(
                     'Оставайтесь на линии, заказ появится автоматически',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray600,
+                      color: AvroDriverColors.tabInactive,
                     ),
                   ),
                 ],
@@ -710,7 +710,7 @@ class _IncomingOrderSheet extends StatelessWidget {
         );
       },
       child: Material(
-        color: EvikColors.primaryWhite,
+        color: AvroDriverColors.surface,
         borderRadius: BorderRadius.circular(22),
         elevation: 10,
         shadowColor: Colors.black.withValues(alpha: 0.16),
@@ -734,7 +734,7 @@ class _IncomingOrderSheet extends StatelessWidget {
                         Text(
                           '${order.distanceKm.toStringAsFixed(1)} км до клиента · ${order.estimatedMinutes} мин',
                           style: EvikTypography.bodySmall.copyWith(
-                            color: EvikColors.gray600,
+                            color: AvroDriverColors.tabInactive,
                           ),
                         ),
                       ],
@@ -752,9 +752,9 @@ class _IncomingOrderSheet extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   minHeight: 4,
-                  backgroundColor: EvikColors.gray200,
+                  backgroundColor: AvroDriverColors.tabInactive,
                   valueColor: const AlwaysStoppedAnimation<Color>(
-                    EvikColors.accentOrange,
+                    AvroDriverColors.accent,
                   ),
                 ),
               ),
@@ -782,20 +782,20 @@ class _IncomingOrderSheet extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 decoration: BoxDecoration(
-                  color: EvikColors.gray50,
+                  color: AvroDriverColors.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: EvikColors.gray200),
+                  border: Border.all(color: AvroDriverColors.tabInactive),
                 ),
                 child: Column(
                   children: [
                     _AddressLine(
-                      color: EvikColors.accentOrange,
+                      color: AvroDriverColors.accent,
                       label: 'К клиенту',
                       value: order.pickupAddress,
                     ),
                     const SizedBox(height: 8),
                     _AddressLine(
-                      color: EvikColors.gray500,
+                      color: AvroDriverColors.tabInactive,
                       label: 'Доставка',
                       value: order.dropoffAddress,
                     ),
@@ -810,8 +810,8 @@ class _IncomingOrderSheet extends StatelessWidget {
                     child: _OrderActionButton(
                       text: 'Отклонить',
                       onPressed: isLoading ? null : onDecline,
-                      backgroundColor: EvikColors.gray100,
-                      foregroundColor: EvikColors.primaryBlack,
+                      backgroundColor: AvroDriverColors.surface,
+                      foregroundColor: AvroDriverColors.textPrimary,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -820,8 +820,8 @@ class _IncomingOrderSheet extends StatelessWidget {
                       text: 'Принять',
                       onPressed: isLoading ? null : onAccept,
                       isLoading: isLoading,
-                      backgroundColor: EvikColors.successGreen,
-                      foregroundColor: EvikColors.primaryWhite,
+                      backgroundColor: AvroDriverColors.success,
+                      foregroundColor: AvroDriverColors.surface,
                     ),
                   ),
                 ],
@@ -899,18 +899,18 @@ class _InfoPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: EvikColors.gray100,
+        color: AvroDriverColors.surface,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: EvikColors.gray700),
+          Icon(icon, size: 15, color: AvroDriverColors.textSecondary),
           const SizedBox(width: 6),
           Text(
             label,
             style: EvikTypography.bodySmall.copyWith(
-              color: EvikColors.gray800,
+              color: AvroDriverColors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),

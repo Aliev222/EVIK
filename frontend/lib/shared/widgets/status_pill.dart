@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 
 class StatusPill extends StatelessWidget {
@@ -10,7 +10,7 @@ class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
     required this.label,
-    this.color = EvikColors.warningAmber,
+    this.color = AvroClientColors.warning,
     this.small = false,
   });
 
@@ -37,41 +37,41 @@ class StatusPill extends StatelessWidget {
   // Предустановленные статусы
   factory StatusPill.pending() => const StatusPill(
     label: 'Ожидание',
-    color: EvikColors.warningAmber,
+    color: AvroClientColors.warning,
   );
 
   factory StatusPill.approved() => const StatusPill(
     label: 'Одобрено',
-    color: EvikColors.successGreen,
+    color: AvroClientColors.success,
   );
 
   factory StatusPill.rejected() => const StatusPill(
     label: 'Отклонено',
-    color: EvikColors.errorRed,
+    color: AvroClientColors.error,
   );
 
   factory StatusPill.searching() => const StatusPill(
     label: 'Поиск',
-    color: EvikColors.warningAmber,
+    color: AvroClientColors.warning,
   );
 
   factory StatusPill.enRoute() => const StatusPill(
     label: 'В пути',
-    color: EvikColors.infoBlue,
+    color: AvroClientColors.info,
   );
 
   factory StatusPill.arrived() => const StatusPill(
     label: 'На месте',
-    color: EvikColors.successGreen,
+    color: AvroClientColors.success,
   );
 
   factory StatusPill.completed() => const StatusPill(
     label: 'Завершено',
-    color: EvikColors.successGreen,
+    color: AvroClientColors.success,
   );
 
   factory StatusPill.cancelled() => const StatusPill(
     label: 'Отменено',
-    color: EvikColors.errorRed,
+    color: AvroClientColors.error,
   );
 }

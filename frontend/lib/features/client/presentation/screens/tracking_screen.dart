@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
@@ -80,7 +80,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
     }
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       body: Stack(
         children: [
           Positioned.fill(
@@ -139,7 +139,7 @@ class _TopStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroClientColors.background,
       borderRadius: BorderRadius.circular(14),
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.12),
@@ -151,12 +151,12 @@ class _TopStatusCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: EvikColors.infoBlue.withValues(alpha: 0.12),
+                color: AvroClientColors.info.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.local_shipping_rounded,
-                color: EvikColors.infoBlue,
+                color: AvroClientColors.info,
                 size: 20,
               ),
             ),
@@ -169,7 +169,7 @@ class _TopStatusCard extends StatelessWidget {
                   Text(
                     'Эвакуатор едет к вам',
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -177,7 +177,7 @@ class _TopStatusCard extends StatelessWidget {
                   Text(
                     vehicleNumber,
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray600,
+                      color: AvroClientColors.textSecondary,
                     ),
                   ),
                 ],
@@ -186,7 +186,7 @@ class _TopStatusCard extends StatelessWidget {
             Text(
               'ETA: $eta',
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.accentOrange,
+                color: AvroClientColors.accent,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -195,7 +195,7 @@ class _TopStatusCard extends StatelessWidget {
               tooltip: 'Вернуться к заказу',
               onPressed: onBackToOrder,
               icon: const Icon(Icons.receipt_long_rounded),
-              color: EvikColors.primaryBlack,
+              color: AvroClientColors.textPrimary,
             ),
           ],
         ),
@@ -223,7 +223,7 @@ class _TrackingSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: SafeArea(
@@ -243,7 +243,7 @@ class _TrackingSheet extends StatelessWidget {
                       label: 'Откуда',
                       address: pickupAddress,
                       icon: Icons.trip_origin_rounded,
-                      color: EvikColors.successGreen,
+                      color: AvroClientColors.success,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -252,7 +252,7 @@ class _TrackingSheet extends StatelessWidget {
                       label: 'Куда',
                       address: destinationAddress,
                       icon: Icons.flag_rounded,
-                      color: EvikColors.accentOrange,
+                      color: AvroClientColors.accent,
                     ),
                   ),
                 ],
@@ -297,7 +297,7 @@ class _Progress extends StatelessWidget {
         Text(
           'Ход выполнения',
           style: EvikTypography.bodyMedium.copyWith(
-            color: EvikColors.primaryBlack,
+            color: AvroClientColors.textPrimary,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -313,13 +313,13 @@ class _Progress extends StatelessWidget {
                     height: 22,
                     decoration: BoxDecoration(
                       color:
-                          done ? EvikColors.accentOrange : EvikColors.gray300,
+                          done ? AvroClientColors.accent : AvroClientColors.surface,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       done ? Icons.check : Icons.circle,
                       color:
-                          done ? EvikColors.primaryWhite : EvikColors.gray500,
+                          done ? AvroClientColors.background : AvroClientColors.tabInactive,
                       size: 12,
                     ),
                   ),
@@ -331,7 +331,7 @@ class _Progress extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: EvikTypography.bodySmall.copyWith(
                         color:
-                            done ? EvikColors.accentOrange : EvikColors.gray500,
+                            done ? AvroClientColors.accent : AvroClientColors.tabInactive,
                         fontWeight: done ? FontWeight.w700 : FontWeight.w500,
                       ),
                     ),
@@ -365,7 +365,7 @@ class _LocationCard extends StatelessWidget {
       height: 68,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: EvikColors.gray50,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -378,7 +378,7 @@ class _LocationCard extends StatelessWidget {
               Text(
                 label,
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray600,
+                  color: AvroClientColors.textSecondary,
                 ),
               ),
             ],
@@ -389,7 +389,7 @@ class _LocationCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: EvikTypography.bodySmall.copyWith(
-              color: EvikColors.primaryBlack,
+              color: AvroClientColors.textPrimary,
               fontWeight: FontWeight.w700,
               height: 1.15,
             ),
@@ -411,7 +411,7 @@ class _DriverCard extends StatelessWidget {
       height: 70,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EvikColors.gray50,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -420,10 +420,10 @@ class _DriverCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: const BoxDecoration(
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.person, color: EvikColors.gray500),
+            child: const Icon(Icons.person, color: AvroClientColors.tabInactive),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -444,7 +444,7 @@ class _DriverCard extends StatelessWidget {
                       ? driver!.vehicleNumber
                       : 'Номер уточняется',
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.gray600,
+                    color: AvroClientColors.textSecondary,
                   ),
                 ),
               ],
@@ -455,7 +455,7 @@ class _DriverCard extends StatelessWidget {
                 ? '★ ${driver!.rating.toStringAsFixed(1)}'
                 : '★ —',
             style: EvikTypography.bodySmall.copyWith(
-              color: EvikColors.accentOrange,
+              color: AvroClientColors.accent,
               fontWeight: FontWeight.w800,
             ),
           ),

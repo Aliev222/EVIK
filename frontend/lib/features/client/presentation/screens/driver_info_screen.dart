@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
@@ -45,7 +45,7 @@ class DriverInfoScreen extends ConsumerWidget {
 
     if (driver == null) {
       return const Scaffold(
-        backgroundColor: EvikColors.gray50,
+        backgroundColor: AvroClientColors.background,
         body: Center(child: Text('Информация о водителе недоступна')),
       );
     }
@@ -66,7 +66,7 @@ class DriverInfoScreen extends ConsumerWidget {
         : null; // No fallback phone number
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       body: Stack(
         children: [
           Positioned.fill(
@@ -75,15 +75,15 @@ class DriverInfoScreen extends ConsumerWidget {
               initialLng: centerLng,
               initialZoom: 15.5,
               controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 238,
-              controlsBackgroundColor: EvikColors.primaryWhite,
-              controlsIconColor: EvikColors.accentOrange,
+              controlsBackgroundColor: AvroClientColors.background,
+              controlsIconColor: AvroClientColors.accent,
               markers: [
                 if (driver.currentLocation != null)
                   EvikMapMarker(
                     lat: driver.currentLocation!.lat,
                     lng: driver.currentLocation!.lng,
                     title: 'Водитель',
-                    color: EvikColors.infoBlue,
+                    color: AvroClientColors.info,
                     icon: Icons.local_shipping_rounded,
                   ),
                 if (pickup != null)
@@ -91,14 +91,14 @@ class DriverInfoScreen extends ConsumerWidget {
                     lat: pickup.latitude,
                     lng: pickup.longitude,
                     title: pickup.displayAddress,
-                    color: EvikColors.accentOrange,
+                    color: AvroClientColors.accent,
                   ),
                 if (destination != null)
                   EvikMapMarker(
                     lat: destination.latitude,
                     lng: destination.longitude,
                     title: destination.displayAddress,
-                    color: EvikColors.gray700,
+                    color: AvroClientColors.textPrimary,
                     icon: Icons.flag_rounded,
                   ),
               ],
@@ -136,7 +136,7 @@ class _DriverFoundBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroClientColors.background,
       borderRadius: BorderRadius.circular(16),
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.12),
@@ -146,7 +146,7 @@ class _DriverFoundBadge extends StatelessWidget {
           children: [
             const Icon(
               Icons.check_circle_rounded,
-              color: EvikColors.successGreen,
+              color: AvroClientColors.success,
               size: 22,
             ),
             const SizedBox(width: 10),
@@ -154,7 +154,7 @@ class _DriverFoundBadge extends StatelessWidget {
               child: Text(
                 'Эвакуатор принял заказ',
                 style: EvikTypography.bodyMedium.copyWith(
-                  color: EvikColors.primaryBlack,
+                  color: AvroClientColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -191,7 +191,7 @@ class _DriverCompactSheet extends StatelessWidget {
       top: false,
       child: Container(
         decoration: const BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
         ),
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
@@ -204,16 +204,16 @@ class _DriverCompactSheet extends StatelessWidget {
                   width: 54,
                   height: 54,
                   decoration: BoxDecoration(
-                    color: EvikColors.gray100,
+                    color: AvroClientColors.surface,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: EvikColors.accentOrange,
+                      color: AvroClientColors.accent,
                       width: 2,
                     ),
                   ),
                   child: const Icon(
                     Icons.person_rounded,
-                    color: EvikColors.gray500,
+                    color: AvroClientColors.tabInactive,
                     size: 30,
                   ),
                 ),
@@ -228,7 +228,7 @@ class _DriverCompactSheet extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: EvikTypography.bodyLarge.copyWith(
-                          color: EvikColors.primaryBlack,
+                          color: AvroClientColors.textPrimary,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -238,14 +238,14 @@ class _DriverCompactSheet extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.gray600,
+                          color: AvroClientColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         '★ ${rating.toStringAsFixed(1)}',
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.accentOrange,
+                          color: AvroClientColors.accent,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -258,8 +258,8 @@ class _DriverCompactSheet extends StatelessWidget {
                   icon: const Icon(Icons.phone_rounded),
                   style: IconButton.styleFrom(
                     backgroundColor:
-                        EvikColors.accentOrange.withValues(alpha: 0.12),
-                    foregroundColor: EvikColors.accentOrange,
+                        AvroClientColors.accent.withValues(alpha: 0.12),
+                    foregroundColor: AvroClientColors.accent,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -268,8 +268,8 @@ class _DriverCompactSheet extends StatelessWidget {
                   onPressed: onMessage,
                   icon: const Icon(Icons.chat_bubble_rounded),
                   style: IconButton.styleFrom(
-                    backgroundColor: EvikColors.gray100,
-                    foregroundColor: EvikColors.gray700,
+                    backgroundColor: AvroClientColors.surface,
+                    foregroundColor: AvroClientColors.textPrimary,
                   ),
                 ),
               ],

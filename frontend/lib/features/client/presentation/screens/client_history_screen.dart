@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -63,7 +63,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
     final orders = _orders.map((order) => _HistoryOrder.fromOrder(order)).toList();
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
         title: Text(
           'История заказов',
@@ -79,7 +79,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroClientColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -97,11 +97,11 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
                     ? '${orders.length} поездки'
                     : '',
                 style: EvikTypography.bodyMedium.copyWith(
-                  color: EvikColors.textSecondary,
+                  color: AvroClientColors.textSecondary,
                 ),
               ),
             ),
-            const Divider(height: 1, color: EvikColors.border),
+            const Divider(height: 1, color: AvroClientColors.surface),
             Expanded(child: _buildBody(orders)),
           ],
         ),
@@ -155,9 +155,9 @@ class _HistoryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.border),
+        border: Border.all(color: AvroClientColors.surface),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -180,7 +180,7 @@ class _HistoryCard extends ConsumerWidget {
                     Text(
                       order.dateText,
                       style: EvikTypography.bodySmall
-                          .copyWith(color: EvikColors.textSecondary),
+                          .copyWith(color: AvroClientColors.textSecondary),
                     ),
                     const SizedBox(height: 2),
                     Text(order.car,
@@ -216,11 +216,11 @@ class _HistoryCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _RouteRow(color: EvikColors.accentOrange, text: order.from),
+          _RouteRow(color: AvroClientColors.accent, text: order.from),
           const SizedBox(height: 6),
-          _RouteRow(color: EvikColors.primaryBlack, text: order.to),
+          _RouteRow(color: AvroClientColors.textPrimary, text: order.to),
           const SizedBox(height: 10),
-          const Divider(height: 1, color: EvikColors.border),
+          const Divider(height: 1, color: AvroClientColors.surface),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -228,7 +228,7 @@ class _HistoryCard extends ConsumerWidget {
                 child: Text(
                   order.driver,
                   style: EvikTypography.bodyMedium
-                      .copyWith(color: EvikColors.textSecondary),
+                      .copyWith(color: AvroClientColors.textSecondary),
                 ),
               ),
               if (order.rating > 0)
@@ -238,7 +238,7 @@ class _HistoryCard extends ConsumerWidget {
                     (index) => Icon(
                       index < order.rating ? Icons.star : Icons.star_border,
                       size: 16,
-                      color: const Color(0xFFF59E0B),
+                      color: AvroClientColors.warning,
                     ),
                   ),
                 ),
@@ -247,7 +247,7 @@ class _HistoryCard extends ConsumerWidget {
           // Review section for completed orders
           if (realOrder.status == OrderStatus.completed) ...[
             const SizedBox(height: 12),
-            const Divider(height: 1, color: EvikColors.border),
+            const Divider(height: 1, color: AvroClientColors.surface),
             const SizedBox(height: 12),
             _ReviewSection(orderId: realOrder.id),
           ],
@@ -336,11 +336,11 @@ class _HistoryOrder {
     switch (order.status) {
       case OrderStatus.completed:
         statusText = 'Завершён';
-        statusColor = const Color(0xFF10B981);
+        statusColor = AvroClientColors.success;
         break;
       case OrderStatus.cancelled:
         statusText = 'Отменён';
-        statusColor = const Color(0xFFEF4444);
+        statusColor = AvroClientColors.error;
         break;
       case OrderStatus.searching:
       case OrderStatus.assigned:
@@ -348,7 +348,7 @@ class _HistoryOrder {
       case OrderStatus.arrived:
       case OrderStatus.evacuating:
         statusText = 'В работе';
-        statusColor = const Color(0xFF3B82F6);
+        statusColor = AvroClientColors.info;
         break;
     }
 
@@ -405,7 +405,7 @@ class _ReviewSection extends ConsumerWidget {
                   Text(
                     'Ваш отзыв:',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.textSecondary,
+                      color: AvroClientColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -414,7 +414,7 @@ class _ReviewSection extends ConsumerWidget {
                     return Icon(
                       index < review.stars ? Icons.star : Icons.star_border,
                       size: 14,
-                      color: const Color(0xFFF59E0B),
+                      color: AvroClientColors.warning,
                     );
                   }),
                 ],
@@ -424,7 +424,7 @@ class _ReviewSection extends ConsumerWidget {
                 Text(
                   review.text,
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.textSecondary,
+                    color: AvroClientColors.textSecondary,
                     fontStyle: FontStyle.italic,
                   ),
                   maxLines: 2,

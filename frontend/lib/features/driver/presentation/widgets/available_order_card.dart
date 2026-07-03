@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
@@ -20,9 +20,9 @@ class AvailableOrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroDriverColors.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.gray200, width: 1),
+        border: Border.all(color: AvroDriverColors.border, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -83,13 +83,13 @@ class AvailableOrderCard extends StatelessWidget {
               const Icon(
                 Icons.location_on_outlined,
                 size: 16,
-                color: EvikColors.accentOrange,
+                color: AvroDriverColors.accent,
               ),
               const SizedBox(width: 4),
               Text(
                 '${order.distanceKm.toStringAsFixed(1)} км',
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray500,
+                  color: AvroDriverColors.grayHint,
                   fontSize: 12,
                 ),
               ),
@@ -97,13 +97,13 @@ class AvailableOrderCard extends StatelessWidget {
               const Icon(
                 Icons.access_time_rounded,
                 size: 16,
-                color: EvikColors.gray500,
+                color: AvroDriverColors.grayHint,
               ),
               const SizedBox(width: 4),
               Text(
                 '${order.estimatedMinutes} мин',
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.gray500,
+                  color: AvroDriverColors.grayHint,
                   fontSize: 12,
                 ),
               ),
@@ -141,7 +141,7 @@ class AvailableOrderCard extends StatelessWidget {
             address,
             style: EvikTypography.bodyMedium.copyWith(
               fontSize: 13,
-              color: EvikColors.gray800,
+              color: AvroDriverColors.textPrimary,
             ),
           ),
         ),
@@ -152,11 +152,11 @@ class AvailableOrderCard extends StatelessWidget {
   Color _getSeverityColor() {
     switch (order.severity) {
       case ProblemSeverity.low:
-        return EvikColors.warningAmber;
+        return AvroDriverColors.warning;
       case ProblemSeverity.medium:
-        return EvikColors.infoBlue;
+        return AvroDriverColors.info;
       case ProblemSeverity.high:
-        return EvikColors.errorRed;
+        return AvroDriverColors.error;
     }
   }
 }

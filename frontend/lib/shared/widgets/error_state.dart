@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'evik_button.dart';
 
@@ -28,13 +28,13 @@ class ErrorState extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: EvikColors.errorRed.withValues(alpha: 0.1),
+                color: AvroClientColors.error.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.error_outline,
                 size: 40,
-                color: EvikColors.errorRed,
+                color: AvroClientColors.error,
               ),
             ),
             const SizedBox(height: 24),
@@ -42,7 +42,7 @@ class ErrorState extends StatelessWidget {
               'Не удалось загрузить данные',
               style: EvikTypography.h3.copyWith(
                 fontSize: 20,
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -50,7 +50,7 @@ class ErrorState extends StatelessWidget {
             Text(
               message,
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray500,
+                color: AvroClientColors.tabInactive,
               ),
               textAlign: TextAlign.center,
             ),

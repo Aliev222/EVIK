@@ -7,7 +7,7 @@ import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
@@ -47,10 +47,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
             ),
           ),
-          backgroundColor: EvikColors.textPrimary,
+          backgroundColor: AvroClientColors.textPrimary,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -92,7 +92,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             const Icon(
               Icons.location_off,
               size: 48,
-              color: EvikColors.accentOrange,
+              color: AvroClientColors.accent,
             ),
             const SizedBox(height: 16),
             Text(
@@ -100,7 +100,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               style: GoogleFonts.inter(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: EvikColors.textPrimary,
+                color: AvroClientColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -109,7 +109,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color: EvikColors.textSecondary,
+                color: AvroClientColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
@@ -118,8 +118,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: EvikColors.accentOrange,
-                  foregroundColor: EvikColors.primaryWhite,
+                  backgroundColor: AvroClientColors.accent,
+                  foregroundColor: AvroClientColors.background,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -145,9 +145,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     final lng = location?.longitude ?? AppConstants.moscowLng;
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       body: Container(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
@@ -212,12 +212,12 @@ class _Header extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: EvikColors.accentOrange,
+            color: AvroClientColors.accent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(
             Icons.local_shipping_rounded,
-            color: EvikColors.primaryWhite,
+            color: AvroClientColors.background,
             size: 20,
           ),
         ),
@@ -227,12 +227,12 @@ class _Header extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color: EvikColors.textPrimary,
+            color: AvroClientColors.textPrimary,
           ),
         ),
         const Spacer(),
         Material(
-          color: EvikColors.cardBackground,
+          color: AvroClientColors.surface,
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
@@ -242,7 +242,7 @@ class _Header extends StatelessWidget {
               height: 42,
               child: Icon(
                 Icons.notifications_none_rounded,
-                color: EvikColors.textPrimary,
+                color: AvroClientColors.textPrimary,
                 size: 22,
               ),
             ),
@@ -264,7 +264,7 @@ class _CallTowTruckButton extends StatelessWidget {
       height: 64,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: EvikColors.accentOrangeAction,
+        color: AvroClientColors.accent,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Material(
@@ -279,7 +279,7 @@ class _CallTowTruckButton extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.local_shipping_rounded,
-                  color: EvikColors.primaryWhite,
+                  color: AvroClientColors.background,
                   size: 26,
                 ),
                 const SizedBox(width: 14),
@@ -291,7 +291,7 @@ class _CallTowTruckButton extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
-                      color: EvikColors.primaryWhite,
+                      color: AvroClientColors.background,
                     ),
                   ),
                 ),
@@ -299,12 +299,12 @@ class _CallTowTruckButton extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: EvikColors.primaryWhite.withValues(alpha: 0.2),
+                    color: AvroClientColors.background.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.arrow_forward_rounded,
-                    color: EvikColors.primaryWhite,
+                    color: AvroClientColors.background,
                     size: 22,
                   ),
                 ),
@@ -355,7 +355,7 @@ class _QuickServicesGrid extends StatelessWidget {
           style: GoogleFonts.inter(
             fontSize: 18,
             fontWeight: FontWeight.w700,
-            color: EvikColors.textPrimary,
+            color: AvroClientColors.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -431,9 +431,9 @@ class _QuickServiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: EvikColors.surface,
+        color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.border, width: 1),
+        border: Border.all(color: AvroClientColors.surface, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -450,7 +450,7 @@ class _QuickServiceCard extends StatelessWidget {
                 Icon(
                   service.icon,
                   size: 24,
-                  color: EvikColors.accentOrange,
+                  color: AvroClientColors.accent,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -460,7 +460,7 @@ class _QuickServiceCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: EvikColors.textPrimary,
+                    color: AvroClientColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -471,7 +471,7 @@ class _QuickServiceCard extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
-                    color: EvikColors.textHint,
+                    color: AvroClientColors.tabInactive,
                   ),
                 ),
               ],
@@ -536,7 +536,7 @@ class _LocationMapCard extends StatelessWidget {
                   lat: lat,
                   lng: lng,
                   title: address,
-                  color: EvikColors.accentOrange,
+                  color: AvroClientColors.accent,
                 ),
               ],
             ),
@@ -551,7 +551,7 @@ class _LocationMapCard extends StatelessWidget {
                 ),
                 child: Container(
                   height: _overlayHeight,
-                  color: EvikColors.primaryWhite,
+                  color: AvroClientColors.background,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
@@ -567,7 +567,7 @@ class _LocationMapCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: EvikColors.textPrimary,
+                                color: AvroClientColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -578,7 +578,7 @@ class _LocationMapCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
-                                color: EvikColors.textSecondary,
+                                color: AvroClientColors.textSecondary,
                               ),
                             ),
                           ],
@@ -586,7 +586,7 @@ class _LocationMapCard extends StatelessWidget {
                       ),
                       const Icon(
                         Icons.chevron_right_rounded,
-                        color: EvikColors.textSecondary,
+                        color: AvroClientColors.textSecondary,
                         size: 22,
                       ),
                     ],
@@ -691,9 +691,9 @@ class _SosSliderState extends State<_SosSlider>
         return Container(
           height: constraints.maxHeight,
           decoration: BoxDecoration(
-            color: const Color(0xFFFFF0E8),
+            color: AvroClientColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: EvikColors.accentOrange, width: 1),
+            border: Border.all(color: AvroClientColors.accent, width: 1),
           ),
           child: Stack(
             alignment: Alignment.centerLeft,
@@ -706,7 +706,7 @@ class _SosSliderState extends State<_SosSlider>
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: EvikColors.accentOrange,
+                      color: AvroClientColors.accent,
                     ),
                   ),
                 ),
@@ -730,12 +730,12 @@ class _SosSliderState extends State<_SosSlider>
                           width: _thumbSize,
                           height: _thumbSize,
                           decoration: const BoxDecoration(
-                            color: EvikColors.accentOrangeAction,
+                            color: AvroClientColors.accent,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.shield_rounded,
-                            color: EvikColors.primaryWhite,
+                            color: AvroClientColors.background,
                             size: 22,
                           ),
                         ),

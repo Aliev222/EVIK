@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/theme/app_theme.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
@@ -25,7 +26,9 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
     final driverState = ref.watch(newDriverProvider);
     final hasActiveOrder = driverState.workState.hasActiveOrder;
 
-    return Scaffold(
+    return Theme(
+      data: AppTheme.driver(),
+      child: Scaffold(
       body: RepaintBoundary(
         child: IndexedStack(
           index: _currentIndex,
@@ -46,6 +49,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigation(hasActiveOrder),
+    ),
     );
   }
 
@@ -57,7 +61,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
         height: 72,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroDriverColors.navBar,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
@@ -136,8 +140,8 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                     Icon(
                       isActive ? activeIcon : icon,
                       color: isActive
-                          ? EvikColors.accentOrange
-                          : EvikColors.gray600,
+                          ? AvroDriverColors.accent
+                          : AvroDriverColors.tabInactive,
                       size: 24,
                     ),
                     if (badge != null)
@@ -148,14 +152,14 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                           width: 16,
                           height: 16,
                           decoration: const BoxDecoration(
-                            color: EvikColors.errorRed,
+                            color: AvroDriverColors.error,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
                               badge,
                               style: const TextStyle(
-                                color: EvikColors.primaryWhite,
+                                color: AvroDriverColors.textPrimary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -174,7 +178,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color:
-                        isActive ? EvikColors.accentOrange : EvikColors.gray600,
+                        isActive ? AvroDriverColors.accent : AvroDriverColors.tabInactive,
                   ),
                 ),
               ],

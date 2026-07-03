@@ -2,7 +2,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
@@ -42,7 +42,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final authState = ref.watch(authProvider);
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
         title: Text(
           'Вход в Авро',
@@ -59,7 +59,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroClientColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -77,7 +77,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               Text(
                 'Введите номер телефона для входа или регистрации',
                 style: EvikTypography.bodyLarge.copyWith(
-                  color: EvikColors.gray600,
+                  color: AvroClientColors.textSecondary,
                   height: 1.35,
                 ),
               ),
@@ -94,7 +94,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 child: Text(
                   'Мы отправим SMS с кодом подтверждения на этот номер',
                   style: EvikTypography.bodyLarge.copyWith(
-                    color: EvikColors.gray600,
+                    color: AvroClientColors.textSecondary,
                     height: 1.35,
                   ),
                 ),
@@ -104,16 +104,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: EvikColors.errorRed.withValues(alpha: 0.1),
+                    color: AvroClientColors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: EvikColors.errorRed.withValues(alpha: 0.2),
+                      color: AvroClientColors.error.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Text(
                     authState.errorMessage!,
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.errorRed,
+                      color: AvroClientColors.error,
                     ),
                   ),
                 ),
@@ -150,14 +150,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               children: [
                 const Icon(
                   Icons.check_circle,
-                  color: EvikColors.successGreen,
+                  color: AvroClientColors.success,
                   size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   'Номер корректный',
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.successGreen,
+                    color: AvroClientColors.success,
                   ),
                 ),
               ],
@@ -168,7 +168,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   : 'Проверьте формат номера: +7 (999) 123-45-67',
               key: const ValueKey('invalid-phone'),
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.gray700,
+                color: AvroClientColors.textPrimary,
               ),
             ),
     );
@@ -250,10 +250,10 @@ class _PhoneInput extends StatelessWidget {
       curve: Curves.easeInOut,
       height: 56,
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isValid ? EvikColors.accentOrange : EvikColors.gray200,
+          color: isValid ? AvroClientColors.accent : AvroClientColors.surface,
           width: 2,
         ),
       ),
@@ -264,11 +264,11 @@ class _PhoneInput extends StatelessWidget {
             'RU',
             style: EvikTypography.bodyMedium.copyWith(
               fontWeight: FontWeight.w700,
-              color: EvikColors.primaryBlack,
+              color: AvroClientColors.textPrimary,
             ),
           ),
           const SizedBox(width: 12),
-          Container(width: 1, height: 26, color: EvikColors.gray200),
+          Container(width: 1, height: 26, color: AvroClientColors.surface),
           const SizedBox(width: 12),
           Expanded(
             child: TextFormField(
@@ -280,7 +280,7 @@ class _PhoneInput extends StatelessWidget {
                 border: InputBorder.none,
                 hintText: '+7 (999) 000-00-00',
                 hintStyle: EvikTypography.bodyLarge.copyWith(
-                  color: EvikColors.gray400,
+                  color: AvroClientColors.tabInactive,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
               ),

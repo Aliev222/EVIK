@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_earnings.dart';
 
 class EarningsCard extends StatelessWidget {
@@ -22,10 +22,10 @@ class EarningsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE4E7EC)),
-        boxShadow: const <BoxShadow>[
+        border: Border.all(color: AvroDriverColors.borderLight),
+        boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Color(0x14000000),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 18,
             offset: Offset(0, 8),
           ),
@@ -37,14 +37,14 @@ class EarningsCard extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.account_balance_wallet_outlined,
-                  color: EvikColors.textPrimaryDark),
+                  color: AvroDriverColors.textPrimary),
               const SizedBox(width: 8),
               Text(
                 compact ? 'Сегодня' : 'Заработок',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: EvikColors.textPrimaryDark,
+                  color: AvroDriverColors.textPrimary,
                 ),
               ),
             ],
@@ -59,7 +59,7 @@ class EarningsCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  color: EvikColors.textPrimaryDark,
+                  color: AvroDriverColors.textPrimary,
                 ),
               );
             },
@@ -69,7 +69,7 @@ class EarningsCard extends StatelessWidget {
             'Сегодня: ${stats.ordersToday} заказа • ${stats.averageRating.toStringAsFixed(1)} ⭐',
             style: const TextStyle(
               fontSize: 13,
-              color: EvikColors.textSecondaryDark,
+              color: AvroDriverColors.textSecondary,
             ),
           ),
           if (!compact) ...[
@@ -78,7 +78,7 @@ class EarningsCard extends StatelessWidget {
               'Эта неделя: ${stats.ordersWeek} заказов • ${stats.week.toStringAsFixed(0)}₽',
               style: const TextStyle(
                 fontSize: 14,
-                color: EvikColors.textSecondaryDark,
+                color: AvroDriverColors.textSecondary,
               ),
             ),
           ],

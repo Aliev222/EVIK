@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -51,10 +51,10 @@ class _DriverProfileSetupScreenState
     _hydrateInitialValues(authUser?.fullName ?? '', onboardingState);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F4EF),
+      backgroundColor: AvroDriverColors.documentBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: EvikColors.textPrimaryDark,
+        foregroundColor: AvroDriverColors.textPrimary,
         elevation: 0,
       ),
       body: SafeArea(
@@ -69,9 +69,9 @@ class _DriverProfileSetupScreenState
                   value: 2 / 3,
                   minHeight: 8,
                   borderRadius: BorderRadius.circular(999),
-                  backgroundColor: const Color(0xFFE2DDD5),
+                  backgroundColor: AvroDriverColors.documentCard,
                   valueColor:
-                      const AlwaysStoppedAnimation<Color>(EvikColors.accent),
+                      const AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
                 ),
                 const SizedBox(height: 18),
                 const Text(
@@ -79,7 +79,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: EvikColors.textSecondaryDark,
+                    color: AvroDriverColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -88,7 +88,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
-                    color: EvikColors.textPrimaryDark,
+                    color: AvroDriverColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -97,7 +97,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 15,
                     height: 1.45,
-                    color: EvikColors.textSecondaryDark,
+                    color: AvroDriverColors.textSecondary,
                   ),
                 ),
                 if (onboardingState.errorMessage != null) ...[
@@ -212,7 +212,7 @@ class _DriverProfileSetupScreenState
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: EvikColors.textPrimaryDark,
+                          color: AvroDriverColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -221,7 +221,7 @@ class _DriverProfileSetupScreenState
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.45,
-                          color: EvikColors.textSecondaryDark,
+                          color: AvroDriverColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -246,9 +246,9 @@ class _DriverProfileSetupScreenState
                   child: ElevatedButton(
                     onPressed: onboardingState.isLoading ? null : _submit,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: EvikColors.accent,
+                      backgroundColor: AvroDriverColors.accent,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFCBC7BE),
+                      disabledBackgroundColor: AvroDriverColors.documentDisabled,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
                       ),
@@ -351,7 +351,7 @@ class _UploadProgressCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFD8D2C7)),
+        border: Border.all(color: AvroDriverColors.documentBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,7 +361,7 @@ class _UploadProgressCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: EvikColors.textPrimaryDark,
+              color: AvroDriverColors.textPrimary,
             ),
           ),
           const SizedBox(height: 10),
@@ -369,8 +369,8 @@ class _UploadProgressCard extends StatelessWidget {
             value: progress <= 0 ? null : progress,
             minHeight: 8,
             borderRadius: BorderRadius.circular(999),
-            backgroundColor: const Color(0xFFE2DDD5),
-            valueColor: const AlwaysStoppedAnimation<Color>(EvikColors.accent),
+            backgroundColor: AvroDriverColors.documentCard,
+            valueColor: const AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
           ),
         ],
       ),
@@ -398,7 +398,7 @@ class _SelfieCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFD8D2C7)),
+        border: Border.all(color: AvroDriverColors.documentBorder),
       ),
       child: Column(
         children: [
@@ -408,18 +408,18 @@ class _SelfieCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFFD8D2C7),
+                color: AvroDriverColors.documentBorder,
                 width: 2,
               ),
             ),
             child: ClipOval(
               child: selfie == null
                   ? const ColoredBox(
-                      color: Color(0xFFF1EEE8),
+                      color: AvroDriverColors.documentDivider,
                       child: Icon(
                         Icons.face_rounded,
                         size: 60,
-                        color: EvikColors.textSecondaryDark,
+                        color: AvroDriverColors.textSecondary,
                       ),
                     )
                   : _SelfiePreview(selfie: selfie!),
@@ -433,7 +433,7 @@ class _SelfieCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: EvikColors.textPrimaryDark,
+              color: AvroDriverColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -443,7 +443,7 @@ class _SelfieCard extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: isLoading ? null : onPick,
               style: ElevatedButton.styleFrom(
-                backgroundColor: EvikColors.accent,
+                backgroundColor: AvroDriverColors.accent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -494,16 +494,16 @@ class _ProfileErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF2F0),
+        color: AvroDriverColors.errorBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD3CB)),
+        border: Border.all(color: AvroDriverColors.errorBorder),
       ),
       child: Text(
         message,
         style: const TextStyle(
           fontSize: 14,
           height: 1.4,
-          color: Color(0xFFB3261E),
+          color: AvroDriverColors.errorText,
         ),
       ),
     );

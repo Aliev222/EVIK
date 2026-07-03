@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
@@ -61,7 +61,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Спасибо за отзыв!'),
-            backgroundColor: EvikColors.successGreen,
+            backgroundColor: AvroClientColors.success,
           ),
         );
 
@@ -113,12 +113,12 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
     final driver = orderFlowState.assignedDriver;
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
-        backgroundColor: EvikColors.gray50,
+        backgroundColor: AvroClientColors.background,
         title: Text(
           'Оценить поездку',
-          style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
+          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
         ),
         centerTitle: true,
         leading: Container(), // Remove back button
@@ -128,7 +128,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
             child: Text(
               'Пропустить',
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray600,
+                color: AvroClientColors.textSecondary,
               ),
             ),
           ),
@@ -152,14 +152,14 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            EvikColors.successGreen.withValues(alpha: 0.1),
-                            EvikColors.accentOrange.withValues(alpha: 0.05),
+                            AvroClientColors.success.withValues(alpha: 0.1),
+                            AvroClientColors.accent.withValues(alpha: 0.05),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                             color:
-                                EvikColors.successGreen.withValues(alpha: 0.3)),
+                                AvroClientColors.success.withValues(alpha: 0.3)),
                       ),
                       child: Column(
                         children: [
@@ -167,13 +167,13 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(
-                              color: EvikColors.successGreen
+                              color: AvroClientColors.success
                                   .withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
                               Icons.check_circle,
-                              color: EvikColors.successGreen,
+                              color: AvroClientColors.success,
                               size: 32,
                             ),
                           ),
@@ -181,14 +181,14 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                           Text(
                             'Поездка завершена!',
                             style: EvikTypography.h3.copyWith(
-                              color: EvikColors.primaryBlack,
+                              color: AvroClientColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Ваш автомобиль успешно эвакуирован',
                             style: EvikTypography.bodyMedium.copyWith(
-                              color: EvikColors.gray600,
+                              color: AvroClientColors.textSecondary,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -203,11 +203,11 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: EvikColors.primaryWhite,
+                          color: AvroClientColors.background,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: EvikColors.gray300.withValues(alpha: 0.3),
+                              color: AvroClientColors.surface.withValues(alpha: 0.3),
                               offset: const Offset(0, 4),
                               blurRadius: 12,
                             ),
@@ -220,10 +220,10 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                               width: 70,
                               height: 70,
                               decoration: BoxDecoration(
-                                color: EvikColors.gray100,
+                                color: AvroClientColors.surface,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: EvikColors.accentOrange
+                                  color: AvroClientColors.accent
                                       .withValues(alpha: 0.3),
                                   width: 2,
                                 ),
@@ -231,7 +231,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                               child: const Icon(
                                 Icons.person,
                                 size: 36,
-                                color: EvikColors.gray400,
+                                color: AvroClientColors.tabInactive,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -240,14 +240,14 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                             Text(
                               driver.fullName ?? 'Водитель Авро',
                               style: EvikTypography.h3.copyWith(
-                                color: EvikColors.primaryBlack,
+                                color: AvroClientColors.textPrimary,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               driver.vehicleNumber,
                               style: EvikTypography.bodyMedium.copyWith(
-                                color: EvikColors.gray600,
+                                color: AvroClientColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -259,7 +259,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                                     index < driver.rating.floor()
                                         ? Icons.star
                                         : Icons.star_border,
-                                    color: EvikColors.accentOrange,
+                                    color: AvroClientColors.accent,
                                     size: 16,
                                   );
                                 }),
@@ -267,7 +267,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                                 Text(
                                   '${driver.rating.toStringAsFixed(1)} • ${driver.totalOrders} поездок',
                                   style: EvikTypography.bodySmall.copyWith(
-                                    color: EvikColors.gray600,
+                                    color: AvroClientColors.textSecondary,
                                   ),
                                 ),
                               ],
@@ -283,9 +283,9 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: EvikColors.primaryWhite,
+                        color: AvroClientColors.background,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: EvikColors.gray200),
+                        border: Border.all(color: AvroClientColors.surface),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,7 +293,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                           Text(
                             'Как прошла поездка?',
                             style: EvikTypography.h3.copyWith(
-                              color: EvikColors.primaryBlack,
+                              color: AvroClientColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -316,7 +316,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                                       index < _rating
                                           ? Icons.star
                                           : Icons.star_border,
-                                      color: EvikColors.accentOrange,
+                                      color: AvroClientColors.accent,
                                       size: 40,
                                     ),
                                   ),
@@ -332,7 +332,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                               child: Text(
                                 _getRatingText(_rating),
                                 style: EvikTypography.bodyMedium.copyWith(
-                                  color: EvikColors.gray600,
+                                  color: AvroClientColors.textSecondary,
                                 ),
                               ),
                             ),
@@ -343,7 +343,7 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                             'Комментарий (по желанию)',
                             style: EvikTypography.bodyMedium.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: EvikColors.primaryBlack,
+                              color: AvroClientColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -353,22 +353,22 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
                             decoration: InputDecoration(
                               hintText: 'Расскажите о своих впечатлениях...',
                               hintStyle: EvikTypography.bodyMedium.copyWith(
-                                color: EvikColors.gray400,
+                                color: AvroClientColors.tabInactive,
                               ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    const BorderSide(color: EvikColors.gray200),
+                                    BorderSide(color: AvroClientColors.surface),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide:
-                                    const BorderSide(color: EvikColors.gray200),
+                                    BorderSide(color: AvroClientColors.surface),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(
-                                    color: EvikColors.accentOrange),
+                                borderSide: BorderSide(
+                                    color: AvroClientColors.accent),
                               ),
                               contentPadding: const EdgeInsets.all(16),
                             ),

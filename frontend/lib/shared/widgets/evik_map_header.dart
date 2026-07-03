@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'evik_avatar.dart';
 
@@ -34,7 +34,7 @@ class EvikMapHeader extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: EvikColors.primaryWhite,
+                color: AvroClientColors.background,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
@@ -51,7 +51,7 @@ class EvikMapHeader extends StatelessWidget {
                     width: 7,
                     height: 7,
                     decoration: const BoxDecoration(
-                      color: EvikColors.accentOrange,
+                      color: AvroClientColors.accent,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -59,7 +59,7 @@ class EvikMapHeader extends StatelessWidget {
                   Text(
                     locationText,
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),

@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 
 class LoadingState extends StatelessWidget {
@@ -16,13 +16,13 @@ class LoadingState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(color: EvikColors.accentOrange),
+            const CircularProgressIndicator(color: AvroClientColors.accent),
             if (message != null) ...[
               const SizedBox(height: 16),
               Text(
                 message!,
                 style: EvikTypography.bodyMedium.copyWith(
-                  color: EvikColors.gray500,
+                  color: AvroClientColors.tabInactive,
                 ),
                 textAlign: TextAlign.center,
               ),

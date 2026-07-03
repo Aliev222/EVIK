@@ -8,7 +8,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'pulsing_location_dot.dart';
 
 class EvikOsmMapView extends StatefulWidget {
@@ -98,7 +98,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: EvikColors.gray100,
+      color: AvroClientColors.surface,
       child: Stack(
         children: [
           Positioned.fill(
@@ -136,9 +136,9 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                     polylines: [
                       Polyline(
                         points: widget.routePoints,
-                        color: EvikColors.accent,
+                        color: AvroClientColors.accent,
                         strokeWidth: 5,
-                        borderColor: EvikColors.primaryWhite,
+                        borderColor: AvroClientColors.background,
                         borderStrokeWidth: 2,
                       ),
                     ],
@@ -196,7 +196,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
             bottom: 16,
             child: Text(
               AppConstants.openStreetMapAttribution,
-              style: TextStyle(color: EvikColors.gray600, fontSize: 10),
+              style: TextStyle(color: AvroClientColors.textSecondary, fontSize: 10),
             ),
           ),
         ],
@@ -256,7 +256,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
         const SnackBar(
           content: Text('Не удалось определить местоположение'),
-          backgroundColor: EvikColors.errorRed,
+          backgroundColor: AvroClientColors.error,
         ),
       );
     } finally {
@@ -314,7 +314,7 @@ class _AnimatedMapMarker extends StatelessWidget {
               decoration: BoxDecoration(
                 color: marker.color,
                 shape: BoxShape.circle,
-                border: Border.all(color: EvikColors.primaryWhite, width: 3),
+                border: Border.all(color: AvroClientColors.background, width: 3),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.2),
@@ -325,7 +325,7 @@ class _AnimatedMapMarker extends StatelessWidget {
               ),
               child: Icon(
                 marker.icon ?? Icons.location_on,
-                color: EvikColors.primaryWhite,
+                color: AvroClientColors.background,
                 size: 18,
               ),
             ),
@@ -377,7 +377,7 @@ class _MapControls extends StatelessWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.2,
-                      color: iconColor ?? EvikColors.accentOrange,
+                      color: iconColor ?? AvroClientColors.accent,
                     ),
                   )
                 : const Icon(Icons.navigation_rounded),
@@ -416,7 +416,7 @@ class _MapControlButton extends StatelessWidget {
       width: 48,
       height: 48,
       child: Material(
-        color: (backgroundColor ?? EvikColors.primaryWhite)
+        color: (backgroundColor ?? AvroClientColors.background)
             .withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(12),
         elevation: 4,
@@ -424,7 +424,7 @@ class _MapControlButton extends StatelessWidget {
         child: IconButton(
           tooltip: tooltip,
           onPressed: onPressed,
-          color: iconColor ?? EvikColors.primaryBlack,
+          color: iconColor ?? AvroClientColors.textPrimary,
           icon: child,
         ),
       ),
@@ -449,7 +449,7 @@ class _ZoomControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: (backgroundColor ?? EvikColors.primaryWhite)
+        color: (backgroundColor ?? AvroClientColors.background)
             .withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
@@ -467,14 +467,14 @@ class _ZoomControls extends StatelessWidget {
             tooltip: 'Увеличить',
             onPressed: onZoomIn,
             icon: const Icon(Icons.add_rounded),
-            color: iconColor ?? EvikColors.primaryBlack,
+            color: iconColor ?? AvroClientColors.textPrimary,
           ),
           const SizedBox(height: 1),
           IconButton(
             tooltip: 'Уменьшить',
             onPressed: onZoomOut,
             icon: const Icon(Icons.remove_rounded),
-            color: iconColor ?? EvikColors.primaryBlack,
+            color: iconColor ?? AvroClientColors.textPrimary,
           ),
         ],
       ),
@@ -487,7 +487,7 @@ class EvikMapMarker {
     required this.lat,
     required this.lng,
     this.title,
-    this.color = EvikColors.accentOrange,
+    this.color = AvroClientColors.accent,
     this.icon,
   });
 

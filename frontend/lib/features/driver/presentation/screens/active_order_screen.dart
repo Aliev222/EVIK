@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/services/navigation_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
@@ -38,21 +38,21 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: EvikColors.errorRed,
+          backgroundColor: AvroDriverColors.error,
         ),
       );
     });
 
     if (order == null) {
       return const Scaffold(
-        backgroundColor: EvikColors.gray50,
+        backgroundColor: AvroDriverColors.surface,
         body: Center(child: Text('Нет активного заказа')),
       );
     }
     _syncRoutePreview(order);
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroDriverColors.surface,
       body: Stack(
         children: [
           Positioned.fill(
@@ -63,8 +63,8 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
               markers: _mapMarkers(order),
               routePoints: _routePreview?.points ?? const <LatLng>[],
               controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 246,
-              controlsBackgroundColor: EvikColors.primaryWhite,
-              controlsIconColor: EvikColors.accentOrange,
+              controlsBackgroundColor: AvroDriverColors.surface,
+              controlsIconColor: AvroDriverColors.accent,
             ),
           ),
           if (_routePreviewFailed)
@@ -104,19 +104,19 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
         lat: _driverLat,
         lng: _driverLng,
         title: 'Водитель',
-        color: EvikColors.infoBlue,
+        color: AvroDriverColors.info,
       ),
       EvikMapMarker(
         lat: order.pickupLat,
         lng: order.pickupLng,
         title: order.pickupAddress,
-        color: EvikColors.accentOrange,
+        color: AvroDriverColors.accent,
       ),
       EvikMapMarker(
         lat: order.dropoffLat,
         lng: order.dropoffLng,
         title: order.dropoffAddress,
-        color: EvikColors.gray700,
+        color: AvroDriverColors.textSecondary,
       ),
     ];
   }
@@ -200,9 +200,9 @@ class _RouteUnavailableBadge extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite.withValues(alpha: 0.96),
+          color: AvroDriverColors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: EvikColors.gray200),
+          border: Border.all(color: AvroDriverColors.tabInactive),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -219,13 +219,13 @@ class _RouteUnavailableBadge extends StatelessWidget {
               const Icon(
                 Icons.route_outlined,
                 size: 18,
-                color: EvikColors.accentOrange,
+                color: AvroDriverColors.accent,
               ),
               const SizedBox(width: 8),
               Text(
                 'Маршрут недоступен',
                 style: EvikTypography.bodySmall.copyWith(
-                  color: EvikColors.primaryBlack,
+                  color: AvroDriverColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -245,7 +245,7 @@ class _ActiveOrderTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroDriverColors.surface,
       borderRadius: BorderRadius.circular(18),
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.12),
@@ -257,12 +257,12 @@ class _ActiveOrderTopBar extends StatelessWidget {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: EvikColors.accentOrange.withValues(alpha: 0.12),
+                color: AvroDriverColors.accent.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.local_shipping_rounded,
-                color: EvikColors.accentOrange,
+                color: AvroDriverColors.accent,
               ),
             ),
             const SizedBox(width: 12),
@@ -281,7 +281,7 @@ class _ActiveOrderTopBar extends StatelessWidget {
                   Text(
                     '${order.distanceToClient.toStringAsFixed(1)} км · ${order.estimatedMinutes} мин',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray600,
+                      color: AvroDriverColors.tabInactive,
                     ),
                   ),
                 ],
@@ -321,7 +321,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
       top: false,
       child: Container(
         decoration: const BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroDriverColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
@@ -335,14 +335,14 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: const BoxDecoration(
-                    color: EvikColors.accentOrange,
+                    color: AvroDriverColors.accent,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
                       order.clientInitial,
                       style: const TextStyle(
-                        color: EvikColors.primaryWhite,
+                        color: AvroDriverColors.surface,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
@@ -365,7 +365,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.gray600,
+                          color: AvroDriverColors.tabInactive,
                         ),
                       ),
                     ],
@@ -374,18 +374,18 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                 IconButton(
                   onPressed: onCall,
                   icon: const Icon(Icons.phone_rounded),
-                  color: EvikColors.accentOrange,
+                  color: AvroDriverColors.accent,
                 ),
                 IconButton(
                   onPressed: onMessage,
                   icon: const Icon(Icons.chat_bubble_rounded),
-                  color: EvikColors.gray700,
+                  color: AvroDriverColors.textSecondary,
                 ),
               ],
             ),
             const SizedBox(height: 14),
             _RoutePoint(
-              color: EvikColors.accentOrange,
+              color: AvroDriverColors.accent,
               label: order.status == ActiveOrderStatus.drivingToDestination
                   ? 'Забрали'
                   : 'К клиенту',
@@ -393,7 +393,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _RoutePoint(
-              color: EvikColors.gray500,
+              color: AvroDriverColors.tabInactive,
               label: 'Доставка',
               value: order.dropoffAddress,
             ),
@@ -550,8 +550,8 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: widget.enabled
-                    ? EvikColors.accentOrange
-                    : EvikColors.gray300,
+                    ? AvroDriverColors.accent
+                    : AvroDriverColors.tabInactive,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Stack(
@@ -576,7 +576,7 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: EvikTypography.buttonText.copyWith(
-                        color: EvikColors.primaryWhite,
+                        color: AvroDriverColors.surface,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -587,12 +587,12 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
                       width: knobSize,
                       height: knobSize,
                       decoration: const BoxDecoration(
-                        color: EvikColors.primaryWhite,
+                        color: AvroDriverColors.surface,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
                         Icons.arrow_forward_rounded,
-                        color: EvikColors.accentOrange,
+                        color: AvroDriverColors.accent,
                       ),
                     ),
                   ),

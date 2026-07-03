@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/client/domain/entities/payment_wallet.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/client_payment_methods_provider.dart';
@@ -150,9 +150,9 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: EvikColors.surface,
+                  color: AvroClientColors.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: EvikColors.border),
+                  border: Border.all(color: AvroClientColors.surface),
                 ),
                 child: cardsState.isLoading
                     ? const Row(
@@ -172,7 +172,7 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                         ? Row(
                             children: [
                               const Icon(Icons.credit_card_off_rounded,
-                                  color: EvikColors.accentOrange),
+                                  color: AvroClientColors.accent),
                               const SizedBox(width: 10),
                               const Expanded(
                                 child: Text('Добавьте карту для оплаты заказа'),
@@ -186,7 +186,7 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                         : Row(
                             children: [
                               const Icon(Icons.credit_card_rounded,
-                                  color: EvikColors.accentOrange),
+                                  color: AvroClientColors.accent),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
@@ -209,9 +209,9 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: EvikColors.surface,
+                  color: AvroClientColors.surface,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: EvikColors.border),
+                  border: Border.all(color: AvroClientColors.surface),
                 ),
                 child: Text(
                   'Примерная стоимость: ${state.estimatedPrice!.toStringAsFixed(0)}₽',
@@ -251,7 +251,7 @@ class _OrderFormSheetState extends ConsumerState<OrderFormSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(color: EvikColors.textSecondaryDark)),
+              style: TextStyle(color: AvroClientColors.textSecondary)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],

@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_moderation_provider.dart';
 
@@ -35,7 +35,7 @@ class DriverModerationScreen extends ConsumerWidget {
           description: 'Загружаем данные модерации.',
           child: Padding(
             padding: EdgeInsets.only(top: 18),
-            child: CircularProgressIndicator(color: EvikColors.accent),
+            child: CircularProgressIndicator(color: AvroDriverColors.accent),
           ),
         ),
       );
@@ -80,7 +80,7 @@ class DriverModerationScreen extends ConsumerWidget {
           description: 'Загружаем данные модерации.',
           child: Padding(
             padding: EdgeInsets.only(top: 18),
-            child: CircularProgressIndicator(color: EvikColors.accent),
+            child: CircularProgressIndicator(color: AvroDriverColors.accent),
           ),
         ),
       ),
@@ -111,8 +111,8 @@ class DriverModerationScreen extends ConsumerWidget {
               child: LinearProgressIndicator(
                 minHeight: 8,
                 borderRadius: BorderRadius.all(Radius.circular(999)),
-                backgroundColor: Color(0xFFE2DDD5),
-                valueColor: AlwaysStoppedAnimation<Color>(EvikColors.accent),
+                backgroundColor: AvroDriverColors.documentCard,
+                valueColor: AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
               ),
             ),
           ),
@@ -132,8 +132,8 @@ class DriverModerationScreen extends ConsumerWidget {
                 child: OutlinedButton(
                   onPressed: () => _contactSupport(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: EvikColors.textPrimaryDark,
-                    side: const BorderSide(color: Color(0xFFD8D2C7)),
+                    foregroundColor: AvroDriverColors.textPrimary,
+                    side: const BorderSide(color: AvroDriverColors.documentBorder),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -192,7 +192,7 @@ class _ModerationScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F4EF),
+      backgroundColor: AvroDriverColors.documentBg,
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -243,13 +243,13 @@ class _StatusCard extends StatelessWidget {
             width: 76,
             height: 76,
             decoration: BoxDecoration(
-              color: const Color(0xFFF1EEE8),
+              color: AvroDriverColors.documentDivider,
               borderRadius: BorderRadius.circular(22),
             ),
             child: Icon(
               icon,
               size: 38,
-              color: EvikColors.accent,
+              color: AvroDriverColors.accent,
             ),
           ),
           const SizedBox(height: 18),
@@ -259,7 +259,7 @@ class _StatusCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: EvikColors.textPrimaryDark,
+              color: AvroDriverColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -269,7 +269,7 @@ class _StatusCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 15,
               height: 1.5,
-              color: EvikColors.textSecondaryDark,
+              color: AvroDriverColors.textSecondary,
             ),
           ),
           if (child != null) child!,

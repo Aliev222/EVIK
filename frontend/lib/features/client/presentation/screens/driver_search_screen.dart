@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -54,7 +54,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Свободные водители не найдены. Попробуйте позже.'),
-              backgroundColor: EvikColors.errorRed,
+              backgroundColor: AvroClientColors.error,
             ),
           );
         }
@@ -134,7 +134,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF111111),
+              color: AvroClientColors.textPrimary,
             ),
           ),
           content: Column(
@@ -146,7 +146,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                 'К стоимости будет добавлена надбавка за подачу.',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Color(0xFF555555),
+                  color: AvroClientColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -154,9 +154,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F7F7),
+                  color: AvroClientColors.surface,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFEEEEEE)),
+                  border: Border.all(color: AvroClientColors.surface),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,11 +166,11 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                       children: [
                         const Text(
                           'Эвакуация',
-                          style: TextStyle(fontSize: 14, color: Color(0xFF555555)),
+                          style: TextStyle(fontSize: 14, color: AvroClientColors.textSecondary),
                         ),
                         Text(
                           '${((activeOrder.surchargeAmount > 0 ? (activeOrder.surchargeAmount * 100 / activeOrder.surchargePercent).round() : 0) / 100).toStringAsFixed(0)} ₽',
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF111111)),
+                          style: const TextStyle(fontSize: 14, color: AvroClientColors.textPrimary),
                         ),
                       ],
                     ),
@@ -180,11 +180,11 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                       children: [
                         const Text(
                           'Подача из другого города',
-                          style: TextStyle(fontSize: 14, color: Color(0xFFFF6B00)),
+                          style: TextStyle(fontSize: 14, color: AvroClientColors.accent),
                         ),
                         Text(
                           '+${(activeOrder.surchargeAmount / 100).toStringAsFixed(0)} ₽',
-                          style: const TextStyle(fontSize: 14, color: Color(0xFFFF6B00)),
+                          style: const TextStyle(fontSize: 14, color: AvroClientColors.accent),
                         ),
                       ],
                     ),
@@ -197,7 +197,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF111111),
+                            color: AvroClientColors.textPrimary,
                           ),
                         ),
                         Text(
@@ -205,7 +205,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF111111),
+                            color: AvroClientColors.textPrimary,
                           ),
                         ),
                       ],
@@ -220,14 +220,14 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text(
                 'Отменить заказ',
-                style: TextStyle(color: Color(0xFF555555)),
+                style: TextStyle(color: AvroClientColors.textSecondary),
               ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6B00),
-                foregroundColor: Colors.white,
+                backgroundColor: AvroClientColors.accent,
+                foregroundColor: AvroClientColors.background,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -275,7 +275,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(next.errorMessage!),
-            backgroundColor: EvikColors.errorRed,
+            backgroundColor: AvroClientColors.error,
             action: SnackBarAction(
               label: 'Повторить',
               onPressed: () {
@@ -289,16 +289,16 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     });
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
-        backgroundColor: EvikColors.primaryWhite,
+        backgroundColor: AvroClientColors.background,
         title: Text(
           'Поиск водителя',
-          style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
+          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: EvikColors.primaryBlack),
+          icon: const Icon(Icons.close, color: AvroClientColors.textPrimary),
           onPressed: _cancelSearch,
         ),
       ),
@@ -322,11 +322,11 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
             right: 0,
             child: Container(
               decoration: BoxDecoration(
-                color: EvikColors.primaryWhite,
+                color: AvroClientColors.background,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(20)),
                 border: const Border(
-                  top: BorderSide(color: EvikColors.border),
+                  top: BorderSide(color: AvroClientColors.surface),
                 ),
               ),
               padding: const EdgeInsets.all(20),
@@ -342,7 +342,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                           height: 12,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
-                            color: EvikColors.accentOrange,
+                            color: AvroClientColors.accent,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -350,7 +350,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                           child: Text(
                             'Ищем свободного водителя...',
                             style: EvikTypography.h3.copyWith(
-                              color: EvikColors.primaryBlack,
+                              color: AvroClientColors.textPrimary,
                             ),
                           ),
                         ),
@@ -362,7 +362,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                     Text(
                       searchTimer,
                       style: EvikTypography.bodyLarge.copyWith(
-                        color: EvikColors.primaryBlack,
+                        color: AvroClientColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -372,7 +372,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: EvikColors.surface,
+                        color: AvroClientColors.surface,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -402,7 +402,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                             'Стоимость',
                             '${orderFlowState.estimatedPrice.round()} ₽',
                             Icons.payment,
-                            valueColor: EvikColors.accentOrange,
+                            valueColor: AvroClientColors.accent,
                           ),
                         ],
                       ),
@@ -416,8 +416,8 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                       child: ElevatedButton(
                         onPressed: _cancelSearch,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: EvikColors.surface,
-                          foregroundColor: EvikColors.errorRed,
+                          backgroundColor: AvroClientColors.surface,
+                          foregroundColor: AvroClientColors.error,
                           elevation: 0,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
@@ -446,19 +446,19 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   }) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: EvikColors.textHint),
+        Icon(icon, size: 16, color: AvroClientColors.tabInactive),
         const SizedBox(width: 8),
         Text(
           label,
           style: EvikTypography.bodySmall.copyWith(
-            color: EvikColors.textSecondary,
+            color: AvroClientColors.textSecondary,
           ),
         ),
         const Spacer(),
         Text(
           value,
           style: EvikTypography.bodyMedium.copyWith(
-            color: valueColor ?? EvikColors.primaryBlack,
+            color: valueColor ?? AvroClientColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),

@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -17,7 +17,7 @@ class DriverEarningsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(driverWalletProvider);
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title: Text(
           'Баланс',
@@ -101,7 +101,7 @@ class _WalletBody extends ConsumerWidget {
                   title: 'В обработке',
                   amount: wallet.pendingBalance,
                   icon: Icons.schedule_rounded,
-                  color: EvikColors.infoBlue,
+                  color: AvroDriverColors.info,
                 ),
               ),
               const SizedBox(width: 12),
@@ -114,8 +114,8 @@ class _WalletBody extends ConsumerWidget {
                       : 'Расчеты закрыты',
                   icon: Icons.receipt_long_rounded,
                   color: wallet.debtBalance > 0
-                      ? EvikColors.errorRed
-                      : EvikColors.successGreen,
+                      ? AvroDriverColors.error
+                      : AvroDriverColors.success,
                 ),
               ),
             ],
@@ -175,12 +175,12 @@ class _AvailableBalanceCard extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroDriverColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: EvikColors.gray200),
+        border: Border.all(color: AvroDriverColors.tabInactive),
         boxShadow: [
           BoxShadow(
-            color: EvikColors.primaryBlack.withValues(alpha: 0.04),
+            color: AvroDriverColors.textPrimary.withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 10),
           ),
@@ -195,21 +195,21 @@ class _AvailableBalanceCard extends ConsumerWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: EvikColors.accentOrange.withValues(alpha: 0.10),
+                  color: AvroDriverColors.accent.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   Icons.account_balance_wallet_rounded,
                   color: canWithdraw
-                      ? EvikColors.accentOrange
-                      : EvikColors.gray500,
+                      ? AvroDriverColors.accent
+                      : AvroDriverColors.tabInactive,
                 ),
               ),
               const Spacer(),
               _StatusChip(
                 label: canWithdraw ? 'Можно вывести' : 'Недоступно',
                 color:
-                    canWithdraw ? EvikColors.successGreen : EvikColors.gray500,
+                    canWithdraw ? AvroDriverColors.success : AvroDriverColors.tabInactive,
               ),
             ],
           ),
@@ -217,7 +217,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
           Text(
             'Доступно к выводу',
             style: EvikTypography.bodyMedium.copyWith(
-              color: EvikColors.gray600,
+              color: AvroDriverColors.tabInactive,
               fontSize: 14,
             ),
           ),
@@ -228,7 +228,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
             child: Text(
               _money(wallet.availableBalance),
               style: EvikTypography.h1.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroDriverColors.textPrimary,
                 fontSize: 42,
               ),
             ),
@@ -236,7 +236,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
           const SizedBox(height: 16),
           Container(
             height: 1,
-            color: EvikColors.gray100,
+            color: AvroDriverColors.surface,
           ),
           const SizedBox(height: 18),
           EvikButton(
@@ -274,7 +274,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
               Text(
                 'Заявка на вывод ${_money(amount)} будет отправлена в обработку.',
                 style: EvikTypography.bodyLarge
-                    .copyWith(color: EvikColors.gray600),
+                    .copyWith(color: AvroDriverColors.tabInactive),
               ),
               const SizedBox(height: 20),
               EvikButton(
@@ -320,7 +320,7 @@ class DriverPayoutMethodsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(driverWalletProvider);
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title: Text('Способы вывода',
             style: EvikTypography.h2.copyWith(fontSize: 22)),
@@ -399,7 +399,7 @@ class _DriverAddPayoutMethodScreenState
     final state = ref.watch(driverWalletProvider);
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title: Text(
           'Добавить способ',
@@ -534,7 +534,7 @@ class DriverSubscriptionScreen extends ConsumerWidget {
     final subscription = state.subscriptionStatus;
     final isActive = subscription?.status == 'active';
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title:
             Text('Подписка', style: EvikTypography.h2.copyWith(fontSize: 22)),
@@ -553,8 +553,8 @@ class DriverSubscriptionScreen extends ConsumerWidget {
                 _StatusChip(
                   label: isActive ? 'Активна' : 'Не активна',
                   color: isActive
-                      ? EvikColors.successGreen
-                      : EvikColors.warningAmber,
+                      ? AvroDriverColors.success
+                      : AvroDriverColors.warning,
                 ),
                 const SizedBox(height: 14),
                 Text('Авро Pro', style: EvikTypography.h2),
@@ -562,20 +562,20 @@ class DriverSubscriptionScreen extends ConsumerWidget {
                 Text(
                   'Приоритет в распределении заказов и доступ к финансовым инструментам водителя.',
                   style: EvikTypography.bodyLarge
-                      .copyWith(color: EvikColors.gray600),
+                      .copyWith(color: AvroDriverColors.tabInactive),
                 ),
                 const SizedBox(height: 18),
                 Text(
                   'Подписка активна',
                   style: EvikTypography.h3
-                      .copyWith(color: EvikColors.accentOrange),
+                      .copyWith(color: AvroDriverColors.accent),
                 ),
                 if (subscription?.periodEnd != null) ...[
                   const SizedBox(height: 10),
                   Text(
                     'Действует до ${_formatDate(subscription!.periodEnd!)}',
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: EvikColors.gray600,
+                      color: AvroDriverColors.tabInactive,
                       fontSize: 14,
                     ),
                   ),
@@ -630,7 +630,7 @@ class DriverWalletTransactionsScreen extends ConsumerWidget {
         state.wallet?.recentTransactions ?? const <WalletTransaction>[];
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title: Text(
           'История операций',
@@ -691,10 +691,10 @@ class WalletTransactionDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDebit = transaction.direction == 'debit';
-    final amountColor = isDebit ? EvikColors.errorRed : EvikColors.successGreen;
+    final amountColor = isDebit ? AvroDriverColors.error : AvroDriverColors.success;
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         title: Text(
           'Операция',
@@ -741,7 +741,7 @@ class WalletTransactionDetailsScreen extends StatelessWidget {
                             _transactionSubtitle(transaction),
                             style: EvikTypography.bodySmall.copyWith(
                               fontSize: 13,
-                              color: EvikColors.gray600,
+                              color: AvroDriverColors.tabInactive,
                             ),
                           ),
                         ],
@@ -767,31 +767,31 @@ class WalletTransactionDetailsScreen extends StatelessWidget {
               children: [
                 _DetailRow(
                     label: 'Статус', value: _statusLabel(transaction.status)),
-                const Divider(height: 1, color: EvikColors.gray100),
+                const Divider(height: 1, color: AvroDriverColors.surface),
                 _DetailRow(
                   label: 'Тип',
                   value: _transactionTypeLabel(transaction.type),
                 ),
-                const Divider(height: 1, color: EvikColors.gray100),
+                const Divider(height: 1, color: AvroDriverColors.surface),
                 _DetailRow(
                   label: 'Направление',
                   value: isDebit ? 'Списание' : 'Зачисление',
                 ),
                 if (transaction.createdAt != null) ...[
-                  const Divider(height: 1, color: EvikColors.gray100),
+                  const Divider(height: 1, color: AvroDriverColors.surface),
                   _DetailRow(
                     label: 'Дата',
                     value: _formatDateTime(transaction.createdAt!),
                   ),
                 ],
                 if (transaction.description.isNotEmpty) ...[
-                  const Divider(height: 1, color: EvikColors.gray100),
+                  const Divider(height: 1, color: AvroDriverColors.surface),
                   _DetailRow(
                     label: 'Описание',
                     value: transaction.description,
                   ),
                 ],
-                const Divider(height: 1, color: EvikColors.gray100),
+                const Divider(height: 1, color: AvroDriverColors.surface),
                 _DetailRow(label: 'ID', value: transaction.id),
               ],
             ),
@@ -848,7 +848,7 @@ class _MetricTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.bodySmall.copyWith(
                 fontSize: 12,
-                color: EvikColors.gray600,
+                color: AvroDriverColors.tabInactive,
               ),
             ),
           ],
@@ -874,7 +874,7 @@ class _FinanceActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroDriverColors.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -884,11 +884,11 @@ class _FinanceActionTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: EvikColors.gray200),
+            border: Border.all(color: AvroDriverColors.tabInactive),
           ),
           child: Row(
             children: [
-              Icon(icon, color: EvikColors.accentOrange, size: 24),
+              Icon(icon, color: AvroDriverColors.accent, size: 24),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -909,7 +909,7 @@ class _FinanceActionTile extends StatelessWidget {
                 ),
               ),
               const Icon(Icons.chevron_right_rounded,
-                  color: EvikColors.gray400),
+                  color: AvroDriverColors.tabInactive),
             ],
           ),
         ),
@@ -941,7 +941,7 @@ class _TransactionsList extends StatelessWidget {
                   : () => onTransactionTap!(transactions[index]),
             ),
             if (index != transactions.length - 1)
-              const Divider(height: 1, color: EvikColors.gray100),
+              const Divider(height: 1, color: AvroDriverColors.surface),
           ],
         ],
       ),
@@ -961,7 +961,7 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDebit = transaction.direction == 'debit';
-    final color = isDebit ? EvikColors.errorRed : EvikColors.successGreen;
+    final color = isDebit ? AvroDriverColors.error : AvroDriverColors.success;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1012,7 +1012,7 @@ class _TransactionTile extends StatelessWidget {
                 const SizedBox(width: 4),
                 const Icon(
                   Icons.chevron_right_rounded,
-                  color: EvikColors.gray400,
+                  color: AvroDriverColors.tabInactive,
                   size: 20,
                 ),
               ],
@@ -1046,7 +1046,7 @@ class _DetailRow extends StatelessWidget {
               label,
               style: EvikTypography.bodySmall.copyWith(
                 fontSize: 12,
-                color: EvikColors.gray600,
+                color: AvroDriverColors.tabInactive,
               ),
             ),
           ),
@@ -1076,7 +1076,7 @@ class _PayoutMethodTile extends StatelessWidget {
       decoration: _surfaceDecoration(),
       child: Row(
         children: [
-          const Icon(Icons.credit_card_rounded, color: EvikColors.accentOrange),
+          const Icon(Icons.credit_card_rounded, color: AvroDriverColors.accent),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1092,7 +1092,7 @@ class _PayoutMethodTile extends StatelessWidget {
           ),
           if (method.isDefault)
             const _StatusChip(
-                label: 'Основной', color: EvikColors.successGreen),
+                label: 'Основной', color: AvroDriverColors.success),
         ],
       ),
     );
@@ -1116,14 +1116,14 @@ class _PayoutTypeChip extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: EvikColors.accentOrange.withValues(alpha: 0.12),
-      backgroundColor: EvikColors.gray100,
+      selectedColor: AvroDriverColors.accent.withValues(alpha: 0.12),
+      backgroundColor: AvroDriverColors.surface,
       labelStyle: EvikTypography.bodySmall.copyWith(
-        color: selected ? EvikColors.accentOrange : EvikColors.gray700,
+        color: selected ? AvroDriverColors.accent : AvroDriverColors.textSecondary,
         fontWeight: FontWeight.w800,
       ),
       side: BorderSide(
-        color: selected ? EvikColors.accentOrange : EvikColors.gray200,
+        color: selected ? AvroDriverColors.accent : AvroDriverColors.tabInactive,
       ),
     );
   }
@@ -1145,14 +1145,14 @@ class _InfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.infoBlue.withValues(alpha: 0.08),
+        color: AvroDriverColors.info.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EvikColors.infoBlue.withValues(alpha: 0.18)),
+        border: Border.all(color: AvroDriverColors.info.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: EvikColors.infoBlue),
+          Icon(icon, color: AvroDriverColors.info),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1183,19 +1183,19 @@ class _InlineError extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EvikColors.errorRed.withValues(alpha: 0.08),
+        color: AvroDriverColors.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           const Icon(Icons.error_outline_rounded,
-              color: EvikColors.errorRed, size: 20),
+              color: AvroDriverColors.error, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.errorRed,
+                color: AvroDriverColors.error,
                 fontSize: 12,
               ),
             ),
@@ -1237,9 +1237,9 @@ class _StatusChip extends StatelessWidget {
 
 BoxDecoration _surfaceDecoration() {
   return BoxDecoration(
-    color: EvikColors.primaryWhite,
+    color: AvroDriverColors.surface,
     borderRadius: BorderRadius.circular(14),
-    border: Border.all(color: EvikColors.gray200),
+    border: Border.all(color: AvroDriverColors.tabInactive),
   );
 }
 

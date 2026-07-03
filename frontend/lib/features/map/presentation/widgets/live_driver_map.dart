@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'animated_driver_marker.dart';
@@ -59,8 +59,8 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             initialLng: centerLng,
             initialZoom: zoom,
             controlsBottomOffset: widget.controlsBottomOffset,
-            controlsBackgroundColor: EvikColors.primaryWhite,
-            controlsIconColor: EvikColors.accentOrange,
+            controlsBackgroundColor: AvroClientColors.background,
+            controlsIconColor: AvroClientColors.accent,
             onTap: (lat, lng) {
               // Handle map tap if needed
             },
@@ -72,7 +72,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
           _buildStaticMarker(
             widget.pickupLocation!,
             Icons.location_on,
-            EvikColors.successGreen,
+            AvroClientColors.success,
             'Pickup',
           ),
 
@@ -81,7 +81,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
           _buildStaticMarker(
             widget.destinationLocation!,
             Icons.flag,
-            EvikColors.accentOrange,
+            AvroClientColors.accent,
             'Destination',
           ),
 
@@ -120,7 +120,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              border: Border.all(color: EvikColors.primaryWhite, width: 2),
+              border: Border.all(color: AvroClientColors.background, width: 2),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.2),
@@ -131,7 +131,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             ),
             child: Icon(
               icon,
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               size: 16,
             ),
           ),
@@ -203,7 +203,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite.withValues(alpha: 0.95),
+          color: AvroClientColors.background.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -232,7 +232,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
                   Text(
                     _getStatusText(driver.status),
                     style: const TextStyle(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -240,7 +240,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
                   Text(
                     'Скорость: ${driver.speed.toStringAsFixed(1)} км/ч',
                     style: const TextStyle(
-                      color: EvikColors.gray600,
+                      color: AvroClientColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -250,7 +250,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             Text(
               'ID: ${driver.driverId}',
               style: const TextStyle(
-                color: EvikColors.gray600,
+                color: AvroClientColors.textSecondary,
                 fontSize: 12,
                 fontFamily: 'monospace',
               ),
@@ -278,11 +278,11 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
   Color _getStatusColor(DriverMarkerStatus status) {
     switch (status) {
       case DriverMarkerStatus.toPickup:
-        return EvikColors.infoBlue;
+        return AvroClientColors.info;
       case DriverMarkerStatus.waiting:
-        return EvikColors.accentOrange;
+        return AvroClientColors.accent;
       case DriverMarkerStatus.toDestination:
-        return EvikColors.successGreen;
+        return AvroClientColors.success;
     }
   }
 
@@ -312,7 +312,7 @@ class SearchPulsePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color =
-          EvikColors.accentOrange.withValues(alpha: 0.3 * (1 - animationValue))
+          AvroClientColors.accent.withValues(alpha: 0.3 * (1 - animationValue))
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -323,14 +323,14 @@ class SearchPulsePainter extends CustomPainter {
 
       if (alpha > 0) {
         paint.color =
-            EvikColors.accentOrange.withValues(alpha: alpha.clamp(0.0, 1.0));
+            AvroClientColors.accent.withValues(alpha: alpha.clamp(0.0, 1.0));
         canvas.drawCircle(size.center(Offset.zero), radius, paint);
       }
     }
 
     // Draw center point
     final centerPaint = Paint()
-      ..color = EvikColors.accentOrange
+      ..color = AvroClientColors.accent
       ..style = PaintingStyle.fill;
     canvas.drawCircle(size.center(Offset.zero), 8.0, centerPaint);
   }

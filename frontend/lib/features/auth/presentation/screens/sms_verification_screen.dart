@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -73,7 +73,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     final hasError = _hasCodeError || authState.errorMessage != null;
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
         title: Text(
           'Подтверждение',
@@ -90,7 +90,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroClientColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -108,7 +108,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
               Text(
                 'Отправлен на $phoneNumber',
                 style: EvikTypography.bodyLarge
-                    .copyWith(color: EvikColors.gray600),
+                    .copyWith(color: AvroClientColors.textSecondary),
               ),
               const SizedBox(height: 26),
               _CodeInput(
@@ -124,7 +124,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
                       'Неверный код. Проверьте SMS и попробуйте снова.',
                   textAlign: TextAlign.center,
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.errorRed,
+                    color: AvroClientColors.error,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -155,13 +155,13 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
       return RichText(
         text: TextSpan(
-          style: EvikTypography.bodyLarge.copyWith(color: EvikColors.gray600),
+          style: EvikTypography.bodyLarge.copyWith(color: AvroClientColors.textSecondary),
           children: [
             const TextSpan(text: 'Повторить через '),
             TextSpan(
               text: timeText,
               style: EvikTypography.bodyLarge.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -177,7 +177,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
         child: Text(
           'Отправить повторно',
           style: EvikTypography.bodyLarge.copyWith(
-            color: EvikColors.accentOrange,
+            color: AvroClientColors.accent,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -281,15 +281,15 @@ class _CodeInputState extends State<_CodeInput> {
         final filled = widget.controllers[index].text.isNotEmpty;
         final focused = widget.focusNodes[index].hasFocus;
         final borderColor = widget.hasError
-            ? EvikColors.errorRed
+            ? AvroClientColors.error
             : focused || filled
-                ? EvikColors.accentOrange
-                : EvikColors.gray200;
+                ? AvroClientColors.accent
+                : AvroClientColors.surface;
         final fillColor = widget.hasError
-            ? EvikColors.errorRed.withValues(alpha: 0.08)
+            ? AvroClientColors.error.withValues(alpha: 0.08)
             : filled || focused
-                ? EvikColors.accentOrange.withValues(alpha: 0.08)
-                : EvikColors.primaryWhite;
+                ? AvroClientColors.accent.withValues(alpha: 0.08)
+                : AvroClientColors.background;
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -304,7 +304,7 @@ class _CodeInputState extends State<_CodeInput> {
             boxShadow: focused
                 ? [
                     BoxShadow(
-                      color: EvikColors.accentOrange.withValues(alpha: 0.16),
+                      color: AvroClientColors.accent.withValues(alpha: 0.16),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),

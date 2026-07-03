@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'evik_button.dart';
 
@@ -34,17 +34,17 @@ class EmptyState extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: const BoxDecoration(
-                color: EvikColors.gray100,
+                color: AvroClientColors.background,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 40, color: EvikColors.gray500),
+              child: Icon(icon, size: 40, color: AvroClientColors.tabInactive),
             ),
             const SizedBox(height: 24),
             Text(
               title,
               style: EvikTypography.h3.copyWith(
                 fontSize: 20,
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -52,7 +52,7 @@ class EmptyState extends StatelessWidget {
             Text(
               subtitle,
               style: EvikTypography.bodyMedium.copyWith(
-                color: EvikColors.gray500,
+                color: AvroClientColors.tabInactive,
               ),
               textAlign: TextAlign.center,
             ),

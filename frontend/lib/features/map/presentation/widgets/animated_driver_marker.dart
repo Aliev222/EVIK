@@ -2,6 +2,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
@@ -210,11 +211,11 @@ enum DriverMarkerStatus {
   Color get color {
     switch (this) {
       case DriverMarkerStatus.toPickup:
-        return const Color(0xFF10B981); // Green - coming to pickup
+        return AvroClientColors.success; // Green - coming to pickup
       case DriverMarkerStatus.toDestination:
-        return const Color(0xFF3B82F6); // Blue - driving to destination
+        return AvroClientColors.info; // Blue - driving to destination
       case DriverMarkerStatus.waiting:
-        return const Color(0xFFF59E0B); // Orange - waiting
+        return AvroClientColors.warning; // Orange - waiting
     }
   }
 

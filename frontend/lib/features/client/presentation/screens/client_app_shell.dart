@@ -2,6 +2,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/realtime/websocket_client.dart';
+import 'package:tow_truck_frontend/core/theme/app_theme.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/client/presentation/widgets/client_bottom_nav.dart';
 import 'package:tow_truck_frontend/features/client/presentation/widgets/services_placeholder_screen.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
@@ -29,19 +31,21 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
     final wsStatus = ref.watch(webSocketStatusProvider).valueOrNull;
     final showBanner = wsStatus != null && wsStatus != WebSocketConnectionStatus.connected;
 
-    return Scaffold(
+    return Theme(
+      data: AppTheme.client(),
+      child: Scaffold(
       body: Column(
         children: [
           if (showBanner)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-              color: const Color(0xFFE65100),
+              color: AvroClientColors.accent,
               child: Text(
                 wsStatus == WebSocketConnectionStatus.connecting
                     ? 'Подключаемся...'
                     : 'Нет соединения',
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: TextStyle(color: AvroClientColors.background, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -70,6 +74,7 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
         activeTab: _activeTab,
         onTabChanged: _switchToTab,
       ),
+    ),
     );
   }
 

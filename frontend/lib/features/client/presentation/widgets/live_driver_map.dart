@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -52,7 +52,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
       height: widget.height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.borderDark),
+        border: Border.all(color: AvroClientColors.surface),
       ),
       child: Stack(
         children: [
@@ -107,9 +107,9 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: EvikColors.surfaceDark.withValues(alpha: 0.9),
+                color: AvroClientColors.background.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EvikColors.borderDark),
+                border: Border.all(color: AvroClientColors.surface),
               ),
               child: Row(
                 children: [
@@ -133,7 +133,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
                         Text(
                           driverState.status.label,
                           style: const TextStyle(
-                            color: EvikColors.textPrimaryDark,
+                            color: AvroClientColors.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
@@ -145,7 +145,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
                           Text(
                             'Прибытие: ${ref.read(realTimeDriverProvider.notifier).formattedETA}',
                             style: const TextStyle(
-                              color: EvikColors.textSecondaryDark,
+                              color: AvroClientColors.textSecondary,
                               fontSize: 12,
                             ),
                           ),
@@ -214,7 +214,7 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
                     Text(
                       'Поиск водителя...',
                       style: TextStyle(
-                        color: EvikColors.textSecondaryDark,
+                        color: AvroClientColors.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -248,9 +248,9 @@ class DriverInfoWidget extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EvikColors.surfaceDark,
+        color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: EvikColors.borderDark),
+        border: Border.all(color: AvroClientColors.surface),
       ),
       child: Row(
         children: [
@@ -274,7 +274,7 @@ class DriverInfoWidget extends ConsumerWidget {
                 Text(
                   driverState.status.label,
                   style: const TextStyle(
-                    color: EvikColors.textPrimaryDark,
+                    color: AvroClientColors.textPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -284,7 +284,7 @@ class DriverInfoWidget extends ConsumerWidget {
                   Text(
                     ref.read(realTimeDriverProvider.notifier).formattedETA!,
                     style: const TextStyle(
-                      color: EvikColors.textSecondaryDark,
+                      color: AvroClientColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),

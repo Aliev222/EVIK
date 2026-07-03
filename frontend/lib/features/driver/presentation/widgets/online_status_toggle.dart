@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+
 class OnlineStatusToggle extends StatelessWidget {
   const OnlineStatusToggle({
     super.key,
@@ -17,10 +19,10 @@ class OnlineStatusToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isLoading
-        ? const Color(0xFFF5A623)
+        ? AvroDriverColors.warning
         : isOnline
-            ? const Color(0xFF2E9B62)
-            : const Color(0xFF98A2B3);
+            ? AvroDriverColors.success
+            : AvroDriverColors.grayHint;
     final label = isLoading
         ? 'Подключаемся...'
         : isOnline
@@ -68,7 +70,7 @@ class OnlineStatusToggle extends StatelessWidget {
                   'Онлайн ${_formatDuration(DateTime.now().difference(onlineSince!))}',
                   style: const TextStyle(
                     fontSize: 11,
-                    color: Color(0xFF667085),
+                    color: AvroDriverColors.graySubtle,
                   ),
                 ),
             ],

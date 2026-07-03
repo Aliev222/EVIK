@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 
 class AddressSearchSheet extends StatefulWidget {
@@ -37,12 +37,12 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x14000000),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: Offset(0, 8),
           ),
@@ -63,7 +63,7 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
             decoration: InputDecoration(
               hintText: 'Введите адрес',
               filled: true,
-              fillColor: EvikColors.surface,
+              fillColor: AvroClientColors.surface,
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _isLoading
                   ? const Padding(
@@ -77,7 +77,7 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
                   : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: EvikColors.border),
+                borderSide: BorderSide(color: AvroClientColors.surface),
               ),
             ),
             onChanged: _onChanged,

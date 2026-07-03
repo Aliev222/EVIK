@@ -1,8 +1,9 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors, AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 
@@ -33,8 +34,8 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   static const _roles = [
     _RoleData(
       id: UserRole.client,
-      backgroundColor: Color(0xFFFAFAFA),
-      textColor: EvikColors.primaryBlack,
+      backgroundColor: AvroClientColors.background,
+      textColor: AvroClientColors.textPrimary,
       tag: 'Для владельцев авто',
       icon: 'assets/img/rolecar.png',
       title: 'Нужен\nэвакуатор?',
@@ -49,8 +50,8 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
     ),
     _RoleData(
       id: UserRole.driver,
-      backgroundColor: Color(0xFF141B23),
-      textColor: EvikColors.primaryWhite,
+      backgroundColor: AvroDriverColors.darkBlue,
+      textColor: AvroClientColors.background,
       tag: 'Для водителей',
       icon: 'assets/img/rolecar2.png',
       title: 'Зарабатывай\nна эвакуации',
@@ -75,7 +76,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: AvroClientColors.background,
       body: SafeArea(
         child: PageView.builder(
           controller: _pageController,
@@ -156,23 +157,23 @@ class _RolePage extends StatelessWidget {
         return Container(
           decoration: BoxDecoration(
               gradient: isDarkCard
-                  ? const LinearGradient(
+                  ? LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Color(0xFF192231),
-                        Color(0xFF121C25),
-                        Color(0xFF101918),
+                        AvroDriverColors.darkBlue,
+                        AvroDriverColors.background,
+                        AvroDriverColors.surface,
                       ],
                       stops: [0, 0.58, 1],
                     )
-                  : const LinearGradient(
+                  : LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Color(0xFFFAFAFA),
-                        Color(0xFFFFFFFF),
-                        Color(0xFFF7F8FA),
+                        AvroClientColors.background,
+                        AvroClientColors.background,
+                        AvroClientColors.surface,
                       ],
                     )),
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -214,7 +215,7 @@ class _RolePage extends StatelessWidget {
                 style: EvikTypography.bodyLarge.copyWith(
                   color: isDarkCard
                       ? role.textColor.withValues(alpha: 0.82)
-                      : EvikColors.gray600,
+                      : AvroClientColors.textSecondary,
                   height: subtitleLineHeight,
                   fontSize: subtitleFont,
                   fontWeight: FontWeight.w500,
@@ -241,7 +242,7 @@ class _RolePage extends StatelessWidget {
                       BoxShadow(
                         color: isDarkCard
                             ? Colors.black.withValues(alpha: 0.18)
-                            : EvikColors.accentOrange.withValues(alpha: 0.20),
+                            : AvroClientColors.accent.withValues(alpha: 0.20),
                         blurRadius: isDarkCard ? 26 : 18,
                         spreadRadius: isDarkCard ? -8 : -4,
                         offset: const Offset(0, 12),
@@ -269,8 +270,8 @@ class _RolePage extends StatelessWidget {
                       role.switchLabel,
                       style: EvikTypography.bodyMedium.copyWith(
                         color: isDarkCard
-                            ? EvikColors.primaryWhite.withValues(alpha: 0.7)
-                            : EvikColors.gray500,
+                            ? AvroDriverColors.textSecondary.withValues(alpha: 0.7)
+                            : AvroClientColors.tabInactive,
                         fontWeight: FontWeight.w700,
                         fontSize: switchFont,
                       ),
@@ -309,13 +310,13 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             decoration: BoxDecoration(
               color: isDarkCard
-                  ? EvikColors.primaryWhite.withValues(alpha: 0.10)
-                  : EvikColors.primaryWhite,
+                  ? AvroDriverColors.textSecondary.withValues(alpha: 0.10)
+                  : AvroClientColors.background,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isDarkCard
-                    ? EvikColors.primaryWhite.withValues(alpha: 0.06)
-                    : EvikColors.gray200.withValues(alpha: 0.75),
+                    ? AvroDriverColors.textSecondary.withValues(alpha: 0.06)
+                    : AvroClientColors.surface.withValues(alpha: 0.75),
               ),
               boxShadow: [
                 BoxShadow(
@@ -331,7 +332,7 @@ class _Header extends StatelessWidget {
               'Авро',
               style: EvikTypography.caption.copyWith(
                 color:
-                    isDarkCard ? EvikColors.primaryWhite : EvikColors.gray700,
+                    isDarkCard ? AvroDriverColors.textSecondary : AvroClientColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.5,
@@ -347,16 +348,16 @@ class _Header extends StatelessWidget {
                 height: 10,
                 decoration: BoxDecoration(
                   color: active
-                      ? EvikColors.accentOrange
+                      ? AvroClientColors.accent
                       : isDarkCard
-                          ? EvikColors.primaryWhite.withValues(alpha: 0.28)
-                          : EvikColors.gray300.withValues(alpha: 0.7),
+                          ? AvroDriverColors.textSecondary.withValues(alpha: 0.28)
+                          : AvroClientColors.surface.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(5),
                   boxShadow: active
                       ? [
                           BoxShadow(
                             color:
-                                EvikColors.accentOrange.withValues(alpha: 0.20),
+                                AvroClientColors.accent.withValues(alpha: 0.20),
                             blurRadius: 12,
                             spreadRadius: -3,
                             offset: const Offset(0, 3),
@@ -393,19 +394,19 @@ class _RoleImage extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         color: isDarkCard
-            ? EvikColors.primaryWhite.withValues(alpha: 0.07)
-            : EvikColors.accentOrange.withValues(alpha: 0.07),
+            ? AvroDriverColors.textSecondary.withValues(alpha: 0.07)
+            : AvroClientColors.accent.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDarkCard
-              ? EvikColors.accentOrange.withValues(alpha: 0.24)
-              : EvikColors.accentOrange.withValues(alpha: 0.18),
+              ? AvroClientColors.accent.withValues(alpha: 0.24)
+              : AvroClientColors.accent.withValues(alpha: 0.18),
         ),
         boxShadow: [
           BoxShadow(
             color: isDarkCard
                 ? Colors.black.withValues(alpha: 0.13)
-                : EvikColors.accentOrange.withValues(alpha: 0.08),
+                : AvroClientColors.accent.withValues(alpha: 0.08),
             blurRadius: isDarkCard ? 30 : 18,
             spreadRadius: isDarkCard ? -10 : -4,
             offset: const Offset(0, 14),
@@ -436,13 +437,13 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isDarkCard
-            ? EvikColors.primaryWhite.withValues(alpha: 0.10)
-            : EvikColors.gray100,
+            ? AvroDriverColors.textSecondary.withValues(alpha: 0.10)
+            : AvroClientColors.background,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDarkCard
-              ? EvikColors.primaryWhite.withValues(alpha: 0.05)
-              : EvikColors.gray200.withValues(alpha: 0.65),
+              ? AvroDriverColors.textSecondary.withValues(alpha: 0.05)
+              : AvroClientColors.surface.withValues(alpha: 0.65),
         ),
       ),
       child: Text(
@@ -451,8 +452,8 @@ class _Tag extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: EvikTypography.caption.copyWith(
           color: isDarkCard
-              ? EvikColors.primaryWhite.withValues(alpha: 0.85)
-              : EvikColors.gray600,
+              ? AvroDriverColors.textSecondary.withValues(alpha: 0.85)
+              : AvroClientColors.textSecondary,
           fontSize: 13,
           fontWeight: FontWeight.w700,
         ),
@@ -486,23 +487,23 @@ class _StatsCard extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  EvikColors.primaryWhite.withValues(alpha: 0.075),
-                  EvikColors.primaryWhite.withValues(alpha: 0.035),
+                  AvroDriverColors.textSecondary.withValues(alpha: 0.075),
+                  AvroDriverColors.textSecondary.withValues(alpha: 0.035),
                 ],
               )
-            : const LinearGradient(
+            : LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFFFFFFF), Color(0xFFFFF6F2)],
+                colors: [AvroClientColors.background, AvroClientColors.accent.withValues(alpha: 0.04)],
               ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: EvikColors.accentOrange
+          color: AvroClientColors.accent
               .withValues(alpha: isDarkCard ? 0.62 : 0.70),
         ),
         boxShadow: [
           BoxShadow(
-            color: EvikColors.accentOrange
+            color: AvroClientColors.accent
                 .withValues(alpha: isDarkCard ? 0.055 : 0.13),
             blurRadius: isDarkCard ? 34 : 24,
             spreadRadius: isDarkCard ? -12 : -6,
@@ -532,8 +533,8 @@ class _StatsCard extends StatelessWidget {
                       border: Border(
                         right: BorderSide(
                           color: isDarkCard
-                              ? EvikColors.primaryWhite.withValues(alpha: 0.08)
-                              : EvikColors.gray200.withValues(alpha: 0.8),
+                              ? AvroDriverColors.textSecondary.withValues(alpha: 0.08)
+                              : AvroClientColors.surface.withValues(alpha: 0.8),
                         ),
                       ),
                     ),
@@ -566,9 +567,9 @@ class _StatsCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: EvikTypography.caption.copyWith(
                               color: isDarkCard
-                                  ? EvikColors.primaryWhite
+                                  ? AvroDriverColors.textSecondary
                                       .withValues(alpha: 0.68)
-                                  : EvikColors.gray500,
+                                  : AvroClientColors.tabInactive,
                               fontSize: labelFontSize,
                               fontWeight: FontWeight.w700,
                               height: 1.08,

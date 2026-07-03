@@ -1,5 +1,5 @@
 ﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'animated_button.dart';
 
@@ -61,8 +61,8 @@ class EvikButton extends StatelessWidget {
     switch (variant) {
       case EvikButtonVariant.primary:
         return ElevatedButton.styleFrom(
-          backgroundColor: EvikColors.accentOrange,
-          foregroundColor: EvikColors.primaryWhite,
+          backgroundColor: AvroClientColors.accent,
+          foregroundColor: AvroClientColors.background,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
           elevation: 0,
@@ -72,32 +72,32 @@ class EvikButton extends StatelessWidget {
           overlayColor: WidgetStateProperty.all(Colors.black12),
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return EvikColors.gray300;
+              return AvroClientColors.surface;
             }
-            return EvikColors.accentOrange;
+            return AvroClientColors.accent;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return EvikColors.gray500;
+              return AvroClientColors.tabInactive;
             }
-            return EvikColors.primaryWhite;
+            return AvroClientColors.background;
           }),
         );
 
       case EvikButtonVariant.secondary:
         return OutlinedButton.styleFrom(
-          foregroundColor: EvikColors.accentOrange,
+          foregroundColor: AvroClientColors.accent,
           backgroundColor: Colors.transparent,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
-          side: const BorderSide(color: EvikColors.accentOrange, width: 2),
+          side: BorderSide(color: AvroClientColors.accent, width: 2),
           textStyle: textStyle,
         );
 
       case EvikButtonVariant.ghost:
         return ElevatedButton.styleFrom(
-          backgroundColor: EvikColors.gray100,
-          foregroundColor: EvikColors.primaryBlack,
+          backgroundColor: AvroClientColors.background,
+          foregroundColor: AvroClientColors.textPrimary,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
           elevation: 0,
@@ -107,8 +107,8 @@ class EvikButton extends StatelessWidget {
 
       case EvikButtonVariant.danger:
         return ElevatedButton.styleFrom(
-          backgroundColor: EvikColors.errorRed,
-          foregroundColor: EvikColors.primaryWhite,
+          backgroundColor: AvroClientColors.error,
+          foregroundColor: AvroClientColors.background,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
           elevation: 0,
@@ -118,8 +118,8 @@ class EvikButton extends StatelessWidget {
 
       case EvikButtonVariant.green:
         return ElevatedButton.styleFrom(
-          backgroundColor: EvikColors.successGreen,
-          foregroundColor: EvikColors.primaryWhite,
+          backgroundColor: AvroClientColors.success,
+          foregroundColor: AvroClientColors.background,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
           elevation: 0,
@@ -129,8 +129,8 @@ class EvikButton extends StatelessWidget {
 
       case EvikButtonVariant.dark:
         return ElevatedButton.styleFrom(
-          backgroundColor: EvikColors.primaryBlack,
-          foregroundColor: EvikColors.primaryWhite,
+          backgroundColor: AvroClientColors.textPrimary,
+          foregroundColor: AvroClientColors.background,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
           elevation: 0,
@@ -156,8 +156,8 @@ class EvikButton extends StatelessWidget {
 
   Widget _buildLoader() {
     final color = variant == EvikButtonVariant.secondary
-        ? EvikColors.accentOrange
-        : EvikColors.primaryWhite;
+        ? AvroClientColors.accent
+        : AvroClientColors.background;
     return SizedBox(
       height: small ? 14 : 16,
       width: small ? 14 : 16,

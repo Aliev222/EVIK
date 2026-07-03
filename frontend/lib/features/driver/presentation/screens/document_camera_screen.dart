@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 
 class DocumentCameraScreen extends StatelessWidget {
@@ -20,10 +20,10 @@ class DocumentCameraScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F4EF),
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: EvikColors.textPrimaryDark,
+        foregroundColor: AvroDriverColors.textPrimary,
         elevation: 0,
         title: Text(type.title),
       ),
@@ -36,7 +36,7 @@ class DocumentCameraScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AvroDriverColors.surface,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: const Column(
@@ -47,7 +47,7 @@ class DocumentCameraScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: EvikColors.textPrimaryDark,
+                        color: AvroDriverColors.textPrimary,
                       ),
                     ),
                     SizedBox(height: 8),
@@ -56,7 +56,7 @@ class DocumentCameraScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         height: 1.45,
-                        color: EvikColors.textSecondaryDark,
+                        color: AvroDriverColors.textSecondary,
                       ),
                     ),
                   ],
@@ -66,9 +66,9 @@ class DocumentCameraScreen extends StatelessWidget {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AvroDriverColors.surface,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE2DDD5)),
+                    border: Border.all(color: AvroDriverColors.tabInactive),
                   ),
                   child: preview == null
                       ? const _EmptyPreview()
@@ -85,8 +85,8 @@ class DocumentCameraScreen extends StatelessWidget {
                   onPressed: () =>
                       Navigator.of(context).pop(ImageSource.camera),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: EvikColors.accent,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AvroDriverColors.accent,
+                    foregroundColor: AvroDriverColors.surface,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -105,8 +105,8 @@ class DocumentCameraScreen extends StatelessWidget {
                   onPressed: () =>
                       Navigator.of(context).pop(ImageSource.gallery),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: EvikColors.textPrimaryDark,
-                    side: const BorderSide(color: Color(0xFFD8D2C7)),
+                    foregroundColor: AvroDriverColors.textPrimary,
+                    side: const BorderSide(color: AvroDriverColors.tabInactive),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -140,7 +140,7 @@ class _EmptyPreview extends StatelessWidget {
             Icon(
               Icons.document_scanner_rounded,
               size: 60,
-              color: EvikColors.textSecondaryDark,
+              color: AvroDriverColors.textSecondary,
             ),
             SizedBox(height: 12),
             Text(
@@ -149,7 +149,7 @@ class _EmptyPreview extends StatelessWidget {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: EvikColors.textPrimaryDark,
+                color: AvroDriverColors.textPrimary,
               ),
             ),
           ],

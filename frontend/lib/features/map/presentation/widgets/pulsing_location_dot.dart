@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 /// Green pulsing dot marking the user's live location on a map.
 class PulsingLocationDot extends StatefulWidget {
   const PulsingLocationDot({super.key});
 
-  static const Color color = EvikColors.successGreen;
+  static const Color color = AvroClientColors.success;
   static const double dotSize = 14;
   static const double haloSize = 32;
 

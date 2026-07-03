@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
@@ -175,7 +175,7 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: EvikColors.errorRed),
+      SnackBar(content: Text(message), backgroundColor: AvroClientColors.error),
     );
   }
 
@@ -183,7 +183,7 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       body: Stack(
         children: [
           Positioned.fill(
@@ -260,7 +260,7 @@ class _TopPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroClientColors.background,
       borderRadius: BorderRadius.circular(18),
       elevation: 4,
       shadowColor: Colors.black.withValues(alpha: 0.14),
@@ -281,7 +281,7 @@ class _TopPanel extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: EvikTypography.h3.copyWith(
-                      color: EvikColors.primaryBlack,
+                      color: AvroClientColors.textPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -290,7 +290,7 @@ class _TopPanel extends StatelessWidget {
                   onPressed: isLoading ? null : onUseCurrentLocation,
                   icon: const Icon(
                     Icons.navigation_rounded,
-                    color: EvikColors.accentOrange,
+                    color: AvroClientColors.accent,
                   ),
                 ),
               ],
@@ -309,11 +309,11 @@ class _TopPanel extends StatelessWidget {
                     icon: const Icon(Icons.arrow_forward_rounded),
                   ),
                   filled: true,
-                  fillColor: EvikColors.surface,
+                  fillColor: AvroClientColors.surface,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: EvikColors.border),
+                    borderSide: BorderSide(color: AvroClientColors.surface),
                   ),
                 ),
               ),
@@ -348,7 +348,7 @@ class _BottomPanel extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -365,7 +365,7 @@ class _BottomPanel extends StatelessWidget {
             Text(
               addressLabel,
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.textSecondary,
+                color: AvroClientColors.textSecondary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -375,7 +375,7 @@ class _BottomPanel extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.bodyLarge.copyWith(
-                color: EvikColors.primaryBlack,
+                color: AvroClientColors.textPrimary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -404,7 +404,7 @@ class _PickerPin extends StatelessWidget {
       offset: const Offset(0, -22),
       child: const Icon(
         Icons.location_pin,
-        color: EvikColors.accentOrange,
+        color: AvroClientColors.accent,
         size: 48,
         shadows: [
           Shadow(

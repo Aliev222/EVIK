@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 class SkeletonCard extends StatelessWidget {
   const SkeletonCard({
@@ -20,15 +20,15 @@ class SkeletonCard extends StatelessWidget {
       margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.surface,
+        color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EvikColors.border, width: 1),
+        border: Border.all(color: AvroClientColors.surface, width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Shimmer.fromColors(
-          baseColor: EvikColors.border,
-          highlightColor: EvikColors.primaryWhite,
+          baseColor: AvroClientColors.surface,
+          highlightColor: AvroClientColors.background,
           period: const Duration(milliseconds: 1200),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,7 +91,7 @@ class _SkeletonBlock extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: EvikColors.border,
+        color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(radius),
       ),
     );

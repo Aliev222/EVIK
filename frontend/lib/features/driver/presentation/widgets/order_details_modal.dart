@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class OrderDetailsModal extends StatefulWidget {
@@ -57,7 +58,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
     final progress = _remainingSeconds / 30;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF101828),
+      backgroundColor: AvroDriverColors.darkBlue,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -90,7 +91,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
               LinearProgressIndicator(
                 value: progress,
                 backgroundColor: Colors.white24,
-                color: const Color(0xFF32D583),
+                color: AvroDriverColors.success,
               ),
               const SizedBox(height: 20),
               _ModalCard(
@@ -118,7 +119,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(56),
-                    backgroundColor: const Color(0xFF12B76A),
+                    backgroundColor: AvroDriverColors.success,
                   ),
                   onPressed: () async {
                     HapticFeedback.mediumImpact();
@@ -168,7 +169,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
             title,
             style: const TextStyle(
               fontSize: 12,
-              color: Color(0xFF98A2B3),
+              color: AvroDriverColors.grayHint,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -177,7 +178,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
             value,
             style: const TextStyle(
               fontSize: 15,
-              color: Color(0xFF101828),
+              color: AvroDriverColors.darkBlue,
               fontWeight: FontWeight.w700,
             ),
           ),

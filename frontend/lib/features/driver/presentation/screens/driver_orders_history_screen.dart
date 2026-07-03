@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -75,7 +75,7 @@ class _DriverOrdersHistoryScreenState
     final orders = ref.watch(driverOrderHistoryProvider);
 
     return Scaffold(
-      backgroundColor: EvikColors.gray50,
+      backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
         title: Text(
           'История заказов',
@@ -91,7 +91,7 @@ class _DriverOrdersHistoryScreenState
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroDriverColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -167,7 +167,7 @@ class _DriverHistoryStateAction extends StatelessWidget {
       child: Text(
         label,
         style: EvikTypography.bodySmall.copyWith(
-          color: EvikColors.accentOrange,
+          color: AvroDriverColors.accent,
           fontWeight: FontWeight.w800,
         ),
       ),
@@ -186,7 +186,7 @@ class _OrderHistoryCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EvikColors.primaryWhite,
+        color: AvroDriverColors.background,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -208,7 +208,7 @@ class _OrderHistoryCard extends StatelessWidget {
                   Text(
                     order.formattedDate,
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.gray500,
+                      color: AvroDriverColors.grayHint,
                       fontSize: 11,
                     ),
                   ),
@@ -237,13 +237,13 @@ class _OrderHistoryCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: EvikColors.successGreen.withValues(alpha: 0.1),
+                        color: AvroDriverColors.success.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'Завершён',
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.successGreen,
+                          color: AvroDriverColors.success,
                           fontWeight: FontWeight.w600,
                           fontSize: 11,
                         ),
@@ -261,13 +261,13 @@ class _OrderHistoryCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: EvikColors.errorRed.withValues(alpha: 0.1),
+                        color: AvroDriverColors.error.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'Отменён',
                         style: EvikTypography.bodySmall.copyWith(
-                          color: EvikColors.errorRed,
+                          color: AvroDriverColors.error,
                           fontWeight: FontWeight.w600,
                           fontSize: 11,
                         ),
@@ -288,7 +288,7 @@ class _OrderHistoryCard extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: EvikColors.accentOrange,
+                  color: AvroDriverColors.accent,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -298,7 +298,7 @@ class _OrderHistoryCard extends StatelessWidget {
                   order.pickupAddress,
                   style: EvikTypography.bodyMedium.copyWith(
                     fontSize: 13,
-                    color: EvikColors.gray800,
+                    color: AvroDriverColors.textPrimary,
                   ),
                 ),
               ),
@@ -313,7 +313,7 @@ class _OrderHistoryCard extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: EvikColors.gray500,
+                  color: AvroDriverColors.grayHint,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -323,7 +323,7 @@ class _OrderHistoryCard extends StatelessWidget {
                   order.dropoffAddress,
                   style: EvikTypography.bodyMedium.copyWith(
                     fontSize: 13,
-                    color: EvikColors.gray800,
+                    color: AvroDriverColors.textPrimary,
                   ),
                 ),
               ),
@@ -337,13 +337,13 @@ class _OrderHistoryCard extends StatelessWidget {
                 const Icon(
                   Icons.access_time_rounded,
                   size: 14,
-                  color: EvikColors.gray500,
+                  color: AvroDriverColors.grayHint,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '${order.duration} мин',
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.gray500,
+                    color: AvroDriverColors.grayHint,
                     fontSize: 11,
                   ),
                 ),
@@ -351,7 +351,7 @@ class _OrderHistoryCard extends StatelessWidget {
                 Text(
                   '+${order.earnings} ?',
                   style: EvikTypography.bodySmall.copyWith(
-                    color: EvikColors.successGreen,
+                    color: AvroDriverColors.success,
                     fontWeight: FontWeight.w600,
                     fontSize: 11,
                   ),

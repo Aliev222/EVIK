@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_onboarding_provider.dart';
 import 'document_camera_screen.dart';
@@ -19,10 +19,10 @@ class DriverDocumentsScreen extends ConsumerWidget {
     final onboardingState = ref.watch(driverOnboardingProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F4EF),
+      backgroundColor: AvroDriverColors.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: EvikColors.textPrimaryDark,
+        foregroundColor: AvroDriverColors.textPrimary,
         elevation: 0,
       ),
       body: SafeArea(
@@ -35,9 +35,9 @@ class DriverDocumentsScreen extends ConsumerWidget {
                 value: 1 / 3,
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(999),
-                backgroundColor: const Color(0xFFE2DDD5),
+                backgroundColor: AvroDriverColors.tabInactive,
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(EvikColors.accent),
+                    const AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
               ),
               const SizedBox(height: 18),
               const Text(
@@ -45,7 +45,7 @@ class DriverDocumentsScreen extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: EvikColors.textSecondaryDark,
+                  color: AvroDriverColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -54,7 +54,7 @@ class DriverDocumentsScreen extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  color: EvikColors.textPrimaryDark,
+                  color: AvroDriverColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -63,7 +63,7 @@ class DriverDocumentsScreen extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 15,
                   height: 1.45,
-                  color: EvikColors.textSecondaryDark,
+                  color: AvroDriverColors.textSecondary,
                 ),
               ),
               if (onboardingState.errorMessage != null) ...[
@@ -112,9 +112,9 @@ class DriverDocumentsScreen extends ConsumerWidget {
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: EvikColors.accent,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFCBC7BE),
+                    backgroundColor: AvroDriverColors.accent,
+                    foregroundColor: AvroDriverColors.textPrimary,
+                    disabledBackgroundColor: AvroDriverColors.tabInactive,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -126,7 +126,7 @@ class DriverDocumentsScreen extends ConsumerWidget {
                           child: CircularProgressIndicator(
                             strokeWidth: 2.2,
                             valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                                AlwaysStoppedAnimation<Color>(AvroDriverColors.textPrimary),
                           ),
                         )
                       : const Text(
@@ -197,12 +197,12 @@ class _DocumentCard extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AvroDriverColors.textPrimary,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: isUploaded
-                  ? const Color(0xFFB8E2D7)
-                  : const Color(0xFFD8D2C7),
+                  ? AvroDriverColors.success
+                  : AvroDriverColors.tabInactive,
             ),
             boxShadow: [
               BoxShadow(
@@ -225,7 +225,7 @@ class _DocumentCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: EvikColors.textPrimaryDark,
+                        color: AvroDriverColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -237,8 +237,8 @@ class _DocumentCard extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: isUploaded
-                            ? const Color(0xFF0C8B6B)
-                            : EvikColors.textSecondaryDark,
+                            ? AvroDriverColors.success
+                            : AvroDriverColors.textSecondary,
                       ),
                     ),
                     if (isUploaded) ...[
@@ -260,13 +260,13 @@ class _DocumentCard extends StatelessWidget {
                 children: [
                   const Icon(
                     Icons.chevron_right_rounded,
-                    color: EvikColors.textSecondaryDark,
+                    color: AvroDriverColors.textSecondary,
                   ),
                   if (onClear != null)
                     IconButton(
                       onPressed: isLoading ? null : onClear,
                       icon: const Icon(Icons.delete_outline_rounded),
-                      color: EvikColors.textSecondaryDark,
+                      color: AvroDriverColors.textSecondary,
                       tooltip: 'Удалить',
                     ),
                 ],
@@ -290,13 +290,13 @@ class _StatusBadge extends StatelessWidget {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: isUploaded ? const Color(0xFFE7F7F1) : const Color(0xFFF1EEE8),
+        color: isUploaded ? AvroDriverColors.success : AvroDriverColors.surface,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Icon(
         isUploaded ? Icons.check_circle_rounded : Icons.description_rounded,
         color:
-            isUploaded ? const Color(0xFF0C8B6B) : EvikColors.textSecondaryDark,
+            isUploaded ? AvroDriverColors.success : AvroDriverColors.textSecondary,
       ),
     );
   }
@@ -327,16 +327,16 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF2F0),
+        color: AvroDriverColors.error,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFFD3CB)),
+        border: Border.all(color: AvroDriverColors.tabInactive),
       ),
       child: Text(
         message,
         style: const TextStyle(
           fontSize: 14,
           height: 1.4,
-          color: Color(0xFFB3261E),
+          color: AvroDriverColors.error,
         ),
       ),
     );

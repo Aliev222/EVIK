@@ -2,7 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -56,16 +56,16 @@ class _TowTruckSelectionScreenState
     final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
 
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
-        backgroundColor: EvikColors.primaryWhite,
+        backgroundColor: AvroClientColors.background,
         title: Text(
           'Выберите тип эвакуатора',
-          style: EvikTypography.h2.copyWith(color: EvikColors.primaryBlack),
+          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
         ),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: EvikColors.primaryBlack),
+          icon: const Icon(Icons.arrow_back, color: AvroClientColors.textPrimary),
           onPressed: () {
             Navigator.of(context).pop();
           },
@@ -78,9 +78,9 @@ class _TowTruckSelectionScreenState
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: EvikColors.border, width: 1),
+              border: Border.all(color: AvroClientColors.surface, width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -89,7 +89,7 @@ class _TowTruckSelectionScreenState
                   children: [
                     const Icon(
                       Icons.check_circle,
-                      color: EvikColors.successGreen,
+                      color: AvroClientColors.success,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
@@ -106,13 +106,13 @@ class _TowTruckSelectionScreenState
                     Text(
                       'Расстояние: ${orderFlowState.distance.toStringAsFixed(1)} км',
                       style: EvikTypography.bodySmall.copyWith(
-                        color: EvikColors.textSecondary,
+                        color: AvroClientColors.textSecondary,
                       ),
                     ),
                     Text(
                       'Базовая цена: ${orderFlowState.estimatedPrice.round()} ₽',
                       style: EvikTypography.bodySmall.copyWith(
-                        color: EvikColors.accentOrange,
+                        color: AvroClientColors.accent,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -171,8 +171,8 @@ class _TowTruckSelectionScreenState
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _currentPage == index
-                        ? EvikColors.accentOrange
-                        : EvikColors.border,
+                        ? AvroClientColors.accent
+                        : AvroClientColors.surface,
                   ),
                 ),
               ),
@@ -184,9 +184,9 @@ class _TowTruckSelectionScreenState
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: EvikColors.border),
+              border: Border.all(color: AvroClientColors.surface),
             ),
             child: Row(
               children: [
@@ -263,10 +263,10 @@ class TowTruckCard extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 20),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? EvikColors.accentOrange : EvikColors.border,
+            color: isSelected ? AvroClientColors.accent : AvroClientColors.surface,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -278,7 +278,7 @@ class TowTruckCard extends StatelessWidget {
               width: 120,
               height: 80,
               decoration: BoxDecoration(
-                color: EvikColors.surface,
+                color: AvroClientColors.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ClipRRect(
@@ -290,7 +290,7 @@ class TowTruckCard extends StatelessWidget {
                     return Icon(
                       _getTowTruckIcon(towTruckType),
                       size: 48,
-                      color: EvikColors.textHint,
+                      color: AvroClientColors.tabInactive,
                     );
                   },
                 ),
@@ -300,14 +300,14 @@ class TowTruckCard extends StatelessWidget {
             Text(
               towTruckType.displayName,
               style: EvikTypography.h3.copyWith(
-                color: EvikColors.textPrimary,
+                color: AvroClientColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               towTruckType.description,
               style: EvikTypography.bodySmall.copyWith(
-                color: EvikColors.textSecondary,
+                color: AvroClientColors.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -317,16 +317,16 @@ class TowTruckCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? EvikColors.accentOrange.withValues(alpha: 0.1)
-                    : EvikColors.surface,
+                    ? AvroClientColors.accent.withValues(alpha: 0.1)
+                    : AvroClientColors.surface,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 _priceText,
                 style: EvikTypography.bodyMedium.copyWith(
                   color: isSelected
-                      ? EvikColors.accentOrange
-                      : EvikColors.textPrimary,
+                      ? AvroClientColors.accent
+                      : AvroClientColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -371,10 +371,10 @@ class _PaymentChoice extends StatelessWidget {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: selected ? EvikColors.accentOrangeAction : EvikColors.surface,
+          color: selected ? AvroClientColors.accent : AvroClientColors.surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? EvikColors.accentOrangeAction : EvikColors.border,
+            color: selected ? AvroClientColors.accent : AvroClientColors.surface,
           ),
         ),
         child: Row(
@@ -384,8 +384,8 @@ class _PaymentChoice extends StatelessWidget {
               icon,
               size: 20,
               color: selected
-                  ? EvikColors.primaryWhite
-                  : EvikColors.textSecondary,
+                  ? AvroClientColors.background
+                  : AvroClientColors.textSecondary,
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -395,8 +395,8 @@ class _PaymentChoice extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyMedium.copyWith(
                   color: selected
-                      ? EvikColors.primaryWhite
-                      : EvikColors.textSecondary,
+                      ? AvroClientColors.background
+                      : AvroClientColors.textSecondary,
                   fontWeight: FontWeight.w800,
                 ),
               ),

@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
-import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 
 class ClientProfileScreen extends ConsumerWidget {
@@ -14,7 +13,7 @@ class ClientProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
     return Scaffold(
-      backgroundColor: EvikColors.primaryWhite,
+      backgroundColor: AvroClientColors.background,
       appBar: AppBar(
         title: Text(
           'Профиль',
@@ -30,7 +29,7 @@ class ClientProfileScreen extends ConsumerWidget {
           },
           icon: const Icon(
             Icons.arrow_back_ios,
-            color: EvikColors.primaryBlack,
+            color: AvroClientColors.textPrimary,
             size: 20,
           ),
           splashRadius: 24,
@@ -42,7 +41,7 @@ class ClientProfileScreen extends ConsumerWidget {
           children: [
             Container(
               width: double.infinity,
-              color: EvikColors.primaryWhite,
+              color: AvroClientColors.background,
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
               child: Row(
                 children: [
@@ -50,7 +49,7 @@ class ClientProfileScreen extends ConsumerWidget {
                     width: 54,
                     height: 54,
                     decoration: const BoxDecoration(
-                      color: EvikColors.accentOrange,
+                      color: AvroClientColors.accent,
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
@@ -59,7 +58,7 @@ class ClientProfileScreen extends ConsumerWidget {
                           ? user!.fullName[0].toUpperCase()
                           : '?',
                       style: EvikTypography.h3.copyWith(
-                        color: EvikColors.primaryWhite,
+                        color: AvroClientColors.background,
                         fontWeight: FontWeight.w800,
                         fontSize: 20,
                       ),
@@ -76,11 +75,11 @@ class ClientProfileScreen extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(user?.phone ?? '',
                             style: EvikTypography.bodyMedium
-                                .copyWith(color: EvikColors.textSecondary)),
+                                .copyWith(color: AvroClientColors.textSecondary)),
                         const SizedBox(height: 4),
                         Text('Клиент Авро',
                             style: EvikTypography.bodySmall.copyWith(
-                                color: const Color(0xFFF59E0B),
+                                color: AvroClientColors.warning,
                                 fontWeight: FontWeight.w700)),
                       ],
                     ),
@@ -88,7 +87,7 @@ class ClientProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const Divider(height: 1, color: EvikColors.border),
+            const Divider(height: 1, color: AvroClientColors.surface),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
@@ -135,7 +134,7 @@ class ClientProfileScreen extends ConsumerWidget {
                                 },
                                 child: const Text(
                                   'Выйти',
-                                  style: TextStyle(color: Color(0xFFEF4444)),
+                                  style: TextStyle(color: AvroClientColors.error),
                                 ),
                               ),
                             ],
@@ -144,14 +143,14 @@ class ClientProfileScreen extends ConsumerWidget {
                       },
                       style: ElevatedButton.styleFrom(
                         elevation: 0,
-                        backgroundColor: EvikColors.primaryWhite,
-                        foregroundColor: EvikColors.errorRed,
+                        backgroundColor: AvroClientColors.background,
+                        foregroundColor: AvroClientColors.error,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
                       child: Text('Выйти из аккаунта',
                           style: TextStyle(
-                            color: Color(0xFFEF4444),
+                            color: AvroClientColors.error,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                           )),
@@ -233,10 +232,10 @@ class _FeatureBottomSheet extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: EvikColors.surface,
+                    color: AvroClientColors.surface,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: EvikColors.accentOrange),
+                  child: Icon(icon, color: AvroClientColors.accent),
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Text(title, style: EvikTypography.h3)),
@@ -251,7 +250,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  tileColor: EvikColors.surface,
+                  tileColor: AvroClientColors.surface,
                   title: Text(
                     option,
                     style: EvikTypography.bodyLarge.copyWith(
@@ -261,7 +260,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                   trailing: Text(
                     'Скоро',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: EvikColors.textHint,
+                      color: AvroClientColors.tabInactive,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -292,7 +291,7 @@ class _SheetFrame extends StatelessWidget {
       top: false,
       child: Container(
         decoration: const BoxDecoration(
-          color: EvikColors.primaryWhite,
+          color: AvroClientColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: child,
@@ -317,7 +316,7 @@ class _ProfileTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: EvikColors.primaryWhite,
+      color: AvroClientColors.background,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -330,11 +329,11 @@ class _ProfileTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: EvikColors.surface,
+                  color: AvroClientColors.surface,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon, size: 20, color: EvikColors.textSecondary),
+                child: Icon(icon, size: 20, color: AvroClientColors.textSecondary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -347,11 +346,11 @@ class _ProfileTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(subtitle,
                         style: EvikTypography.bodySmall
-                            .copyWith(color: EvikColors.textSecondary)),
+                            .copyWith(color: AvroClientColors.textSecondary)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: EvikColors.textHint),
+              const Icon(Icons.chevron_right, color: AvroClientColors.tabInactive),
             ],
           ),
         ),

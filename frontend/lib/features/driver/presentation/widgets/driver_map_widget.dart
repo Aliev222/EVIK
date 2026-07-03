@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
 class DriverMapWidget extends StatelessWidget {
@@ -27,9 +28,9 @@ class DriverMapWidget extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x14000000),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: Offset(0, 8),
           ),
@@ -51,20 +52,20 @@ class DriverMapWidget extends StatelessWidget {
                     lat: driverLocation!.lat,
                     lng: driverLocation!.lng,
                     title: 'Вы',
-                    color: const Color(0xFF2E90FA),
+                    color: AvroDriverColors.info,
                   ),
                 if (currentOrder != null) ...[
                   EvikMapMarker(
                     lat: currentOrder!.pickupLocation.lat,
                     lng: currentOrder!.pickupLocation.lng,
                     title: currentOrder!.pickupLocation.address,
-                    color: const Color(0xFF12B76A),
+                    color: AvroDriverColors.success,
                   ),
                   EvikMapMarker(
                     lat: currentOrder!.dropoffLocation.lat,
                     lng: currentOrder!.dropoffLocation.lng,
                     title: currentOrder!.dropoffLocation.address,
-                    color: const Color(0xFFF04438),
+                    color: AvroDriverColors.error,
                   ),
                 ],
               ],
@@ -78,25 +79,25 @@ class DriverMapWidget extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                const _LegendChip(color: Color(0xFF2E90FA), text: 'Вы'),
+                const _LegendChip(color: AvroDriverColors.info, text: 'Вы'),
                 if (currentOrder != null)
                   const _LegendChip(
-                    color: Color(0xFF12B76A),
+                    color: AvroDriverColors.success,
                     text: 'Забор',
                   ),
                 if (currentOrder != null)
                   const _LegendChip(
-                    color: Color(0xFFF04438),
+                    color: AvroDriverColors.error,
                     text: 'Доставка',
                   ),
                 if (currentOrder == null && availableOrders.isNotEmpty)
                   _LegendChip(
-                    color: const Color(0xFFF79009),
+                    color: AvroDriverColors.warning,
                     text: '${availableOrders.length} заказов рядом',
                   ),
                 if (etaText != null)
                   _LegendChip(
-                    color: const Color(0xFF101828),
+                    color: AvroDriverColors.darkBlue,
                     text: etaText!,
                   ),
               ],

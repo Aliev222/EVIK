@@ -1,6 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 
 class ModerationWaitingScreen extends StatelessWidget {
   const ModerationWaitingScreen({super.key});
@@ -8,10 +8,10 @@ class ModerationWaitingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F4EF),
+      backgroundColor: AvroDriverColors.documentBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: EvikColors.textPrimaryDark,
+        foregroundColor: AvroDriverColors.textPrimary,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -25,9 +25,9 @@ class ModerationWaitingScreen extends StatelessWidget {
                 value: 1,
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(999),
-                backgroundColor: const Color(0xFFE2DDD5),
+                backgroundColor: AvroDriverColors.documentCard,
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(EvikColors.accent),
+                    const AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
               ),
               const SizedBox(height: 18),
               const Text(
@@ -35,7 +35,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: EvikColors.textSecondaryDark,
+                  color: AvroDriverColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -44,7 +44,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  color: EvikColors.textPrimaryDark,
+                  color: AvroDriverColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 14),
@@ -59,7 +59,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                     Icon(
                       Icons.fact_check_rounded,
                       size: 56,
-                      color: EvikColors.accent,
+                      color: AvroDriverColors.accent,
                     ),
                     SizedBox(height: 14),
                     Text(
@@ -68,7 +68,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: EvikColors.textPrimaryDark,
+                        color: AvroDriverColors.textPrimary,
                       ),
                     ),
                     SizedBox(height: 10),
@@ -78,7 +78,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.45,
-                        color: EvikColors.textSecondaryDark,
+                        color: AvroDriverColors.textSecondary,
                       ),
                     ),
                   ],
@@ -92,7 +92,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                     (route) => route.isFirst,
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: EvikColors.accent,
+                    backgroundColor: AvroDriverColors.accent,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
