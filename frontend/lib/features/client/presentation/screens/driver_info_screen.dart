@@ -11,8 +11,15 @@ import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_ma
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
-class DriverInfoScreen extends ConsumerWidget {
+class DriverInfoScreen extends ConsumerStatefulWidget {
   const DriverInfoScreen({super.key});
+
+  @override
+  ConsumerState<DriverInfoScreen> createState() => _DriverInfoScreenState();
+}
+
+class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
+  bool _isNavigating = false;
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     final uri = Uri.parse('tel:$phoneNumber');
@@ -24,13 +31,15 @@ class DriverInfoScreen extends ConsumerWidget {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  void _goToTracking(BuildContext context, WidgetRef ref) {
+  void _goToTracking() {
+    if (_isNavigating) return;
+    _isNavigating = true;
     ref.read(orderFlowProvider.notifier).goToTracking();
     context.go('/order/tracking');
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final orderFlowState = ref.watch(orderFlowProvider);
     final driver = orderFlowState.assignedDriver;
     final pickup = orderFlowState.pickupLocation;
@@ -39,7 +48,10 @@ class DriverInfoScreen extends ConsumerWidget {
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
       if (next.currentStep == OrderFlowStep.tracking &&
           previous?.currentStep != OrderFlowStep.tracking) {
-        context.go('/order/tracking');
+        if (!_isNavigating) {
+          _isNavigating = true;
+          context.go('/order/tracking');
+        }
       }
     });
 
@@ -121,7 +133,7 @@ class DriverInfoScreen extends ConsumerWidget {
               rating: driver.rating,
               onCall: phoneNumber != null ? () => _makePhoneCall(phoneNumber) : () {},
               onMessage: phoneNumber != null ? () => _sendMessage(phoneNumber) : () {},
-              onTrack: () => _goToTracking(context, ref),
+              onTrack: _goToTracking,
             ),
           ),
         ],

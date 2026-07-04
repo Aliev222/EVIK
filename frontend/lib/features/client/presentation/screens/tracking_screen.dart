@@ -69,6 +69,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
       if (next.currentStep == OrderFlowStep.completion &&
           previous?.currentStep != OrderFlowStep.completion) {
+        if (!mounted) return;
         context.go('/order/completion');
       }
     });

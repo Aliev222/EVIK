@@ -65,6 +65,7 @@ type DriverHandler struct {
 	clock             interface{ Now() time.Time }
 	allowMockLocation bool
 	isProduction      bool
+	debugMode         bool
 }
 
 func NewDriverHandler(
@@ -79,6 +80,7 @@ func NewDriverHandler(
 	clock interface{ Now() time.Time },
 	allowMockLocation bool,
 	isProduction bool,
+	debugMode bool,
 ) *DriverHandler {
 	return &DriverHandler{
 		setStatusUC:       setStatusUC,
@@ -92,6 +94,7 @@ func NewDriverHandler(
 		clock:             clock,
 		allowMockLocation: allowMockLocation,
 		isProduction:      isProduction,
+		debugMode:         debugMode,
 	}
 }
 
@@ -685,6 +688,9 @@ func (h *DriverHandler) DisconnectNPD(w http.ResponseWriter, r *http.Request) {
 // returns ok=false if denied — callers should return immediately.
 func (h *DriverHandler) authorizeDriverScope(w http.ResponseWriter, r *http.Request) (string, bool) {
 	driverID := chi.URLParam(r, "driverID")
+	if h.debugMode {
+		return driverID, true
+	}
 	authUserID, err := userIDFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")

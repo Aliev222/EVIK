@@ -24,6 +24,7 @@ class DriverSearchScreen extends ConsumerStatefulWidget {
 class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   bool _isNavigatingToDriverInfo = false;
   Timer? _clientLocationTimer;
+  StreamSubscription? _orderUpdateSub;
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
 
     if (connected) {
       // Listen for order updates
-      realTimeService.orderUpdateStream.listen((orderUpdate) {
+      _orderUpdateSub = realTimeService.orderUpdateStream.listen((orderUpdate) {
         if (!mounted) return;
 
         if (orderUpdate.status == OrderUpdateType.driverFound) {
@@ -79,7 +80,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   @override
   void dispose() {
     _clientLocationTimer?.cancel();
-    // Disconnect from real-time service
+    _orderUpdateSub?.cancel();
     ref.read(realTimeLocationServiceProvider).disconnect();
     super.dispose();
   }
@@ -112,6 +113,8 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   }
 
   void _cancelSearch() {
+    if (_isNavigatingToDriverInfo) return;
+    _isNavigatingToDriverInfo = true;
     ref.read(orderFlowProvider.notifier).cancelSearch();
     context.go('/');
   }

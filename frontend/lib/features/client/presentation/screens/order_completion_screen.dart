@@ -25,11 +25,13 @@ class _OrderCompletionScreenState extends ConsumerState<OrderCompletionScreen> {
 
   void _goToReview() {
     ref.read(orderFlowProvider.notifier).goToRating();
+    if (!mounted) return;
     context.go('/order/rating');
   }
 
   void _orderAgain() {
     ref.read(orderFlowProvider.notifier).resetFlow();
+    if (!mounted) return;
     context.go('/');
   }
 
@@ -58,6 +60,7 @@ class _OrderCompletionScreenState extends ConsumerState<OrderCompletionScreen> {
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
       if (next.currentStep == OrderFlowStep.rating &&
           previous?.currentStep != OrderFlowStep.rating) {
+        if (!mounted) return;
         context.go('/order/rating');
       }
     });
