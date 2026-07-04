@@ -207,7 +207,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("WARN: YOOKASSA_WEBHOOK_SECRET not set — webhooks will be rejected until configured")
 	}
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret, yooStubMode)
-	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass)
+	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
 	// is empty so local/dev runs without Firebase credentials still boot cleanly.
@@ -267,7 +267,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		},
 	)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
-	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction(), cfg.OTPFixedCode, cfg.IsProduction())
+	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction(), cfg.OTPFixedCode, cfg.IsProduction(), cfg.DebugMode)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager)

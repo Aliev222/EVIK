@@ -51,6 +51,7 @@ type Config struct {
 	FirebaseCredentialsJSON    string
 	OTPFixedCode               string
 	AllowMockLocation          bool
+	DebugMode                  bool
 }
 
 func MustLoad() Config {
@@ -66,6 +67,11 @@ func MustLoad() Config {
 
 	appEnv := getEnv("APP_ENV", "development")
 	isProduction := strings.EqualFold(appEnv, "production")
+
+	debugMode := getEnvBool("DEBUG_MODE", false)
+	if debugMode && isProduction {
+		log.Fatal("FATAL: DEBUG_MODE must not be true in production.")
+	}
 
 	driverGateBypassDefault := otpFixedCode != "" && !isProduction
 
@@ -110,6 +116,7 @@ func MustLoad() Config {
 		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		OTPFixedCode:               otpFixedCode,
 		AllowMockLocation:          getEnvBool("ALLOW_MOCK_LOCATION", !isProduction),
+		DebugMode:                  debugMode,
 	}
 	validateProductionConfig(cfg)
 	return cfg

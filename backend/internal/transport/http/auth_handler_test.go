@@ -17,7 +17,7 @@ func TestAuthRegisterIssuesRealUserSubjectAndRefreshSession(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false, false)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewBufferString(`{
@@ -48,7 +48,7 @@ func TestAuthRefreshRotatesStoredSession(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false, false)
 	_, refreshToken, err := handler.issueTokens(context.Background(), "user-1", auth.RoleClient)
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
@@ -76,7 +76,7 @@ func TestAuthUpsertDeviceTokenRequiresMatchingRole(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false, false)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
@@ -100,7 +100,7 @@ func TestAuthUpsertDeviceTokenStoresTokenForAuthenticatedRole(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "", false, false)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices/fcm-token", bytes.NewBufferString(`{
@@ -125,7 +125,7 @@ func TestAuthOTPUsesConfiguredFixedCode(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, false, "123456", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, false, "123456", false, false)
 
 	requestRec := httptest.NewRecorder()
 	requestReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/request", bytes.NewBufferString(`{
@@ -157,7 +157,7 @@ func TestAuthOTPDoesNotExposeConfiguredFixedCode(t *testing.T) {
 	repo := newFakeUserRepository()
 	clock := fixedHTTPClock{now: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC)}
 	tokens := auth.NewTokenManager("test-secret-test-secret-test-secret", time.Minute, time.Hour)
-	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "123456", false)
+	handler := NewAuthHandler(tokens, repo, "admin", "admin-password", &seqID{}, clock, true, "123456", false, false)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/request", bytes.NewBufferString(`{

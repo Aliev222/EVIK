@@ -29,6 +29,7 @@ type AuthHandler struct {
 	exposeOTPCodes bool
 	fixedOTPCode   string
 	isProduction   bool
+	debugMode      bool
 }
 
 // knownWeakOTPCodes are trivially guessable codes that must never be accepted in production.
@@ -38,7 +39,7 @@ var knownWeakOTPCodes = map[string]struct{}{
 	"777777": {}, "888888": {}, "999999": {}, "123123": {},
 }
 
-func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool, fixedOTPCode string, isProduction bool) *AuthHandler {
+func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, adminUserID string, adminPassword string, idGen interface{ NewID() string }, clock interface{ Now() time.Time }, exposeOTPCodes bool, fixedOTPCode string, isProduction bool, debugMode bool) *AuthHandler {
 	return &AuthHandler{
 		tokens:         tokens,
 		users:          users,
@@ -49,6 +50,7 @@ func NewAuthHandler(tokens *auth.TokenManager, users userdomain.Repository, admi
 		exposeOTPCodes: exposeOTPCodes,
 		fixedOTPCode:   strings.TrimSpace(fixedOTPCode),
 		isProduction:   isProduction,
+		debugMode:      debugMode,
 	}
 }
 
@@ -300,9 +302,11 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if _, err := h.users.ConsumePhoneOTP(r.Context(), phone, string(role), otpHash(phone, role, code), h.clock.Now()); err != nil {
-		writeAuthError(w, http.StatusUnauthorized, "invalid or expired otp")
-		return
+	if !h.debugMode {
+		if _, err := h.users.ConsumePhoneOTP(r.Context(), phone, string(role), otpHash(phone, role, code), h.clock.Now()); err != nil {
+			writeAuthError(w, http.StatusUnauthorized, "invalid or expired otp")
+			return
+		}
 	}
 	user, err := h.users.GetByPhoneAndRole(r.Context(), phone, string(role))
 	if errors.Is(err, userdomain.ErrUserNotFound) {
