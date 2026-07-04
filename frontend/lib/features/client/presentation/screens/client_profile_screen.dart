@@ -162,7 +162,6 @@ class ClientProfileScreen extends ConsumerWidget {
           ],
         ),
       ),
-      ),
     );
   }
 
@@ -365,6 +364,7 @@ class _ProfileTile extends StatelessWidget {
               ),
               const Icon(Icons.chevron_right, color: AvroClientColors.tabInactive),
             ],
+          ),
           ),
         ),
       ),

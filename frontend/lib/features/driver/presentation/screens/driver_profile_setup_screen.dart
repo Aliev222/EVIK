@@ -54,7 +54,7 @@ class _DriverProfileSetupScreenState
       backgroundColor: AvroDriverColors.documentBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: AvroDriverColors.textPrimary,
+        foregroundColor: AvroDriverColors.darkBlue,
         elevation: 0,
       ),
       body: SafeArea(
@@ -79,7 +79,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AvroDriverColors.textSecondary,
+                    color: AvroDriverColors.border,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -88,7 +88,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
-                    color: AvroDriverColors.textPrimary,
+                    color: AvroDriverColors.darkBlue,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -97,7 +97,7 @@ class _DriverProfileSetupScreenState
                   style: TextStyle(
                     fontSize: 15,
                     height: 1.45,
-                    color: AvroDriverColors.textSecondary,
+                    color: AvroDriverColors.border,
                   ),
                 ),
                 if (onboardingState.errorMessage != null) ...[
@@ -212,7 +212,7 @@ class _DriverProfileSetupScreenState
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: AvroDriverColors.textPrimary,
+                          color: AvroDriverColors.darkBlue,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -221,7 +221,7 @@ class _DriverProfileSetupScreenState
                         style: TextStyle(
                           fontSize: 14,
                           height: 1.45,
-                          color: AvroDriverColors.textSecondary,
+                          color: AvroDriverColors.border,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -361,7 +361,7 @@ class _UploadProgressCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: AvroDriverColors.textPrimary,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
           const SizedBox(height: 10),
@@ -419,7 +419,7 @@ class _SelfieCard extends StatelessWidget {
                       child: Icon(
                         Icons.face_rounded,
                         size: 60,
-                        color: AvroDriverColors.textSecondary,
+                        color: AvroDriverColors.border,
                       ),
                     )
                   : _SelfiePreview(selfie: selfie!),
@@ -433,7 +433,7 @@ class _SelfieCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: AvroDriverColors.textPrimary,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
           const SizedBox(height: 12),

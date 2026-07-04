@@ -132,7 +132,7 @@ class DriverModerationScreen extends ConsumerWidget {
                 child: OutlinedButton(
                   onPressed: () => _contactSupport(context),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AvroDriverColors.textPrimary,
+                    foregroundColor: AvroDriverColors.darkBlue,
                     side: const BorderSide(color: AvroDriverColors.documentBorder),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -259,7 +259,7 @@ class _StatusCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: AvroDriverColors.textPrimary,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
           const SizedBox(height: 12),
@@ -269,7 +269,7 @@ class _StatusCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 15,
               height: 1.5,
-              color: AvroDriverColors.textSecondary,
+              color: AvroDriverColors.border,
             ),
           ),
           if (child != null) child!,

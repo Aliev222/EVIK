@@ -11,7 +11,7 @@ class ModerationWaitingScreen extends StatelessWidget {
       backgroundColor: AvroDriverColors.documentBg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        foregroundColor: AvroDriverColors.textPrimary,
+        foregroundColor: AvroDriverColors.darkBlue,
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
@@ -35,7 +35,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AvroDriverColors.textSecondary,
+                  color: AvroDriverColors.border,
                 ),
               ),
               const SizedBox(height: 8),
@@ -44,7 +44,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.w800,
-                  color: AvroDriverColors.textPrimary,
+                  color: AvroDriverColors.darkBlue,
                 ),
               ),
               const SizedBox(height: 14),
@@ -68,7 +68,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        color: AvroDriverColors.textPrimary,
+                        color: AvroDriverColors.darkBlue,
                       ),
                     ),
                     SizedBox(height: 10),
@@ -78,7 +78,7 @@ class ModerationWaitingScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 15,
                         height: 1.45,
-                        color: AvroDriverColors.textSecondary,
+                        color: AvroDriverColors.border,
                       ),
                     ),
                   ],

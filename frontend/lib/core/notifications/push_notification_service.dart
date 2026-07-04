@@ -39,25 +39,30 @@ class PushNotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    await _requestPermission();
-    await _initializeLocalNotifications();
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(
-      alert: false,
-      badge: true,
-      sound: true,
-    );
+      await _requestPermission();
+      await _initializeLocalNotifications();
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: true,
+        sound: true,
+      );
 
-    _foregroundSubscription =
-        FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    _openedSubscription =
-        FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+      _foregroundSubscription =
+          FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+      _openedSubscription =
+          FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage != null) {
-      scheduleMicrotask(() => _handleNotificationTap(initialMessage));
+      final initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        scheduleMicrotask(() => _handleNotificationTap(initialMessage));
+      }
+    } catch (_) {
+      // Firebase not available (web or unsupported platform)
     }
 
     _initialized = true;
@@ -71,12 +76,12 @@ class PushNotificationService {
     _currentRouteResolver = resolver;
   }
 
-  Future<String?> getToken() {
-    return FirebaseMessaging.instance.getToken();
+  Future<String?> getToken() async {
+    try { return await FirebaseMessaging.instance.getToken(); } catch (_) { return null; }
   }
 
   Stream<String> get onTokenRefresh {
-    return FirebaseMessaging.instance.onTokenRefresh;
+    try { return FirebaseMessaging.instance.onTokenRefresh; } catch (_) { return const Stream.empty(); }
   }
 
   Future<void> showBackgroundNotification(RemoteMessage message) async {

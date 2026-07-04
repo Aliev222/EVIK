@@ -120,7 +120,7 @@ class IoApiClient implements ApiClient {
             method: method,
             path: path,
             statusCode: 408,
-            message: '��������� ����� �������� ������',
+            message: 'Сервер не отвечает. Попробуйте позже',
             uri: _baseUri.resolve(path),
           );
         }
@@ -131,7 +131,7 @@ class IoApiClient implements ApiClient {
             method: method,
             path: path,
             statusCode: 0,
-            message: '��� ����������� � ���������',
+            message: 'Нет подключения к интернету',
             uri: _baseUri.resolve(path),
           );
         }
@@ -161,30 +161,30 @@ class IoApiClient implements ApiClient {
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
 
     if (statusCode < 200 || statusCode >= 300) {
-      String errorMessage = '������ ����';
+      String errorMessage = 'Неизвестная ошибка';
 
       switch (statusCode) {
         case 401:
-          errorMessage = '������ �����������';
+          errorMessage = 'Сессия истекла. Войдите заново';
           break;
         case 403:
-          errorMessage = '������ ��������';
+          errorMessage = 'Доступ запрещён';
           break;
         case 404:
-          errorMessage = '������ �� ������';
+          errorMessage = 'Данные не найдены';
           break;
         case 429:
-          errorMessage = '������� ����� ��������. ���������� �����';
+          errorMessage = 'Слишком много запросов. Подождите';
           break;
         case 500:
-          errorMessage = '������ �������. ���������� �����';
+          errorMessage = 'Ошибка сервера. Попробуйте позже';
           break;
         case 503:
-          errorMessage = '������ �������� ����������';
+          errorMessage = 'Сервис временно недоступен';
           break;
       }
 
-      // ���� ���� ������ ������ �� �������
+      // Если сервер вернул ошибку в теле
       if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {
         final serverError = decoded['error'].toString();
         if (serverError.isNotEmpty && serverError != 'null') {

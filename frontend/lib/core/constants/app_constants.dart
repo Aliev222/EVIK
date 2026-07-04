@@ -7,11 +7,11 @@ class AppConstants {
   static const bool isProduction =
       bool.fromEnvironment('DART_DEFINE_ENV_PROD', defaultValue: false);
 
-  // Mock ����� ��� ������������ ��� �������
+  // Mock данные для разработки без сервера
   static const bool useMockData =
       bool.fromEnvironment('USE_MOCK_DATA', defaultValue: false);
 
-  // ����� �������� ������������ - ������� �����������
+  // Флаг пропуска авторизации - режим отладки
   static const bool skipAuth =
       bool.fromEnvironment('SKIP_AUTH', defaultValue: kDebugMode);
 

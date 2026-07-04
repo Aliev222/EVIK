@@ -20,7 +20,7 @@ class ClientBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+      minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
       child: Container(
         height: 72,
         decoration: BoxDecoration(

@@ -161,7 +161,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 52,
+                  height: 62,
                   child: _SosSlider(
                     onConfirmed: () =>
                         _showComingSoon('SOS — скоро будет доступно'),
@@ -169,7 +169,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Flexible(
-                  flex: 4,
+                  flex: 3,
                   fit: FlexFit.tight,
                   child: _LocationMapCard(
                     lat: lat,
@@ -180,7 +180,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Flexible(
-                  flex: 4,
+                  flex: 5,
                   fit: FlexFit.tight,
                   child: _QuickServicesGrid(
                     onServiceTap: () =>
@@ -209,17 +209,13 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AvroClientColors.accent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-            Icons.local_shipping_rounded,
-            color: AvroClientColors.background,
-            size: 20,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/img/app_icon_load_fg.png',
+            width: 28,
+            height: 28,
+            fit: BoxFit.contain,
           ),
         ),
         const SizedBox(width: 10),
@@ -267,8 +263,27 @@ class _CallTowTruckButton extends StatelessWidget {
         height: 64,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: AvroClientColors.accent,
           borderRadius: BorderRadius.circular(18),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFF6B35),
+              Color(0xFFFF7B42),
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AvroClientColors.accent.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -427,13 +442,25 @@ class _QuickServiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AvroClientColors.background,
+            AvroClientColors.background,
+          ],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: AvroClientColors.accent.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -511,11 +538,24 @@ class _LocationMapCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF5F5F5),
+            Color(0xFFFFFFFF),
+          ],
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -615,7 +655,6 @@ class _SosSlider extends StatefulWidget {
 class _SosSliderState extends State<_SosSlider>
     with SingleTickerProviderStateMixin {
   static const double _thumbSize = 36;
-  // Минимальная область нажатия 44×44 при визуальном размере 36
   static const double _hitSize = 44;
   static const double _thumbPadding = 8;
   static const double _completeThreshold = 0.85;
@@ -693,9 +732,27 @@ class _SosSliderState extends State<_SosSlider>
         return Container(
           height: constraints.maxHeight,
           decoration: BoxDecoration(
-            color: AvroClientColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AvroClientColors.accent, width: 1),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFDC2626),
+                Color(0xFFEF4444),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Stack(
             alignment: Alignment.centerLeft,
@@ -708,7 +765,7 @@ class _SosSliderState extends State<_SosSlider>
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AvroClientColors.accent,
+                      color: AvroClientColors.background,
                     ),
                   ),
                 ),
@@ -732,13 +789,17 @@ class _SosSliderState extends State<_SosSlider>
                           width: _thumbSize,
                           height: _thumbSize,
                           decoration: const BoxDecoration(
-                            color: AvroClientColors.accent,
+                            color: Colors.white,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.shield_rounded,
-                            color: AvroClientColors.background,
-                            size: 22,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/img/sos_icon.png',
+                              width: 22,
+                              height: 22,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                       ),

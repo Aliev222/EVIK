@@ -29,6 +29,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
     return Theme(
       data: AppTheme.driver(),
       child: Scaffold(
+      extendBody: true,
       body: RepaintBoundary(
         child: IndexedStack(
           index: _currentIndex,
@@ -54,12 +55,10 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
   }
 
   Widget _buildBottomNavigation(bool hasActiveOrder) {
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
       child: Container(
         height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: AvroDriverColors.navBar,
           borderRadius: BorderRadius.circular(20),
@@ -71,8 +70,8 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
             ),
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, -1),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),

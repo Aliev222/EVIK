@@ -369,7 +369,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         ? null
         : driverState.availableOrders.first;
     _syncRoutePreview(incomingOrder);
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    const navBottom = 10.0 + 72.0 + 10.0;
 
     return Stack(
       children: [
@@ -382,7 +382,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               markers: _mapMarkers(incomingOrder),
               routePoints: _routePreview?.points ?? const <LatLng>[],
               controlsBottomOffset:
-                  bottomInset + (incomingOrder == null ? 128 : 330),
+                  10 + 72 + 50 + (incomingOrder == null ? 128 : 330),
               controlsBackgroundColor: AvroDriverColors.surface,
               controlsIconColor: AvroDriverColors.accent,
             ),
@@ -411,16 +411,16 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         ),
         if (incomingOrder == null)
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.paddingOf(context).bottom + 20,
+            left: 10,
+            right: 10,
+            bottom: navBottom,
             child: _WaitingForOrdersCard(isLoading: driverState.isLoading),
           )
         else
           Positioned(
-            left: 14,
-            right: 14,
-            bottom: MediaQuery.paddingOf(context).bottom + 20,
+            left: 10,
+            right: 10,
+            bottom: navBottom,
             child: AnimatedBuilder(
               animation:
                   _offerProgressAnimation ?? const AlwaysStoppedAnimation(1.0),

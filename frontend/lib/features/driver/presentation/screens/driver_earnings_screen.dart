@@ -825,20 +825,20 @@ class _MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: _surfaceDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 18),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 12),
           Text(
             _money(amount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: EvikTypography.h3.copyWith(fontSize: 18),
+            style: EvikTypography.h3.copyWith(fontSize: 16),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             title,
             maxLines: 1,
@@ -846,13 +846,13 @@ class _MetricTile extends StatelessWidget {
             style: EvikTypography.bodyMedium.copyWith(fontSize: 13),
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               subtitle!,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: EvikTypography.bodySmall.copyWith(
-                fontSize: 12,
+                fontSize: 11,
                 color: AvroDriverColors.grayHint,
               ),
             ),

@@ -55,9 +55,9 @@ class VehicleSelectionScreen extends ConsumerWidget {
                         _RouteSummary(state: state),
                         SizedBox(height: compact ? 8 : 10),
                         _OrderField(
-                          label: '��� ���������',
+                          label: 'Тип эвакуатора',
                           value: state.selectedVehicleType?.displayName ??
-                              '�������� ��� ����',
+                              'Выберите тип ТС',
                           icon: Icons.directions_car_rounded,
                         ),
                         SizedBox(height: compact ? 8 : 10),

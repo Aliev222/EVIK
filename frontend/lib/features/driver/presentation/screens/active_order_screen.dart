@@ -62,7 +62,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
               initialZoom: 13.4,
               markers: _mapMarkers(order),
               routePoints: _routePreview?.points ?? const <LatLng>[],
-              controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 246,
+              controlsBottomOffset: 10 + 72 + 50 + 246,
               controlsBackgroundColor: AvroDriverColors.surface,
               controlsIconColor: AvroDriverColors.accent,
             ),
@@ -83,7 +83,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: 10 + 72,
             child: _ActiveOrderBottomSheet(
               order: order,
               isLoading: driverState.isLoading,

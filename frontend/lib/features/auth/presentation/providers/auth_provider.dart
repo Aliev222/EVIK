@@ -267,20 +267,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
 
-    // � ���-������ ��������� ����� 6-������� ���
+    // В режиме моков принимаем любой 6-значный код
     if (AppConstants.useMockData) {
       debugPrint('[MOCK AUTH] Accepting any 6-digit code: $sanitizedCode');
       final userID = _deriveUserID(phoneNumber);
       if (userID == null) {
         state = state.copyWith(
-          errorMessage: '�� ������� ������������ ������������� ������������.',
+          errorMessage: 'Не удалось определить идентификатор пользователя.',
         );
         return;
       }
 
       state = state.copyWith(isLoading: true, clearError: true);
 
-      // ��������� ��������� ��������
+      // Имитируем сетевую задержку
       await Future.delayed(const Duration(milliseconds: 800));
 
       try {
@@ -335,7 +335,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     }
 
-    // ������������ ������ ��� ����������
+    // Стандартный поток для продакшена
     final userID = _deriveUserID(phoneNumber);
     if (userID == null) {
       state = state.copyWith(
@@ -730,14 +730,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   String _loginErrorMessage(Object error) {
-    const fallback = '�� ������� ��������� ���� ����� ������.';
+    const fallback = 'Не удалось выполнить вход в систему.';
     if (error is! ApiClientException) {
       return fallback;
     }
     if (error.path == '/api/v1/auth/login') {
       return switch (error.statusCode) {
-        401 => '�������� ������� ������.',
-        429 => '������� ����� �������. ���������� �����.',
+        401 => 'Неверные учётные данные.',
+        429 => 'Слишком много запросов. Попробуйте позже.',
         _ => fallback,
       };
     }
