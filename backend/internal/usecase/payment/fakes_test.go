@@ -127,9 +127,11 @@ var _ paymentdomain.Repository = noopFinanceRepo{}
 type scriptedProvider struct {
 	createPaymentFn func(ctx context.Context, req ProviderPaymentRequest) (*ProviderPaymentResponse, error)
 	createPayoutFn  func(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error)
+	getPaymentFn    func(ctx context.Context, id string) (*ProviderPaymentResponse, error)
 
 	paymentCalls []ProviderPaymentRequest
 	payoutCalls  []ProviderPayoutRequest
+	getPaymentIDs []string
 }
 
 func (p *scriptedProvider) CreatePayment(ctx context.Context, req ProviderPaymentRequest) (*ProviderPaymentResponse, error) {
@@ -138,6 +140,14 @@ func (p *scriptedProvider) CreatePayment(ctx context.Context, req ProviderPaymen
 		return p.createPaymentFn(ctx, req)
 	}
 	return &ProviderPaymentResponse{ID: "provider-payment-default", Status: "pending"}, nil
+}
+
+func (p *scriptedProvider) GetPayment(ctx context.Context, id string) (*ProviderPaymentResponse, error) {
+	p.getPaymentIDs = append(p.getPaymentIDs, id)
+	if p.getPaymentFn != nil {
+		return p.getPaymentFn(ctx, id)
+	}
+	return &ProviderPaymentResponse{ID: id, Status: "succeeded", Paid: true}, nil
 }
 
 func (p *scriptedProvider) CreatePayout(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error) {

@@ -2,9 +2,6 @@ package payment
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,9 +26,6 @@ var (
 	ErrProviderUnavailable = errors.New("payment provider is unavailable")
 	// ErrProviderUnauthorized: the provider rejected our credentials.
 	ErrProviderUnauthorized = errors.New("payment provider rejected credentials")
-	// ErrWebhookSignatureRequired is returned when no webhook secret is configured
-	// in a non-stub environment, making it impossible to verify the request origin.
-	ErrWebhookSignatureRequired = errors.New("webhook signature verification is required")
 	// ErrOrderNotOwned: the caller does not own the order they are paying for.
 	ErrOrderNotOwned = errors.New("order does not belong to user")
 )
@@ -42,6 +36,7 @@ type PricingService interface {
 
 type PaymentProvider interface {
 	CreatePayment(ctx context.Context, req ProviderPaymentRequest) (*ProviderPaymentResponse, error)
+	GetPayment(ctx context.Context, id string) (*ProviderPaymentResponse, error)
 	CreatePayout(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error)
 }
 
@@ -84,7 +79,6 @@ type FinanceUseCase struct {
 	idGen             IDGenerator
 	holdSeconds       int
 	minimumWithdrawal int64
-	webhookSecret     string
 	stubMode          bool
 }
 
@@ -99,7 +93,7 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, webhookSecret string, stubMode bool) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, stubMode bool) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
@@ -109,7 +103,6 @@ func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repo
 		idGen:             idGen,
 		holdSeconds:       holdSeconds,
 		minimumWithdrawal: minimumWithdrawal,
-		webhookSecret:     webhookSecret,
 		stubMode:          stubMode,
 	}
 }
@@ -239,16 +232,7 @@ func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID 
 	return uc.repo.CreatePendingPaymentMethod(ctx, payment, method)
 }
 
-func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []byte, signature string) error {
-	if uc.webhookSecret == "" {
-		if !uc.stubMode {
-			log.Printf("SECURITY: webhook signature verification is required but YOOKASSA_WEBHOOK_SECRET is not set — rejecting request")
-			return ErrWebhookSignatureRequired
-		}
-		log.Printf("WARN: YOOKASSA_WEBHOOK_SECRET not set — skipping signature check in stub mode")
-	} else if !validSignature(payload, signature, uc.webhookSecret) {
-		return errors.New("invalid webhook signature")
-	}
+func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []byte) error {
 	var event struct {
 		Type   string `json:"type"`
 		Event  string `json:"event"`
@@ -282,7 +266,20 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 	if err != nil || !inserted {
 		return err
 	}
-	p, err := uc.repo.UpdatePaymentFromProvider(ctx, event.Object.ID, event.Object.Status, event.Object.Paid || event.Object.Status == string(paymentdomain.PaymentStatusSucceeded))
+
+	status := event.Object.Status
+	paid := event.Object.Paid || event.Object.Status == string(paymentdomain.PaymentStatusSucceeded)
+
+	if !uc.stubMode {
+		apiResp, err := uc.provider.GetPayment(ctx, event.Object.ID)
+		if err != nil {
+			return fmt.Errorf("failed to verify payment with provider: %w", err)
+		}
+		status = apiResp.Status
+		paid = apiResp.Paid
+	}
+
+	p, err := uc.repo.UpdatePaymentFromProvider(ctx, event.Object.ID, status, paid)
 	if err != nil {
 		return err
 	}
@@ -554,13 +551,6 @@ func (uc *FinanceUseCase) ListAdminRefunds(ctx context.Context, filter paymentdo
 
 func (uc *FinanceUseCase) MinimumWithdrawal() int64 {
 	return uc.minimumWithdrawal
-}
-
-func validSignature(payload []byte, header, secret string) bool {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(payload)
-	expected := hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(expected), []byte(header))
 }
 
 func subscriptionAmount(planID string) int64 {

@@ -216,6 +216,53 @@ func (c *YooKassaClient) doJSON(ctx context.Context, method, path, idempotencyKe
 	return json.Unmarshal(responseBody, out)
 }
 
+func (c *YooKassaClient) GetPayment(ctx context.Context, paymentID string) (*YooKassaPaymentResponse, error) {
+	if c.stubMode {
+		return c.stubPayment(), nil
+	}
+	if c.shopID == "" || c.secretKey == "" {
+		return nil, ErrCredentialsNotConfigured
+	}
+	var out struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		Paid         bool   `json:"paid"`
+		Confirmation struct {
+			ConfirmationURL string `json:"confirmation_url"`
+		} `json:"confirmation"`
+	}
+	if err := c.doGET(ctx, "/payments/"+paymentID, c.basicAuth(), &out); err != nil {
+		return nil, err
+	}
+	return &YooKassaPaymentResponse{
+		ID:              out.ID,
+		Status:          out.Status,
+		ConfirmationURL: out.Confirmation.ConfirmationURL,
+		Paid:            out.Paid,
+	}, nil
+}
+
+func (c *YooKassaClient) doGET(ctx context.Context, path, authHeader string, out any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", authHeader)
+	response, err := c.client.Do(request)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUpstreamUnavailable, err)
+	}
+	defer response.Body.Close()
+	responseBody, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return fmt.Errorf("%w: status=%d body=%s", ErrUpstreamUnauthorized, response.StatusCode, string(responseBody))
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("yookassa api error: status=%d body=%s", response.StatusCode, string(responseBody))
+	}
+	return json.Unmarshal(responseBody, out)
+}
+
 func (c *YooKassaClient) basicAuth() string {
 	token := base64.StdEncoding.EncodeToString([]byte(c.shopID + ":" + c.secretKey))
 	return "Basic " + token

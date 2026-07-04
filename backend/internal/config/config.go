@@ -33,7 +33,6 @@ type Config struct {
 	YooKassaShopID             string
 	YooKassaSecret             string
 	YooKassaReturnURL          string
-	YooKassaWebhookSecret      string
 	YooKassaPayoutGatewayID    string
 	YooKassaPayoutSecret       string
 	YooKassaPayoutMode         string
@@ -98,7 +97,6 @@ func MustLoad() Config {
 		YooKassaShopID:             getEnv("YOOKASSA_SHOP_ID", ""),
 		YooKassaSecret:             getEnv("YOOKASSA_SECRET_KEY", ""),
 		YooKassaReturnURL:          getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
-		YooKassaWebhookSecret:      getEnv("YOOKASSA_WEBHOOK_SECRET", ""),
 		YooKassaPayoutGatewayID:    getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
 		YooKassaPayoutSecret:       getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
 		YooKassaPayoutMode:         getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
@@ -170,9 +168,6 @@ func validateProductionConfig(cfg Config) {
 	}
 	if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
 		missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
-	}
-	if cfg.YooKassaWebhookSecret == "" && !cfg.YooKassaStubMode {
-		missing = append(missing, "YOOKASSA_WEBHOOK_SECRET")
 	}
 	if len(missing) > 0 {
 		log.Fatalf("invalid production config: %s", strings.Join(missing, ", "))

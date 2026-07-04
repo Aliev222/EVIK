@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,47 @@ import (
 	paymentuc "evik/backend/internal/usecase/payment"
 	"github.com/go-chi/chi/v5"
 )
+
+// yooKassaCIDRs lists the IP ranges YooKassa sends webhook requests from.
+var yooKassaCIDRs = []string{
+	"185.71.76.0/27",
+	"185.71.77.0/27",
+	"77.75.153.0/25",
+	"77.75.154.128/25",
+	"77.75.156.11/32",
+	"77.75.156.35/32",
+	"2a02:5180::/32",
+}
+
+func IsYooKassaIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range yooKassaCIDRs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func getClientIP(r *http.Request) string {
+	forwarded := r.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 type PaymentHandler struct {
 	repo      paymentdomain.Repository
@@ -323,34 +365,35 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 }
 
 // HandleYooKassaWebhook receives asynchronous payment events from YooKassa.
-// Idempotent: replayed webhooks are stored and acknowledged without re-running
-// side effects. The request body is the raw YooKassa notification payload.
+// Verifies the sender by IP allowlist (YooKassa published CIDR ranges) and
+// confirms the payment status by re-querying the YooKassa API before applying
+// any state changes. Idempotent: replayed webhooks are stored and acknowledged
+// without re-running side effects.
 //
 // @Summary      YooKassa webhook
-// @Description  Public webhook receiver. Verified via HMAC-SHA256 signature in the configured header. No bearer auth.
+// @Description  Public webhook receiver. Verified by IP allowlist; payment status confirmed via YooKassa API re-query. No bearer auth.
 // @Tags         webhooks
 // @Accept       json
 // @Produce      json
 // @Param        body  body      YooKassaWebhookRequest  true  "YooKassa event"
 // @Success      200   {object}  EmptyResponse
 // @Failure      400   {object}  ErrorResponse  "malformed payload"
-// @Failure      401   {object}  ErrorResponse  "invalid signature"
+// @Failure      403   {object}  ErrorResponse  "forbidden"
 // @Router       /webhooks/yookassa [post]
 func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Request) {
+	if !h.stubMode {
+		clientIP := getClientIP(r)
+		if !IsYooKassaIP(clientIP) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	signature := r.Header.Get("X-YooKassa-Signature")
-	if signature == "" {
-		signature = r.Header.Get("X-Webhook-Signature")
-	}
-	if err := h.financeUC.HandleYooKassaWebhook(r.Context(), body, signature); err != nil {
-		if errors.Is(err, paymentuc.ErrWebhookSignatureRequired) || strings.Contains(err.Error(), "invalid webhook signature") {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
-			return
-		}
+	if err := h.financeUC.HandleYooKassaWebhook(r.Context(), body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}

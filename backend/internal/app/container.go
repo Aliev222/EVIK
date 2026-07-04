@@ -96,6 +96,14 @@ func (p yookassaProvider) CreatePayment(ctx context.Context, req paymentuc.Provi
 	return &paymentuc.ProviderPaymentResponse{ID: res.ID, Status: res.Status, ConfirmationURL: res.ConfirmationURL, Paid: res.Paid}, nil
 }
 
+func (p yookassaProvider) GetPayment(ctx context.Context, id string) (*paymentuc.ProviderPaymentResponse, error) {
+	res, err := p.client.GetPayment(ctx, id)
+	if err != nil {
+		return nil, mapProviderError(err)
+	}
+	return &paymentuc.ProviderPaymentResponse{ID: res.ID, Status: res.Status, ConfirmationURL: res.ConfirmationURL, Paid: res.Paid}, nil
+}
+
 func (p yookassaProvider) CreatePayout(ctx context.Context, req paymentuc.ProviderPayoutRequest) (*paymentuc.ProviderPayoutResponse, error) {
 	res, err := p.client.CreatePayout(ctx, httpinfra.YooKassaPayoutRequest{
 		Amount:              req.Amount,
@@ -203,10 +211,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("WARN: YOOKASSA STUB MODE active — payments are faked, no real charges occur")
 	}
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode, yooStubMode)
-	if cfg.YooKassaWebhookSecret == "" && !yooStubMode {
-		logger.Printf("WARN: YOOKASSA_WEBHOOK_SECRET not set — webhooks will be rejected until configured")
-	}
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, cfg.YooKassaWebhookSecret, yooStubMode)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, yooStubMode)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON

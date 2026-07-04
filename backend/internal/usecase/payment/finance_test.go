@@ -34,7 +34,7 @@ func TestPayoutIsCreatedOnlyByRequestDriverPayout(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	repo := newFakeFinanceRepository()
 	provider := &fakePaymentProvider{}
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, "", true)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, true)
 
 	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 850000, "payout-key-1")
 	if err != nil {
@@ -61,10 +61,10 @@ func TestRepeatedWebhookIsIgnoredBeforeFinancialSideEffects(t *testing.T) {
 	uc := newTestFinanceUseCase(repo, now)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"provider-payment-1","status":"succeeded","paid":true,"metadata":{"purpose":"order","order_id":"order-1"}}}`)
 
-	if err := uc.HandleYooKassaWebhook(context.Background(), payload, ""); err != nil {
+	if err := uc.HandleYooKassaWebhook(context.Background(), payload); err != nil {
 		t.Fatalf("first webhook returned error: %v", err)
 	}
-	if err := uc.HandleYooKassaWebhook(context.Background(), payload, ""); err != nil {
+	if err := uc.HandleYooKassaWebhook(context.Background(), payload); err != nil {
 		t.Fatalf("duplicate webhook returned error: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestCashAndCardSettlementRulesAreRepresentedByFinanceRepositoryContract(t *
 }
 
 func newTestFinanceUseCase(repo *fakeFinanceRepository, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, "", true)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, true)
 }
 
 type fakeFinanceRepository struct {
@@ -250,6 +250,10 @@ type fakePaymentProvider struct {
 
 func (p *fakePaymentProvider) CreatePayment(context.Context, ProviderPaymentRequest) (*ProviderPaymentResponse, error) {
 	return &ProviderPaymentResponse{ID: "provider-payment-1", Status: "pending"}, nil
+}
+
+func (p *fakePaymentProvider) GetPayment(_ context.Context, id string) (*ProviderPaymentResponse, error) {
+	return &ProviderPaymentResponse{ID: id, Status: "succeeded", Paid: true}, nil
 }
 
 func (p *fakePaymentProvider) CreatePayout(_ context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error) {
