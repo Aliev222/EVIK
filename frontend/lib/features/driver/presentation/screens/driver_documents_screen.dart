@@ -35,7 +35,7 @@ class DriverDocumentsScreen extends ConsumerWidget {
                 value: 1 / 3,
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(999),
-                backgroundColor: AvroDriverColors.tabInactive,
+                backgroundColor: AvroDriverColors.border,
                 valueColor:
                     const AlwaysStoppedAnimation<Color>(AvroDriverColors.accent),
               ),
@@ -197,12 +197,12 @@ class _DocumentCard extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AvroDriverColors.textPrimary,
+            color: AvroDriverColors.background,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: isUploaded
                   ? AvroDriverColors.success
-                  : AvroDriverColors.tabInactive,
+                  : AvroDriverColors.border,
             ),
             boxShadow: [
               BoxShadow(
@@ -329,14 +329,14 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AvroDriverColors.error,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AvroDriverColors.tabInactive),
+        border: Border.all(color: AvroDriverColors.error),
       ),
       child: Text(
         message,
         style: const TextStyle(
           fontSize: 14,
           height: 1.4,
-          color: AvroDriverColors.error,
+          color: AvroDriverColors.textPrimary,
         ),
       ),
     );

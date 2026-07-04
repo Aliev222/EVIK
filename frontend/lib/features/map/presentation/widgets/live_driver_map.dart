@@ -1,10 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'animated_driver_marker.dart';
 import 'evik_osm_map_view.dart';
 
@@ -14,22 +14,30 @@ class LiveDriverMap extends ConsumerStatefulWidget {
     super.key,
     this.pickupLocation,
     this.destinationLocation,
-    this.showRoute = false,
     this.showSearchAnimation = false,
     this.driverLocation,
+    this.routePoints = const [],
+    this.extraMarkers = const [],
+    this.routeColor,
     this.adminMode = false,
     this.activeDrivers = const [],
     this.controlsBottomOffset = 42,
+    this.showRecenterButton = false,
+    this.onRecenter,
   });
 
   final MapLocation? pickupLocation;
   final MapLocation? destinationLocation;
-  final bool showRoute;
   final bool showSearchAnimation;
   final DriverLocationUpdate? driverLocation;
+  final List<LatLng> routePoints;
+  final List<EvikMapMarker> extraMarkers;
+  final Color? routeColor;
   final bool adminMode;
   final List<DriverLocationUpdate> activeDrivers;
   final double controlsBottomOffset;
+  final bool showRecenterButton;
+  final VoidCallback? onRecenter;
 
   @override
   ConsumerState<LiveDriverMap> createState() => _LiveDriverMapState();
@@ -50,14 +58,42 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
 
     final zoom = widget.adminMode ? 12.0 : 15.0; // Zoom out for admin view
 
+    // Build all map markers
+    final markers = <EvikMapMarker>[...widget.extraMarkers];
+
+    if (widget.pickupLocation != null) {
+      markers.add(EvikMapMarker(
+        lat: widget.pickupLocation!.latitude,
+        lng: widget.pickupLocation!.longitude,
+        title: 'Место погрузки',
+        color: AvroClientColors.success,
+        icon: Icons.trip_origin_rounded,
+      ));
+    }
+
+    if (widget.destinationLocation != null) {
+      markers.add(EvikMapMarker(
+        lat: widget.destinationLocation!.latitude,
+        lng: widget.destinationLocation!.longitude,
+        title: 'Место назначения',
+        color: AvroClientColors.accent,
+        icon: Icons.flag_rounded,
+      ));
+    }
+
     return Stack(
       children: [
-        // Base OSM view
+        // Base OSM view with markers and route
         Positioned.fill(
           child: EvikOsmMapView(
             initialLat: centerLat,
             initialLng: centerLng,
             initialZoom: zoom,
+            markers: markers,
+            routePoints: widget.routePoints,
+            routeColor: widget.routeColor,
+            showRecenterButton: widget.showRecenterButton,
+            onRecenter: widget.onRecenter,
             controlsBottomOffset: widget.controlsBottomOffset,
             controlsBackgroundColor: AvroClientColors.background,
             controlsIconColor: AvroClientColors.accent,
@@ -67,32 +103,6 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
           ),
         ),
 
-        // Pickup location marker
-        if (widget.pickupLocation != null)
-          _buildStaticMarker(
-            widget.pickupLocation!,
-            Icons.location_on,
-            AvroClientColors.success,
-            'Pickup',
-          ),
-
-        // Destination location marker
-        if (widget.destinationLocation != null)
-          _buildStaticMarker(
-            widget.destinationLocation!,
-            Icons.flag,
-            AvroClientColors.accent,
-            'Destination',
-          ),
-
-        // Single driver marker (for client view)
-        if (!widget.adminMode && widget.driverLocation != null)
-          _buildDriverMarker(widget.driverLocation!),
-
-        // Multiple driver markers (for admin view)
-        if (widget.adminMode)
-          ...widget.activeDrivers.map((driver) => _buildDriverMarker(driver)),
-
         // Search animation overlay
         if (widget.showSearchAnimation) _buildSearchAnimation(),
 
@@ -100,78 +110,6 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
         if (!widget.adminMode && widget.driverLocation != null)
           _buildDriverInfoPanel(widget.driverLocation!),
       ],
-    );
-  }
-
-  Widget _buildStaticMarker(
-    MapLocation location,
-    IconData icon,
-    Color color,
-    String label,
-  ) {
-    return Positioned(
-      left: _convertLngToX(location.longitude) - 15,
-      top: _convertLatToY(location.latitude) - 30,
-      child: Column(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: AvroClientColors.background, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: AvroClientColors.background,
-              size: 16,
-            ),
-          ),
-          Container(
-            width: 2,
-            height: 20,
-            color: color,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDriverMarker(DriverLocationUpdate driver) {
-    final driverLocation = LocationModel(
-      lat: driver.lat,
-      lng: driver.lng,
-      address: 'Driver ${driver.driverId}',
-    );
-    final destination = widget.pickupLocation == null
-        ? driverLocation
-        : LocationModel(
-            lat: widget.pickupLocation!.latitude,
-            lng: widget.pickupLocation!.longitude,
-            address: widget.pickupLocation!.displayAddress,
-          );
-
-    return Positioned(
-      left: _convertLngToX(driver.lng) - 20,
-      top: _convertLatToY(driver.lat) - 40,
-      child: AnimatedDriverMarker(
-        driverLocation: driverLocation,
-        destination: destination,
-        driverName: 'Водитель ${driver.driverId}',
-        vehicleType: 'Эвакуатор',
-        status: driver.status,
-        onPositionUpdate: (position) {
-          // Position updates handled by AnimatedDriverMarker
-        },
-      ),
     );
   }
 
@@ -259,20 +197,6 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
         ),
       ),
     );
-  }
-
-  double _convertLngToX(double lng) {
-    // Convert longitude to screen X coordinate
-    // This is a simplified conversion - in real implementation you'd use the map's projection
-    final screenWidth = MediaQuery.of(context).size.width;
-    return screenWidth * 0.5; // Simplified center positioning
-  }
-
-  double _convertLatToY(double lat) {
-    // Convert latitude to screen Y coordinate
-    // This is a simplified conversion - in real implementation you'd use the map's projection
-    final screenHeight = MediaQuery.of(context).size.height;
-    return screenHeight * 0.5; // Simplified center positioning
   }
 
   Color _getStatusColor(DriverMarkerStatus status) {

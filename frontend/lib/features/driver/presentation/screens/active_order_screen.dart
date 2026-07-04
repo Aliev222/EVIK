@@ -202,7 +202,7 @@ class _RouteUnavailableBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: AvroDriverColors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AvroDriverColors.tabInactive),
+          border: Border.all(color: AvroDriverColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -281,7 +281,7 @@ class _ActiveOrderTopBar extends StatelessWidget {
                   Text(
                     '${order.distanceToClient.toStringAsFixed(1)} км · ${order.estimatedMinutes} мин',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                     ),
                   ),
                 ],
@@ -361,11 +361,11 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${order.vehicleModel} · колеса: ${order.blockedWheelsCount}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: EvikTypography.bodySmall.copyWith(
-                          color: AvroDriverColors.tabInactive,
+                      '${order.vehicleModel} · колеса: ${order.blockedWheelsCount}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: EvikTypography.bodySmall.copyWith(
+                        color: AvroDriverColors.grayHint,
                         ),
                       ),
                     ],
@@ -393,7 +393,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _RoutePoint(
-              color: AvroDriverColors.tabInactive,
+              color: AvroDriverColors.grayHint,
               label: 'Доставка',
               value: order.dropoffAddress,
             ),
@@ -551,7 +551,7 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
               decoration: BoxDecoration(
                 color: widget.enabled
                     ? AvroDriverColors.accent
-                    : AvroDriverColors.tabInactive,
+                    : AvroDriverColors.border,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Stack(

@@ -259,12 +259,12 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: const Icon(
                       Icons.power_settings_new,
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                       size: 28,
                     ),
                   ),
@@ -275,9 +275,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Включите режим работы, чтобы получать заказы',
+                      'Включите режим работы, чтобы получать заказы',
                     style: EvikTypography.bodyMedium.copyWith(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
@@ -302,7 +302,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   Text(
                     'ВЧЕРА',
                     style: EvikTypography.sectionLabel.copyWith(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -455,7 +455,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         Text(
           label,
           style: EvikTypography.bodySmall.copyWith(
-            color: AvroDriverColors.tabInactive,
+            color: AvroDriverColors.grayHint,
             fontSize: 11,
           ),
         ),
@@ -520,7 +520,7 @@ class _RouteUnavailableBadge extends StatelessWidget {
         decoration: BoxDecoration(
           color: AvroDriverColors.surface.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AvroDriverColors.tabInactive),
+          border: Border.all(color: AvroDriverColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -597,7 +597,7 @@ class _OnlineStatusBar extends StatelessWidget {
                   Text(
                     statsText,
                     style: EvikTypography.bodySmall.copyWith(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                     ),
                   ),
                 ],
@@ -616,7 +616,7 @@ class _OnlineStatusBar extends StatelessWidget {
                 activeThumbColor: AvroDriverColors.surface,
                 activeTrackColor: AvroDriverColors.success,
                 inactiveThumbColor: AvroDriverColors.surface,
-                inactiveTrackColor: AvroDriverColors.tabInactive,
+                inactiveTrackColor: AvroDriverColors.border,
               ),
             ),
           ],
@@ -669,7 +669,7 @@ class _WaitingForOrdersCard extends StatelessWidget {
                   Text(
                     'Оставайтесь на линии, заказ появится автоматически',
                     style: EvikTypography.bodySmall.copyWith(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                     ),
                   ),
                 ],
@@ -734,7 +734,7 @@ class _IncomingOrderSheet extends StatelessWidget {
                         Text(
                           '${order.distanceKm.toStringAsFixed(1)} км до клиента · ${order.estimatedMinutes} мин',
                           style: EvikTypography.bodySmall.copyWith(
-                            color: AvroDriverColors.tabInactive,
+                            color: AvroDriverColors.grayHint,
                           ),
                         ),
                       ],
@@ -752,7 +752,7 @@ class _IncomingOrderSheet extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   minHeight: 4,
-                  backgroundColor: AvroDriverColors.tabInactive,
+                  backgroundColor: AvroDriverColors.border,
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     AvroDriverColors.accent,
                   ),
@@ -784,7 +784,7 @@ class _IncomingOrderSheet extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AvroDriverColors.surface,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AvroDriverColors.tabInactive),
+                  border: Border.all(color: AvroDriverColors.border),
                 ),
                 child: Column(
                   children: [
@@ -795,7 +795,7 @@ class _IncomingOrderSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     _AddressLine(
-                      color: AvroDriverColors.tabInactive,
+                      color: AvroDriverColors.grayHint,
                       label: 'Доставка',
                       value: order.dropoffAddress,
                     ),

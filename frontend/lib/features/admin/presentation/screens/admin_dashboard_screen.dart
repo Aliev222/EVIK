@@ -197,7 +197,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       null, // Show all drivers without specific pickup
                   destinationLocation: null,
                   showSearchAnimation: false,
-                  showRoute: false,
                   adminMode: true, // Show all active drivers
                   activeDrivers: _activeDrivers,
                 ),

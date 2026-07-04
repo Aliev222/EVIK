@@ -568,7 +568,7 @@ class _ProfileMenuItem extends StatelessWidget {
                   ),
                   child: Icon(
                     icon,
-                    color: AvroDriverColors.tabInactive,
+                    color: AvroDriverColors.grayHint,
                     size: 20,
                   ),
                 ),
@@ -597,7 +597,7 @@ class _ProfileMenuItem extends StatelessWidget {
                 ),
                 const Icon(
                   Icons.chevron_right,
-                  color: AvroDriverColors.tabInactive,
+                  color: AvroDriverColors.grayHint,
                   size: 20,
                 ),
               ],
@@ -688,7 +688,7 @@ class _DriverReviewsSheet extends ConsumerWidget {
                         children: [
                           const Icon(
                             Icons.star_outline,
-                            color: AvroDriverColors.tabInactive,
+                            color: AvroDriverColors.grayHint,
                             size: 64,
                           ),
                           const SizedBox(height: 16),
@@ -852,7 +852,7 @@ class _ReviewCard extends StatelessWidget {
           Text(
             _formatDate(review.createdAt),
             style: EvikTypography.bodySmall.copyWith(
-              color: AvroDriverColors.tabInactive,
+              color: AvroDriverColors.grayHint,
             ),
           ),
         ],

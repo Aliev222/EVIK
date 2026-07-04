@@ -20,12 +20,15 @@ class EvikOsmMapView extends StatefulWidget {
     this.onTap,
     this.onCameraMove,
     this.onCameraEnd,
+    this.onRecenter,
     this.markers = const <EvikMapMarker>[],
     this.routePoints = const <LatLng>[],
+    this.routeColor,
     this.showControls = true,
     this.fitToMarkers = true,
     this.showUserLocation = true,
     this.showLocationButton = true,
+    this.showRecenterButton = false,
     this.onLocationButtonPressed,
     this.controlsBottomOffset = 42,
     this.controlsBackgroundColor,
@@ -38,12 +41,15 @@ class EvikOsmMapView extends StatefulWidget {
   final void Function(double lat, double lng)? onTap;
   final void Function(double lat, double lng)? onCameraMove;
   final VoidCallback? onCameraEnd;
+  final VoidCallback? onRecenter;
   final List<EvikMapMarker> markers;
   final List<LatLng> routePoints;
+  final Color? routeColor;
   final bool showControls;
   final bool fitToMarkers;
   final bool showUserLocation;
   final bool showLocationButton;
+  final bool showRecenterButton;
   final void Function(double lat, double lng, String address)?
       onLocationButtonPressed;
   final double controlsBottomOffset;
@@ -57,6 +63,7 @@ class EvikOsmMapView extends StatefulWidget {
 class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   final MapController _mapController = MapController();
   bool _isLocating = false;
+  bool _userInteracted = false;
   StreamSubscription<Position>? _userLocationSubscription;
   LatLng? _userLocation;
   bool _locationErrorShown = false;
@@ -126,7 +133,14 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                   );
                 },
                 onMapEvent: (event) {
-                  if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+                  if (event is MapEventMoveStart &&
+                          event.source == MapEventSource.dragStart ||
+                      event is MapEventDoubleTapZoom ||
+                      event is MapEventScrollWheelZoom) {
+                    _userInteracted = true;
+                  }
+                  if (event is MapEventMoveEnd ||
+                      event is MapEventFlingAnimationEnd) {
                     widget.onCameraEnd?.call();
                   }
                 },
@@ -143,8 +157,8 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                     polylines: [
                       Polyline(
                         points: widget.routePoints,
-                        color: AvroClientColors.accent,
-                        strokeWidth: 5,
+                        color: widget.routeColor ?? AvroClientColors.accent,
+                        strokeWidth: 4,
                         borderColor: AvroClientColors.background,
                         borderStrokeWidth: 2,
                       ),
@@ -184,10 +198,12 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
               bottom: widget.controlsBottomOffset,
               child: _MapControls(
                 showLocationButton: widget.showLocationButton,
+                showRecenterButton: widget.showRecenterButton,
                 isLocating: _isLocating,
                 backgroundColor: widget.controlsBackgroundColor,
                 iconColor: widget.controlsIconColor,
                 onLocate: _moveToCurrentLocation,
+                onRecenter: _recenterMap,
                 onZoomIn: () => _mapController.move(
                   _mapController.camera.center,
                   (_mapController.camera.zoom + 1).clamp(3, 19),
@@ -271,8 +287,14 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
     }
   }
 
+  void _recenterMap() {
+    _userInteracted = false;
+    _fitCamera();
+    widget.onRecenter?.call();
+  }
+
   void _fitCamera() {
-    if (!mounted) return;
+    if (!mounted || _userInteracted) return;
     final points = <LatLng>[
       ...widget.routePoints,
       ...widget.markers.map((marker) => LatLng(marker.lat, marker.lng)),
@@ -351,19 +373,23 @@ class _AnimatedMapMarker extends StatelessWidget {
 class _MapControls extends StatelessWidget {
   const _MapControls({
     required this.showLocationButton,
+    required this.showRecenterButton,
     required this.isLocating,
     required this.backgroundColor,
     required this.iconColor,
     required this.onLocate,
+    required this.onRecenter,
     required this.onZoomIn,
     required this.onZoomOut,
   });
 
   final bool showLocationButton;
+  final bool showRecenterButton;
   final bool isLocating;
   final Color? backgroundColor;
   final Color? iconColor;
   final VoidCallback onLocate;
+  final VoidCallback onRecenter;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
 
@@ -388,6 +414,16 @@ class _MapControls extends StatelessWidget {
                     ),
                   )
                 : const Icon(Icons.navigation_rounded),
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (showRecenterButton) ...[
+          _MapControlButton(
+            tooltip: 'Вернуться к маршруту',
+            backgroundColor: backgroundColor,
+            iconColor: iconColor,
+            onPressed: onRecenter,
+            child: const Icon(Icons.fit_screen_rounded),
           ),
           const SizedBox(height: 10),
         ],

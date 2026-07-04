@@ -117,7 +117,7 @@ class AppTheme {
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AvroDriverColors.navBar,
         selectedItemColor: AvroDriverColors.tabActive,
-        unselectedItemColor: AvroDriverColors.tabInactive,
+        unselectedItemColor: AvroDriverColors.grayHint,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -150,21 +150,21 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
         ),
       ),
-      dividerColor: AvroDriverColors.tabInactive,
+      dividerColor: AvroDriverColors.border,
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AvroDriverColors.surface,
         hintStyle: EvikTypography.bodyMedium.copyWith(
-          color: AvroDriverColors.tabInactive,
+          color: AvroDriverColors.grayHint,
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroDriverColors.tabInactive, width: 1.5),
+          borderSide: const BorderSide(color: AvroDriverColors.border, width: 1.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroDriverColors.tabInactive, width: 1.5),
+          borderSide: const BorderSide(color: AvroDriverColors.border, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

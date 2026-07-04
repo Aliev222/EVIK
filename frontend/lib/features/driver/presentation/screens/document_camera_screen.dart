@@ -68,7 +68,7 @@ class DocumentCameraScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AvroDriverColors.surface,
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: AvroDriverColors.tabInactive),
+                    border: Border.all(color: AvroDriverColors.border),
                   ),
                   child: preview == null
                       ? const _EmptyPreview()
@@ -106,7 +106,7 @@ class DocumentCameraScreen extends StatelessWidget {
                       Navigator.of(context).pop(ImageSource.gallery),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AvroDriverColors.textPrimary,
-                    side: const BorderSide(color: AvroDriverColors.tabInactive),
+                    side: const BorderSide(color: AvroDriverColors.border),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),

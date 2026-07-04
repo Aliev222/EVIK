@@ -56,13 +56,13 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
   Widget _buildBottomNavigation(bool hasActiveOrder) {
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+      minimum: const EdgeInsets.fromLTRB(10, 0, 10, 16),
       child: Container(
         height: 72,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           color: AvroDriverColors.navBar,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.14),
@@ -141,7 +141,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                       isActive ? activeIcon : icon,
                       color: isActive
                           ? AvroDriverColors.accent
-                          : AvroDriverColors.tabInactive,
+                          : AvroDriverColors.grayHint,
                       size: 24,
                     ),
                     if (badge != null)
@@ -178,7 +178,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color:
-                        isActive ? AvroDriverColors.accent : AvroDriverColors.tabInactive,
+                        isActive ? AvroDriverColors.accent : AvroDriverColors.grayHint,
                   ),
                 ),
               ],

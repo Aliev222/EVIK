@@ -1,13 +1,18 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
+import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver_map.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
@@ -20,28 +25,139 @@ class TrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<TrackingScreen> createState() => _TrackingScreenState();
 }
 
-class _TrackingScreenState extends ConsumerState<TrackingScreen> {
+class _TrackingScreenState extends ConsumerState<TrackingScreen>
+    with TickerProviderStateMixin {
   DriverLocationUpdate? _latestDriverLocation;
   String? _estimatedArrival;
+
+  late AnimationController _markerAnimController;
+  LatLng? _prevDriverPos;
+  LatLng? _currDriverPos;
+
+  List<LatLng> _routePoints = [];
+  double? _lastRouteLat;
+  double? _lastRouteLng;
+  DateTime? _lastRouteTime;
+  bool _firstRouteFitted = false;
 
   @override
   void initState() {
     super.initState();
+    _markerAnimController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+    _markerAnimController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _initializeRealTimeTracking();
+  }
+
+  double get _interpolatedDriverLat {
+    if (_prevDriverPos == null || _currDriverPos == null) {
+      return _currDriverPos?.latitude ?? 55.7558;
+    }
+    final t = Curves.easeInOut.transform(_markerAnimController.value);
+    return _prevDriverPos!.latitude +
+        (_currDriverPos!.latitude - _prevDriverPos!.latitude) * t;
+  }
+
+  double get _interpolatedDriverLng {
+    if (_prevDriverPos == null || _currDriverPos == null) {
+      return _currDriverPos?.longitude ?? 37.6173;
+    }
+    final t = Curves.easeInOut.transform(_markerAnimController.value);
+    return _prevDriverPos!.longitude +
+        (_currDriverPos!.longitude - _prevDriverPos!.longitude) * t;
   }
 
   void _initializeRealTimeTracking() {
     final realTimeService = ref.read(realTimeLocationServiceProvider);
 
-    // Listen for real-time driver location updates
     realTimeService.driverLocationStream.listen((driverUpdate) {
       if (!mounted) return;
       setState(() {
+        _prevDriverPos = _currDriverPos;
+        _currDriverPos = LatLng(driverUpdate.lat, driverUpdate.lng);
         _latestDriverLocation = driverUpdate;
-        // Update ETA based on driver status
         _estimatedArrival = _calculateETA(driverUpdate);
       });
+      if (_prevDriverPos != null) {
+        _markerAnimController.reset();
+        _markerAnimController.forward();
+      }
+      _refreshRouteIfNeeded(driverUpdate);
     });
+  }
+
+  Future<void> _refreshRouteIfNeeded(DriverLocationUpdate update) async {
+    final order = ref.read(orderFlowProvider).activeOrder;
+    if (order == null) return;
+
+    if (!_shouldRefreshRoute(update.lat, update.lng)) return;
+
+    LatLng target;
+    if (update.status == DriverMarkerStatus.toDestination) {
+      target = LatLng(
+        order.dropoffLocation.lat,
+        order.dropoffLocation.lng,
+      );
+    } else {
+      target = LatLng(
+        order.pickupLocation.lat,
+        order.pickupLocation.lng,
+      );
+    }
+
+    try {
+      final route = await OpenStreetMapService.getRoutePreview(
+        fromLat: update.lat,
+        fromLng: update.lng,
+        toLat: target.latitude,
+        toLng: target.longitude,
+      );
+      if (!mounted) return;
+      setState(() {
+        _routePoints = route?.points ?? [];
+        _lastRouteLat = update.lat;
+        _lastRouteLng = update.lng;
+        _lastRouteTime = DateTime.now();
+      });
+      if (!_firstRouteFitted) {
+        _firstRouteFitted = true;
+      }
+    } catch (_) {}
+  }
+
+  bool _shouldRefreshRoute(double newLat, double newLng) {
+    if (_lastRouteLat == null) return true;
+    final distance = _calculateDistance(
+      _lastRouteLat!,
+      _lastRouteLng!,
+      newLat,
+      newLng,
+    );
+    final timeSince = DateTime.now().difference(_lastRouteTime!);
+    return distance > 100 || timeSince.inSeconds > 30;
+  }
+
+  double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+    const earthRadiusM = 6371000.0;
+    final dLat = _radians(lat2 - lat1);
+    final dLng = _radians(lng2 - lng1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_radians(lat1)) *
+            math.cos(_radians(lat2)) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    return 2 * earthRadiusM * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  }
+
+  double _radians(double degrees) => degrees * math.pi / 180;
+
+  void _onRecenter() {
+    _firstRouteFitted = false;
+    if (mounted) setState(() {});
   }
 
   String _calculateETA(DriverLocationUpdate driverUpdate) {
@@ -57,6 +173,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
   @override
   void dispose() {
+    _markerAnimController.dispose();
     super.dispose();
   }
 
@@ -80,6 +197,25 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
       );
     }
 
+    // Build driver marker with interpolated position
+    final driverMarker = _latestDriverLocation != null
+        ? EvikMapMarker(
+            lat: _interpolatedDriverLat,
+            lng: _interpolatedDriverLng,
+            title: 'Водитель',
+            icon: Icons.local_shipping_rounded,
+            color: _latestDriverLocation!.status == DriverMarkerStatus.toDestination
+                ? AvroClientColors.info
+                : AvroClientColors.success,
+          )
+        : null;
+
+    // Route colour based on driver status
+    final routeColor = _latestDriverLocation?.status ==
+            DriverMarkerStatus.toDestination
+        ? AvroClientColors.info
+        : AvroClientColors.accent;
+
     return Scaffold(
       backgroundColor: AvroClientColors.background,
       body: Stack(
@@ -88,9 +224,13 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             child: LiveDriverMap(
               pickupLocation: state.pickupLocation!,
               destinationLocation: state.destinationLocation,
-              showRoute: true,
               showSearchAnimation: false,
               driverLocation: _latestDriverLocation,
+              routePoints: _routePoints,
+              extraMarkers: driverMarker != null ? [driverMarker] : [],
+              routeColor: routeColor,
+              showRecenterButton: _firstRouteFitted,
+              onRecenter: _onRecenter,
               controlsBottomOffset: MediaQuery.paddingOf(context).bottom + 330,
             ),
           ),
