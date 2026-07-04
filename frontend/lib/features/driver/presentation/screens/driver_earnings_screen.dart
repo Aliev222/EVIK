@@ -180,9 +180,14 @@ class _AvailableBalanceCard extends ConsumerWidget {
         border: Border.all(color: AvroDriverColors.border),
         boxShadow: [
           BoxShadow(
-            color: AvroDriverColors.textPrimary.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 18,
-            offset: const Offset(0, 10),
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -1240,6 +1245,13 @@ BoxDecoration _surfaceDecoration() {
     color: AvroDriverColors.surface,
     borderRadius: BorderRadius.circular(14),
     border: Border.all(color: AvroDriverColors.border),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.10),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+      ),
+    ],
   );
 }
 

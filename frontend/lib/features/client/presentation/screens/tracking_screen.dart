@@ -92,9 +92,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
 
   Future<void> _refreshRouteIfNeeded(DriverLocationUpdate update) async {
     final order = ref.read(orderFlowProvider).activeOrder;
-    if (order == null) return;
+    debugPrint('[TRACKING] _refreshRouteIfNeeded called — '
+        'driver: (${update.lat}, ${update.lng}), status: ${update.status}');
+    if (order == null) {
+      debugPrint('[TRACKING] order is null, skipping');
+      return;
+    }
 
-    if (!_shouldRefreshRoute(update.lat, update.lng)) return;
+    if (!_shouldRefreshRoute(update.lat, update.lng)) {
+      debugPrint('[TRACKING] _shouldRefreshRoute returned false, skipping');
+      return;
+    }
 
     LatLng target;
     if (update.status == DriverMarkerStatus.toDestination) {
@@ -102,20 +110,25 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         order.dropoffLocation.lat,
         order.dropoffLocation.lng,
       );
+      debugPrint('[TRACKING] target = dropoff (${target.latitude}, ${target.longitude})');
     } else {
       target = LatLng(
         order.pickupLocation.lat,
         order.pickupLocation.lng,
       );
+      debugPrint('[TRACKING] target = pickup (${target.latitude}, ${target.longitude})');
     }
 
     try {
+      debugPrint('[TRACKING] calling OSRM getRoutePreview...');
       final route = await OpenStreetMapService.getRoutePreview(
         fromLat: update.lat,
         fromLng: update.lng,
         toLat: target.latitude,
         toLng: target.longitude,
       );
+      debugPrint('[TRACKING] OSRM returned — route is null? ${route == null}, '
+          'points count: ${route?.points.length ?? 0}');
       if (!mounted) return;
       setState(() {
         _routePoints = route?.points ?? [];
@@ -123,14 +136,21 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         _lastRouteLng = update.lng;
         _lastRouteTime = DateTime.now();
       });
+      debugPrint('[TRACKING] _routePoints set to ${_routePoints.length} points');
       if (!_firstRouteFitted) {
         _firstRouteFitted = true;
+        debugPrint('[TRACKING] _firstRouteFitted = true');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TRACKING] OSRM threw exception: $e');
+    }
   }
 
   bool _shouldRefreshRoute(double newLat, double newLng) {
-    if (_lastRouteLat == null) return true;
+    if (_lastRouteLat == null) {
+      debugPrint('[TRACKING] _shouldRefreshRoute: no previous route, refreshing');
+      return true;
+    }
     final distance = _calculateDistance(
       _lastRouteLat!,
       _lastRouteLng!,
@@ -138,7 +158,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
       newLng,
     );
     final timeSince = DateTime.now().difference(_lastRouteTime!);
-    return distance > 100 || timeSince.inSeconds > 30;
+    final shouldRefresh = distance > 100 || timeSince.inSeconds > 30;
+    debugPrint('[TRACKING] _shouldRefreshRoute: distance=${distance.toStringAsFixed(1)}m, '
+        'timeSince=${timeSince.inSeconds}s, shouldRefresh=$shouldRefresh');
+    return shouldRefresh;
   }
 
   double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {

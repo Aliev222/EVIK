@@ -82,6 +82,15 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   @override
   void didUpdateWidget(covariant EvikOsmMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final routeLenChanged = widget.routePoints.length != oldWidget.routePoints.length;
+    if (routeLenChanged) {
+      debugPrint('[MAPVIEW] routePoints changed: ${oldWidget.routePoints.length} → ${widget.routePoints.length}');
+      if (widget.routePoints.length >= 2) {
+        debugPrint('[MAPVIEW] PolylineLayer WILL render (${widget.routePoints.length} points, color: ${widget.routeColor})');
+      } else {
+        debugPrint('[MAPVIEW] PolylineLayer NOT rendered — need >=2 points, got ${widget.routePoints.length}');
+      }
+    }
     if (widget.showUserLocation != oldWidget.showUserLocation) {
       if (widget.showUserLocation) {
         _subscribeToUserLocation();

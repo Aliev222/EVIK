@@ -8,6 +8,7 @@ import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
@@ -260,56 +261,51 @@ class _CallTowTruckButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AvroClientColors.accent,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
+    return AnimatedButton(
+      onPressed: onPressed,
+      child: Container(
+        height: 64,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AvroClientColors.accent,
           borderRadius: BorderRadius.circular(18),
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.local_shipping_rounded,
-                  color: AvroClientColors.background,
-                  size: 26,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    'Вызвать эвакуатор',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: AvroClientColors.background,
-                    ),
-                  ),
-                ),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AvroClientColors.background.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_rounded,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.local_shipping_rounded,
+                color: AvroClientColors.background,
+                size: 26,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  'Вызвать эвакуатор',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                     color: AvroClientColors.background,
-                    size: 22,
                   ),
                 ),
-              ],
-            ),
+              ),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AvroClientColors.background.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AvroClientColors.background,
+                  size: 22,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -433,7 +429,13 @@ class _QuickServiceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AvroClientColors.surface, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,

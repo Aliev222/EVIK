@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strconv"
 	"time"
@@ -103,7 +104,7 @@ func (s *LocationStore) GetLocations(ctx context.Context, driverIDs []string) (m
 	for i, id := range driverIDs {
 		cmds[i] = pipe.Get(ctx, "drivers:location:updated_at:"+id)
 	}
-	if _, err := pipe.Exec(ctx); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("ERROR: Redis pipeline failed: %v", err)
 	}
 
@@ -184,7 +185,7 @@ func (s *LocationStore) GetLastCity(ctx context.Context, driverID string) (strin
 	pipe := s.client.Pipeline()
 	cityCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_id")
 	atCmd := pipe.Get(ctx, "driver:"+driverID+":last_city_at")
-	if _, err := pipe.Exec(ctx); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 		log.Printf("ERROR: Redis pipeline failed: %v", err)
 	}
 

@@ -252,6 +252,13 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               decoration: BoxDecoration(
                 color: AvroDriverColors.surface,
                 borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.20),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
@@ -295,6 +302,13 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               decoration: BoxDecoration(
                 color: AvroDriverColors.surface,
                 borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

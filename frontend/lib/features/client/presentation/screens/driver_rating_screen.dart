@@ -56,19 +56,9 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
 
       await ref.read(reviewRepositoryProvider).createReview(request);
 
-      if (mounted) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Спасибо за отзыв!'),
-            backgroundColor: AvroClientColors.success,
-          ),
-        );
-
-        // Reset flow and go to home
-        ref.read(orderFlowProvider.notifier).resetFlow();
-        context.go('/');
-      }
+      if (!mounted) return;
+      ref.read(orderFlowProvider.notifier).resetFlow();
+      context.go('/');
     } catch (e) {
       if (mounted) {
         String errorMessage = 'Ошибка отправки отзыва';

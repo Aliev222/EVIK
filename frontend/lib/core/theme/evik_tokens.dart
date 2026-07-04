@@ -50,4 +50,82 @@ class EvikShadows {
       offset: Offset(0, 3),
     ),
   ];
+
+  static List<BoxShadow> sm = <BoxShadow>[
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      blurRadius: 6,
+      offset: const Offset(0, 2),
+    ),
+  ];
+
+  static List<BoxShadow> md = <BoxShadow>[
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.04),
+      blurRadius: 4,
+      offset: const Offset(0, 1),
+    ),
+  ];
+
+  static List<BoxShadow> lg = <BoxShadow>[
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.10),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      blurRadius: 6,
+      offset: const Offset(0, 3),
+    ),
+  ];
+
+  static List<BoxShadow> sheet = <BoxShadow>[
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.12),
+      blurRadius: 28,
+      offset: const Offset(0, 12),
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      blurRadius: 8,
+      offset: const Offset(0, 4),
+    ),
+  ];
+}
+
+class EvikGlass {
+  static const Color thin = Color(0xE6FFFFFF);
+  static const Color light = Color(0xCCFFFFFF);
+  static const Color medium = Color(0x99FFFFFF);
+  static const Color darkThin = Color(0xE61A1A1A);
+  static const Color darkLight = Color(0xCC1A1A1A);
+
+  static BoxDecoration card({
+    required Color background,
+    required List<BoxShadow> shadows,
+    double radius = 16,
+  }) {
+    return BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: shadows,
+    );
+  }
+
+  static BoxDecoration glass({
+    required Color color,
+    double radius = 16,
+    double blur = 12,
+  }) {
+    return BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(radius),
+    );
+  }
 }
