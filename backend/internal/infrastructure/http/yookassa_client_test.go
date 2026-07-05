@@ -8,7 +8,7 @@ import (
 )
 
 func TestCreatePayoutIsSandboxMockByDefault(t *testing.T) {
-	client := NewYooKassaClient("", "", "", "", "", "sandbox", false)
+	client := NewYooKassaClient("", "", "", "", "", "sandbox")
 
 	payout, err := client.CreatePayout(context.Background(), YooKassaPayoutRequest{
 		Amount:         850000,
@@ -27,7 +27,7 @@ func TestCreatePayoutIsSandboxMockByDefault(t *testing.T) {
 }
 
 func TestCreatePayoutLiveModeFailsClosedUntilProviderPayloadsAreImplemented(t *testing.T) {
-	client := NewYooKassaClient("shop", "secret", "", "gateway", "payout-secret", "live", false)
+	client := NewYooKassaClient("shop", "secret", "", "gateway", "payout-secret", "live")
 
 	_, err := client.CreatePayout(context.Background(), YooKassaPayoutRequest{
 		Amount:         850000,
@@ -43,7 +43,7 @@ func TestCreatePayoutLiveModeFailsClosedUntilProviderPayloadsAreImplemented(t *t
 }
 
 func TestCreatePaymentMissingCredentialsReturnsTypedError(t *testing.T) {
-	client := NewYooKassaClient("", "", "", "", "", "sandbox", false)
+	client := NewYooKassaClient("", "", "", "", "", "sandbox")
 
 	_, err := client.CreatePayment(context.Background(), YooKassaPaymentRequest{
 		Amount:         100000,
@@ -55,27 +55,4 @@ func TestCreatePaymentMissingCredentialsReturnsTypedError(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentStubModeReturnsFakeSucceededPayment(t *testing.T) {
-	client := NewYooKassaClient("", "", "", "", "", "sandbox", true)
 
-	res, err := client.CreatePayment(context.Background(), YooKassaPaymentRequest{
-		Amount:         100000,
-		Currency:       "RUB",
-		IdempotencyKey: "pay-key-1",
-	})
-	if err != nil {
-		t.Fatalf("CreatePayment returned error in stub mode: %v", err)
-	}
-	if res.ID == "" {
-		t.Fatal("stub payment id is empty")
-	}
-	if res.Status != "succeeded" {
-		t.Fatalf("status = %q, want succeeded", res.Status)
-	}
-	if !res.Paid {
-		t.Fatal("stub payment should be marked paid")
-	}
-	if res.ConfirmationURL != "https://stub.local/payment/"+res.ID {
-		t.Fatalf("confirmation url = %q, want https://stub.local/payment/%s", res.ConfirmationURL, res.ID)
-	}
-}

@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:tow_truck_frontend/core/bootstrap/app_bootstrap.dart';
-import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
@@ -136,70 +135,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
   StreamSubscription<String>? _fcmTokenRefreshSubscription;
 
-  Future<void> signInForTesting(UserRole role) async {
-    final activeUser = state.user;
-    final activeToken = state.accessToken;
-    if (activeUser?.role == role &&
-        activeToken != null &&
-        activeToken.isNotEmpty) {
-      return;
-    }
-    if (state.isLoading) {
-      return;
-    }
-
-    state = state.copyWith(isLoading: true, clearError: true);
-
-    final now = DateTime.now();
-    final userID = role == UserRole.driver
-        ? 'test-driver-emulator'
-        : 'test-client-emulator';
-    final user = User(
-      id: userID,
-      phone: role == UserRole.driver ? '+70000000002' : '+70000000001',
-      fullName: role == UserRole.driver ? 'Test Driver' : 'Test Client',
-      role: role,
-      avatar: null,
-      isActive: true,
-      createdAt: now,
-      lastSeen: now,
-    );
-
-    try {
-      final authResult = await _api.registerOrLogin(
-        phone: user.phone,
-        fullName: user.fullName,
-        role: role,
-        password: 'dev-password',
-      );
-      final tokens = authResult.tokens;
-      final signedUser = user.copyWith(id: authResult.identity.userID);
-      if (role == UserRole.driver) {
-        try {
-          await _api.initializeDriverProfile(
-            userID: signedUser.id,
-            accessToken: tokens.accessToken,
-          );
-        } catch (error) {
-          debugPrint('Warning: Could not initialize test driver: $error');
-        }
-      }
-      await _saveSession(signedUser, tokens);
-      unawaited(_syncFcmTokenForSession(signedUser, tokens.accessToken));
-      state = state.copyWith(
-        user: signedUser,
-        isLoading: false,
-        clearError: true,
-        clearPendingAuth: true,
-      );
-    } catch (error) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: _loginErrorMessage(error),
-      );
-    }
-  }
-
   Future<void> signInWithPhone(
     String rawPhoneNumber,
     String fullName, {
@@ -265,74 +200,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
             'Сессия подтверждения истекла. Запросите код заново.',
       );
       return;
-    }
-
-    // В режиме моков принимаем любой 6-значный код
-    if (AppConstants.useMockData) {
-      debugPrint('[MOCK AUTH] Accepting any 6-digit code: $sanitizedCode');
-      final userID = _deriveUserID(phoneNumber);
-      if (userID == null) {
-        state = state.copyWith(
-          errorMessage: 'Не удалось определить идентификатор пользователя.',
-        );
-        return;
-      }
-
-      state = state.copyWith(isLoading: true, clearError: true);
-
-      // Имитируем сетевую задержку
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      try {
-        final authResult = await _api.verifyOtp(
-          phone: phoneNumber,
-          code: sanitizedCode,
-          fullName: fullName,
-          role: role,
-        );
-        final tokens = authResult.tokens;
-        final now = DateTime.now();
-        final user = User(
-          id: authResult.identity.userID,
-          phone: phoneNumber,
-          fullName: fullName,
-          role: role,
-          avatar: null,
-          isActive: true,
-          createdAt: now,
-          lastSeen: now,
-        );
-
-        if (role == UserRole.driver) {
-          try {
-            await _api.initializeDriverProfile(
-              userID: user.id,
-              accessToken: tokens.accessToken,
-            );
-          } catch (error) {
-            debugPrint('Warning: Could not initialize driver profile: $error');
-          }
-        }
-
-        await _saveSession(user, tokens);
-        unawaited(_syncFcmTokenForSession(user, tokens.accessToken));
-        state = state.copyWith(
-          user: user,
-          isLoading: false,
-          clearError: true,
-          clearPendingAuth: true,
-        );
-
-        debugPrint(
-            '[MOCK AUTH] User logged in successfully: ${user.fullName} (${role.name})');
-        return;
-      } catch (error) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _loginErrorMessage(error),
-        );
-        return;
-      }
     }
 
     // Стандартный поток для продакшена

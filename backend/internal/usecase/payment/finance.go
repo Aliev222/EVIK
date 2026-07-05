@@ -79,7 +79,6 @@ type FinanceUseCase struct {
 	idGen             IDGenerator
 	holdSeconds       int
 	minimumWithdrawal int64
-	stubMode          bool
 }
 
 type DriverSubscriptionStatus struct {
@@ -93,7 +92,7 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, stubMode bool) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
@@ -103,7 +102,6 @@ func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repo
 		idGen:             idGen,
 		holdSeconds:       holdSeconds,
 		minimumWithdrawal: minimumWithdrawal,
-		stubMode:          stubMode,
 	}
 }
 
@@ -270,14 +268,12 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 	status := event.Object.Status
 	paid := event.Object.Paid || event.Object.Status == string(paymentdomain.PaymentStatusSucceeded)
 
-	if !uc.stubMode {
-		apiResp, err := uc.provider.GetPayment(ctx, event.Object.ID)
-		if err != nil {
-			return fmt.Errorf("failed to verify payment with provider: %w", err)
-		}
-		status = apiResp.Status
-		paid = apiResp.Paid
+	apiResp, err := uc.provider.GetPayment(ctx, event.Object.ID)
+	if err != nil {
+		return fmt.Errorf("failed to verify payment with provider: %w", err)
 	}
+	status = apiResp.Status
+	paid = apiResp.Paid
 
 	p, err := uc.repo.UpdatePaymentFromProvider(ctx, event.Object.ID, status, paid)
 	if err != nil {
@@ -307,24 +303,6 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 		}
 	}
 	return uc.repo.MarkWebhookProcessed(ctx, eventID)
-}
-
-// CompleteStubPayment manually marks a payment succeeded by its provider
-// payment id, simulating the YooKassa webhook confirmation. It is only reachable
-// through the dev endpoint when YOOKASSA_STUB_MODE is enabled, so card payments
-// made against the stub provider can be driven to completion (and subscriptions
-// activated) without a real webhook.
-func (uc *FinanceUseCase) CompleteStubPayment(ctx context.Context, providerPaymentID string) (*paymentdomain.Payment, error) {
-	p, err := uc.repo.UpdatePaymentFromProvider(ctx, providerPaymentID, string(paymentdomain.PaymentStatusSucceeded), true)
-	if err != nil {
-		return nil, err
-	}
-	if p.Purpose == paymentdomain.PaymentPurposeSubscription && p.Status == paymentdomain.PaymentStatusSucceeded {
-		if err := uc.repo.ActivateSubscriptionByPayment(ctx, p.ID); err != nil {
-			return nil, err
-		}
-	}
-	return p, nil
 }
 
 func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID string) error {

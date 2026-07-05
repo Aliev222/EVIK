@@ -54,7 +54,7 @@ func (r *webhookRepo) MarkWebhookProcessed(context.Context, string) error {
 
 func newWebhookUC(repo paymentdomain.Repository) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, true)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
 
 func TestHandleWebhookAcceptsValidPayload(t *testing.T) {
@@ -124,7 +124,7 @@ func TestHandleWebhookRequeriedStatusFromAPI(t *testing.T) {
 		purposeOnUpdate:      paymentdomain.PaymentPurposeOrder,
 	}
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, false)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
@@ -192,7 +192,7 @@ func TestHandleWebhookProviderErrorIsReturned(t *testing.T) {
 		storeWebhookInserted: true,
 	}
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, false)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
 	err := uc.HandleYooKassaWebhook(context.Background(), payload)

@@ -68,7 +68,6 @@ type PaymentHandler struct {
 	gates     *driveruc.GateService
 	idGen     interface{ NewID() string }
 	clock     interface{ Now() time.Time }
-	stubMode  bool
 }
 
 func NewPaymentHandler(
@@ -78,9 +77,8 @@ func NewPaymentHandler(
 	gates *driveruc.GateService,
 	idGen interface{ NewID() string },
 	clock interface{ Now() time.Time },
-	stubMode bool,
 ) *PaymentHandler {
-	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock, stubMode: stubMode}
+	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock}
 }
 
 // writePaymentError maps payment/provider errors to accurate HTTP status codes
@@ -381,12 +379,10 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 // @Failure      403   {object}  ErrorResponse  "forbidden"
 // @Router       /webhooks/yookassa [post]
 func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Request) {
-	if !h.stubMode {
-		clientIP := getClientIP(r)
-		if !IsYooKassaIP(clientIP) {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
-			return
-		}
+	clientIP := getClientIP(r)
+	if !IsYooKassaIP(clientIP) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
@@ -398,38 +394,6 @@ func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Re
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"processed": true})
-}
-
-// @Summary      Complete stub payment (dev only)
-// @Description  Manually completes a stub payment for testing. Only available when YOOKASSA_STUB_MODE is enabled.
-// @Tags         webhooks
-// @Accept       json
-// @Produce      json
-// @Param        id  path  string  true  "Provider payment ID"
-// @Success      200  {object}  map[string]any  "payment details"
-// @Failure      400  {object}  ErrorResponse  "missing payment id"
-// @Failure      404  {object}  ErrorResponse  "payment not found or stub mode disabled"
-// @Router       /dev/payments/{id}/complete [post]
-func (h *PaymentHandler) DevCompletePayment(w http.ResponseWriter, r *http.Request) {
-	if !h.stubMode {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-		return
-	}
-	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payment id is required"})
-		return
-	}
-	payment, err := h.financeUC.CompleteStubPayment(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, paymentdomain.ErrPaymentNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "payment not found"})
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to complete payment"})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
 // @Summary      Get driver wallet

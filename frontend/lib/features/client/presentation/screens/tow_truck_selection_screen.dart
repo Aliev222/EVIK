@@ -138,12 +138,19 @@ class _TowTruckSelectionScreenState
                 final isSelected =
                     orderFlowState.selectedTowTruckType == towTruckType;
 
+                final notifier = ref.read(orderFlowProvider.notifier);
+                final localPrice = notifier.localPriceFor(towTruckType);
+                final serverPrice =
+                    (orderFlowState.selectedTowTruckType == towTruckType)
+                        ? orderFlowState.estimatedPrice
+                        : null;
+
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: TowTruckCard(
                     towTruckType: towTruckType,
                     isSelected: isSelected,
-                    basePrice: orderFlowState.estimatedPrice,
+                    basePrice: serverPrice ?? localPrice ?? 0,
                     onTap: () {
                       _pageController.animateToPage(
                         index,

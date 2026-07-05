@@ -34,7 +34,7 @@ func TestPayoutIsCreatedOnlyByRequestDriverPayout(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	repo := newFakeFinanceRepository()
 	provider := &fakePaymentProvider{}
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, true)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 
 	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 850000, "payout-key-1")
 	if err != nil {
@@ -112,7 +112,7 @@ func TestCashAndCardSettlementRulesAreRepresentedByFinanceRepositoryContract(t *
 }
 
 func newTestFinanceUseCase(repo *fakeFinanceRepository, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, true)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
 
 type fakeFinanceRepository struct {

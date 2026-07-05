@@ -36,6 +36,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   Timer? _driverFoundTimer;
   Timer? _orderPollTimer;
   Timer? _paymentPollTimer;
+  int _priceRequestSeq = 0;
 
   static const _activeOrderIdKey = 'client_active_order_id';
 
@@ -83,6 +84,18 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     } catch (_) {
       // best-effort: ошибка загрузки тарифов не блокирует выбор
     }
+  }
+
+  /// Локальная оценка цены по уже загруженным тарифам (формула как на бэке:
+  /// base + distance*pricePerKm, минимум minimumPrice, результат в рублях).
+  /// Позволяет показать цену для каждого типа эвакуатора без ожидания сервера.
+  double? localPriceFor(TowTruckType type) {
+    final t = state.tariffs[type];
+    if (t == null || state.distance <= 0) return null;
+    final distanceKopecks = (state.distance * t.pricePerKm);
+    var total = t.basePrice + distanceKopecks;
+    if (total < t.minimumPrice) total = t.minimumPrice.toDouble();
+    return total / 100;
   }
 
   void goToTowTruckSelection() {
@@ -529,6 +542,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     final repo = _ref.read(orderRepositoryProvider);
     if (repo is! HttpOrderRepository) return;
 
+    final seq = ++_priceRequestSeq;
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final quote = await repo.calculatePrice(
@@ -536,7 +550,8 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         dropoff: dropoff.toLocationModel(),
         towTruckType: towTruckType,
       );
-      if (!mounted) return;
+      // Игнорируем устаревший ответ, если пользователь успел переключить тип.
+      if (!mounted || seq != _priceRequestSeq) return;
       state = state.copyWith(
         distance: quote.distanceKm,
         estimatedPrice: quote.totalPrice / 100,
@@ -544,7 +559,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         errorMessage: null,
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || seq != _priceRequestSeq) return;
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Не удалось рассчитать цену. Попробуйте позже.',

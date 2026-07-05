@@ -1,19 +1,9 @@
-﻿import 'package:flutter/foundation.dart';
-
-class AppConstants {
+﻿class AppConstants {
   static const String appName = 'Авро';
   static const String appVersion = '1.0.0';
 
   static const bool isProduction =
       bool.fromEnvironment('DART_DEFINE_ENV_PROD', defaultValue: false);
-
-  // Mock данные для разработки без сервера
-  static const bool useMockData =
-      bool.fromEnvironment('USE_MOCK_DATA', defaultValue: false);
-
-  // Флаг пропуска авторизации - режим отладки
-  static const bool skipAuth =
-      bool.fromEnvironment('SKIP_AUTH', defaultValue: kDebugMode);
 
   static const String openStreetMapTileUrl = String.fromEnvironment(
     'OSM_TILE_URL',

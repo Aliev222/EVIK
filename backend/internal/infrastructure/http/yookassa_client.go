@@ -8,11 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // Sentinel errors let callers distinguish server misconfiguration and upstream
@@ -36,7 +33,6 @@ type YooKassaClient struct {
 	payoutGatewayID string
 	payoutSecretKey string
 	payoutMode      string
-	stubMode        bool
 	client          *http.Client
 }
 
@@ -70,7 +66,7 @@ type YooKassaPayoutResponse struct {
 	Status string
 }
 
-func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecretKey, payoutMode string, stubMode bool) *YooKassaClient {
+func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecretKey, payoutMode string) *YooKassaClient {
 	if payoutMode == "" {
 		payoutMode = "sandbox"
 	}
@@ -82,28 +78,11 @@ func NewYooKassaClient(shopID, secretKey, returnURL, payoutGatewayID, payoutSecr
 		payoutGatewayID: payoutGatewayID,
 		payoutSecretKey: payoutSecretKey,
 		payoutMode:      payoutMode,
-		stubMode:        stubMode,
 		client:          &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
-// stubPayment returns a fake, already-succeeded payment without contacting
-// YooKassa. Used in dev/test when YOOKASSA_STUB_MODE is enabled.
-func (c *YooKassaClient) stubPayment() *YooKassaPaymentResponse {
-	id := uuid.NewString()
-	log.Printf("[YOOKASSA STUB] Created fake payment %s", id)
-	return &YooKassaPaymentResponse{
-		ID:              id,
-		Status:          "succeeded",
-		ConfirmationURL: "https://stub.local/payment/" + id,
-		Paid:            true,
-	}
-}
-
 func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentRequest) (*YooKassaPaymentResponse, error) {
-	if c.stubMode {
-		return c.stubPayment(), nil
-	}
 	if c.shopID == "" || c.secretKey == "" {
 		return nil, ErrCredentialsNotConfigured
 	}
@@ -143,11 +122,6 @@ func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentR
 }
 
 func (c *YooKassaClient) CreatePayout(ctx context.Context, req YooKassaPayoutRequest) (*YooKassaPayoutResponse, error) {
-	if c.stubMode {
-		id := "stub-payout-" + uuid.NewString()
-		log.Printf("[YOOKASSA STUB] Created fake payout %s", id)
-		return &YooKassaPayoutResponse{ID: id, Status: "succeeded"}, nil
-	}
 	if c.payoutMode != "live" {
 		return &YooKassaPayoutResponse{
 			ID:     "sandbox-" + req.IdempotencyKey,
@@ -217,9 +191,6 @@ func (c *YooKassaClient) doJSON(ctx context.Context, method, path, idempotencyKe
 }
 
 func (c *YooKassaClient) GetPayment(ctx context.Context, paymentID string) (*YooKassaPaymentResponse, error) {
-	if c.stubMode {
-		return c.stubPayment(), nil
-	}
 	if c.shopID == "" || c.secretKey == "" {
 		return nil, ErrCredentialsNotConfigured
 	}

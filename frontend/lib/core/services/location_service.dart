@@ -179,46 +179,6 @@ class LocationService {
   String _coordinatesAddress(double lat, double lng) {
     return 'Москва, ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
   }
-
-  Future<LocationModel?> _mockGeocode(String address) async {
-    await Future.delayed(const Duration(milliseconds: 250));
-
-    final normalizedAddress = address.toLowerCase();
-    final mockLocations = <String, LocationModel>{
-      'москва': const LocationModel(
-        lat: 55.7558,
-        lng: 37.6173,
-        address: 'Москва, Россия',
-      ),
-      'спб': const LocationModel(
-        lat: 59.9311,
-        lng: 30.3609,
-        address: 'Санкт-Петербург, Россия',
-      ),
-      'санкт-петербург': const LocationModel(
-        lat: 59.9311,
-        lng: 30.3609,
-        address: 'Санкт-Петербург, Россия',
-      ),
-      'екатеринбург': const LocationModel(
-        lat: 56.8431,
-        lng: 60.6454,
-        address: 'Екатеринбург, Россия',
-      ),
-    };
-
-    for (final entry in mockLocations.entries) {
-      if (normalizedAddress.contains(entry.key)) {
-        return entry.value;
-      }
-    }
-
-    return LocationModel(
-      lat: 55.7558 + ((-1 + 2 * (DateTime.now().millisecond / 1000)) * 0.1),
-      lng: 37.6173 + ((-1 + 2 * (DateTime.now().microsecond / 1000000)) * 0.1),
-      address: address,
-    );
-  }
 }
 
 class LocationException implements Exception {

@@ -203,15 +203,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	// Create payment transaction use case
 	createTransactionUC := paymentuc.NewCreateTransactionUseCase(paymentRepo, clock, idGen)
-	// Stub mode fakes all YooKassa calls. It is enabled explicitly via
-	// YOOKASSA_STUB_MODE, or implicitly when credentials are absent in a
-	// non-production environment so local/dev runs work without real keys.
-	yooStubMode := cfg.YooKassaStubMode || (!cfg.IsProduction() && (cfg.YooKassaShopID == "" || cfg.YooKassaSecret == ""))
-	if yooStubMode {
-		logger.Printf("WARN: YOOKASSA STUB MODE active — payments are faked, no real charges occur")
-	}
-	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode, yooStubMode)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, yooStubMode)
+	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
@@ -246,7 +239,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, orderRepo, driverGates, npdService, clock, allowMockLocation, isProduction, cfg.DebugMode)
-	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock, yooStubMode)
+	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)

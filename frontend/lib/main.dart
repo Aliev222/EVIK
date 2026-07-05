@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:vibration/vibration.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
-import 'core/constants/app_constants.dart';
 import 'core/error/global_error_handler.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/performance/frame_timing_monitor.dart';
@@ -328,48 +327,6 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // Быстрый режим тестирования - пропуск авторизации
-    if (AppConstants.skipAuth) {
-      final selectedRole = ref.watch(selectedOnboardingRoleProvider);
-      final authState = ref.watch(authProvider);
-      final currentUser = ref.watch(currentUserProvider);
-
-      // Wait for SecureStorage restore to finish so we don't trigger
-      // signInForTesting on top of a session that's about to be restored.
-      if (authState.isRestoring) {
-        return const _SplashScreen(
-            key: ValueKey<String>('restore-splash-skipauth'));
-      }
-
-      // Session restored from SecureStorage — respect the persisted role
-      // and don't re-issue signInForTesting (which would overwrite tokens
-      // via registerOrLogin/login fallback).
-      if (currentUser != null &&
-          authState.accessToken != null &&
-          authState.accessToken!.isNotEmpty) {
-        if (currentUser.role == UserRole.driver) {
-          return const DriverScreen();
-        }
-        return const ClientAppShell();
-      }
-
-      if (selectedRole == null) {
-        return const RoleSelectionScreen();
-      }
-
-      // No restored session — proceed with the test sign-in flow.
-      if (!authState.isLoading) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.read(authProvider.notifier).signInForTesting(selectedRole);
-        });
-      }
-      return _TestAuthScreen(
-        errorMessage: authState.errorMessage,
-        onRetry: () =>
-            ref.read(authProvider.notifier).signInForTesting(selectedRole),
-      );
-    }
-
     // Обычная логика авторизации
     final authState = ref.watch(authProvider);
     final currentUser = ref.watch(currentUserProvider);
@@ -450,60 +407,5 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       return const DriverScreen();
     }
     return const ClientAppShell();
-  }
-}
-
-class _TestAuthScreen extends StatelessWidget {
-  const _TestAuthScreen({
-    this.errorMessage,
-    required this.onRetry,
-  });
-
-  final String? errorMessage;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (errorMessage == null) ...[
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Готовим тестовый профиль',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ] else ...[
-                  Text(
-                    'Не удалось войти в тестовый профиль',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: onRetry,
-                    child: const Text('Повторить'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
