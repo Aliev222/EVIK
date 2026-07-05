@@ -205,7 +205,9 @@ class Order {
         ),
         vehicleType: _parseVehicleType(map['vehicle_type']?.toString()),
         distance: (map['distance'] as num?)?.toDouble() ?? 0.0,
-        estimatedPrice: (map['estimated_price'] as num?)?.toDouble() ?? 0.0,
+        estimatedPrice: (map['price_total'] as num?)?.toDouble() != null
+            ? (map['price_total'] as num).toDouble() / 100
+            : (map['estimated_price'] as num?)?.toDouble() ?? 0.0,
         finalPrice: (map['final_price'] as num?)?.toDouble(),
         paymentMethod: _parsePaymentMethod(map['payment_method']?.toString()),
         createdAt: _parseDateTime(map['created_at']),

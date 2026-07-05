@@ -146,6 +146,7 @@ type orderResponse struct {
 	Status          string             `json:"status"`
 	IsExpanded      bool               `json:"is_expanded"`
 	IsCrossCity     bool               `json:"is_cross_city"`
+	PriceTotal      int64              `json:"price_total"`
 	SurchargeAmount int64              `json:"surcharge_amount"`
 	SurchargePercent int                `json:"surcharge_percent"`
 	PriceBreakdown  *PriceBreakdown    `json:"price_breakdown,omitempty"`
@@ -751,6 +752,7 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		Status:          string(ord.Status),
 		IsExpanded:      ord.IsExpanded,
 		IsCrossCity:     ord.IsCrossCity,
+		PriceTotal:      ord.PriceTotal,
 		SurchargeAmount: ord.SurchargeAmount,
 		SurchargePercent: ord.SurchargePercent,
 		PriceBreakdown:  breakdown,
