@@ -259,6 +259,25 @@ class HttpOrderRepository implements OrderRepository {
     }
   }
 
+  @override
+  Future<Map<String, dynamic>> confirmPayment(String orderId) async {
+    final response = await _apiClient.post(
+      '/api/v1/orders/$orderId/confirm-payment',
+      const <String, dynamic>{},
+      headers: _authHeaders,
+    );
+    return response;
+  }
+
+  @override
+  Future<void> updatePaymentMethod(String orderId, PaymentMethod method) async {
+    await _apiClient.patch(
+      '/api/v1/orders/$orderId/payment-method',
+      <String, dynamic>{'payment_method': method.name},
+      headers: _authHeaders,
+    );
+  }
+
   static bool _isTerminal(OrderStatus status) {
     return switch (status) {
       OrderStatus.completed || OrderStatus.cancelled => true,
@@ -273,6 +292,7 @@ class HttpOrderRepository implements OrderRepository {
       OrderStatus.onWay => 'in_progress',
       OrderStatus.arrived => 'arrived',
       OrderStatus.evacuating => 'in_progress',
+      OrderStatus.awaitingPayment => 'awaiting_payment',
       OrderStatus.completed => 'completed',
       OrderStatus.cancelled => 'cancelled',
     };

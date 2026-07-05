@@ -133,6 +133,14 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     );
   }
 
+  void goToPaymentConfirmation() {
+    state = state.copyWith(currentStep: OrderFlowStep.paymentConfirmation);
+  }
+
+  void goToCompletion() {
+    state = state.copyWith(currentStep: OrderFlowStep.completion);
+  }
+
   void goToRating() {
     state = state.copyWith(currentStep: OrderFlowStep.rating);
   }
@@ -439,6 +447,12 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       }
     }
 
+    if (order.status == OrderStatus.awaitingPayment) {
+      _searchTimer?.cancel();
+      _orderPollTimer?.cancel();
+      nextStep = OrderFlowStep.paymentConfirmation;
+    }
+
     if (order.status == OrderStatus.completed) {
       _searchTimer?.cancel();
       _orderPollTimer?.cancel();
@@ -649,6 +663,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       OrderStatus.arrived ||
       OrderStatus.evacuating =>
         OrderFlowStep.tracking,
+      OrderStatus.awaitingPayment => OrderFlowStep.paymentConfirmation,
       OrderStatus.completed => OrderFlowStep.completion,
       OrderStatus.cancelled => OrderFlowStep.idle,
     };

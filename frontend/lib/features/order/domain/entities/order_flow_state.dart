@@ -29,6 +29,7 @@ enum OrderFlowStep {
   driverSearch,
   driverFound,
   tracking,
+  paymentConfirmation,
   completion,
   rating,
 }

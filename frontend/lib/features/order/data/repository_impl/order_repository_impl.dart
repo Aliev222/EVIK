@@ -53,6 +53,16 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<List<Tariff>> getTariffs() async => const <Tariff>[];
 
   @override
+  Future<Map<String, dynamic>> confirmPayment(String orderId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> updatePaymentMethod(String orderId, PaymentMethod method) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Stream<OrderState> watchOrderState(String orderId) {
     return _controllerFor(orderId).stream;
   }

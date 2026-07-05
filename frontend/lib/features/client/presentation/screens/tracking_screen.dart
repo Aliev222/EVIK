@@ -207,6 +207,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
     final driver = state.assignedDriver;
 
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
+      if (next.currentStep == OrderFlowStep.paymentConfirmation &&
+          previous?.currentStep != OrderFlowStep.paymentConfirmation) {
+        if (!mounted) return;
+        context.go('/order/payment-confirmation');
+        return;
+      }
       if (next.currentStep == OrderFlowStep.completion &&
           previous?.currentStep != OrderFlowStep.completion) {
         if (!mounted) return;

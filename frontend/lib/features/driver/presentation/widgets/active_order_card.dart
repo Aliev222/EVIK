@@ -179,6 +179,7 @@ class DriverActiveOrderCard extends ConsumerWidget {
       OrderStatus.onWay => 'Следуете к клиенту',
       OrderStatus.arrived => 'Вы прибыли к клиенту',
       OrderStatus.evacuating => 'Везете автомобиль клиента',
+      OrderStatus.awaitingPayment => 'Ожидает оплаты',
       OrderStatus.completed => 'Заказ завершен',
       OrderStatus.cancelled => 'Заказ отменен',
       OrderStatus.searching => 'Новый заказ',
@@ -195,6 +196,7 @@ class DriverActiveOrderCard extends ConsumerWidget {
         'Подтвердите начало эвакуации, когда автомобиль подготовлен.',
       OrderStatus.evacuating =>
         'Двигайтесь к точке доставки. Кнопка завершения доступна рядом с адресом.',
+      OrderStatus.awaitingPayment => 'Ожидание оплаты клиентом.',
       OrderStatus.completed => 'Оплата проведена, можно ждать следующий заказ.',
       OrderStatus.cancelled => 'Заказ закрыт.',
       OrderStatus.searching => 'Ожидается подтверждение.',

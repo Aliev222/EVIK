@@ -71,4 +71,10 @@ abstract class OrderRepository {
 
   /// Получить тарифы для всех типов эвакуаторов (цены в копейках)
   Future<List<Tariff>> getTariffs();
+
+  /// Подтвердить оплату заказа
+  Future<Map<String, dynamic>> confirmPayment(String orderId);
+
+  /// Обновить способ оплаты заказа
+  Future<void> updatePaymentMethod(String orderId, PaymentMethod method);
 }

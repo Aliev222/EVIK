@@ -2,6 +2,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
+
 import 'api_client.dart';
 import 'auth_retry_coordinator.dart';
 
@@ -49,6 +51,15 @@ class IoApiClient implements ApiClient {
     return _makeRequest('DELETE', path, null, headers);
   }
 
+  @override
+  Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) async {
+    return _makeRequest('PATCH', path, body, headers);
+  }
+
   Future<Map<String, dynamic>> _makeRequest(
     String method,
     String path,
@@ -75,10 +86,18 @@ class IoApiClient implements ApiClient {
             request = await client.putUrl(uri);
           } else if (method == 'DELETE') {
             request = await client.deleteUrl(uri);
+          } else if (method == 'PATCH') {
+            final patchResponse = await http.patch(
+              uri,
+              headers: headers,
+              body: body == null ? null : jsonEncode(body),
+            ).timeout(_timeout);
+            client.close(force: true);
+            return _decodeResponse(method, path, uri, patchResponse.statusCode, patchResponse.body);
           }
 
           _applyHeaders(request, headers);
-          if (method == 'POST' || method == 'PUT') {
+          if (method == 'POST' || method == 'PUT' || method == 'PATCH') {
             request.headers.contentType = ContentType.json;
             if (body != null) {
               request.write(jsonEncode(body));

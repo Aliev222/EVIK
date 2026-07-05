@@ -4,6 +4,7 @@ enum OrderStatus {
   onWay,
   arrived,
   evacuating,
+  awaitingPayment,
   completed,
   cancelled,
 }
@@ -15,6 +16,7 @@ enum OrderState {
   accepted,
   arrived,
   inProgress,
+  awaitingPayment,
   completed,
   cancelled,
   noDriverFound,
@@ -293,6 +295,7 @@ class Order {
       'arrived' => OrderStatus.arrived,
       'in_progress' => OrderStatus.evacuating,
       'evacuating' => OrderStatus.evacuating,
+      'awaiting_payment' => OrderStatus.awaitingPayment,
       'completed' => OrderStatus.completed,
       'cancelled' => OrderStatus.cancelled,
       _ => OrderStatus.searching,
@@ -335,6 +338,7 @@ class Order {
       OrderStatus.onWay => OrderState.accepted,
       OrderStatus.arrived => OrderState.arrived,
       OrderStatus.evacuating => OrderState.inProgress,
+      OrderStatus.awaitingPayment => OrderState.awaitingPayment,
       OrderStatus.completed => OrderState.completed,
       OrderStatus.cancelled => OrderState.cancelled,
     };

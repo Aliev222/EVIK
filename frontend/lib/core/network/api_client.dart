@@ -17,6 +17,12 @@ abstract class ApiClient {
     String path, {
     Map<String, String>? headers,
   });
+
+  Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  });
 }
 
 const defaultApiBaseUrl = String.fromEnvironment(

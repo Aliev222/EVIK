@@ -244,6 +244,7 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
       'order_accepted' => OrderState.accepted,
       'order_arrived' => OrderState.arrived,
       'in_progress' => OrderState.inProgress,
+      'awaiting_payment' => OrderState.awaitingPayment,
       'completed' => OrderState.completed,
       'cancelled' => OrderState.cancelled,
       'no_driver_found' => OrderState.noDriverFound,

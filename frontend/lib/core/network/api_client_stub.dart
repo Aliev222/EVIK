@@ -49,6 +49,15 @@ class HttpApiClient implements ApiClient {
     return _makeRequest('DELETE', path, null, headers);
   }
 
+  @override
+  Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) {
+    return _makeRequest('PATCH', path, body, headers);
+  }
+
   Future<Map<String, dynamic>> _makeRequest(
     String method,
     String path,
@@ -81,6 +90,13 @@ class HttpApiClient implements ApiClient {
             .timeout(_timeout),
         'DELETE' =>
           await http.delete(uri, headers: requestHeaders).timeout(_timeout),
+        'PATCH' => await http
+            .patch(
+              uri,
+              headers: requestHeaders,
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(_timeout),
         _ => throw StateError('Unsupported HTTP method: $method'),
       };
     } on TimeoutException {

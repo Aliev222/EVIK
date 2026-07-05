@@ -123,6 +123,7 @@ class ActiveOrderCard extends StatelessWidget {
       OrderStatus.onWay => 'Водитель едет к вам',
       OrderStatus.arrived => 'Водитель на месте',
       OrderStatus.evacuating => 'Автомобиль в пути',
+      OrderStatus.awaitingPayment => 'Ожидает оплаты',
       OrderStatus.completed => 'Заказ завершен',
       OrderStatus.cancelled => 'Заказ отменен',
     };

@@ -247,6 +247,7 @@ class ClientOrderNotifier extends StateNotifier<ClientOrderState> {
       OrderStatus.onWay => ClientHomeUIState.driverArriving,
       OrderStatus.arrived => ClientHomeUIState.driverArriving,
       OrderStatus.evacuating => ClientHomeUIState.evacuating,
+      OrderStatus.awaitingPayment => ClientHomeUIState.completed,
       OrderStatus.completed => ClientHomeUIState.completed,
       OrderStatus.cancelled => ClientHomeUIState.completed,
     };

@@ -339,6 +339,10 @@ class _HistoryOrder {
     String statusText;
     Color statusColor;
     switch (order.status) {
+      case OrderStatus.awaitingPayment:
+        statusText = 'Ожидает оплаты';
+        statusColor = AvroClientColors.warning;
+        break;
       case OrderStatus.completed:
         statusText = 'Завершён';
         statusColor = AvroClientColors.success;

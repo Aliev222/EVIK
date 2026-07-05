@@ -10,6 +10,20 @@ class InMemoryOrderRepository implements OrderRepository {
       StreamController<List<Order>>.broadcast();
 
   @override
+  Future<Map<String, dynamic>> confirmPayment(String orderId) async {
+    return <String, dynamic>{'status': 'succeeded'};
+  }
+
+  @override
+  Future<void> updatePaymentMethod(String orderId, PaymentMethod method) async {
+    final order = _orders[orderId];
+    if (order != null) {
+      _orders[orderId] = order.copyWith(paymentMethod: method);
+      _emit();
+    }
+  }
+
+  @override
   Future<List<Tariff>> getTariffs() async => const <Tariff>[];
 
   @override

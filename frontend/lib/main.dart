@@ -27,6 +27,7 @@ import 'features/client/presentation/screens/driver_search_screen.dart';
 import 'features/client/presentation/screens/driver_info_screen.dart';
 import 'features/client/presentation/screens/tracking_screen.dart';
 import 'features/client/presentation/screens/order_completion_screen.dart';
+import 'features/order/screens/payment_confirmation_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
 import 'features/driver/presentation/screens/active_order_screen.dart';
 import 'features/order/domain/entities/order.dart';
@@ -101,6 +102,9 @@ class EvikApp extends StatelessWidget {
           builder: (_, __) => const DriverInfoScreen()),
       GoRoute(
           path: '/order/tracking', builder: (_, __) => const TrackingScreen()),
+      GoRoute(
+          path: '/order/payment-confirmation',
+          builder: (_, __) => const PaymentConfirmationScreen()),
       GoRoute(
           path: '/order/completion',
           builder: (_, __) => const OrderCompletionScreen()),
@@ -385,6 +389,7 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       OrderStatus.arrived ||
       OrderStatus.evacuating =>
         '/order/tracking',
+      OrderStatus.awaitingPayment => '/order/payment-confirmation',
       OrderStatus.completed || OrderStatus.cancelled => null,
     };
 
