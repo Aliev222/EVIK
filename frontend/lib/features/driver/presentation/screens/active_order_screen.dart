@@ -11,6 +11,7 @@ import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 
 class ActiveOrderScreen extends ConsumerStatefulWidget {
@@ -87,6 +88,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
             child: _ActiveOrderBottomSheet(
               order: order,
               isLoading: driverState.isLoading,
+              workState: driverState.workState,
               onCall: () => _makePhoneCall(order.clientPhone),
               onMessage: () => _openSMS(order.clientPhone),
               onNavigation: () => _openNavigation(order),
@@ -302,6 +304,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
   const _ActiveOrderBottomSheet({
     required this.order,
     required this.isLoading,
+    required this.workState,
     required this.onCall,
     required this.onMessage,
     required this.onNavigation,
@@ -310,6 +313,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
 
   final ActiveOrder order;
   final bool isLoading;
+  final DriverWorkState workState;
   final VoidCallback onCall;
   final VoidCallback onMessage;
   final VoidCallback onNavigation;
@@ -329,105 +333,109 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: AvroDriverColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      order.clientInitial,
-                      style: const TextStyle(
-                        color: AvroDriverColors.surface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
+            if (workState == DriverWorkState.waitingForPayment)
+              _WaitingForPaymentIndicator()
+            else ...[
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: AvroDriverColors.accent,
+                      shape: BoxShape.circle,
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.clientName,
-                        style: EvikTypography.bodyLarge.copyWith(
+                    child: Center(
+                      child: Text(
+                        order.clientInitial,
+                        style: const TextStyle(
+                          color: AvroDriverColors.surface,
+                          fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      Text(
-                      '${order.vehicleModel} · колеса: ${order.blockedWheelsCount}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: EvikTypography.bodySmall.copyWith(
-                        color: AvroDriverColors.grayHint,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.clientName,
+                          style: EvikTypography.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: onCall,
-                  icon: const Icon(Icons.phone_rounded),
-                  color: AvroDriverColors.accent,
-                ),
-                IconButton(
-                  onPressed: onMessage,
-                  icon: const Icon(Icons.chat_bubble_rounded),
-                  color: AvroDriverColors.textSecondary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _RoutePoint(
-              color: AvroDriverColors.accent,
-              label: order.status == ActiveOrderStatus.drivingToDestination
-                  ? 'Забрали'
-                  : 'К клиенту',
-              value: order.pickupAddress,
-            ),
-            const SizedBox(height: 8),
-            _RoutePoint(
-              color: AvroDriverColors.grayHint,
-              label: 'Доставка',
-              value: order.dropoffAddress,
-            ),
-            const SizedBox(height: 14),
-            if (order.status == ActiveOrderStatus.drivingToDestination)
-              _SlideToComplete(
-                price: order.price,
-                enabled: !isLoading,
-                onCompleted: onPrimaryAction,
-              )
-            else
-              Row(
-                children: [
-                  Expanded(
-                    child: EvikButton(
-                      text: 'Построить маршрут',
-                      onPressed: isLoading ? null : onNavigation,
-                      icon: const Icon(Icons.route_rounded, size: 18),
-                      small: true,
-                      variant: EvikButtonVariant.secondary,
+                        Text(
+                        '${order.vehicleModel} · колеса: ${order.blockedWheelsCount}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: EvikTypography.bodySmall.copyWith(
+                          color: AvroDriverColors.grayHint,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: EvikButton(
-                      text: _primaryText(order.status),
-                      onPressed: isLoading ? null : onPrimaryAction,
-                      isLoading: isLoading,
-                      small: true,
-                      variant: EvikButtonVariant.green,
-                    ),
+                  IconButton(
+                    onPressed: onCall,
+                    icon: const Icon(Icons.phone_rounded),
+                    color: AvroDriverColors.accent,
+                  ),
+                  IconButton(
+                    onPressed: onMessage,
+                    icon: const Icon(Icons.chat_bubble_rounded),
+                    color: AvroDriverColors.textSecondary,
                   ),
                 ],
               ),
+              const SizedBox(height: 14),
+              _RoutePoint(
+                color: AvroDriverColors.accent,
+                label: order.status == ActiveOrderStatus.drivingToDestination
+                    ? 'Забрали'
+                    : 'К клиенту',
+                value: order.pickupAddress,
+              ),
+              const SizedBox(height: 8),
+              _RoutePoint(
+                color: AvroDriverColors.grayHint,
+                label: 'Доставка',
+                value: order.dropoffAddress,
+              ),
+              const SizedBox(height: 14),
+              if (order.status == ActiveOrderStatus.drivingToDestination)
+                _SlideToComplete(
+                  price: order.price,
+                  enabled: !isLoading,
+                  onCompleted: onPrimaryAction,
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: EvikButton(
+                        text: 'Построить маршрут',
+                        onPressed: isLoading ? null : onNavigation,
+                        icon: const Icon(Icons.route_rounded, size: 18),
+                        small: true,
+                        variant: EvikButtonVariant.secondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: EvikButton(
+                        text: _primaryText(order.status),
+                        onPressed: isLoading ? null : onPrimaryAction,
+                        isLoading: isLoading,
+                        small: true,
+                        variant: EvikButtonVariant.green,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ],
         ),
       ),
@@ -485,6 +493,45 @@ class _RoutePoint extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _WaitingForPaymentIndicator extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: AvroDriverColors.accent,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Ожидание оплаты клиентом',
+            style: EvikTypography.bodyLarge.copyWith(
+              color: AvroDriverColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'После подтверждения оплаты заказ будет завершён',
+            textAlign: TextAlign.center,
+            style: EvikTypography.bodySmall.copyWith(
+              color: AvroDriverColors.grayHint,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -569,11 +616,11 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 58, right: 16),
-                    child: Text(
-                      'Завершить заказ',
-                      maxLines: 1,
+                    Padding(
+                      padding: const EdgeInsets.only(left: 58, right: 16),
+                      child: Text(
+                        'Завершить заказ',
+                        maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: EvikTypography.buttonText.copyWith(
                         color: AvroDriverColors.surface,

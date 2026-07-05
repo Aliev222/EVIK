@@ -61,6 +61,7 @@ class Driver {
     required this.userId,
     this.fullName,
     this.phone,
+    this.avatarUrl,
     required this.vehicleModel,
     required this.vehicleNumber,
     required this.vehicleType,
@@ -75,6 +76,7 @@ class Driver {
   final String userId; // ссылка на users collection
   final String? fullName; // Real driver full name from backend
   final String? phone; // Real driver phone number from backend
+  final String? avatarUrl; // URL to driver's avatar/selfie
   final String vehicleModel;
   final String vehicleNumber;
   final VehicleType vehicleType;
@@ -89,6 +91,7 @@ class Driver {
     String? userId,
     String? fullName,
     String? phone,
+    String? avatarUrl,
     String? vehicleModel,
     String? vehicleNumber,
     VehicleType? vehicleType,
@@ -103,6 +106,7 @@ class Driver {
       userId: userId ?? this.userId,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       vehicleModel: vehicleModel ?? this.vehicleModel,
       vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       vehicleType: vehicleType ?? this.vehicleType,
@@ -141,6 +145,7 @@ class Driver {
         userId: map['user_id']?.toString() ?? map['id']?.toString() ?? '',
         fullName: map['full_name']?.toString(),
         phone: map['phone']?.toString(),
+        avatarUrl: map['avatar_url']?.toString(),
         vehicleModel: map['vehicle_model']?.toString().isNotEmpty == true
             ? map['vehicle_model']!.toString()
             : '',
@@ -168,6 +173,7 @@ class Driver {
       userId: map['userId'] as String,
       fullName: map['fullName'] as String?,
       phone: map['phone'] as String?,
+      avatarUrl: map['avatarUrl']?.toString(),
       vehicleModel: map['vehicleModel'] as String,
       vehicleNumber: map['vehicleNumber'] as String,
       vehicleType: VehicleType.values.byName(map['vehicleType'] as String),
@@ -188,6 +194,7 @@ class Driver {
       'userId': userId,
       'fullName': fullName,
       'phone': phone,
+      'avatarUrl': avatarUrl,
       'vehicleModel': vehicleModel,
       'vehicleNumber': vehicleNumber,
       'vehicleType': vehicleType.name,

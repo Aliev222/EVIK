@@ -215,8 +215,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
       }
       if (next.currentStep == OrderFlowStep.completion &&
           previous?.currentStep != OrderFlowStep.completion) {
-        if (!mounted) return;
-        context.go('/order/completion');
+        if (!mounted || next.activeOrder == null) return;
+        context.go('/order/review/${next.activeOrder!.id}');
       }
     });
 

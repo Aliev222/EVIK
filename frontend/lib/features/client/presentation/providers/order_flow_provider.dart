@@ -3,8 +3,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -131,10 +129,6 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       currentStep: OrderFlowStep.tracking,
       activeOrder: order?.copyWith(status: OrderStatus.onWay),
     );
-  }
-
-  void goToPaymentConfirmation() {
-    state = state.copyWith(currentStep: OrderFlowStep.paymentConfirmation);
   }
 
   void goToCompletion() {
@@ -280,7 +274,6 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     try {
       state = state.copyWith(
         isLoading: true,
-        isPaymentProcessing: command.paymentMethod == PaymentMethod.card,
         errorMessage: null,
       );
       await _ref.read(orderProvider.notifier).createOrder(command);
@@ -294,96 +287,12 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       }
 
       await _persistActiveOrder(created.id);
-      final repo = _ref.read(orderRepositoryProvider);
-      if (repo is! HttpOrderRepository) {
-        _handleSearchError(
-          'Backend payments недоступны для текущего репозитория.',
-        );
-        return false;
-      }
-      final payment = await repo.createOrderPayment(
-        created.id,
-        command.paymentMethod,
-      );
-      final priceRub = payment.amount / 100;
-      final paidOrder = created.copyWith(
-        estimatedPrice: priceRub,
-        finalPrice: priceRub,
-        paymentMethod: payment.paymentMethod,
-        paymentId: payment.id,
-        paymentStatus: payment.status,
-        paymentConfirmationUrl: payment.confirmationUrl,
-      );
-
-      state = state.copyWith(
-        activeOrder: paidOrder,
-        estimatedPrice: priceRub,
-        payment: null,
-      );
-      if (command.paymentMethod == PaymentMethod.card) {
-        final confirmed = await _confirmCardPayment(paidOrder);
-        if (confirmed == null) return false;
-        state = state.copyWith(activeOrder: confirmed);
-        _beginDriverSearchTimers(confirmed.id);
-      } else {
-        _beginDriverSearchTimers(paidOrder.id);
-      }
+      _beginDriverSearchTimers(created.id);
       return true;
     } catch (error) {
       _handleSearchError('Ошибка при поиске водителя. Попробуйте снова.');
       return false;
     }
-  }
-
-  Future<Order?> _confirmCardPayment(Order order) async {
-    final confirmationUrl = order.paymentConfirmationUrl;
-    if (confirmationUrl == null || confirmationUrl.isEmpty) {
-      _handleSearchError('Не удалось получить ссылку на оплату.');
-      return null;
-    }
-
-    final opened = await launchUrl(
-      Uri.parse(confirmationUrl),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!opened) {
-      _handleSearchError('Не удалось открыть оплату YooKassa.');
-      return null;
-    }
-
-    final repo = _ref.read(orderRepositoryProvider);
-    if (repo is! HttpOrderRepository) {
-      _handleSearchError('Проверка оплаты недоступна.');
-      return null;
-    }
-
-    for (var attempt = 0; attempt < 60; attempt += 1) {
-      if (!mounted) return null;
-      final payment = await repo.getOrderPaymentStatus(order.id);
-      final updated = order.copyWith(
-        paymentId: payment.id,
-        paymentStatus: payment.status,
-        paymentConfirmationUrl: payment.confirmationUrl,
-        estimatedPrice: payment.amount / 100,
-        finalPrice: payment.amount / 100,
-      );
-      state = state.copyWith(activeOrder: updated);
-      if (payment.isSucceeded) {
-        state = state.copyWith(isPaymentProcessing: false, isLoading: false);
-        return updated;
-      }
-      if (payment.isFailed) {
-        _handleSearchError(
-          'Оплата не прошла. Повторите оплату или выберите наличные.',
-        );
-        return null;
-      }
-      await Future<void>.delayed(const Duration(seconds: 2));
-    }
-
-    _handleSearchError(
-        'Оплата еще не подтверждена. Попробуйте проверить позже.');
-    return null;
   }
 
   void _beginDriverSearchTimers(String orderId) {

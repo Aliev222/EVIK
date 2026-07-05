@@ -35,8 +35,8 @@ class _PaymentConfirmationScreenState
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
       if (next.currentStep == OrderFlowStep.completion &&
           previous?.currentStep != OrderFlowStep.completion) {
-        if (!mounted) return;
-        context.go('/order/completion');
+        if (!mounted || next.activeOrder == null) return;
+        context.go('/order/review/${next.activeOrder!.id}');
       }
     });
 

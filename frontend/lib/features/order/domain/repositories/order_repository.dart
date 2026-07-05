@@ -50,6 +50,10 @@ abstract class OrderRepository {
   /// Завершить заказ с финальной ценой
   Future<void> completeOrder(String orderId, double finalPrice);
 
+  /// Финализировать заказ (водитель) — переводит в статус ожидания оплаты
+  /// [finalPriceKopecks] — финальная цена в копейках
+  Future<void> finalizeOrder(String orderId, int finalPriceKopecks);
+
   /// Слушать изменения заказа в реальном времени
   Stream<Order?> watchOrder(String orderId);
 

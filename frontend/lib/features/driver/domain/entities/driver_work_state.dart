@@ -1,8 +1,9 @@
 enum DriverWorkState {
-  offline,           // Водитель не в сети
-  online,            // В сети, ожидает заказы
-  hasActiveOrder,    // Принял заказ, едет к клиенту
-  navigatingToDropoff, // Едет к точке назначения
+  offline,              // Водитель не в сети
+  online,               // В сети, ожидает заказы
+  hasActiveOrder,       // Принял заказ, едет к клиенту
+  navigatingToDropoff,  // Едет к точке назначения
+  waitingForPayment,    // Ожидает оплаты клиентом
 }
 
 extension DriverWorkStateExtension on DriverWorkState {
@@ -16,6 +17,8 @@ extension DriverWorkStateExtension on DriverWorkState {
         return 'К клиенту';
       case DriverWorkState.navigatingToDropoff:
         return 'К месту назначения';
+      case DriverWorkState.waitingForPayment:
+        return 'Ожидание оплаты';
     }
   }
 
@@ -29,6 +32,7 @@ extension DriverWorkStateExtension on DriverWorkState {
 
   bool get hasActiveOrder {
     return this == DriverWorkState.hasActiveOrder ||
-           this == DriverWorkState.navigatingToDropoff;
+           this == DriverWorkState.navigatingToDropoff ||
+           this == DriverWorkState.waitingForPayment;
   }
 }

@@ -12,6 +12,8 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 
 final httpDriverRepositoryProvider = Provider<HttpDriverRepository>((ref) {
   final accessToken =
@@ -100,6 +102,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   final HttpDriverRepository _driverRepository;
   final Ref _ref;
   Timer? _refreshTimer;
+  Timer? _paymentPollTimer;
   final Random _random = Random();
   final Set<String> _declinedOrderIds = <String>{};
 
@@ -278,18 +281,44 @@ class DriverNotifier extends StateNotifier<DriverState> {
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      await _updateOrderStatus('completed');
+      final orderRepository = _ref.read(orderRepositoryProvider);
+      final priceKopecks = (activeOrder.price * 100).round();
+      await orderRepository.finalizeOrder(activeOrder.id, priceKopecks);
       if (!mounted) return;
       state = state.copyWith(
-        workState: DriverWorkState.online,
-        clearActiveOrder: true,
+        workState: DriverWorkState.waitingForPayment,
         isLoading: false,
       );
-      await _loadAvailableOrders();
+      _startPaymentPolling(activeOrder.id);
     } catch (_) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false);
     }
+  }
+
+  void _startPaymentPolling(String orderId) {
+    _paymentPollTimer?.cancel();
+    _paymentPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted) {
+        _paymentPollTimer?.cancel();
+        return;
+      }
+      try {
+        final orderRepository = _ref.read(orderRepositoryProvider);
+        final order = await orderRepository.getOrder(orderId);
+        if (!mounted || order == null) return;
+        if (order.status == OrderStatus.completed) {
+          _paymentPollTimer?.cancel();
+          state = state.copyWith(
+            workState: DriverWorkState.online,
+            clearActiveOrder: true,
+          );
+          await _loadAvailableOrders();
+        }
+      } catch (_) {
+        // continue polling
+      }
+    });
   }
 
   Future<void> _updateOrderStatus(String status) async {
@@ -355,6 +384,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _paymentPollTimer?.cancel();
     super.dispose();
   }
 }

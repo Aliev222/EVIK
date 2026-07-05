@@ -193,6 +193,15 @@ class HttpOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<void> finalizeOrder(String orderId, int finalPriceKopecks) async {
+    await _apiClient.post(
+      '/api/v1/orders/$orderId/finalize',
+      <String, dynamic>{'final_price': finalPriceKopecks},
+      headers: _authHeaders,
+    );
+  }
+
+  @override
   Stream<Order?> watchOrder(String orderId) async* {
     while (true) {
       try {

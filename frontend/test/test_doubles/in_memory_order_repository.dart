@@ -117,6 +117,17 @@ class InMemoryOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<void> finalizeOrder(String orderId, int finalPriceKopecks) async {
+    final order = _orders[orderId];
+    if (order == null) return;
+    _orders[orderId] = order.copyWith(
+      status: OrderStatus.awaitingPayment,
+      finalPrice: finalPriceKopecks / 100,
+    );
+    _emit();
+  }
+
+  @override
   Stream<Order?> watchOrder(String orderId) {
     return _ordersController.stream
         .map((_) => _orders[orderId])

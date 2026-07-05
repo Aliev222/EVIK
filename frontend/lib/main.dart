@@ -26,7 +26,9 @@ import 'features/client/presentation/screens/tow_truck_selection_screen.dart';
 import 'features/client/presentation/screens/driver_search_screen.dart';
 import 'features/client/presentation/screens/driver_info_screen.dart';
 import 'features/client/presentation/screens/tracking_screen.dart';
-import 'features/client/presentation/screens/order_completion_screen.dart';
+// TODO: remove when review screen is confirmed
+// import 'features/client/presentation/screens/order_completion_screen.dart';
+import 'features/client/presentation/screens/order_review_screen.dart';
 import 'features/order/screens/payment_confirmation_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
 import 'features/driver/presentation/screens/active_order_screen.dart';
@@ -105,9 +107,15 @@ class EvikApp extends StatelessWidget {
       GoRoute(
           path: '/order/payment-confirmation',
           builder: (_, __) => const PaymentConfirmationScreen()),
+      // TODO: remove when review screen is confirmed
+      // GoRoute(
+      //     path: '/order/completion',
+      //     builder: (_, __) => const OrderCompletionScreen()),
       GoRoute(
-          path: '/order/completion',
-          builder: (_, __) => const OrderCompletionScreen()),
+          path: '/order/review/:orderId',
+          builder: (_, state) => OrderReviewScreen(
+                orderId: state.pathParameters['orderId']!,
+              )),
       GoRoute(
           path: '/order/rating',
           builder: (_, __) => const DriverRatingScreen()),
