@@ -84,7 +84,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 10 + 72,
+            bottom: 0,
             child: _ActiveOrderBottomSheet(
               order: order,
               isLoading: driverState.isLoading,

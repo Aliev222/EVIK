@@ -51,7 +51,7 @@ class EvikButton extends StatelessWidget {
 
   ButtonStyle _getButtonStyle() {
     final padding = small
-        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 10)
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
         : const EdgeInsets.symmetric(horizontal: 24, vertical: 16);
 
     final textStyle =
@@ -147,11 +147,11 @@ class EvikButton extends StatelessWidget {
         children: [
           icon!,
           const SizedBox(width: 8),
-          Text(text),
+          Flexible(child: Text(text)),
         ],
       );
     }
-    return Text(text);
+    return Flexible(child: Text(text));
   }
 
   Widget _buildLoader() {
