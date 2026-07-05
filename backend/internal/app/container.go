@@ -201,14 +201,13 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	httpClient := httpinfra.NewClient()
 	routingService := routingdomain.NewOSRMRoutingService(cfg.OSRMBaseURL, httpClient)
 
-	// Create payment transaction use case
-	createTransactionUC := paymentuc.NewCreateTransactionUseCase(paymentRepo, clock, idGen)
+	// Create payment use cases
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
-	// is empty so local/dev runs without Firebase credentials still boot cleanly.
+	// is empty so local/dev without Firebase credentials still boot cleanly.
 	var pushSender orderuc.PushSender
 	if cfg.FirebaseCredentialsJSON == "" {
 		pushSender = fcm.NewNoop()
@@ -225,15 +224,16 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
-	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, createTransactionUC, eventPublisher, pushSender, clock, idGen, appLogger)
+	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, eventPublisher, pushSender, clock, idGen, appLogger)
 	acceptUC := orderuc.NewAcceptOrderUseCase(orderRepo, driverRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
-	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, financeUC, pushSender, clock, appLogger)
+	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
+	finalizeUC := orderuc.NewFinalizeOrderUseCase(orderRepo, eventPublisher, pushSender, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
 	allowMockLocation := cfg.AllowMockLocation
 	isProduction := cfg.IsProduction()
-	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL, allowMockLocation, isProduction)
+	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, finalizeUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL, allowMockLocation, isProduction)
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.

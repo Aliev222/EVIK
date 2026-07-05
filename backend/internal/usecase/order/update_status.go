@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
@@ -12,18 +11,13 @@ type UpdateStatusUseCase struct {
 	orderRepo      orderdomain.Repository
 	driverRepo     DriverOrderRepository
 	eventPublisher EventPublisher
-	financeService interface {
-		CompleteOrderFinancially(ctx context.Context, orderID string) error
-	}
-	pushSender PushSender
-	clock      Clock
-	logger     Logger
+	pushSender     PushSender
+	clock          Clock
+	logger         Logger
 }
 
-func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverOrderRepository, eventPublisher EventPublisher, financeService interface {
-	CompleteOrderFinancially(ctx context.Context, orderID string) error
-}, pushSender PushSender, clock Clock, logger Logger) *UpdateStatusUseCase {
-	return &UpdateStatusUseCase{orderRepo: orderRepo, driverRepo: driverRepo, eventPublisher: eventPublisher, financeService: financeService, pushSender: pushSender, clock: clock, logger: logger}
+func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverOrderRepository, eventPublisher EventPublisher, pushSender PushSender, clock Clock, logger Logger) *UpdateStatusUseCase {
+	return &UpdateStatusUseCase{orderRepo: orderRepo, driverRepo: driverRepo, eventPublisher: eventPublisher, pushSender: pushSender, clock: clock, logger: logger}
 }
 
 func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next orderdomain.Status) (*orderdomain.Order, error) {
@@ -41,19 +35,7 @@ func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next
 		return nil, err
 	}
 
-	// Finance must succeed before the status is persisted.
-	// If it fails, the order remains in its current DB state and the driver stays busy.
-	if next == orderdomain.StatusCompleted && uc.financeService != nil {
-		if err := uc.financeService.CompleteOrderFinancially(ctx, ord.ID); err != nil {
-			return nil, fmt.Errorf("Не удалось завершить оплату: %w", err)
-		}
-	}
-
 	if err := uc.orderRepo.Update(ctx, ord); err != nil {
-		if next == orderdomain.StatusCompleted {
-			// Money moved but status didn't — recoverable by admin, log at CRITICAL.
-			uc.logger.Error("CRITICAL: financial completion succeeded but order status update failed — manual intervention required", err, "order_id", ord.ID)
-		}
 		return nil, err
 	}
 	if previousDriverID != nil && releasesDriver(next) {

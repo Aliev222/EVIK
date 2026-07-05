@@ -302,11 +302,78 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 			return err
 		}
 	}
+	if p.Purpose == paymentdomain.PaymentPurposeOrder && p.Status == paymentdomain.PaymentStatusSucceeded && p.OrderID != nil {
+		orderID := *p.OrderID
+		if finErr := uc.CompleteOrderFinancially(ctx, orderID); finErr != nil {
+			return finErr
+		}
+		ord, ordErr := uc.orderRepo.GetByID(ctx, orderID)
+		if ordErr != nil {
+			return ordErr
+		}
+		now := uc.clock.Now()
+		ord.Status = orderdomain.StatusCompleted
+		ord.UpdatedAt = now
+		if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
+			return updErr
+		}
+	}
 	return uc.repo.MarkWebhookProcessed(ctx, eventID)
 }
 
 func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID string) error {
 	return uc.repo.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds)
+}
+
+// ConfirmOrderPayment processes the client's payment confirmation for an order
+// in awaiting_payment status. For cash orders it immediately completes finances
+// and transitions to completed. For card orders it creates a YooKassa payment
+// with Capture: true; if paid at creation the order completes right away,
+// otherwise a confirmation_url is returned for 3DS.
+func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, orderID string) (*paymentdomain.Payment, error) {
+	ord, err := uc.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if ord.UserID != userID {
+		return nil, ErrOrderNotOwned
+	}
+	if ord.Status != orderdomain.StatusAwaitingPayment {
+		return nil, orderdomain.ErrInvalidTransition
+	}
+
+	paymentMethod := ord.PaymentMethod
+	if paymentMethod == "" {
+		paymentMethod = "cash"
+	}
+
+	if paymentMethod == "cash" {
+		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
+			return nil, err
+		}
+		ord.Status = orderdomain.StatusCompleted
+		ord.UpdatedAt = uc.clock.Now()
+		if err := uc.orderRepo.Update(ctx, ord); err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
+	payment, err := uc.CreateOrderPayment(ctx, userID, orderID, paymentdomain.PaymentMethodCard)
+	if err != nil {
+		return nil, err
+	}
+	if payment.Status == paymentdomain.PaymentStatusSucceeded {
+		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
+			return nil, err
+		}
+		ord.Status = orderdomain.StatusCompleted
+		ord.UpdatedAt = uc.clock.Now()
+		if err := uc.orderRepo.Update(ctx, ord); err != nil {
+			return nil, err
+		}
+	}
+	return payment, nil
 }
 
 func (uc *FinanceUseCase) ReleasePendingBalances(ctx context.Context, limit int) (int, error) {

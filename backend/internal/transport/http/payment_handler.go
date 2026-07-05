@@ -242,6 +242,45 @@ func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, map[string]any{"payment": newFinancePaymentResponse(payment)})
 }
 
+// ConfirmPayment processes the client's payment confirmation for an order.
+// For cash orders the order completes immediately. For card orders a YooKassa
+// payment is created; if 3DS is required a confirmation_url is returned.
+//
+// @Summary      Confirm order payment
+// @Description  Client confirms payment for a finalized order. Cash completes immediately; card creates YooKassa payment.
+// @Tags         payments
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Success      200  {object}  map[string]any  "payment result, possible confirmation_url for 3DS"
+// @Failure      400  {object}  ErrorResponse  "validation failed"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "order does not belong to caller"
+// @Failure      409  {object}  ErrorResponse  "invalid order status"
+// @Router       /orders/{orderID}/confirm-payment [post]
+func (h *PaymentHandler) ConfirmPayment(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	orderID := chi.URLParam(r, "orderID")
+	payment, err := h.financeUC.ConfirmOrderPayment(r.Context(), userID, orderID)
+	if err != nil {
+		writePaymentError(w, err)
+		return
+	}
+	resp := map[string]any{"status": "completed"}
+	if payment != nil {
+		resp["status"] = string(payment.Status)
+		if payment.ConfirmationURL != nil {
+			resp["confirmation_url"] = *payment.ConfirmationURL
+		}
+		resp["payment"] = newFinancePaymentResponse(payment)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // @Summary      Init payment method
 // @Description  Initializes a YooKassa payment method for the client. Returns a confirmation URL for 3DS redirect.
 // @Tags         payments

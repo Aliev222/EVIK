@@ -3,27 +3,29 @@ package order
 type State string
 
 const (
-	StateCreated    State = "created"
-	StateSearching  State = "searching"
-	StateAccepted   State = "accepted"
-	StateArrived    State = "arrived"
-	StateInProgress State = "in_progress"
-	StateCompleted  State = "completed"
-	StateCancelled  State = "cancelled"
+	StateCreated        State = "created"
+	StateSearching      State = "searching"
+	StateAccepted       State = "accepted"
+	StateArrived        State = "arrived"
+	StateInProgress     State = "in_progress"
+	StateAwaitingPayment State = "awaiting_payment"
+	StateCompleted      State = "completed"
+	StateCancelled      State = "cancelled"
 )
 
 // Status is kept for backward compatibility with current use cases and transport contracts.
 type Status = State
 
 const (
-	StatusCreated    Status = StateCreated
-	StatusSearching  Status = StateSearching
-	StatusAccepted   Status = StateAccepted
-	StatusArrived    Status = StateArrived
-	StatusInProgress Status = StateInProgress
-	StatusCompleted  Status = StateCompleted
-	StatusCancelled  Status = StateCancelled
-	StatusNoDriverFound Status = StateNoDriverFound
+	StatusCreated        Status = StateCreated
+	StatusSearching      Status = StateSearching
+	StatusAccepted       Status = StateAccepted
+	StatusArrived        Status = StateArrived
+	StatusInProgress     Status = StateInProgress
+	StatusAwaitingPayment Status = StateAwaitingPayment
+	StatusCompleted      Status = StateCompleted
+	StatusCancelled      Status = StateCancelled
+	StatusNoDriverFound  Status = StateNoDriverFound
 )
 
 var allowedTransitions = map[State]map[State]struct{}{
@@ -45,6 +47,10 @@ var allowedTransitions = map[State]map[State]struct{}{
 		StateCancelled:  {},
 	},
 	StateInProgress: {
+		StateAwaitingPayment: {},
+		StateCancelled:       {},
+	},
+	StateAwaitingPayment: {
 		StateCompleted: {},
 		StateCancelled: {},
 	},

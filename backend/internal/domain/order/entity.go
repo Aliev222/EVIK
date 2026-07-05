@@ -40,6 +40,7 @@ type Order struct {
 	Status          Status
 	IsExpanded      bool
 	IsCrossCity     bool
+	PaymentMethod   string
 	SurchargeAmount int64
 	SurchargePercent int
 	ExpandedAt      *time.Time

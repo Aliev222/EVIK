@@ -7,8 +7,9 @@ const (
 	EventSearching    EventType = "searching"
 	EventAccepted     EventType = "order_accepted"
 	EventArrived      EventType = "order_arrived"
-	EventInProgress   EventType = "in_progress"
-	EventCompleted    EventType = "completed"
+	EventInProgress        EventType = "in_progress"
+	EventAwaitingPayment   EventType = "awaiting_payment"
+	EventCompleted         EventType = "completed"
 	EventCancelled    EventType = "cancelled"
 	EventNoDriverFound      EventType = "no_driver_found"
 	EventOrderExpanded      EventType = "order_expanded"
@@ -32,6 +33,8 @@ func EventTypeFromStatus(status Status) EventType {
 		return EventArrived
 	case StatusInProgress:
 		return EventInProgress
+	case StatusAwaitingPayment:
+		return EventAwaitingPayment
 	case StatusCompleted:
 		return EventCompleted
 	case StatusCancelled:

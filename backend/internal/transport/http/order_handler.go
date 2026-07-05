@@ -39,6 +39,7 @@ type OrderHandler struct {
 	acceptUC          *orderuc.AcceptOrderUseCase
 	updateUC          *orderuc.UpdateStatusUseCase
 	cancelUC          *orderuc.CancelOrderUseCase
+	finalizeUC        *orderuc.FinalizeOrderUseCase
 	orderRepo         orderAccessRepository
 	areas             servicearea.Repository
 	gates             *driveruc.GateService
@@ -63,6 +64,7 @@ func NewOrderHandler(
 	acceptUC *orderuc.AcceptOrderUseCase,
 	updateUC *orderuc.UpdateStatusUseCase,
 	cancelUC *orderuc.CancelOrderUseCase,
+	finalizeUC *orderuc.FinalizeOrderUseCase,
 	orderRepo orderAccessRepository,
 	areas servicearea.Repository,
 	gates *driveruc.GateService,
@@ -78,6 +80,7 @@ func NewOrderHandler(
 		acceptUC:          acceptUC,
 		updateUC:          updateUC,
 		cancelUC:          cancelUC,
+		finalizeUC:        finalizeUC,
 		orderRepo:         orderRepo,
 		areas:             areas,
 		gates:             gates,
@@ -217,6 +220,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PickupAddress:  req.PickupAddress,
 		DropoffAddress: req.DropoffAddress,
 		TowTruckType:   towTruckType,
+		PaymentMethod:  req.PaymentMethod,
 		AutoDispatch:   false,
 		CityID:         cityID,
 	})
@@ -574,6 +578,53 @@ func (h *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
+}
+
+type finalizeOrderRequest struct {
+	FinalPrice int64 `json:"final_price"`
+}
+
+// @Summary      Finalize order (driver)
+// @Description  Driver sets the final price and moves the order to awaiting_payment.
+// @Tags         orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path      string                 true  "Order ID"
+// @Param        body     body      FinalizeOrderRequest   true  "Final price in kopecks"
+// @Success      200      {object}  SingleOrderResponse
+// @Failure      400      {object}  ErrorResponse  "validation failed"
+// @Failure      401      {object}  ErrorResponse  "unauthorized"
+// @Failure      403      {object}  ErrorResponse  "forbidden"
+// @Failure      404      {object}  ErrorResponse  "order not found"
+// @Failure      409      {object}  ErrorResponse  "invalid status transition"
+// @Router       /orders/{orderID}/finalize [post]
+func (h *OrderHandler) FinalizeOrder(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	var req finalizeOrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.FinalPrice <= 0 {
+		h.writeError(w, http.StatusBadRequest, fmt.Errorf("final_price must be positive"))
+		return
+	}
+	driverID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	ord, err := h.finalizeUC.Execute(r.Context(), orderuc.FinalizeOrderInput{
+		OrderID:    orderID,
+		DriverID:   driverID,
+		FinalPrice: req.FinalPrice,
+	})
+	if err != nil {
+		h.writeOrderError(w, err)
+		return
+	}
 	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
 }
 

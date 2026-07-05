@@ -187,7 +187,12 @@ type AcceptOrderRequest struct {
 
 // UpdateOrderStatusRequest is the body of POST /orders/{orderID}/status.
 type UpdateOrderStatusRequest struct {
-	Status string `json:"status" example:"arrived" enums:"accepted,arrived,in_progress,completed"`
+	Status string `json:"status" example:"arrived" enums:"accepted,arrived,in_progress,awaiting_payment,completed"`
+}
+
+// FinalizeOrderRequest is the body of POST /orders/{orderID}/finalize.
+type FinalizeOrderRequest struct {
+	FinalPrice int64 `json:"final_price" example:"800000"`
 }
 
 // CancelOrderRequest is the body of POST /orders/{orderID}/cancel.

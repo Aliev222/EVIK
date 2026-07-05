@@ -7,7 +7,6 @@ import (
 	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
-	paymentdomain "evik/backend/internal/domain/payment"
 	pricingdomain "evik/backend/internal/domain/pricing"
 )
 
@@ -36,10 +35,6 @@ type PricingService interface {
 	CalculatePrice(ctx context.Context, input pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error)
 }
 
-type PaymentService interface {
-	CreateTransaction(ctx context.Context, userID, orderID, title string, amount int64) (*paymentdomain.PaymentTransaction, error)
-}
-
 // PushSender mirrors the surface of fcm.PushSender so this package can call
 // out to the FCM layer without importing it.
 type PushSender interface {
@@ -52,7 +47,6 @@ type CreateOrderUseCase struct {
 	orderRepo      orderdomain.Repository
 	driverMatcher  DriverMatcher
 	pricingService PricingService
-	paymentService PaymentService
 	eventPublisher EventPublisher
 	pushSender     PushSender
 	clock          Clock
@@ -69,6 +63,7 @@ type CreateOrderInput struct {
 	PickupAddress  string
 	DropoffAddress string
 	TowTruckType   orderdomain.TowTruckType
+	PaymentMethod  string
 	AutoDispatch   bool
 	CityID         string
 }
@@ -77,7 +72,6 @@ func NewCreateOrderUseCase(
 	orderRepo orderdomain.Repository,
 	driverMatcher DriverMatcher,
 	pricingService PricingService,
-	paymentService PaymentService,
 	eventPublisher EventPublisher,
 	pushSender PushSender,
 	clock Clock,
@@ -88,7 +82,6 @@ func NewCreateOrderUseCase(
 		orderRepo:      orderRepo,
 		driverMatcher:  driverMatcher,
 		pricingService: pricingService,
-		paymentService: paymentService,
 		eventPublisher: eventPublisher,
 		pushSender:     pushSender,
 		clock:          clock,
@@ -108,6 +101,8 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	}
 	ord.PickupAddress = input.PickupAddress
 	ord.DropoffAddress = input.DropoffAddress
+	ord.PaymentMethod = input.PaymentMethod
+	ord.PriceTotal = 0 // will be set after price calculation
 	if input.CityID != "" {
 		ord.CityID = &input.CityID
 	}
@@ -158,18 +153,12 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 		return nil, fmt.Errorf("price calculation failed: %w", err)
 	}
 
-	// Create payment transaction for the order
-	transactionTitle := fmt.Sprintf("Заказ эвакуатора %s", input.TowTruckType)
-	transaction, err := uc.paymentService.CreateTransaction(ctx, input.UserID, ord.ID, transactionTitle, calculation.TotalPrice)
-	if err != nil {
-		uc.logger.Error("failed to create payment transaction", err, "order_id", ord.ID, "amount", calculation.TotalPrice)
-		return nil, fmt.Errorf("payment transaction creation failed: %w", err)
-	}
+	ord.PriceTotal = calculation.TotalPrice
 
-	uc.logger.Info("order pricing calculated and payment created",
+	uc.logger.Info("order pricing calculated",
 		"order_id", ord.ID,
 		"total_price", calculation.TotalPrice,
-		"transaction_id", transaction.ID,
+		"payment_method", input.PaymentMethod,
 		"distance_km", calculation.DistanceKm,
 		"tariff_id", calculation.TariffID)
 
