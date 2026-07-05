@@ -5,9 +5,11 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/performance/rebuild_tracker.dart';
 
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
@@ -65,6 +67,22 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
       },
     );
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final pos = await LocationService.getCurrentPositionWithFallback();
+        if (mounted) {
+          ref
+              .read(serviceAreaProvider.notifier)
+              .checkServiceArea(pos.latitude, pos.longitude);
+        }
+      } catch (_) {
+        if (mounted) {
+          ref
+              .read(serviceAreaProvider.notifier)
+              .checkServiceArea(_moscowLat, _moscowLng);
+        }
+      }
+    });
   }
 
   @override
@@ -86,6 +104,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         ref.watch(newDriverProvider.select((state) => state.isLoading));
     final stats = ref.watch(newDriverProvider.select((state) => state.stats));
     final driverProfile = ref.watch(driverProfileProvider);
+    final serviceArea = ref.watch(serviceAreaProvider);
 
     ref.listen<DriverState>(newDriverProvider, (previous, next) {
       final message = next.error;
@@ -111,11 +130,11 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     return Scaffold(
       backgroundColor: AvroDriverColors.surface,
       body: workState == DriverWorkState.offline
-          ? SafeArea(child: _buildOfflineView(driverState, driverProfile))
+          ? SafeArea(child: _buildOfflineView(driverState, driverProfile, serviceArea))
           : _BackgroundOptimizer(
               isDriverWaiting: workState == DriverWorkState.online,
               isAppInForeground: _isAppInForeground,
-              child: _buildOnlineView(driverState, driverProfile),
+              child: _buildOnlineView(driverState, driverProfile, serviceArea),
             ),
     );
   }
@@ -189,13 +208,16 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
   }
 
-  Widget _buildOfflineView(DriverState driverState, AsyncValue<Driver?> driverProfile) {
+  Widget _buildOfflineView(
+      DriverState driverState, AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
+    final outsideServiceArea = serviceArea.isChecked && !serviceArea.isAllowed;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (outsideServiceArea) _DriverServiceAreaBanner(),
             // Приветствие
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -348,7 +370,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
             EvikButton(
               text: 'Начать работу',
               isLoading: driverState.isLoading,
-              onPressed: driverState.isLoading
+              onPressed: driverState.isLoading || outsideServiceArea
                   ? null
                   : () {
                       HapticFeedback.selectionClick();
@@ -363,7 +385,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
   }
 
-  Widget _buildOnlineView(DriverState driverState, AsyncValue<Driver?> driverProfile) {
+  Widget _buildOnlineView(
+      DriverState driverState, AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
     _syncIncomingOffer(driverState.workState, driverState.availableOrders);
     final incomingOrder = driverState.availableOrders.isEmpty
         ? null
@@ -564,6 +587,42 @@ class _RouteUnavailableBadge extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DriverServiceAreaBanner extends StatelessWidget {
+  const _DriverServiceAreaBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AvroDriverColors.warning,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 20,
+            color: AvroDriverColors.background,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Авро пока не работает в вашем городе. Мы скоро появимся!',
+              style: EvikTypography.bodySmall.copyWith(
+                color: AvroDriverColors.background,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

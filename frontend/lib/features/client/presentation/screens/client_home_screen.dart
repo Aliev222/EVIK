@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
-import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
-    if (dart.library.io) '../../../../core/network/api_client_io.dart'
-    as platform_api;
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
 import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
@@ -25,12 +24,25 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
-  bool _serviceAreaChecked = false;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkServiceArea());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final pos = await LocationService.getCurrentPositionWithFallback();
+        if (mounted) {
+          ref
+              .read(serviceAreaProvider.notifier)
+              .checkServiceArea(pos.latitude, pos.longitude);
+        }
+      } catch (_) {
+        if (mounted) {
+          ref
+              .read(serviceAreaProvider.notifier)
+              .checkServiceArea(AppConstants.moscowLat, AppConstants.moscowLng);
+        }
+      }
+    });
   }
 
   void _openPickupSelection() {
@@ -60,90 +72,19 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       );
   }
 
-  Future<void> _checkServiceArea() async {
-    if (_serviceAreaChecked) return;
-    _serviceAreaChecked = true;
-
-    final location = ref.read(orderFlowProvider).pickupLocation;
-    final lat = location?.latitude ?? AppConstants.moscowLat;
-    final lng = location?.longitude ?? AppConstants.moscowLng;
-
-    try {
-      final apiClient = platform_api.createPlatformApiClient();
-      final response = await apiClient.get(
-        '/api/v1/service-areas/check?lat=$lat&lng=$lng',
-      );
-      final isAllowed = response['allowed'] == true;
-      if (!isAllowed && mounted) {
-        _showServiceUnavailableSheet();
-      }
-    } catch (_) {
-    }
-  }
-
-  void _showServiceUnavailableSheet() {
-    showModalBottomSheet(
-      context: context,
-      isDismissible: true,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.location_off,
-              size: 48,
-              color: AvroClientColors.accent,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Сервис пока недоступен',
-              style: GoogleFonts.inter(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: AvroClientColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'В вашем регионе Авро ещё не работает.\nМы скоро появимся в вашем городе!',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AvroClientColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AvroClientColors.accent,
-                  foregroundColor: AvroClientColors.background,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Понятно'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final location =
         ref.watch(orderFlowProvider.select((state) => state.pickupLocation));
     final isLoading =
         ref.watch(orderFlowProvider.select((state) => state.isLoading));
+    final serviceArea = ref.watch(serviceAreaProvider);
     final address = location?.displayAddress ?? 'Адрес не определён';
     final lat = location?.latitude ?? AppConstants.moscowLat;
     final lng = location?.longitude ?? AppConstants.moscowLng;
+
+    final outsideServiceArea =
+        serviceArea.isChecked && !serviceArea.isAllowed;
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
@@ -159,6 +100,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   onNotificationsPressed: () =>
                       _showComingSoon('Уведомления — скоро будет доступно'),
                 ),
+                if (outsideServiceArea) ...[
+                  const SizedBox(height: 8),
+                  _ServiceAreaBanner(),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 62,
@@ -188,7 +133,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _CallTowTruckButton(onPressed: _openPickupSelection),
+                _CallTowTruckButton(
+                  onPressed: outsideServiceArea ? null : _openPickupSelection,
+                ),
               ],
             ),
           ),
@@ -250,10 +197,45 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _CallTowTruckButton extends StatelessWidget {
-  const _CallTowTruckButton({required this.onPressed});
+class _ServiceAreaBanner extends StatelessWidget {
+  const _ServiceAreaBanner();
 
-  final VoidCallback onPressed;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AvroClientColors.warning,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 20,
+            color: AvroClientColors.background,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Авро пока не работает в вашем городе. Мы скоро появимся!',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AvroClientColors.background,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CallTowTruckButton extends StatelessWidget {
+  const _CallTowTruckButton({this.onPressed});
+
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
