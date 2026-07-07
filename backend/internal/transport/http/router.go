@@ -28,12 +28,19 @@ func NewRouter(
 	allowedOrigins []string,
 	exposeSwagger bool,
 	limiter *RateLimiter,
+	debugMode bool,
 ) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	if debugMode {
+		allowedOrigins = append(allowedOrigins,
+			"http://localhost:*",
+			"http://127.0.0.1:*",
+		)
+	}
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

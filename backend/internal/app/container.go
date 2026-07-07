@@ -285,7 +285,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	)
 
 	limiter := httptransport.NewRateLimiter()
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter)
+	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 
