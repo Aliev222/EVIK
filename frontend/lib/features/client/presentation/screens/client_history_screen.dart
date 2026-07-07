@@ -44,6 +44,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
 
       final orderRepository = ref.read(orderRepositoryProvider);
       final orders = await orderRepository.getOrders();
+      if (!mounted) return;
 
       setState(() {
         _orders = orders;

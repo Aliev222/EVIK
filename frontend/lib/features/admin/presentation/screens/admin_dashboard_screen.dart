@@ -32,6 +32,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final connected =
         await realTimeService.connect(userId: 'admin_panel', userType: 'admin');
 
+    if (!mounted) return;
     setState(() => _isConnected = connected);
 
     if (connected) {

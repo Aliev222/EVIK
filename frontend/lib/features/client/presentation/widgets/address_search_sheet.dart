@@ -137,6 +137,7 @@ class _AddressSearchSheetState extends State<AddressSearchSheet> {
   }
 
   void _search(String query) {
+    if (!mounted) return;
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       setState(() {

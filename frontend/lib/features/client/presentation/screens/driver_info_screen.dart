@@ -46,6 +46,7 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
     final destination = orderFlowState.destinationLocation;
 
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
+      if (!mounted) return;
       if (next.currentStep == OrderFlowStep.tracking &&
           previous?.currentStep != OrderFlowStep.tracking) {
         if (!_isNavigating) {

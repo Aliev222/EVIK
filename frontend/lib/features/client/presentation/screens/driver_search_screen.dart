@@ -268,6 +268,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
 
     // Listen for navigation to next screen when driver is found
     ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
+      if (!mounted) return;
       if (next.currentStep == OrderFlowStep.driverFound &&
           previous?.currentStep != OrderFlowStep.driverFound) {
         _goToDriverInfo();

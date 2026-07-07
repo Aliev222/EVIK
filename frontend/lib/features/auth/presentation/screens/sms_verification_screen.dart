@@ -58,6 +58,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
+      if (!mounted) return;
       if (next.errorMessage != null &&
           next.errorMessage != previous?.errorMessage) {
         _showCodeError();
@@ -337,6 +338,7 @@ class _CountdownTimerState extends State<_CountdownTimer> {
     super.initState();
     _secondsLeft = widget.totalSeconds;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
       if (_secondsLeft <= 0) {
         _timer?.cancel();
         widget.onFinished();

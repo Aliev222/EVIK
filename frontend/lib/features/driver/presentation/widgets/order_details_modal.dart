@@ -31,6 +31,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
     super.initState();
     _remainingSeconds = 30;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) return;
       if (_remainingSeconds <= 1) {
         timer.cancel();
         final navigator = Navigator.of(context);

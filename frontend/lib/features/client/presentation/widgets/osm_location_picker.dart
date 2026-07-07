@@ -54,6 +54,7 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
     _addressController = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (widget.initialLocation == null) {
         _detectCurrentLocation();
       } else {

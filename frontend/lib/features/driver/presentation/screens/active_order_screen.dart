@@ -36,6 +36,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
     ref.listen<DriverState>(newDriverProvider, (previous, next) {
       final message = next.error;
       if (message == null || message == previous?.error) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),

@@ -108,7 +108,7 @@ class _AnimatedDriverMarkerState extends State<AnimatedDriverMarker>
   }
 
   void _updatePosition() {
-    if (_routePoints.isEmpty) return;
+    if (!mounted || _routePoints.isEmpty) return;
 
     final progress = _moveController.value;
     final totalSegments = _routePoints.length - 1;
