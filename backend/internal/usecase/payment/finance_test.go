@@ -8,6 +8,7 @@ import (
 	orderdomain "evik/backend/internal/domain/order"
 	paymentdomain "evik/backend/internal/domain/payment"
 	pricingdomain "evik/backend/internal/domain/pricing"
+	"evik/backend/internal/domain/settings"
 )
 
 func TestCompleteOrderFinanciallyDoesNotCreatePayout(t *testing.T) {
@@ -34,7 +35,7 @@ func TestPayoutIsCreatedOnlyByRequestDriverPayout(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	repo := newFakeFinanceRepository()
 	provider := &fakePaymentProvider{}
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 
 	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 850000, "payout-key-1")
 	if err != nil {
@@ -111,8 +112,18 @@ func TestCashAndCardSettlementRulesAreRepresentedByFinanceRepositoryContract(t *
 	}
 }
 
+type fakeSettingsRepo struct{}
+
+func (r *fakeSettingsRepo) List(_ context.Context) ([]settings.Setting, error) {
+	return nil, nil
+}
+
+func (r *fakeSettingsRepo) Upsert(_ context.Context, key string, value any) error {
+	return nil
+}
+
 func newTestFinanceUseCase(repo *fakeFinanceRepository, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
 
 type fakeFinanceRepository struct {

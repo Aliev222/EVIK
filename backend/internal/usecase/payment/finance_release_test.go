@@ -37,7 +37,7 @@ func (r *releaseRepo) MarkTransactionReleased(_ context.Context, id string) erro
 
 func newReleaseUC(repo paymentdomain.Repository) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
 
 func TestReleasePendingBalancesEmptyList(t *testing.T) {

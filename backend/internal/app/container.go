@@ -201,9 +201,12 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	httpClient := httpinfra.NewClient()
 	routingService := routingdomain.NewOSRMRoutingService(cfg.OSRMBaseURL, httpClient)
 
+	// Platform settings repository (used by payment, admin, etc.)
+	settingsRepo := postgres.NewSettingsRepository(db)
+
 	// Create payment use cases
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, pricingService, yookassaProvider{client: yooClient}, settingsRepo, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
@@ -246,7 +249,6 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cityGeocoder := geocoding.NewNominatim()
 	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
 	driverLocationsHandler := httptransport.NewDriverLocationsHandler(driverRepo, locationRepo, serviceAreaRepo)
-	settingsRepo := postgres.NewSettingsRepository(db)
 	settingsHandler := httptransport.NewSettingsHandler(settingsRepo)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
@@ -712,7 +714,10 @@ INSERT INTO platform_settings (key, value, description) VALUES
 	('offer_timeout_seconds', '30', 'Таймаут оффера для водителя, секунд'),
 	('dispatch_round_limit', '3', 'Лимит раундов диспетчеризации'),
 	('subscription_price', '0', 'Цена подписки для водителя, копейки'),
-	('min_withdrawal_kopecks', '100000', 'Мин. сумма вывода, копейки')
+	('min_withdrawal_kopecks', '100000', 'Мин. сумма вывода, копейки'),
+	('driver_subscription_daily_price', '30000', 'Подписка водителя на 1 день, копейки'),
+	('driver_subscription_weekly_price', '150000', 'Подписка водителя на 1 неделю, копейки'),
+	('driver_subscription_monthly_price', '299900', 'Подписка водителя на 1 месяц, копейки')
 ON CONFLICT (key) DO NOTHING;
 `
 	_, err := db.Exec(schema)

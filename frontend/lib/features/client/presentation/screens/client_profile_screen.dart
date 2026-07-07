@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
+import 'package:tow_truck_frontend/features/client/presentation/screens/client_wallet_screen.dart';
 
 class ClientProfileScreen extends ConsumerWidget {
   const ClientProfileScreen({super.key});
@@ -112,6 +113,13 @@ class ClientProfileScreen extends ConsumerWidget {
                     subtitle: 'Чат, email, телефон',
                     onTap: () => _openSupport(context),
                   ),
+                  const SizedBox(height: 12),
+                  _ProfileTile(
+                    icon: Icons.credit_card_outlined,
+                    title: 'Способы оплаты',
+                    subtitle: 'Карты, промокоды',
+                    onTap: () => _openWallet(context),
+                  ),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 58,
@@ -162,6 +170,12 @@ class ClientProfileScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _openWallet(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ClientWalletScreen()),
     );
   }
 

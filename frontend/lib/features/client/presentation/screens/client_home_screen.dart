@@ -10,6 +10,7 @@ import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
 import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({
@@ -128,8 +129,18 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   flex: 5,
                   fit: FlexFit.tight,
                   child: _QuickServicesGrid(
-                    onServiceTap: () =>
-                        _showComingSoon('Скоро будет доступно'),
+                    onServiceTap: (service) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ServiceDetailScreen(
+                            title: service.label,
+                            subtitle: service.subtitle,
+                            description: service.description,
+                            icon: service.icon,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -313,28 +324,32 @@ class _CallTowTruckButton extends StatelessWidget {
 class _QuickServicesGrid extends StatelessWidget {
   const _QuickServicesGrid({required this.onServiceTap});
 
-  final VoidCallback onServiceTap;
+  final ValueChanged<_QuickService> onServiceTap;
 
   static const List<_QuickService> _services = <_QuickService>[
     _QuickService(
       icon: Icons.tire_repair_rounded,
       label: 'Шиномонтаж',
       subtitle: 'Выездной сервис',
+      description: 'Выездной шиномонтаж прямо на месте поломки. Замена колёс, ремонт проколов, балансировка.',
     ),
     _QuickService(
       icon: Icons.battery_charging_full_rounded,
       label: 'Не заводится',
       subtitle: 'Запуск двигателя',
+      description: 'Прикуривание аккумулятора, диагностика на месте, запуск двигателя в любую погоду.',
     ),
     _QuickService(
       icon: Icons.bolt_rounded,
       label: 'Автоэлектрик',
       subtitle: 'Диагностика и ремонт',
+      description: 'Выездной автоэлектрик: диагностика, ремонт проводки, замена предохранителей.',
     ),
     _QuickService(
       icon: Icons.local_gas_station_rounded,
       label: 'Подвоз топлива',
       subtitle: 'Быстрая доставка',
+      description: 'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
     ),
   ];
 
@@ -407,18 +422,20 @@ class _QuickService {
     required this.icon,
     required this.label,
     required this.subtitle,
+    required this.description,
   });
 
   final IconData icon;
   final String label;
   final String subtitle;
+  final String description;
 }
 
 class _QuickServiceCard extends StatelessWidget {
   const _QuickServiceCard({required this.service, required this.onTap});
 
   final _QuickService service;
-  final VoidCallback onTap;
+  final ValueChanged<_QuickService> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +468,7 @@ class _QuickServiceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
+          onTap: () => onTap(service),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

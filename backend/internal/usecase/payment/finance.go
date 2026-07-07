@@ -14,6 +14,7 @@ import (
 	orderdomain "evik/backend/internal/domain/order"
 	paymentdomain "evik/backend/internal/domain/payment"
 	pricingdomain "evik/backend/internal/domain/pricing"
+	"evik/backend/internal/domain/settings"
 )
 
 // Provider-facing sentinel errors. The container's provider adapter translates
@@ -75,6 +76,7 @@ type FinanceUseCase struct {
 	orderRepo         orderdomain.Repository
 	pricingService    PricingService
 	provider          PaymentProvider
+	settingsRepo      settings.Repository
 	clock             Clock
 	idGen             IDGenerator
 	holdSeconds       int
@@ -92,12 +94,13 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, settingsRepo settings.Repository, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
 		pricingService:    pricingService,
 		provider:          provider,
+		settingsRepo:      settingsRepo,
 		clock:             clock,
 		idGen:             idGen,
 		holdSeconds:       holdSeconds,
@@ -484,7 +487,7 @@ func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID stri
 }
 
 func (uc *FinanceUseCase) CreateDriverSubscriptionPayment(ctx context.Context, driverID, planID string) (*paymentdomain.Payment, error) {
-	amount := subscriptionAmount(planID)
+	amount := uc.subscriptionAmount(ctx, planID)
 	now := uc.clock.Now()
 	idempotencyKey := "subscription:" + driverID + ":" + planID + ":" + now.Format("2006-01")
 	payment := &paymentdomain.Payment{
@@ -620,10 +623,31 @@ func (uc *FinanceUseCase) MinimumWithdrawal() int64 {
 	return uc.minimumWithdrawal
 }
 
-func subscriptionAmount(planID string) int64 {
+func (uc *FinanceUseCase) subscriptionAmount(ctx context.Context, planID string) int64 {
+	key := "driver_subscription_" + planID + "_price"
+	settingsList, err := uc.settingsRepo.List(ctx)
+	if err == nil {
+		for _, s := range settingsList {
+			if s.Key == key {
+				switch v := s.Value.(type) {
+				case float64:
+					return int64(v)
+				case string:
+					n, err := strconv.ParseInt(v, 10, 64)
+					if err == nil {
+						return n
+					}
+				}
+			}
+		}
+	}
 	switch planID {
 	case "pro_month":
 		return 199000
+	case "pro_week":
+		return 150000
+	case "pro_day":
+		return 30000
 	default:
 		return 99000
 	}

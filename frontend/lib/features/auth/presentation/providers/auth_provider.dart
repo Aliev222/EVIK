@@ -48,6 +48,7 @@ class AuthState {
     this.accessToken,
     this.isLoading = false,
     this.isRestoring = true,
+    this.hadPersistedSession = false,
     this.errorMessage,
     this.phoneNumber,
     this.pendingFullName,
@@ -64,6 +65,7 @@ class AuthState {
   // splash until this flips to false, so a signed-in user never briefly sees
   // the auth screen.
   final bool isRestoring;
+  final bool hadPersistedSession;
   final String? errorMessage;
   final String? phoneNumber;
   final String? pendingFullName;
@@ -81,6 +83,7 @@ class AuthState {
     bool clearAccessToken = false,
     bool? isLoading,
     bool? isRestoring,
+    bool? hadPersistedSession,
     String? errorMessage,
     bool clearError = false,
     String? phoneNumber,
@@ -99,6 +102,7 @@ class AuthState {
       accessToken: clearAccessToken ? null : accessToken ?? this.accessToken,
       isLoading: isLoading ?? this.isLoading,
       isRestoring: isRestoring ?? this.isRestoring,
+      hadPersistedSession: hadPersistedSession ?? this.hadPersistedSession,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       phoneNumber: clearPendingAuth ? null : phoneNumber ?? this.phoneNumber,
       pendingFullName:
@@ -390,6 +394,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
+  void retrySession() {
+    state = state.copyWith(hadPersistedSession: false, isRestoring: true);
+    unawaited(_restoreSession());
+  }
+
   Future<void> _restoreSession() async {
     try {
       final accessToken = await _storage.read(_accessTokenKey);
@@ -401,7 +410,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       String activeAccess = accessToken;
       try {
-        final identity = await _api.me(accessToken: activeAccess);
+        final identity = await _api
+            .me(accessToken: activeAccess)
+            .timeout(const Duration(seconds: 3));
         final restored = _composeUser(
           identity: identity,
           fallback: savedUser,
@@ -418,11 +429,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
 
       try {
-        final tokens = await _api.refresh(refreshToken: refreshToken);
+        final tokens = await _api
+            .refresh(refreshToken: refreshToken)
+            .timeout(const Duration(seconds: 3));
         activeAccess = tokens.accessToken;
         await _storage.write(_accessTokenKey, tokens.accessToken);
         await _storage.write(_refreshTokenKey, tokens.refreshToken);
-        final identity = await _api.me(accessToken: activeAccess);
+        final identity = await _api
+            .me(accessToken: activeAccess)
+            .timeout(const Duration(seconds: 3));
         final restored = _composeUser(
           identity: identity,
           fallback: savedUser,
@@ -434,8 +449,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
         );
         unawaited(_syncFcmTokenForSession(restored, activeAccess));
-      } catch (_) {
-        await signOut();
+      } catch (e) {
+        final isNetworkError = e is ApiClientException &&
+            (e.statusCode == 0 || e.statusCode == 408);
+        if (isNetworkError) {
+          state = state.copyWith(hadPersistedSession: true);
+        } else {
+          await signOut();
+        }
       }
     } finally {
       // Notifier may be disposed before async restore finishes (tests,

@@ -19,6 +19,7 @@ import 'features/auth/presentation/screens/sms_verification_screen.dart';
 import 'features/driver/presentation/driver_screen.dart';
 import 'features/client/presentation/screens/client_app_shell.dart';
 import 'features/onboarding/presentation/screens/role_selection_screen.dart';
+import 'shared/widgets/offline_sos_screen.dart';
 import 'features/client/presentation/screens/pickup_location_screen.dart';
 import 'features/client/presentation/screens/destination_location_screen.dart';
 import 'features/client/presentation/screens/vehicle_selection_screen.dart';
@@ -350,6 +351,10 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
     // so a signed-in user never briefly sees the auth screen.
     if (authState.isRestoring) {
       return const _SplashScreen(key: ValueKey<String>('restore-splash'));
+    }
+
+    if (authState.hadPersistedSession && !authState.isAuthenticated) {
+      return const OfflineSosScreen();
     }
 
     if (authState.isAuthenticated && currentUser != null) {
