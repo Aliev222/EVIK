@@ -73,6 +73,7 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/orders/{orderID}/status", orderHandler.UpdateOrderStatus)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/orders/{orderID}/finalize", orderHandler.FinalizeOrder)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders/{orderID}/confirm-payment", paymentHandler.ConfirmPayment)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Patch("/orders/{orderID}/payment-method", paymentHandler.UpdateOrderPaymentMethod)
 			secured.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)
 			secured.Get("/drivers/{driverID}", driverHandler.GetDriver)
 			secured.Get("/drivers/{driverID}/profile", driverHandler.GetDriverProfile)

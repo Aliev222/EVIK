@@ -44,8 +44,27 @@ class ClientPaymentMethodsNotifier
       if (!opened) {
         throw StateError('Не удалось открыть страницу ЮKassa');
       }
-      final wallet = await _ref.read(paymentRepositoryProvider).getWallet();
-      state = AsyncValue.data(wallet.cards);
+      // Poll for the new card after the user returns from the YooKassa 3DS flow.
+      // The backend receives a webhook and activates the card asynchronously.
+      List<PaymentCard> cards = previous;
+      for (var attempt = 0; attempt < 5; attempt++) {
+        await Future.delayed(const Duration(seconds: 2));
+        try {
+          final wallet = await _ref.read(paymentRepositoryProvider).getWallet();
+          cards = wallet.cards;
+          final hasNewCard = cards.any(
+            (c) => !previous.any((p) => p.id == c.id),
+          );
+          if (hasNewCard) {
+            state = AsyncValue.data(cards);
+            return init.paymentMethodId;
+          }
+        } catch (_) {
+          // continue polling
+        }
+      }
+      // Timeout — show whatever we got last
+      state = AsyncValue.data(cards);
       return init.paymentMethodId;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);

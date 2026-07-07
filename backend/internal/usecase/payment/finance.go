@@ -376,6 +376,28 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 	return payment, nil
 }
 
+// UpdateOrderPaymentMethod changes the payment method on an order that is
+// still in awaiting_payment status. Only the order owner may perform this
+// change. Valid methods are "cash" and "card".
+func (uc *FinanceUseCase) UpdateOrderPaymentMethod(ctx context.Context, userID, orderID string, method paymentdomain.PaymentMethodType) error {
+	if method != paymentdomain.PaymentMethodCard && method != paymentdomain.PaymentMethodCash {
+		return paymentdomain.ErrValidationFailed
+	}
+	ord, err := uc.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if ord.UserID != userID {
+		return ErrOrderNotOwned
+	}
+	if ord.Status != orderdomain.StatusAwaitingPayment {
+		return orderdomain.ErrInvalidTransition
+	}
+	ord.PaymentMethod = string(method)
+	ord.UpdatedAt = uc.clock.Now()
+	return uc.orderRepo.Update(ctx, ord)
+}
+
 func (uc *FinanceUseCase) ReleasePendingBalances(ctx context.Context, limit int) (int, error) {
 	if limit <= 0 {
 		limit = 100

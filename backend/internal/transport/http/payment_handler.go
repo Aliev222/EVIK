@@ -100,7 +100,8 @@ func writePaymentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, paymentdomain.ErrValidationFailed),
 		errors.Is(err, paymentdomain.ErrInvalidAmount),
 		errors.Is(err, paymentdomain.ErrInsufficientFunds),
-		errors.Is(err, paymentdomain.ErrPayoutMethodNotFound):
+		errors.Is(err, paymentdomain.ErrPayoutMethodNotFound),
+		errors.Is(err, orderdomain.ErrInvalidTransition):
 		// Validation/precondition errors are safe and useful to echo back.
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
@@ -279,6 +280,47 @@ func (h *PaymentHandler) ConfirmPayment(w http.ResponseWriter, r *http.Request) 
 		resp["payment"] = newFinancePaymentResponse(payment)
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// UpdateOrderPaymentMethodRequest is the body of PATCH /orders/{orderID}/payment-method.
+type updateOrderPaymentMethodRequest struct {
+	PaymentMethod string `json:"payment_method"`
+}
+
+// @Summary      Update order payment method
+// @Description  Changes the payment method on an order in awaiting_payment status. Only cash or card.
+// @Tags         payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        orderID  path  string  true  "Order ID"
+// @Param        body     body  updateOrderPaymentMethodRequest  true  "New payment method"
+// @Success      200  {object}  map[string]any  "payment method updated"
+// @Failure      400  {object}  ErrorResponse  "invalid payment_method or order not in valid status"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Failure      403  {object}  ErrorResponse  "order does not belong to caller"
+// @Router       /orders/{orderID}/payment-method [patch]
+func (h *PaymentHandler) UpdateOrderPaymentMethod(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req updateOrderPaymentMethodRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if req.PaymentMethod != "cash" && req.PaymentMethod != "card" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "payment_method must be cash or card"})
+		return
+	}
+	orderID := chi.URLParam(r, "orderID")
+	if err := h.financeUC.UpdateOrderPaymentMethod(r.Context(), userID, orderID, paymentdomain.PaymentMethodType(req.PaymentMethod)); err != nil {
+		writePaymentError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
 }
 
 // @Summary      Init payment method
