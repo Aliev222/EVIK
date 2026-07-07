@@ -105,7 +105,7 @@ class _NavItem extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(18),
             onTap: () {
-              HapticFeedback.selectionClick();
+              try { HapticFeedback.selectionClick(); } catch (_) {}
               onTap(tab);
             },
             child: Padding(

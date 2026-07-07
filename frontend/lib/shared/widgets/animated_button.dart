@@ -33,7 +33,7 @@ class _AnimatedButtonState extends State<AnimatedButton> {
       child: GestureDetector(
         onTapDown: widget.onPressed != null
             ? (_) {
-                HapticFeedback.lightImpact();
+                try { HapticFeedback.lightImpact(); } catch (_) {}
                 _setPressed(true);
               }
             : null,

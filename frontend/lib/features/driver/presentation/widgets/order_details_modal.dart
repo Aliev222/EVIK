@@ -123,7 +123,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
                     backgroundColor: AvroDriverColors.success,
                   ),
                   onPressed: () async {
-                    HapticFeedback.mediumImpact();
+                    try { HapticFeedback.mediumImpact(); } catch (_) {}
                     final navigator = Navigator.of(context);
                     await widget.onAccept();
                     if (mounted) {
@@ -143,7 +143,7 @@ class _OrderDetailsModalState extends State<OrderDetailsModal> {
                     side: const BorderSide(color: Colors.white38),
                   ),
                   onPressed: () async {
-                    HapticFeedback.lightImpact();
+                    try { HapticFeedback.lightImpact(); } catch (_) {}
                     final navigator = Navigator.of(context);
                     await widget.onDecline();
                     if (mounted) {

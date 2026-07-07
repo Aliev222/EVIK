@@ -174,7 +174,7 @@ class _PaymentMethodsSection extends ConsumerWidget {
     WidgetRef ref,
     PaymentCard card,
   ) async {
-    HapticFeedback.selectionClick();
+    try { HapticFeedback.selectionClick(); } catch (_) {}
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -238,7 +238,7 @@ class _PaymentMethodsSection extends ConsumerWidget {
   }
 
   Future<void> _initAddCard(BuildContext context, WidgetRef ref) async {
-    HapticFeedback.lightImpact();
+    try { HapticFeedback.lightImpact(); } catch (_) {}
     try {
       final paymentMethodId =
           await ref.read(clientPaymentMethodsProvider.notifier).addCard();

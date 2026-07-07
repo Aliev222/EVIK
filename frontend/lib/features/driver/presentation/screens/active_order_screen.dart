@@ -132,7 +132,7 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
   }
 
   Future<void> _handlePrimaryAction(ActiveOrder order) async {
-    HapticFeedback.heavyImpact();
+    try { HapticFeedback.heavyImpact(); } catch (_) {}
     final notifier = ref.read(newDriverProvider.notifier);
     switch (order.status) {
       case ActiveOrderStatus.drivingToClient:
@@ -586,7 +586,7 @@ class _SlideToCompleteState extends State<_SlideToComplete> {
                       _completed = true;
                       _drag = maxDrag;
                     });
-                    HapticFeedback.heavyImpact();
+                    try { HapticFeedback.heavyImpact(); } catch (_) {}
                     widget.onCompleted();
                   } else {
                     setState(() => _drag = 0);

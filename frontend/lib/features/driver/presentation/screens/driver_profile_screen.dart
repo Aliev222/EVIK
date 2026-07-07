@@ -442,7 +442,7 @@ class DriverProfileScreen extends ConsumerWidget {
   void _showDriverReviews(BuildContext context, WidgetRef ref, String? driverId) {
     if (driverId == null) return;
 
-    HapticFeedback.lightImpact();
+    try { HapticFeedback.lightImpact(); } catch (_) {}
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -456,7 +456,7 @@ class DriverProfileScreen extends ConsumerWidget {
     String title,
     List<String> options,
   ) {
-    HapticFeedback.lightImpact();
+    try { HapticFeedback.lightImpact(); } catch (_) {}
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

@@ -147,11 +147,17 @@ class EvikButton extends StatelessWidget {
         children: [
           icon!,
           const SizedBox(width: 8),
-          Flexible(child: Text(text)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(text),
+          ),
         ],
       );
     }
-    return Flexible(child: Text(text));
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text),
+    );
   }
 
   Widget _buildLoader() {

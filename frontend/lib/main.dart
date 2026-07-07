@@ -234,7 +234,9 @@ class _SplashScreenState extends State<_SplashScreen>
       ),
     );
 
-    Vibration.vibrate(duration: 800, amplitude: 64);
+    if (!kIsWeb) {
+      Vibration.vibrate(duration: 800, amplitude: 64);
+    }
     _controller.forward();
   }
 

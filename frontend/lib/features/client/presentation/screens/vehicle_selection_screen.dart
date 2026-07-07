@@ -423,7 +423,7 @@ class _StepperButton extends StatelessWidget {
           onTap: onTap == null
               ? null
               : () {
-                  HapticFeedback.selectionClick();
+                  try { HapticFeedback.selectionClick(); } catch (_) {}
                   onTap!();
                 },
           child: Icon(icon, color: AvroClientColors.textPrimary),

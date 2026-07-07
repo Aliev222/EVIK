@@ -373,7 +373,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               onPressed: driverState.isLoading || outsideServiceArea
                   ? null
                   : () {
-                      HapticFeedback.selectionClick();
+                      try { HapticFeedback.selectionClick(); } catch (_) {}
                       ref.read(newDriverProvider.notifier).goOnline();
                     },
               width: double.infinity,
@@ -427,7 +427,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
             onGoOffline: driverState.isLoading
                 ? null
                 : () {
-                    HapticFeedback.selectionClick();
+                    try { HapticFeedback.selectionClick(); } catch (_) {}
                     ref.read(newDriverProvider.notifier).goOffline();
                   },
           ),
@@ -453,7 +453,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   progress: _offerProgressAnimation?.value ?? 1.0,
                   isLoading: driverState.isLoading,
                   onDecline: () {
-                    HapticFeedback.lightImpact();
+                    try { HapticFeedback.lightImpact(); } catch (_) {}
                     _offerAnimationController?.stop();
                     setState(() {
                       _visibleOfferId = null;
@@ -463,7 +463,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                         .declineOrder(incomingOrder.id);
                   },
                   onAccept: () {
-                    HapticFeedback.heavyImpact();
+                    try { HapticFeedback.heavyImpact(); } catch (_) {}
                     _offerAnimationController?.stop();
                     ref
                         .read(newDriverProvider.notifier)

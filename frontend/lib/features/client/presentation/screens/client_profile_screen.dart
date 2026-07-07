@@ -192,7 +192,7 @@ class ClientProfileScreen extends ConsumerWidget {
     IconData icon,
     List<String> options,
   ) {
-    HapticFeedback.lightImpact();
+    try { HapticFeedback.lightImpact(); } catch (_) {}
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -265,7 +265,7 @@ class _FeatureBottomSheet extends StatelessWidget {
                     ),
                   ),
                   onTap: () {
-                    HapticFeedback.lightImpact();
+                    try { HapticFeedback.lightImpact(); } catch (_) {}
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('$option будет доступно позже.')),
                     );

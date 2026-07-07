@@ -1,4 +1,5 @@
-﻿import 'package:flutter/services.dart';
+﻿import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:vibration/vibration.dart';
@@ -88,6 +89,7 @@ class DriverNotificationService {
   }
 
   Future<void> vibrateFeedback(DriverHapticType type) async {
+    if (kIsWeb) return;
     final hasVibrator = await Vibration.hasVibrator();
     if (!hasVibrator) {
       return;
