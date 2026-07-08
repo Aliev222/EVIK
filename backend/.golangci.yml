@@ -1,0 +1,91 @@
+# .golangci.yml — конфигурация статического анализа для Авро
+# Упор на денежную логику, обработку ошибок и конкурентность.
+
+run:
+  timeout: 5m
+  tests: true
+  # Не блокируем весь запуск из-за одной ошибки компиляции в тестах
+  allow-parallel-runners: true
+
+linters:
+  # Отключаем дефолтный набор и включаем явно — так предсказуемее
+  disable-all: true
+  enable:
+    # --- Обработка ошибок (прямо про Баг 16, 17) ---
+    - errcheck        # непроверенные возвраты error
+    - errorlint       # правильная работа с обёрнутыми ошибками (%w, errors.Is/As)
+    - nilerr          # return nil там, где err != nil — типичная маскировка ошибки
+
+    # --- Утечки ресурсов ---
+    - bodyclose       # незакрытый resp.Body у HTTP-ответов
+    - sqlclosecheck   # незакрытые rows/statements в database/sql
+    - rowserrcheck    # непроверенный rows.Err() после итерации
+
+    # --- Конкурентность (Баг 13 и соседние) ---
+    - govet           # включает проверку копирования мьютексов, shadowing и др.
+    - copyloopvar     # захват переменной цикла в горутине/замыкании
+
+    # --- Денежная логика (Баг 19 — целочисленное деление, округление) ---
+    - durationcheck   # подозрительные операции с time.Duration
+    - gosec           # security + числовые переполнения при конвертации
+    - gocritic        # ловит в т.ч. потерю точности и подозрительную арифметику
+
+    # --- Мёртвый / лишний код (Баг 20) ---
+    - unused          # неиспользуемые функции, переменные, константы
+    - unparam         # неиспользуемые параметры функций
+    - ineffassign     # присваивания, которые нигде не читаются
+
+    # --- Общее качество и надёжность ---
+    - staticcheck     # большой набор проверок корректности
+    - gosimple        # упрощение конструкций
+    - typecheck       # базовая проверка типов
+    - contextcheck    # правильная передача context.Context
+    - noctx           # HTTP-запросы без context (нет таймаутов/отмены)
+    - prealloc        # слайсы, которые стоит преаллоцировать
+
+linters-settings:
+  errcheck:
+    # Проверять даже "необязательные" на вид вызовы
+    check-type-assertions: true
+    check-blank: true          # ловит `_ = someFuncReturningError()`
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment         # выравнивание полей структур — шумно, не критично
+
+  gosec:
+    excludes:
+      - G104                   # дублирует errcheck, чтобы не было двойных срабатываний
+    # G109/G115 — переполнения при конвертации чисел, важны для денег: оставляем
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+    disabled-checks:
+      - ifElseChain            # стилистика, не баг
+
+  staticcheck:
+    checks:
+      - "all"
+
+issues:
+  # Показывать все проблемы, а не по 3 на линтер
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # В тестах ослабляем часть проверок — там допустимы срезанные углы
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - noctx
+
+    # Сгенерированный код (swagger, mocks, protobuf) не аудируем
+    - path: (mock_|_gen|\.pb)\.go
+      linters:
+        - unused
+        - unparam
+        - gosec
