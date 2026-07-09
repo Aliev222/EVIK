@@ -33,7 +33,7 @@ type Repository interface {
 	UpdatePaymentFromProvider(ctx context.Context, providerPaymentID, status string, paid bool) (*Payment, error)
 	StoreWebhook(ctx context.Context, eventID, provider, eventType string, payload []byte) (bool, error)
 	MarkWebhookProcessed(ctx context.Context, eventID string) error
-	CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int) error
+	CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int, commissionPercent int) error
 	ListReleasablePendingTransactions(ctx context.Context, limit int) ([]WalletTransaction, error)
 	MarkTransactionReleased(ctx context.Context, txID string) error
 	GetDriverWallet(ctx context.Context, driverID string) (*DriverWallet, error)

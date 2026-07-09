@@ -290,8 +290,14 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 	if p.Purpose == paymentdomain.PaymentPurposeCardBinding &&
 		event.Object.PaymentMethod.Saved &&
 		event.Object.PaymentMethod.ID != "" {
-		expMonth, _ := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryMonth)
-		expYear, _ := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryYear)
+		expMonth, err := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryMonth)
+		if err != nil {
+			return fmt.Errorf("parse card exp month %q: %w", event.Object.PaymentMethod.Card.ExpiryMonth, err)
+		}
+		expYear, err := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryYear)
+		if err != nil {
+			return fmt.Errorf("parse card exp year %q: %w", event.Object.PaymentMethod.Card.ExpiryYear, err)
+		}
 		if err := uc.repo.ActivatePaymentMethodFromProvider(
 			ctx,
 			event.Object.ID,
@@ -324,8 +330,40 @@ func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []b
 	return uc.repo.MarkWebhookProcessed(ctx, eventID)
 }
 
+const fallbackCommissionPercent = 15
+
+func (uc *FinanceUseCase) commissionPercent(ctx context.Context) int {
+	list, err := uc.settingsRepo.List(ctx)
+	if err != nil {
+		log.Printf("WARN: settings unavailable, commission fallback %d%%: %v", fallbackCommissionPercent, err)
+		return fallbackCommissionPercent
+	}
+	for _, s := range list {
+		if s.Key != "commission_percent" {
+			continue
+		}
+		str, ok := s.Value.(string)
+		if !ok {
+			log.Printf("WARN: commission_percent not a string (%T), fallback %d%%", s.Value, fallbackCommissionPercent)
+			return fallbackCommissionPercent
+		}
+		f, err := strconv.ParseFloat(str, 64)
+		if err != nil || f < 0 || f > 100 {
+			log.Printf("WARN: invalid commission_percent %q, fallback %d%%", str, fallbackCommissionPercent)
+			return fallbackCommissionPercent
+		}
+		if f != float64(int(f)) {
+			log.Printf("WARN: fractional commission_percent %.2f truncated to %d", f, int(f))
+		}
+		return int(f)
+	}
+	log.Printf("WARN: commission_percent not found in settings, fallback %d%%", fallbackCommissionPercent)
+	return fallbackCommissionPercent
+}
+
 func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID string) error {
-	return uc.repo.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds)
+	pct := uc.commissionPercent(ctx)
+	return uc.repo.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds, pct)
 }
 
 // ConfirmOrderPayment processes the client's payment confirmation for an order
@@ -487,7 +525,10 @@ func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID stri
 }
 
 func (uc *FinanceUseCase) CreateDriverSubscriptionPayment(ctx context.Context, driverID, planID string) (*paymentdomain.Payment, error) {
-	amount := uc.subscriptionAmount(ctx, planID)
+	amount, err := uc.subscriptionAmount(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
 	now := uc.clock.Now()
 	idempotencyKey := "subscription:" + driverID + ":" + planID + ":" + now.Format("2006-01")
 	payment := &paymentdomain.Payment{
@@ -623,34 +664,47 @@ func (uc *FinanceUseCase) MinimumWithdrawal() int64 {
 	return uc.minimumWithdrawal
 }
 
-func (uc *FinanceUseCase) subscriptionAmount(ctx context.Context, planID string) int64 {
-	key := "driver_subscription_" + planID + "_price"
+var subscriptionPriceHardcoded = map[string]int64{
+	"pro_day":   30000,
+	"pro_week":  150000,
+	"pro_month": 299900,
+}
+
+var subscriptionPriceKeys = map[string]string{
+	"pro_day":   "driver_subscription_daily_price",
+	"pro_week":  "driver_subscription_weekly_price",
+	"pro_month": "driver_subscription_monthly_price",
+}
+
+func (uc *FinanceUseCase) subscriptionAmount(ctx context.Context, planID string) (int64, error) {
+	key, ok := subscriptionPriceKeys[planID]
+	if !ok {
+		return 0, fmt.Errorf("unknown subscription plan %q", planID)
+	}
 	settingsList, err := uc.settingsRepo.List(ctx)
 	if err == nil {
 		for _, s := range settingsList {
 			if s.Key == key {
 				switch v := s.Value.(type) {
 				case float64:
-					return int64(v)
+					return int64(v), nil
 				case string:
 					n, err := strconv.ParseInt(v, 10, 64)
 					if err == nil {
-						return n
+						return n, nil
 					}
 				}
 			}
 		}
 	}
-	switch planID {
-	case "pro_month":
-		return 199000
-	case "pro_week":
-		return 150000
-	case "pro_day":
-		return 30000
-	default:
-		return 99000
+
+	hardcoded, ok := subscriptionPriceHardcoded[planID]
+	if ok {
+		log.Printf("WARN: %s not found in settings, using hardcoded price %d", key, hardcoded)
+		return hardcoded, nil
 	}
+
+	return 0, fmt.Errorf("unknown subscription plan %q", planID)
 }
 
 func (uc *FinanceUseCase) subscriptionStatus(subscription *paymentdomain.Subscription, status string, canAcceptOrders bool) *DriverSubscriptionStatus {

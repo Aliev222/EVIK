@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,8 +58,8 @@ func TestCreateDriverSubscriptionPaymentProMonth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if payment.Amount != 199000 {
-		t.Errorf("amount = %d, want 199000 for pro_month plan", payment.Amount)
+	if payment.Amount != 299900 {
+		t.Errorf("amount = %d, want 299900 for pro_month plan", payment.Amount)
 	}
 	if payment.Purpose != paymentdomain.PaymentPurposeSubscription {
 		t.Errorf("purpose = %q, want subscription", payment.Purpose)
@@ -75,17 +76,20 @@ func TestCreateDriverSubscriptionPaymentProMonth(t *testing.T) {
 	}
 }
 
-func TestCreateDriverSubscriptionPaymentDefaultPlan(t *testing.T) {
+func TestCreateDriverSubscriptionPaymentUnknownPlan(t *testing.T) {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	repo := &subscriptionRepo{}
 	uc := newSubscriptionUC(repo, &scriptedProvider{}, now)
 
 	payment, err := uc.CreateDriverSubscriptionPayment(context.Background(), "driver-1", "starter")
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	if err == nil {
+		t.Fatal("expected error for unknown plan, got nil")
 	}
-	if payment.Amount != 99000 {
-		t.Errorf("amount = %d, want 99000 for default plan", payment.Amount)
+	if payment != nil {
+		t.Errorf("expected no payment for unknown plan, got %+v", payment)
+	}
+	if !strings.Contains(err.Error(), "starter") {
+		t.Errorf("error should mention plan name, got: %v", err)
 	}
 }
 

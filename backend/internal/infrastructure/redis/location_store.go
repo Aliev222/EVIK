@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -194,8 +195,11 @@ func (s *LocationStore) GetLastCity(ctx context.Context, driverID string) (strin
 		return "", time.Time{}, err
 	}
 	atStr, err := atCmd.Result()
-	if err != nil {
+	if errors.Is(err, redis.Nil) {
 		return cityID, time.Now().UTC(), nil
+	}
+	if err != nil {
+		return cityID, time.Now().UTC(), fmt.Errorf("location_store get last_city_at for driver %s: %w", driverID, err)
 	}
 	unix, err := strconv.ParseInt(atStr, 10, 64)
 	if err != nil {

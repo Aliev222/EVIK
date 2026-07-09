@@ -757,7 +757,10 @@ func (h *PaymentHandler) AdminExportFinance(w http.ResponseWriter, r *http.Reque
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+reportType+".csv\"")
-	_ = csv.NewWriter(w).WriteAll(records)
+	if err := csv.NewWriter(w).WriteAll(records); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to write CSV"})
+		return
+	}
 }
 
 // @Summary      Finance report (admin)

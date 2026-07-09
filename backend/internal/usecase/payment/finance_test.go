@@ -86,7 +86,7 @@ func TestRepeatedWebhookIsIgnoredBeforeFinancialSideEffects(t *testing.T) {
 func TestCashAndCardSettlementRulesAreRepresentedByFinanceRepositoryContract(t *testing.T) {
 	repo := newFakeFinanceRepository()
 	repo.settlementMethod = paymentdomain.PaymentMethodCash
-	if err := repo.CompleteOrderFinancially(context.Background(), "cash-order", "complete_order:cash-order", 600); err != nil {
+	if err := repo.CompleteOrderFinancially(context.Background(), "cash-order", "complete_order:cash-order", 600, 15); err != nil {
 		t.Fatalf("cash settlement returned error: %v", err)
 	}
 	if repo.debtBalance != 150000 {
@@ -98,7 +98,7 @@ func TestCashAndCardSettlementRulesAreRepresentedByFinanceRepositoryContract(t *
 
 	repo.settlementMethod = paymentdomain.PaymentMethodCard
 	repo.orderAmount = 1000000
-	if err := repo.CompleteOrderFinancially(context.Background(), "card-order", "complete_order:card-order", 600); err != nil {
+	if err := repo.CompleteOrderFinancially(context.Background(), "card-order", "complete_order:card-order", 600, 15); err != nil {
 		t.Fatalf("card settlement returned error: %v", err)
 	}
 	if repo.debtBalance != 0 {
@@ -131,6 +131,7 @@ type fakeFinanceRepository struct {
 	webhooks                  map[string]bool
 	settlementMethod          paymentdomain.PaymentMethodType
 	orderAmount               int64
+	surchargeAmount           int64
 	debtBalance               int64
 	pendingBalance            int64
 	completeOrderCalls        int
@@ -141,6 +142,8 @@ type fakeFinanceRepository struct {
 	walletTransactionCreates  int
 	debtRepaymentTransactions int
 	completeIdempotencyKey    string
+	lastCommissionPercent     int
+	hasActiveSubscription     bool
 }
 
 func newFakeFinanceRepository() *fakeFinanceRepository {
@@ -169,11 +172,19 @@ func (r *fakeFinanceRepository) UpdatePaymentFromProvider(_ context.Context, pro
 	return &paymentdomain.Payment{ID: "payment-1", Purpose: paymentdomain.PaymentPurposeOrder, Status: paymentdomain.PaymentStatus(status)}, nil
 }
 
-func (r *fakeFinanceRepository) CompleteOrderFinancially(_ context.Context, orderID, idempotencyKey string, holdSeconds int) error {
+func (r *fakeFinanceRepository) CompleteOrderFinancially(_ context.Context, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
 	r.completeOrderCalls++
 	r.completeIdempotencyKey = idempotencyKey
+	r.lastCommissionPercent = commissionPercent
+
+	effectivePercent := commissionPercent
+	if r.hasActiveSubscription {
+		effectivePercent = 0
+	}
+
 	total := r.orderAmount
-	commission := total * 15 / 100
+	base := total - r.surchargeAmount
+	commission := (base * int64(effectivePercent) + 50) / 100
 	if r.settlementMethod == paymentdomain.PaymentMethodCash {
 		r.debtBalance += commission
 		r.walletTransactionCreates++
@@ -279,3 +290,189 @@ func (c fakeClock) Now() time.Time { return c.now }
 type fakeIDGenerator struct{}
 
 func (fakeIDGenerator) NewID() string { return "generated-id" }
+
+type scriptedSettingsRepo struct {
+	settings []settings.Setting
+}
+
+func (r *scriptedSettingsRepo) List(_ context.Context) ([]settings.Setting, error) {
+	return r.settings, nil
+}
+
+func (r *scriptedSettingsRepo) Upsert(_ context.Context, key string, value any) error {
+	return nil
+}
+
+func newUseCaseWithSettings(repo *fakeFinanceRepository, settingsRepo settings.Repository, now time.Time) *FinanceUseCase {
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+}
+
+func TestCommissionPercentFromSettings(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "20.00"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.lastCommissionPercent != 20 {
+		t.Errorf("commission percent = %d, want 20", repo.lastCommissionPercent)
+	}
+}
+
+func TestCommissionPercentFallbackInvalid(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "abc"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.lastCommissionPercent != 15 {
+		t.Errorf("commission percent = %d, want fallback 15", repo.lastCommissionPercent)
+	}
+}
+
+func TestCommissionPercentFallbackNegative(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "-5"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.lastCommissionPercent != 15 {
+		t.Errorf("commission percent = %d, want fallback 15", repo.lastCommissionPercent)
+	}
+}
+
+func TestCommissionPercentFallbackOver100(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "150"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.lastCommissionPercent != 15 {
+		t.Errorf("commission percent = %d, want fallback 15", repo.lastCommissionPercent)
+	}
+}
+
+func TestCommissionWithActiveSubscription(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	repo.hasActiveSubscription = true
+	repo.orderAmount = 1000000
+	repo.settlementMethod = paymentdomain.PaymentMethodCard
+	repo.debtBalance = 0
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "20.00"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.pendingBalance != 1000000 {
+		t.Errorf("pending balance = %d, want 1000000 (driver gets full amount)", repo.pendingBalance)
+	}
+}
+
+func TestCommissionWithSurcharge(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	repo.orderAmount = 1000000
+	repo.surchargeAmount = 200000
+	repo.settlementMethod = paymentdomain.PaymentMethodCard
+	repo.debtBalance = 0
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "15.00"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	// base = 1000000 - 200000 = 800000
+	// commission = (800000 * 15 + 50) / 100 = 120000
+	// driver = total - commission = 1000000 - 120000 = 880000
+	wantPending := int64(880000)
+	if repo.pendingBalance != wantPending {
+		t.Errorf("pending balance = %d, want %d (surcharge goes to driver)", repo.pendingBalance, wantPending)
+	}
+}
+
+func TestCommissionRoundingHalfUp(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	repo.orderAmount = 1001
+	repo.surchargeAmount = 0
+	repo.settlementMethod = paymentdomain.PaymentMethodCard
+	repo.debtBalance = 0
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: "15.00"},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	// (1001 * 15 + 50) / 100 = 150 (int truncation, +50 shifts threshold)
+	// driver = 1001 - 150 = 851
+	// invariant: 150 + 851 = 1001
+	wantPending := int64(851)
+	if repo.pendingBalance != wantPending {
+		t.Errorf("pending balance = %d, want %d", repo.pendingBalance, wantPending)
+	}
+}
+
+func TestSubscriptionPriceFromSettings(t *testing.T) {
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "driver_subscription_daily_price", Value: "40000"},
+		},
+	}
+	repo := &subscriptionRepo{}
+	provider := &scriptedProvider{
+		createPaymentFn: func(context.Context, ProviderPaymentRequest) (*ProviderPaymentResponse, error) {
+			return &ProviderPaymentResponse{ID: "provider-sub-1", Status: "pending"}, nil
+		},
+	}
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+
+	payment, err := uc.CreateDriverSubscriptionPayment(context.Background(), "driver-1", "pro_day")
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if payment.Amount != 40000 {
+		t.Errorf("amount = %d, want 40000 from settings", payment.Amount)
+	}
+}

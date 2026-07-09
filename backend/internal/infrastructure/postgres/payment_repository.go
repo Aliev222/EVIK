@@ -522,7 +522,7 @@ WHERE id = $1
 	return tx.Commit()
 }
 
-func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int) error {
+func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -565,7 +565,12 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 
 	var paymentID sql.NullString
 	var paymentStatus sql.NullString
-	_ = tx.QueryRowContext(ctx, `SELECT id, status FROM payments WHERE order_id = $1 ORDER BY created_at DESC LIMIT 1`, orderID).Scan(&paymentID, &paymentStatus)
+	err = tx.QueryRowContext(ctx, `SELECT id, status FROM payments WHERE order_id = $1 ORDER BY created_at DESC LIMIT 1`, orderID).Scan(&paymentID, &paymentStatus)
+	if errors.Is(err, sql.ErrNoRows) {
+		// No payment record — legitimate for cash orders, proceed.
+	} else if err != nil {
+		return fmt.Errorf("scan payment in CompleteOrderFinancially: %w", err)
+	}
 	if paymentMethod == string(paymentdomain.PaymentMethodCard) && paymentStatus.String != string(paymentdomain.PaymentStatusSucceeded) {
 		return errors.New("card payment is not succeeded")
 	}
@@ -577,7 +582,26 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 
 	total := orderAmount.Int64
 	base := total - surchargeAmount
-	commission := (base*defaultCommissionPercent + 50) / 100
+
+	effectivePercent := commissionPercent
+	active, err := r.hasActiveSubscriptionTx(ctx, tx, driverID.String)
+	if err != nil {
+		return fmt.Errorf("check driver subscription: %w", err)
+	}
+	if active {
+		effectivePercent = 0
+	}
+
+	commission := (base*int64(effectivePercent) + 50) / 100
+	driverAmount := total - commission
+
+	if commission+driverAmount != total {
+		return fmt.Errorf("split mismatch: total=%d commission=%d driver=%d", total, commission, driverAmount)
+	}
+	if commission < 0 || driverAmount < 0 {
+		return fmt.Errorf("negative split: commission=%d driver=%d", commission, driverAmount)
+	}
+
 	now := time.Now().UTC()
 	if paymentMethod == string(paymentdomain.PaymentMethodCash) {
 		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance + cents_to_rub($1), updated_at = NOW() WHERE id = $2`, commission, walletID); err != nil {
@@ -593,7 +617,6 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 		return tx.Commit()
 	}
 
-	driverAmount := total - commission
 	var debt int64
 	if err := tx.QueryRowContext(ctx, `SELECT rub_to_cents(debt_balance) FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&debt); err != nil {
 		return err
@@ -621,6 +644,16 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *PaymentRepository) hasActiveSubscriptionTx(ctx context.Context, tx *sql.Tx, driverID string) (bool, error) {
+	var exists bool
+	err := tx.QueryRowContext(ctx, `
+SELECT EXISTS(
+	SELECT 1 FROM subscriptions
+	WHERE driver_id = $1 AND status = 'active' AND ends_at > NOW()
+)`, driverID).Scan(&exists)
+	return exists, err
 }
 
 func (r *PaymentRepository) ReleasePendingBalances(ctx context.Context, limit int) (int, error) {

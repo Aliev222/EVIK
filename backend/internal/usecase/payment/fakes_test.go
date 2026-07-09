@@ -53,7 +53,7 @@ func (noopFinanceRepo) StoreWebhook(context.Context, string, string, string, []b
 	return true, nil
 }
 func (noopFinanceRepo) MarkWebhookProcessed(context.Context, string) error { return nil }
-func (noopFinanceRepo) CompleteOrderFinancially(context.Context, string, string, int) error {
+func (noopFinanceRepo) CompleteOrderFinancially(context.Context, string, string, int, int) error {
 	return nil
 }
 func (noopFinanceRepo) ListReleasablePendingTransactions(context.Context, int) ([]paymentdomain.WalletTransaction, error) {

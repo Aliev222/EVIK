@@ -313,7 +313,11 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 				lastCityID, leftAt, lcErr := h.cityCache.GetLastCity(r.Context(), userID)
 				if lcErr == nil && lastCityID != "" {
 					if h.lastCityTTL > 0 && time.Since(leftAt) < h.lastCityTTL {
-						lastCityOrders, _ := h.orderRepo.ListByStatusAndCity(r.Context(), status, lastCityID, limit)
+						lastCityOrders, err := h.orderRepo.ListByStatusAndCity(r.Context(), status, lastCityID, limit)
+						if err != nil {
+							h.writeError(w, http.StatusInternalServerError, err)
+							return
+						}
 						cutoff := time.Now().UTC().Add(-60 * time.Second)
 						for _, o := range lastCityOrders {
 							if o.CreatedAt.Before(cutoff) {
@@ -325,8 +329,13 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+			respOrders, err := h.buildDriverSearchingResponse(r.Context(), userID, orders)
+			if err != nil {
+				h.writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 			h.writeJSON(w, http.StatusOK, map[string]any{
-				"orders": h.buildDriverSearchingResponse(r.Context(), userID, orders),
+				"orders": respOrders,
 			})
 			return
 		}
@@ -765,7 +774,7 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 
 // buildDriverSearchingResponse merges city-scoped orders with expanded orders
 // visible to the driver based on their current location.
-func (h *OrderHandler) buildDriverSearchingResponse(ctx context.Context, driverUserID string, cityOrders []*orderdomain.Order) []orderResponse {
+func (h *OrderHandler) buildDriverSearchingResponse(ctx context.Context, driverUserID string, cityOrders []*orderdomain.Order) ([]orderResponse, error) {
 	var driverLat, driverLng float64
 	hasLocation := false
 	if h.locationCache != nil {
@@ -790,7 +799,10 @@ func (h *OrderHandler) buildDriverSearchingResponse(ctx context.Context, driverU
 
 	// Append expanded orders the driver can reach but that are outside their city.
 	if hasLocation && h.expansionRadius > 0 {
-		expanded, _ := h.orderRepo.ListExpandedSearching(ctx, 100)
+		expanded, err := h.orderRepo.ListExpandedSearching(ctx, 100)
+		if err != nil {
+			return nil, err
+		}
 		for _, o := range expanded {
 			if _, ok := seen[o.ID]; ok {
 				continue
@@ -805,7 +817,7 @@ func (h *OrderHandler) buildDriverSearchingResponse(ctx context.Context, driverU
 		}
 	}
 
-	return payload
+	return payload, nil
 }
 
 // haversineKM returns the great-circle distance in kilometres between two coords.
