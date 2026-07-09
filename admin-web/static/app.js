@@ -4269,7 +4269,8 @@ async function pageSettings(main) {
     if (items.length === 0) { main.innerHTML = EmptyState('Нет настроек'); return; }
 
     const groups = {
-      'Финансы': ['commission_percent', 'payout_mode', 'min_withdrawal_kopecks', 'subscription_price'],
+      'Финансы': ['commission_percent', 'payout_mode', 'min_withdrawal_kopecks',
+        'driver_subscription_daily_price', 'driver_subscription_weekly_price', 'driver_subscription_monthly_price'],
       'Диспетчеризация': ['offer_timeout_seconds', 'dispatch_round_limit'],
     };
 
@@ -4283,10 +4284,12 @@ async function pageSettings(main) {
           ${keys.map(key => {
             const s = settingsMap[key];
             if (!s) return '';
+            const isSub = SUBSCRIPTION_PRICE_KEYS.includes(key);
+            const displayVal = isSub ? rubDisplay(s.value) : formatSettingValue(s.value);
             return `<div class="form-group" data-key="${escapeHtml(key)}">
               <label>${escapeHtml(s.description || key)}</label>
               <div class="settings-row">
-                <input class="form-input setting-input" value="${escapeHtml(formatSettingValue(s.value))}" />
+                <input class="form-input setting-input" value="${escapeHtml(displayVal)}" />
                 <button class="btn btn-primary btn-sm setting-save">Сохранить</button>
                 <span class="setting-msg" style="display:none;margin-left:8px;font-size:13px;color:var(--success);"></span>
               </div>
@@ -4310,8 +4313,18 @@ async function pageSettings(main) {
         const input = group.querySelector('.setting-input');
         const msg = group.querySelector('.setting-msg');
         const rawValue = input.value.trim();
-        const parsed = parseSettingValue(rawValue);
+        const isSub = SUBSCRIPTION_PRICE_KEYS.includes(key);
         msg.style.display = 'none';
+        if (isSub) {
+          const err = validateRubles(rawValue);
+          if (err) {
+            msg.textContent = err;
+            msg.style.display = 'inline';
+            msg.style.color = 'var(--danger)';
+            return;
+          }
+        }
+        const parsed = isSub ? rubToKopecks(rawValue) : parseSettingValue(rawValue);
         btn.disabled = true;
         btn.textContent = 'Сохранение...';
         try {
@@ -4333,6 +4346,31 @@ async function pageSettings(main) {
   } catch (e) {
     main.innerHTML = ErrorState(e.message, () => pageSettings(main));
   }
+}
+
+const SUBSCRIPTION_PRICE_KEYS = ['driver_subscription_daily_price', 'driver_subscription_weekly_price', 'driver_subscription_monthly_price'];
+
+function rubDisplay(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  if (n % 100 !== 0) {
+    console.warn('non-round kopecks value:', v);
+    return (n / 100).toFixed(2);
+  }
+  return String(n / 100);
+}
+
+function rubToKopecks(raw) {
+  return Number(String(raw).trim()) * 100;
+}
+
+function validateRubles(raw) {
+  const s = String(raw).trim();
+  if (!/^\d+$/.test(s)) return 'Введите целое число рублей';
+  const n = Number(s);
+  if (n <= 0) return 'Цена должна быть больше 0 ₽';
+  if (n > 100000) return 'Цена не может превышать 100 000 ₽';
+  return null;
 }
 
 function formatSettingValue(v) {
