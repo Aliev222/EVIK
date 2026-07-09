@@ -58,8 +58,8 @@ func TestCreateDriverSubscriptionPaymentProMonth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if payment.Amount != 299900 {
-		t.Errorf("amount = %d, want 299900 for pro_month plan", payment.Amount)
+	if payment.Amount != 900000 {
+		t.Errorf("amount = %d, want 900000 for pro_month plan", payment.Amount)
 	}
 	if payment.Purpose != paymentdomain.PaymentPurposeSubscription {
 		t.Errorf("purpose = %q, want subscription", payment.Purpose)

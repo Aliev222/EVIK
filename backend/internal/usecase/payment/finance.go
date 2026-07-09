@@ -665,9 +665,9 @@ func (uc *FinanceUseCase) MinimumWithdrawal() int64 {
 }
 
 var subscriptionPriceHardcoded = map[string]int64{
-	"pro_day":   30000,
-	"pro_week":  150000,
-	"pro_month": 299900,
+	"pro_day":   50000,
+	"pro_week":  250000,
+	"pro_month": 900000,
 }
 
 var subscriptionPriceKeys = map[string]string{

@@ -713,11 +713,10 @@ INSERT INTO platform_settings (key, value, description) VALUES
 	('payout_mode', '"manual"', 'Режим выплат: auto или manual'),
 	('offer_timeout_seconds', '30', 'Таймаут оффера для водителя, секунд'),
 	('dispatch_round_limit', '3', 'Лимит раундов диспетчеризации'),
-	('subscription_price', '0', 'Цена подписки для водителя, копейки'),
 	('min_withdrawal_kopecks', '100000', 'Мин. сумма вывода, копейки'),
-	('driver_subscription_daily_price', '30000', 'Подписка водителя на 1 день, копейки'),
-	('driver_subscription_weekly_price', '150000', 'Подписка водителя на 1 неделю, копейки'),
-	('driver_subscription_monthly_price', '299900', 'Подписка водителя на 1 месяц, копейки')
+	('driver_subscription_daily_price', '50000', 'Подписка: сутки (ввод в ₽, хранение в копейках)'),
+	('driver_subscription_weekly_price', '250000', 'Подписка: неделя (ввод в ₽, хранение в копейках)'),
+	('driver_subscription_monthly_price', '900000', 'Подписка: месяц (ввод в ₽, хранение в копейках)')
 ON CONFLICT (key) DO NOTHING;
 `
 	_, err := db.Exec(schema)
