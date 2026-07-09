@@ -541,11 +541,10 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 	var paymentMethod string
 	var orderAmount sql.NullInt64
 	var surchargeAmount int64
-	// DEPRECATED: uses legacy payment_transactions table as fallback. Migrate to payments table.
 	err = tx.QueryRowContext(ctx, `
 SELECT o.driver_id,
 	COALESCE((SELECT payment_method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1), o.payment_method, 'cash'),
-	COALESCE(rub_to_cents(o.price_total), (SELECT amount FROM payment_transactions WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1)),
+	rub_to_cents(o.price_total),
 	COALESCE(rub_to_cents(o.surcharge_amount), 0)
 FROM orders o
 WHERE o.id = $1
