@@ -243,6 +243,7 @@ moderation_waiting_screen, driver_tax_profile_screen. (Есть дубли/ле�
 | B-29 | git-tracked: `Tow truck-handoff.zip`, `branch-audit/*.diff` | В `branch-audit/*.diff` закоммичены `pk_live_...` ключ и `jwtSecret` литералы; лишние zip/логи/`.bat`/`app.js`. | ⬜ low | Удалить артефакты из git; ротировать засвеченные ключи. |
 | B-30 | `docker-compose.yml:11`; `render.yaml` | Хардкод `POSTGRES_PASSWORD: evik` (только dev); `render.yaml` не объявляет env YooKassa/S3/Firebase/ADMIN_PASSWORD → `log.Fatal` в проде (`config.go:141-172`). | ⬜ low | Объявить обязательные env в render.yaml; секреты в dashboard. |
 | B-31 | `transport/http/order_handler.go:369` | `GetOrder` даёт любому водителю читать `searching`-заказ (пул) — by design, но раскрывает адрес/цену всех заказов. | ⬜ low | Ограничить поля / гео-скоуп для пула. |
+| B-41 | `admin_repository.go:829`, `:1081` | `ListAdminWallets` и `AdminGetDriverDetail` читают `available_balance`, `pending_balance`, `debt_balance` из `driver_wallets` без `rub_to_cents()`. NUMERIC(12,2) рубли сканируются в Go `int64` как целое число (×100 ошибка). Расхождение ×100 в админ-панели. Фикс: миграция на BIGINT-копейки устраняет причину — после неё BIGINT читается напрямую без конвертера. | 🟧 high | Миграция денежных колонок NUMERIC(12,2) → BIGINT (копейки), удаление конвертеров. |
 
 ---
 
