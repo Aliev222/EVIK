@@ -25,14 +25,8 @@ func (noopFinanceRepo) SetDefaultMethod(context.Context, string, string) (*payme
 	return nil, nil
 }
 func (noopFinanceRepo) DeleteMethod(context.Context, string, string) error { return nil }
-func (noopFinanceRepo) ListTransactions(context.Context, string, int) ([]paymentdomain.PaymentTransaction, error) {
-	return nil, nil
-}
 func (noopFinanceRepo) ListClientPayments(context.Context, string, int, int) ([]paymentdomain.PaymentTransaction, error) {
 	return nil, nil
-}
-func (noopFinanceRepo) CreateTransaction(context.Context, *paymentdomain.PaymentTransaction) error {
-	return nil
 }
 func (noopFinanceRepo) CreateOrderPayment(_ context.Context, p *paymentdomain.Payment) (*paymentdomain.Payment, error) {
 	return p, nil

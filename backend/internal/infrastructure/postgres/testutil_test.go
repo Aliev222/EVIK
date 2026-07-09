@@ -84,7 +84,7 @@ func seedOrderRaw(t *testing.T, db *sql.DB, id, userID string) {
 	t.Helper()
 	if _, err := db.Exec(`
 INSERT INTO orders (id, user_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, created_at, updated_at)
-VALUES ($1, $2, 42.0, 47.5, 42.1, 47.6, 'winch', 'created', cents_to_rub(500000), NOW(), NOW())`,
+VALUES ($1, $2, 42.0, 47.5, 42.1, 47.6, 'winch', 'created', 500000, NOW(), NOW())`,
 		id, userID); err != nil {
 		t.Fatalf("insert order %s: %v", id, err)
 	}

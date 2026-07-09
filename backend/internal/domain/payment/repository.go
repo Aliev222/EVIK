@@ -23,9 +23,7 @@ type Repository interface {
 	CreatePendingPaymentMethod(ctx context.Context, payment *Payment, method PaymentMethod) (*AddCardInit, error)
 	SetDefaultMethod(ctx context.Context, userID string, methodID string) (*PaymentMethod, error)
 	DeleteMethod(ctx context.Context, userID string, methodID string) error
-	ListTransactions(ctx context.Context, userID string, limit int) ([]PaymentTransaction, error)
 	ListClientPayments(ctx context.Context, userID string, limit int, offset int) ([]PaymentTransaction, error)
-	CreateTransaction(ctx context.Context, transaction *PaymentTransaction) error
 	CreateOrderPayment(ctx context.Context, payment *Payment) (*Payment, error)
 	CreateSubscriptionPayment(ctx context.Context, payment *Payment, subscription *Subscription) (*Payment, error)
 	GetPayment(ctx context.Context, paymentID string) (*Payment, error)

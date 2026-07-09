@@ -21,7 +21,7 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, cents_to_rub($12), $13, cents_to_rub($14), $15, $16, $17, $18, $19, $20, $21, $22)`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
@@ -68,7 +68,7 @@ func scanNullableString(ns sql.NullString) string {
 func (r *OrderRepository) Update(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 UPDATE orders
-SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = cents_to_rub($9), is_cross_city = $10, surcharge_amount = cents_to_rub($11), surcharge_percent = $12, cancel_reason = $13, payment_method = $14
+SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = $9, is_cross_city = $10, surcharge_amount = $11, surcharge_percent = $12, cancel_reason = $13, payment_method = $14
 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt, ord.PriceTotal, ord.IsCrossCity, ord.SurchargeAmount, ord.SurchargePercent, toNullString(ord.CancelReason), ord.PaymentMethod)
 	return err
@@ -90,8 +90,8 @@ WHERE id        = $1
 RETURNING id, user_id, driver_id,
           pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
           pickup_address, dropoff_address,
-          tow_truck_type, status, rub_to_cents(price_total),
-          is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent,
+          tow_truck_type, status, price_total,
+          is_cross_city, surcharge_amount, surcharge_percent,
           created_at, updated_at, cancelled_at,
           city_id, is_expanded, expanded_at,
           payment_method`
@@ -181,7 +181,7 @@ func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now 
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method
 FROM orders
 WHERE id = $1`
 
@@ -249,7 +249,7 @@ func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.S
 	}
 
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE status = $1
 ORDER BY created_at ASC
@@ -324,7 +324,7 @@ func (r *OrderRepository) ListByStatusAndCity(ctx context.Context, status orderd
 		limit = 20
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE status = $1 AND city_id = $2
 ORDER BY created_at ASC
@@ -337,7 +337,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, statu
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE user_id = $1`
 	args := []any{userID}
@@ -356,7 +356,7 @@ func (r *OrderRepository) ListByDriverID(ctx context.Context, driverID string, s
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE driver_id = $1`
 	args := []any{driverID}
@@ -377,7 +377,7 @@ func (r *OrderRepository) ListSearchingForExpansion(ctx context.Context, olderTh
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE status = 'searching' AND is_expanded = FALSE AND created_at < $1
 ORDER BY created_at ASC
@@ -392,7 +392,7 @@ func (r *OrderRepository) ListExpandedSearching(ctx context.Context, limit int) 
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, rub_to_cents(price_total), is_cross_city, rub_to_cents(surcharge_amount), 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
 FROM orders
 WHERE status = 'searching' AND is_expanded = TRUE
 ORDER BY created_at ASC
@@ -545,14 +545,14 @@ SELECT
 	o.payment_method,
 	COALESCE(p.status, '') AS payment_status,
 	o.financial_status,
-	rub_to_cents(o.price_total) AS price_total,
+	o.price_total AS price_total,
 	COALESCE((
-		SELECT SUM(rub_to_cents(wt.amount))
+		SELECT SUM(wt.amount)
 		FROM wallet_transactions wt
 		WHERE wt.order_id = o.id AND wt.type IN ('commission','cash_commission_debt')
 	), 0) AS commission_amount,
 	COALESCE((
-		SELECT SUM(rub_to_cents(wt.amount))
+		SELECT SUM(wt.amount)
 		FROM wallet_transactions wt
 		WHERE wt.order_id = o.id AND wt.type = 'order_income'
 	), 0) AS driver_amount,
@@ -640,19 +640,19 @@ SELECT
 	o.payment_method,
 	COALESCE(p.status, '') AS payment_status,
 	o.financial_status,
-	rub_to_cents(o.price_total) AS price_total,
+	o.price_total AS price_total,
 	COALESCE((
-		SELECT SUM(rub_to_cents(wt.amount))
+		SELECT SUM(wt.amount)
 		FROM wallet_transactions wt
 		WHERE wt.order_id = o.id AND wt.type IN ('commission','cash_commission_debt')
 	), 0) AS commission_amount,
 	COALESCE((
-		SELECT SUM(rub_to_cents(wt.amount))
+		SELECT SUM(wt.amount)
 		FROM wallet_transactions wt
 		WHERE wt.order_id = o.id AND wt.type = 'order_income'
 	), 0) AS driver_amount,
 	COALESCE((
-		SELECT SUM(rub_to_cents(wt.amount))
+		SELECT SUM(wt.amount)
 		FROM wallet_transactions wt
 		WHERE wt.order_id = o.id AND wt.type = 'cash_commission_debt'
 	), 0) AS cash_commission_hold,
@@ -745,7 +745,7 @@ WHERE o.id = $1`
 
 	// Payment link.
 	const paymentQuery = `
-SELECT id, provider, COALESCE(provider_payment_id, ''), payment_method, rub_to_cents(amount), status, paid_at, created_at
+SELECT id, provider, COALESCE(provider_payment_id, ''), payment_method, amount, status, paid_at, created_at
 FROM payments
 WHERE order_id = $1
 ORDER BY created_at DESC
@@ -774,7 +774,7 @@ LIMIT 1`
 
 	// Wallet transactions linked to the order.
 	const walletTxQuery = `
-SELECT id, driver_id, type, direction, rub_to_cents(amount), status, description, created_at
+SELECT id, driver_id, type, direction, amount, status, description, created_at
 FROM wallet_transactions
 WHERE order_id = $1
 ORDER BY created_at ASC`
@@ -822,7 +822,7 @@ SELECT DISTINCT payout_id FROM wallet_transactions WHERE order_id = $1 AND payou
 			return nil, err
 		}
 		for _, id := range ids {
-			const q = `SELECT id, driver_id, rub_to_cents(amount), status, created_at FROM payouts WHERE id = $1`
+			const q = `SELECT id, driver_id, amount, status, created_at FROM payouts WHERE id = $1`
 			var link orderdomain.AdminOrderPayoutLink
 			if err := r.db.QueryRowContext(ctx, q, id).Scan(&link.ID, &link.DriverID, &link.Amount, &link.Status, &link.CreatedAt); err == nil {
 				details.Payouts = append(details.Payouts, link)
@@ -835,7 +835,7 @@ SELECT DISTINCT payout_id FROM wallet_transactions WHERE order_id = $1 AND payou
 	// Refunds for the payment.
 	if details.Payment != nil {
 		const refundQuery = `
-SELECT id, payment_id, rub_to_cents(amount), status, reason, created_at
+SELECT id, payment_id, amount, status, reason, created_at
 FROM refunds
 WHERE payment_id = $1
 ORDER BY created_at ASC`

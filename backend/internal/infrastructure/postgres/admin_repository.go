@@ -48,37 +48,37 @@ reviews_today AS (
 active_orders AS (
 	SELECT COUNT(*) AS count FROM orders WHERE status IN ('searching', 'accepted', 'arrived', 'in_progress')
 ),
--- Finance KPI. All money in kopecks (rub_to_cents).
+-- Finance KPI. All money in kopecks (BIGINT).
 gmv_today AS (
-	SELECT COALESCE(SUM(rub_to_cents(price_total)), 0) AS amount
+	SELECT COALESCE(SUM(price_total), 0) AS amount
 	FROM orders WHERE status = 'completed' AND created_at >= DATE_TRUNC('day', NOW())
 ),
 gmv_month AS (
-	SELECT COALESCE(SUM(rub_to_cents(price_total)), 0) AS amount
+	SELECT COALESCE(SUM(price_total), 0) AS amount
 	FROM orders WHERE status = 'completed' AND created_at >= DATE_TRUNC('month', NOW())
 ),
 commission_today AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM wallet_transactions
 	WHERE type IN ('commission','cash_commission_debt')
 	AND created_at >= DATE_TRUNC('day', NOW())
 ),
 commission_month AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM wallet_transactions
 	WHERE type IN ('commission','cash_commission_debt')
 	AND created_at >= DATE_TRUNC('month', NOW())
 ),
 payouts_today AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM payouts WHERE status = 'paid' AND created_at >= DATE_TRUNC('day', NOW())
 ),
 payouts_month AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM payouts WHERE status = 'paid' AND created_at >= DATE_TRUNC('month', NOW())
 ),
 payouts_pending AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM payouts WHERE status IN ('created','processing','manual_review')
 ),
 failed_payments AS (
@@ -88,15 +88,15 @@ failed_payouts AS (
 	SELECT COUNT(*) AS count FROM payouts WHERE status = 'failed'
 ),
 subs_today AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM subscriptions WHERE status = 'active' AND created_at >= DATE_TRUNC('day', NOW())
 ),
 subs_month AS (
-	SELECT COALESCE(SUM(rub_to_cents(amount)), 0) AS amount
+	SELECT COALESCE(SUM(amount), 0) AS amount
 	FROM subscriptions WHERE status = 'active' AND created_at >= DATE_TRUNC('month', NOW())
 ),
 cash_debt_total AS (
-	SELECT COALESCE(SUM(rub_to_cents(debt_balance)), 0) AS amount FROM driver_wallets
+	SELECT COALESCE(SUM(debt_balance), 0) AS amount FROM driver_wallets
 )
 SELECT
 	(SELECT count FROM clients) + (SELECT count FROM drivers_count) AS total_users,
@@ -153,7 +153,7 @@ SELECT
 
 	out.GMVByDay, err = r.kpiDailySeries(ctx, `
 SELECT to_char(d::date, 'YYYY-MM-DD') AS day,
-	COALESCE(SUM(rub_to_cents(o.price_total)), 0) AS amount
+	COALESCE(SUM(o.price_total), 0) AS amount
 FROM generate_series(DATE_TRUNC('day', NOW()) - INTERVAL '29 days', DATE_TRUNC('day', NOW()), INTERVAL '1 day') d
 LEFT JOIN orders o
 	ON o.status = 'completed' AND DATE_TRUNC('day', o.created_at) = d
@@ -164,7 +164,7 @@ ORDER BY d`)
 	}
 	out.CommissionByDay, err = r.kpiDailySeries(ctx, `
 SELECT to_char(d::date, 'YYYY-MM-DD') AS day,
-	COALESCE(SUM(rub_to_cents(wt.amount)), 0) AS amount
+	COALESCE(SUM(wt.amount), 0) AS amount
 FROM generate_series(DATE_TRUNC('day', NOW()) - INTERVAL '29 days', DATE_TRUNC('day', NOW()), INTERVAL '1 day') d
 LEFT JOIN wallet_transactions wt
 	ON wt.type IN ('commission','cash_commission_debt') AND DATE_TRUNC('day', wt.created_at) = d
@@ -787,7 +787,7 @@ func (r *AdminRepository) ListAdminPayments(ctx context.Context, limit, offset i
 		return nil, 0, err
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, order_id, user_id, provider, COALESCE(provider_payment_id,''), payment_method, rub_to_cents(amount), currency, status, created_at
+SELECT id, order_id, user_id, provider, COALESCE(provider_payment_id,''), payment_method, amount, currency, status, created_at
 FROM payments ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -825,6 +825,7 @@ func (r *AdminRepository) ListAdminWallets(ctx context.Context, limit, offset in
 	if err := r.db.QueryRowContext(ctx, countQuery, args[2:]...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
+	// balances stored in kopecks (BIGINT) since migration 20260603
 	query := fmt.Sprintf(`
 SELECT id, driver_id, available_balance, pending_balance, debt_balance, currency, updated_at
 FROM driver_wallets %s ORDER BY updated_at DESC NULLS LAST LIMIT $1 OFFSET $2`, where)
@@ -879,7 +880,7 @@ func (r *AdminRepository) ListAdminTransactions(ctx context.Context, limit, offs
 	}
 	query := fmt.Sprintf(`
 SELECT COALESCE(id,''), COALESCE(wallet_id,''), COALESCE(driver_id,''), COALESCE(order_id,''), COALESCE(payment_id,''), COALESCE(payout_id,''),
-	type, direction, rub_to_cents(amount), currency, status, COALESCE(description,''), created_at
+	type, direction, amount, currency, status, COALESCE(description,''), created_at
 FROM wallet_transactions %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`, where)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -918,7 +919,7 @@ func (r *AdminRepository) ListAdminSubscriptions(ctx context.Context, limit, off
 		return nil, 0, err
 	}
 	query := fmt.Sprintf(`
-SELECT COALESCE(id,''), COALESCE(driver_id,''), COALESCE(plan_id,''), COALESCE(payment_id,''), rub_to_cents(amount), currency, status, created_at
+SELECT COALESCE(id,''), COALESCE(driver_id,''), COALESCE(plan_id,''), COALESCE(payment_id,''), amount, currency, status, created_at
 FROM subscriptions %s ORDER BY created_at DESC LIMIT $1 OFFSET $2`, where)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -1077,6 +1078,7 @@ FROM driver_tax_profiles WHERE driver_id = $1 LIMIT 1`
 	}
 
 	// Wallet
+	// balances stored in kopecks (BIGINT) since migration 20260603
 	const walletQuery = `
 SELECT COALESCE(available_balance, 0), COALESCE(pending_balance, 0), COALESCE(debt_balance, 0), COALESCE(currency, 'RUB'), updated_at
 FROM driver_wallets WHERE driver_id = $1 LIMIT 1`
@@ -1140,7 +1142,7 @@ func (r *AdminRepository) ListDriverOrders(ctx context.Context, driverID string,
 SELECT
 	o.id, o.user_id, '', '', o.driver_id, '', '',
 	o.status, o.payment_method, '', '',
-	rub_to_cents(o.price_total), rub_to_cents(o.commission_amount), rub_to_cents(o.driver_amount),
+	o.price_total, o.commission_amount, o.driver_amount,
 	o.created_at, o.completed_at, o.cancelled_at
 FROM orders o
 WHERE o.driver_id = $1

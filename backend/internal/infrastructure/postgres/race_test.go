@@ -34,7 +34,7 @@ func TestAcceptOrder_Race(t *testing.T) {
 
 	_, err := db.Exec(`
 INSERT INTO orders (id, user_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, created_at, updated_at)
-VALUES ($1, $2, 42.0, 47.5, 42.1, 47.6, 'winch', 'searching', cents_to_rub(500000), NOW(), NOW())`,
+VALUES ($1, $2, 42.0, 47.5, 42.1, 47.6, 'winch', 'searching', 500000, NOW(), NOW())`,
 		orderID, userID)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
@@ -132,7 +132,7 @@ func TestWallet_ParallelCredit(t *testing.T) {
 				return
 			}
 
-			if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance + cents_to_rub($1), updated_at = NOW() WHERE driver_id = $2`, amountPerOp, driverID); err != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance + $1, updated_at = NOW() WHERE driver_id = $2`, amountPerOp, driverID); err != nil {
 				t.Errorf("update wallet %d: %v", idx, err)
 				return
 			}
@@ -145,7 +145,7 @@ func TestWallet_ParallelCredit(t *testing.T) {
 	wg.Wait()
 
 	var balance int64
-	if err := db.QueryRow(`SELECT rub_to_cents(available_balance) FROM driver_wallets WHERE driver_id = $1`, driverID).Scan(&balance); err != nil {
+	if err := db.QueryRow(`SELECT available_balance FROM driver_wallets WHERE driver_id = $1`, driverID).Scan(&balance); err != nil {
 		t.Fatalf("query balance: %v", err)
 	}
 
@@ -177,7 +177,7 @@ func TestWallet_ParallelIdempotentKey(t *testing.T) {
 
 	_, err = db.Exec(`
 INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, created_at, updated_at)
-VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', cents_to_rub(500000), NOW(), NOW())`,
+VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', 500000, NOW(), NOW())`,
 		orderID, userID, driverID)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
@@ -262,7 +262,7 @@ func TestWallet_InsufficientFunds(t *testing.T) {
 	}
 
 	var negative int64
-	if err := db.QueryRow(`SELECT rub_to_cents(available_balance) FROM driver_wallets WHERE driver_id = $1`, driverID).Scan(&negative); err != nil {
+	if err := db.QueryRow(`SELECT available_balance FROM driver_wallets WHERE driver_id = $1`, driverID).Scan(&negative); err != nil {
 		t.Fatalf("query balance: %v", err)
 	}
 	if negative < 0 {

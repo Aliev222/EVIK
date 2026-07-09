@@ -31,6 +31,14 @@ var (
 	ErrOrderNotOwned = errors.New("order does not belong to user")
 )
 
+type Clock interface {
+	Now() time.Time
+}
+
+type IDGenerator interface {
+	NewID() string
+}
+
 type PricingService interface {
 	CalculatePrice(ctx context.Context, input pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error)
 }

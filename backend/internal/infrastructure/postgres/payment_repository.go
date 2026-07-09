@@ -125,10 +125,10 @@ INSERT INTO payments (
 	id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
 	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at
 )
-VALUES ($1, NULL, NULL, $2, $3, $4, $5, $6, cents_to_rub($7), $8, $9, $10, $11, NULL, $12, $13)
+VALUES ($1, NULL, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, $12, $13)
 ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = payments.updated_at
 RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
-	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
 		p.ID, p.UserID, string(p.Provider), p.ProviderPaymentID, string(p.PaymentMethod), string(p.Purpose),
 		p.Amount, p.Currency, string(p.Status), p.ConfirmationURL, p.IdempotencyKey, p.CreatedAt, p.UpdatedAt))
 	if err != nil {
@@ -252,45 +252,12 @@ WHERE id = (
 	return tx.Commit()
 }
 
-func (r *PaymentRepository) ListTransactions(ctx context.Context, userID string, limit int) ([]paymentdomain.PaymentTransaction, error) {
-	// DEPRECATED: uses legacy payment_transactions table. Migrate to payments table.
-	rows, err := r.db.QueryContext(ctx, `
-SELECT id, user_id, order_id, title, amount, status, created_at
-FROM payment_transactions
-WHERE user_id = $1
-ORDER BY created_at DESC
-LIMIT $2
-`, userID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	transactions := make([]paymentdomain.PaymentTransaction, 0)
-	for rows.Next() {
-		var transaction paymentdomain.PaymentTransaction
-		if err := rows.Scan(
-			&transaction.ID,
-			&transaction.UserID,
-			&transaction.OrderID,
-			&transaction.Title,
-			&transaction.Amount,
-			&transaction.Status,
-			&transaction.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		transactions = append(transactions, transaction)
-	}
-	return transactions, rows.Err()
-}
-
 func (r *PaymentRepository) ListClientPayments(ctx context.Context, userID string, limit int, offset int) ([]paymentdomain.PaymentTransaction, error) {
 	if limit <= 0 {
 		limit = 20
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT p.id, p.user_id, COALESCE(p.order_id, ''), COALESCE('Заказ №' || p.order_id, 'Оплата'), rub_to_cents(p.amount), p.status, COALESCE(p.paid_at, p.created_at)
+SELECT p.id, p.user_id, COALESCE(p.order_id, ''), COALESCE('Заказ №' || p.order_id, 'Оплата'), p.amount, p.status, COALESCE(p.paid_at, p.created_at)
 FROM payments p
 LEFT JOIN orders o ON o.id = p.order_id
 WHERE p.user_id = $1
@@ -322,29 +289,6 @@ LIMIT $2 OFFSET $3
 	return transactions, rows.Err()
 }
 
-func (r *PaymentRepository) CreateTransaction(ctx context.Context, transaction *paymentdomain.PaymentTransaction) error {
-	// DEPRECATED: uses legacy payment_transactions table. Migrate to payments table.
-	const query = `
-		INSERT INTO payment_transactions (id, user_id, order_id, title, amount, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-
-	_, err := r.db.ExecContext(ctx, query,
-		transaction.ID,
-		transaction.UserID,
-		transaction.OrderID,
-		transaction.Title,
-		transaction.Amount,
-		transaction.Status,
-		transaction.CreatedAt,
-	)
-	if err != nil {
-		return err
-	}
-	_, err = r.db.ExecContext(ctx, `UPDATE orders SET price_total = cents_to_rub($1), updated_at = NOW() WHERE id = $2`, transaction.Amount, transaction.OrderID)
-	return err
-}
-
 func (r *PaymentRepository) CreateOrderPayment(ctx context.Context, p *paymentdomain.Payment) (*paymentdomain.Payment, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -356,10 +300,10 @@ INSERT INTO payments (
 	id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
 	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, cents_to_rub($9), $10, $11, $12, $13, $14, $15, $16)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = payments.updated_at
 RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
-	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`
 	created, err := scanPayment(tx.QueryRowContext(ctx, query,
 		p.ID, p.OrderID, p.DriverID, p.UserID, string(p.Provider), p.ProviderPaymentID, string(p.PaymentMethod), string(p.Purpose),
 		p.Amount, p.Currency, string(p.Status), p.ConfirmationURL, p.IdempotencyKey, p.PaidAt, p.CreatedAt, p.UpdatedAt,
@@ -368,7 +312,7 @@ RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payme
 		return nil, err
 	}
 	if p.OrderID != nil {
-		if _, err := tx.ExecContext(ctx, `UPDATE orders SET price_total = cents_to_rub($1), payment_method = $2, updated_at = NOW() WHERE id = $3`, p.Amount, string(p.PaymentMethod), *p.OrderID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE orders SET price_total = $1, payment_method = $2, updated_at = NOW() WHERE id = $3`, p.Amount, string(p.PaymentMethod), *p.OrderID); err != nil {
 			return nil, err
 		}
 	}
@@ -390,10 +334,10 @@ INSERT INTO payments (
 	id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
 	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at
 )
-VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, cents_to_rub($8), $9, $10, $11, $12, NULL, $13, $14)
+VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NULL, $13, $14)
 ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = payments.updated_at
 RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
-	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
 		p.ID, p.DriverID, p.UserID, string(p.Provider), p.ProviderPaymentID, string(p.PaymentMethod), string(p.Purpose),
 		p.Amount, p.Currency, string(p.Status), p.ConfirmationURL, p.IdempotencyKey, p.CreatedAt, p.UpdatedAt,
 	))
@@ -402,7 +346,7 @@ RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payme
 	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO subscriptions (id, driver_id, plan_id, payment_id, amount, currency, status, starts_at, ends_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, cents_to_rub($5), $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (payment_id) DO NOTHING`,
 		s.ID, s.DriverID, s.PlanID, created.ID, s.Amount, s.Currency, string(s.Status), s.StartsAt, s.EndsAt, s.CreatedAt, s.UpdatedAt)
 	if err != nil {
@@ -440,7 +384,7 @@ UPDATE payments
 SET status = $2, paid_at = COALESCE($3, paid_at), updated_at = NOW()
 WHERE provider_payment_id = $1
 RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
-	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
 		providerPaymentID, status, paidAt))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, paymentdomain.ErrPaymentNotFound
@@ -544,8 +488,8 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 	err = tx.QueryRowContext(ctx, `
 SELECT o.driver_id,
 	COALESCE((SELECT payment_method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1), o.payment_method, 'cash'),
-	rub_to_cents(o.price_total),
-	COALESCE(rub_to_cents(o.surcharge_amount), 0)
+	o.price_total,
+	COALESCE(o.surcharge_amount, 0)
 FROM orders o
 WHERE o.id = $1
 FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAmount)
@@ -603,7 +547,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 
 	now := time.Now().UTC()
 	if paymentMethod == string(paymentdomain.PaymentMethodCash) {
-		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance + cents_to_rub($1), updated_at = NOW() WHERE id = $2`, commission, walletID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance + $1, updated_at = NOW() WHERE id = $2`, commission, walletID); err != nil {
 			return err
 		}
 		if err := insertWalletTx(ctx, tx, walletID, driverID.String, &orderID, nullableString(paymentID), nil, paymentdomain.WalletTypeCashCommissionDebt, paymentdomain.WalletDirectionCredit, commission, paymentdomain.WalletTxStatusSucceeded, "Tow Truck commission debt for cash order", idempotencyKey+":cash_debt", nil); err != nil {
@@ -617,12 +561,12 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 	}
 
 	var debt int64
-	if err := tx.QueryRowContext(ctx, `SELECT rub_to_cents(debt_balance) FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&debt); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT debt_balance FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&debt); err != nil {
 		return err
 	}
 	repayment := minInt64(driverAmount, debt)
 	if repayment > 0 {
-		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance - cents_to_rub($1), updated_at = NOW() WHERE id = $2`, repayment, walletID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET debt_balance = debt_balance - $1, updated_at = NOW() WHERE id = $2`, repayment, walletID); err != nil {
 			return err
 		}
 		if err := insertWalletTx(ctx, tx, walletID, driverID.String, &orderID, nullableString(paymentID), nil, paymentdomain.WalletTypeDebtRepayment, paymentdomain.WalletDirectionDebit, repayment, paymentdomain.WalletTxStatusSucceeded, "Debt repayment from card order", idempotencyKey+":debt_repayment", nil); err != nil {
@@ -632,7 +576,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 	pending := driverAmount - repayment
 	if pending > 0 {
 		availableAfter := now.Add(time.Duration(holdSeconds) * time.Second)
-		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET pending_balance = pending_balance + cents_to_rub($1), updated_at = NOW() WHERE id = $2`, pending, walletID); err != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET pending_balance = pending_balance + $1, updated_at = NOW() WHERE id = $2`, pending, walletID); err != nil {
 			return err
 		}
 		if err := insertWalletTx(ctx, tx, walletID, driverID.String, &orderID, nullableString(paymentID), nil, paymentdomain.WalletTypeOrderIncome, paymentdomain.WalletDirectionCredit, pending, paymentdomain.WalletTxStatusPending, "Driver income for card order", idempotencyKey+":order_income", &availableAfter); err != nil {
@@ -675,7 +619,7 @@ func (r *PaymentRepository) ListReleasablePendingTransactions(ctx context.Contex
 		limit = 100
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
+SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, amount, currency, status, description, idempotency_key, available_after, created_at
 FROM wallet_transactions
 WHERE type = 'order_income' AND status = 'pending' AND available_after <= NOW()
 ORDER BY created_at ASC
@@ -708,7 +652,7 @@ func (r *PaymentRepository) MarkTransactionReleased(ctx context.Context, txID st
 		orderID, paymentID     sql.NullString
 	}
 	err = tx.QueryRowContext(ctx, `
-SELECT id, wallet_id, driver_id, rub_to_cents(amount), order_id, payment_id
+SELECT id, wallet_id, driver_id, amount, order_id, payment_id
 FROM wallet_transactions
 WHERE id = $1 AND type = 'order_income' AND status = 'pending' AND available_after <= NOW()
 FOR UPDATE`, txID).Scan(&item.id, &item.walletID, &item.driverID, &item.amount, &item.orderID, &item.paymentID)
@@ -723,7 +667,7 @@ FOR UPDATE`, txID).Scan(&item.id, &item.walletID, &item.driverID, &item.amount, 
 	}
 	if _, err := tx.ExecContext(ctx, `
 UPDATE driver_wallets
-SET pending_balance = pending_balance - cents_to_rub($1), available_balance = available_balance + cents_to_rub($1), updated_at = NOW()
+SET pending_balance = pending_balance - $1, available_balance = available_balance + $1, updated_at = NOW()
 WHERE id = $2`, item.amount, item.walletID); err != nil {
 		return err
 	}
@@ -757,7 +701,7 @@ func (r *PaymentRepository) GetDriverWallet(ctx context.Context, driverID string
 
 func (r *PaymentRepository) ListWalletTransactions(ctx context.Context, driverID string, limit int) ([]paymentdomain.WalletTransaction, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
+SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, amount, currency, status, description, idempotency_key, available_after, created_at
 FROM wallet_transactions
 WHERE driver_id = $1
 AND type <> 'pending_to_available'
@@ -780,7 +724,7 @@ LIMIT $2`, driverID, limit)
 
 func (r *PaymentRepository) ListPayouts(ctx context.Context, driverID string, limit int) ([]paymentdomain.Payout, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE driver_id = $1 ORDER BY created_at DESC LIMIT $2`, driverID, limit)
 	if err != nil {
 		return nil, err
@@ -852,7 +796,7 @@ func (r *PaymentRepository) CreatePayout(ctx context.Context, payout *paymentdom
 	defer tx.Rollback()
 	if idempotencyKey != "" {
 		existing, err := scanPayout(tx.QueryRowContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE idempotency_key = $1`, idempotencyKey))
 		if err == nil {
 			return existing, tx.Commit()
@@ -866,7 +810,7 @@ FROM payouts WHERE idempotency_key = $1`, idempotencyKey))
 		return nil, err
 	}
 	var available int64
-	if err := tx.QueryRowContext(ctx, `SELECT rub_to_cents(available_balance) FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&available); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT available_balance FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&available); err != nil {
 		return nil, err
 	}
 	if payout.Amount <= 0 {
@@ -878,9 +822,9 @@ FROM payouts WHERE idempotency_key = $1`, idempotencyKey))
 	payout.WalletID = walletID
 	created, err := scanPayout(tx.QueryRowContext(ctx, `
 INSERT INTO payouts (id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, cents_to_rub($6), $7, $8, $9, $10, $11, $12, $13)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (idempotency_key) WHERE idempotency_key <> '' DO UPDATE SET updated_at = payouts.updated_at
-RETURNING id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
+RETURNING id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
 		payout.ID, payout.DriverID, payout.WalletID, string(payout.Provider), payout.ProviderPayoutID, payout.Amount, payout.Currency, string(payout.Status), payout.FailureReason, idempotencyKey, payout.PaidAt, payout.CreatedAt, payout.UpdatedAt))
 	if err != nil {
 		return nil, err
@@ -900,7 +844,7 @@ func (r *PaymentRepository) MarkPayoutPaid(ctx context.Context, payoutID, provid
 	var payout paymentdomain.Payout
 	var provider, status string
 	err = tx.QueryRowContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE id = $1 FOR UPDATE`, payoutID).Scan(&payout.ID, &payout.DriverID, &payout.WalletID, &provider, &payout.ProviderPayoutID, &payout.Amount, &payout.Currency, &status, &payout.FailureReason, &payout.IdempotencyKey, &payout.PaidAt, &payout.CreatedAt, &payout.UpdatedAt)
 	if err != nil {
 		return err
@@ -911,7 +855,7 @@ FROM payouts WHERE id = $1 FOR UPDATE`, payoutID).Scan(&payout.ID, &payout.Drive
 	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, payout.WalletID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - cents_to_rub($1), updated_at = NOW() WHERE id = $2`, payout.Amount, payout.WalletID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - $1, updated_at = NOW() WHERE id = $2`, payout.Amount, payout.WalletID); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE payouts SET status = 'paid', provider_payout_id = $2, paid_at = NOW(), updated_at = NOW() WHERE id = $1`, payoutID, providerPayoutID); err != nil {
@@ -931,7 +875,7 @@ func (r *PaymentRepository) MarkPayoutFailed(ctx context.Context, payoutID, reas
 func (r *PaymentRepository) ListStuckPayouts(ctx context.Context, olderThan time.Duration) ([]paymentdomain.Payout, error) {
 	threshold := time.Now().Add(-olderThan)
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts
 WHERE status = 'created'
   AND created_at < $1
@@ -954,7 +898,7 @@ ORDER BY created_at ASC`, threshold)
 // GetPayout fetches a single payout by ID. Returns ErrPayoutNotFound on missing.
 func (r *PaymentRepository) GetPayout(ctx context.Context, payoutID string) (*paymentdomain.Payout, error) {
 	const query = `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE id = $1`
 	payout, err := scanPayout(r.db.QueryRowContext(ctx, query, payoutID))
 	if err != nil {
@@ -979,7 +923,7 @@ func (r *PaymentRepository) ApprovePayout(ctx context.Context, payoutID, moderat
 	defer tx.Rollback()
 
 	payout, err := scanPayout(tx.QueryRowContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -999,7 +943,7 @@ FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
 	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, payout.WalletID); err != nil {
 		return nil, err
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - cents_to_rub($1), updated_at = $2 WHERE id = $3`, payout.Amount, now, payout.WalletID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - $1, updated_at = $2 WHERE id = $3`, payout.Amount, now, payout.WalletID); err != nil {
 		return nil, err
 	}
 
@@ -1016,7 +960,7 @@ SET status = 'paid',
 	paid_at = $3,
 	updated_at = $3
 WHERE id = $1
-RETURNING id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
+RETURNING id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
 		payoutID, providerArg, now))
 	if err != nil {
 		return nil, err
@@ -1062,7 +1006,7 @@ func (r *PaymentRepository) RejectPayout(ctx context.Context, payoutID, moderato
 	defer tx.Rollback()
 
 	payout, err := scanPayout(tx.QueryRowContext(ctx, `
-SELECT id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1080,7 +1024,7 @@ SET status = 'cancelled',
 	failure_reason = $2,
 	updated_at = $3
 WHERE id = $1
-RETURNING id, driver_id, wallet_id, provider, provider_payout_id, rub_to_cents(amount), currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
+RETURNING id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at`,
 		payoutID, reason, now))
 	if err != nil {
 		return nil, err
@@ -1188,7 +1132,7 @@ func (r *PaymentRepository) ListAdminRefunds(ctx context.Context, filter payment
 	}
 
 	listSQL := `
-SELECT id, payment_id, provider_refund_id, rub_to_cents(amount), currency, reason, status, idempotency_key, created_at, updated_at
+SELECT id, payment_id, provider_refund_id, amount, currency, reason, status, idempotency_key, created_at, updated_at
 FROM refunds r
 ` + where + `
 ORDER BY r.created_at DESC
@@ -1215,7 +1159,7 @@ LIMIT ` + argRef(len(args)+1) + ` OFFSET ` + argRef(len(args)+2)
 // single order, ordered chronologically. Amounts in kopecks.
 func (r *PaymentRepository) ListWalletTransactionsByOrder(ctx context.Context, orderID string) ([]paymentdomain.WalletTransaction, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, rub_to_cents(amount), currency, status, description, idempotency_key, available_after, created_at
+SELECT id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, amount, currency, status, description, idempotency_key, available_after, created_at
 FROM wallet_transactions
 WHERE order_id = $1
 ORDER BY created_at ASC`, orderID)
@@ -1267,9 +1211,9 @@ WHERE payment_id = $1`, paymentID)
 func (r *PaymentRepository) CreateRefund(ctx context.Context, refund *paymentdomain.Refund) (*paymentdomain.Refund, error) {
 	return scanRefund(r.db.QueryRowContext(ctx, `
 INSERT INTO refunds (id, payment_id, provider_refund_id, amount, currency, reason, status, idempotency_key, created_at, updated_at)
-VALUES ($1, $2, $3, cents_to_rub($4), $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = refunds.updated_at
-RETURNING id, payment_id, provider_refund_id, rub_to_cents(amount), currency, reason, status, idempotency_key, created_at, updated_at`,
+RETURNING id, payment_id, provider_refund_id, amount, currency, reason, status, idempotency_key, created_at, updated_at`,
 		refund.ID, refund.PaymentID, refund.ProviderRefundID, refund.Amount, refund.Currency, refund.Reason, string(refund.Status), refund.IdempotencyKey, refund.CreatedAt, refund.UpdatedAt))
 }
 
@@ -1279,14 +1223,14 @@ func (r *PaymentRepository) ExportFinanceReport(ctx context.Context, reportType 
 		reportType = "wallet_transactions"
 	}
 	queries := map[string]string{
-		"orders":              `SELECT id, user_id, COALESCE(driver_id,''), status, rub_to_cents(price_total)::TEXT, payment_method, created_at::TEXT FROM orders ORDER BY created_at DESC`,
-		"payments":            `SELECT id, COALESCE(order_id,''), user_id, provider, COALESCE(provider_payment_id,''), payment_method, purpose, rub_to_cents(amount)::TEXT, currency, status, created_at::TEXT FROM payments ORDER BY created_at DESC`,
-		"payouts":             `SELECT id, driver_id, rub_to_cents(amount)::TEXT, currency, status, COALESCE(provider_payout_id,''), created_at::TEXT FROM payouts ORDER BY created_at DESC`,
-		"wallets":             `SELECT id, driver_id, rub_to_cents(available_balance)::TEXT, rub_to_cents(pending_balance)::TEXT, rub_to_cents(debt_balance)::TEXT, currency, updated_at::TEXT FROM driver_wallets ORDER BY updated_at DESC`,
-		"commissions":         `SELECT id, driver_id, COALESCE(order_id,''), type, rub_to_cents(amount)::TEXT, currency, created_at::TEXT FROM wallet_transactions WHERE type IN ('commission','cash_commission_debt','debt_repayment') ORDER BY created_at DESC`,
-		"subscriptions":       `SELECT id, driver_id, plan_id, payment_id, rub_to_cents(amount)::TEXT, currency, status, created_at::TEXT FROM subscriptions ORDER BY created_at DESC`,
-		"cash_debts":          `SELECT id, driver_id, COALESCE(order_id,''), rub_to_cents(amount)::TEXT, status, created_at::TEXT FROM wallet_transactions WHERE type = 'cash_commission_debt' ORDER BY created_at DESC`,
-		"wallet_transactions": `SELECT id, wallet_id, driver_id, COALESCE(order_id,''), COALESCE(payment_id,''), COALESCE(payout_id,''), type, direction, rub_to_cents(amount)::TEXT, currency, status, description, created_at::TEXT FROM wallet_transactions ORDER BY created_at DESC`,
+		"orders":              `SELECT id, user_id, COALESCE(driver_id,''), status, price_total::TEXT, payment_method, created_at::TEXT FROM orders ORDER BY created_at DESC`,
+		"payments":            `SELECT id, COALESCE(order_id,''), user_id, provider, COALESCE(provider_payment_id,''), payment_method, purpose, amount::TEXT, currency, status, created_at::TEXT FROM payments ORDER BY created_at DESC`,
+		"payouts":             `SELECT id, driver_id, amount::TEXT, currency, status, COALESCE(provider_payout_id,''), created_at::TEXT FROM payouts ORDER BY created_at DESC`,
+		"wallets":             `SELECT id, driver_id, available_balance::TEXT, pending_balance::TEXT, debt_balance::TEXT, currency, updated_at::TEXT FROM driver_wallets ORDER BY updated_at DESC`,
+		"commissions":         `SELECT id, driver_id, COALESCE(order_id,''), type, amount::TEXT, currency, created_at::TEXT FROM wallet_transactions WHERE type IN ('commission','cash_commission_debt','debt_repayment') ORDER BY created_at DESC`,
+		"subscriptions":       `SELECT id, driver_id, plan_id, payment_id, amount::TEXT, currency, status, created_at::TEXT FROM subscriptions ORDER BY created_at DESC`,
+		"cash_debts":          `SELECT id, driver_id, COALESCE(order_id,''), amount::TEXT, status, created_at::TEXT FROM wallet_transactions WHERE type = 'cash_commission_debt' ORDER BY created_at DESC`,
+		"wallet_transactions": `SELECT id, wallet_id, driver_id, COALESCE(order_id,''), COALESCE(payment_id,''), COALESCE(payout_id,''), type, direction, amount::TEXT, currency, status, description, created_at::TEXT FROM wallet_transactions ORDER BY created_at DESC`,
 	}
 	query, ok := queries[reportType]
 	if !ok {
@@ -1324,15 +1268,15 @@ func (r *PaymentRepository) ExportFinanceReport(ctx context.Context, reportType 
 
 func paymentSelectSQL() string {
 	return `SELECT id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
-	rub_to_cents(amount), currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at FROM payments`
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at FROM payments`
 }
 
 func walletSelectSQL() string {
-	return `SELECT id, driver_id, rub_to_cents(available_balance), rub_to_cents(pending_balance), rub_to_cents(debt_balance), currency, created_at, updated_at FROM driver_wallets`
+	return `SELECT id, driver_id, available_balance, pending_balance, debt_balance, currency, created_at, updated_at FROM driver_wallets`
 }
 
 func subscriptionSelectSQL() string {
-	return `SELECT id, driver_id, plan_id, payment_id, rub_to_cents(amount), currency, status, starts_at, ends_at, created_at, updated_at FROM subscriptions `
+	return `SELECT id, driver_id, plan_id, payment_id, amount, currency, status, starts_at, ends_at, created_at, updated_at FROM subscriptions `
 }
 
 func scanPayment(row interface{ Scan(dest ...any) error }) (*paymentdomain.Payment, error) {
@@ -1440,7 +1384,7 @@ RETURNING id`, "wallet_"+driverID, driverID).Scan(&walletID)
 func insertWalletTx(ctx context.Context, tx *sql.Tx, walletID, driverID string, orderID, paymentID, payoutID *string, typ paymentdomain.WalletTransactionType, direction paymentdomain.WalletDirection, amount int64, status paymentdomain.WalletTransactionStatus, description, idempotencyKey string, availableAfter *time.Time) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO wallet_transactions (id, wallet_id, driver_id, order_id, payment_id, payout_id, type, direction, amount, currency, status, description, idempotency_key, available_after, created_at)
-VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, cents_to_rub($8), 'RUB', $9, $10, $11, $12, NOW())
+VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, 'RUB', $9, $10, $11, $12, NOW())
 ON CONFLICT (idempotency_key) DO NOTHING`,
 		walletID, driverID, orderID, paymentID, payoutID, string(typ), string(direction), amount, string(status), description, idempotencyKey, availableAfter)
 	return err

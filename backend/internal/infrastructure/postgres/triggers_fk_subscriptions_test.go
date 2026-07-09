@@ -140,7 +140,7 @@ func TestFK_WalletTransactionOrder(t *testing.T) {
 
 	_, err := db.Exec(`
 		INSERT INTO wallet_transactions (id, wallet_id, driver_id, order_id, type, direction, amount, currency, status, description, idempotency_key, created_at)
-		VALUES ($1, $2, $3, $4, 'order_income', 'credit', cents_to_rub(1000), 'RUB', 'pending', 'test', $5, NOW())`,
+		VALUES ($1, $2, $3, $4, 'order_income', 'credit', 1000, 'RUB', 'pending', 'test', $5, NOW())`,
 		"wtx-"+uuid(), "wallet_"+driverID, driverID, "nonexistent-order-id", "ik-fk-"+uuid())
 	if err == nil {
 		t.Fatal("expected FK violation for non-existent order_id, got nil")

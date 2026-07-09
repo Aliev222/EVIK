@@ -34,7 +34,7 @@ func seedOrder(t *testing.T, db *sql.DB) (userID, driverID, orderID string) {
 	orderID = "order-" + uuid()
 	if _, err := db.Exec(`
 INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, created_at, updated_at)
-VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', cents_to_rub($4), NOW(), NOW())`,
+VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', $4, NOW(), NOW())`,
 		orderID, userID, driverID, int64(500000)); err != nil {
 		t.Fatalf("insert order: %v", err)
 	}
@@ -65,7 +65,7 @@ func seedOrderWithAmountAndSurcharge(t *testing.T, db *sql.DB, totalCents, surch
 	orderID = "order-" + uuid()
 	if _, err := db.Exec(`
 	INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, surcharge_amount, is_cross_city, created_at, updated_at)
-	VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', cents_to_rub($4), cents_to_rub($5), $6, NOW(), NOW())`,
+	VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', $4, $5, $6, NOW(), NOW())`,
 		orderID, userID, driverID, totalCents, surchargeCents, surchargeCents > 0); err != nil {
 		t.Fatalf("insert order: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestSplitInvariant_CardOrder(t *testing.T) {
 	userID, driverID, orderID := seedOrderWithAmountAndSurcharge(t, db, 500000, 0)
 
 	if _, err := db.Exec(`INSERT INTO payments (id, order_id, user_id, provider, payment_method, purpose, amount, currency, status, idempotency_key, created_at, updated_at)
-		VALUES ($1, $2, $3, 'yookassa', 'card', 'order', cents_to_rub(500000), 'RUB', 'succeeded', $4, NOW(), NOW())`,
+		VALUES ($1, $2, $3, 'yookassa', 'card', 'order', 500000, 'RUB', 'succeeded', $4, NOW(), NOW())`,
 		"pay-"+uuid(), orderID, userID, "ik-pay-"+uuid()); err != nil {
 		t.Fatalf("insert payment: %v", err)
 	}
