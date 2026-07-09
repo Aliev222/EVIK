@@ -94,12 +94,6 @@ func runMigrations(dsn string, logger *log.Logger) error {
 		return err
 	}
 
-	logger.Printf("ensuring base schema (ensureSchema) before goose migrations...")
-	if err := app.EnsureSchema(db); err != nil {
-		return err
-	}
-	logger.Printf("base schema ensured")
-
 	logger.Printf("running database migrations...")
 	if err := goose.Up(db, "migrations"); err != nil {
 		return err
