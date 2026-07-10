@@ -156,14 +156,6 @@ class _NoopDriverStatusController implements DriverStatusController {
   Future<void> cancelOrder(String orderId, String reason) async {}
 
   @override
-  Future<void> completeOrder(
-    String orderId,
-    double finalPrice, {
-    String? deliveryPhotoPath,
-    String? comment,
-  }) async {}
-
-  @override
   Future<void> toggleOnlineStatus() async {}
 
   @override

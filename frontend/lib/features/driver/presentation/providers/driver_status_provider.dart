@@ -9,7 +9,6 @@ import 'package:tow_truck_frontend/features/order/presentation/providers/order_p
 import 'package:tow_truck_frontend/features/driver/data/repository/driver_repository.dart';
 import 'package:tow_truck_frontend/features/driver/data/services/driver_location_service.dart';
 import 'package:tow_truck_frontend/features/driver/data/services/driver_notification_service.dart';
-import 'package:tow_truck_frontend/features/driver/data/services/order_status_service.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'driver_provider.dart';
 
@@ -71,12 +70,6 @@ abstract class DriverStatusController {
   Future<void> updateLocation(double lat, double lng);
   Future<void> acceptOrder(String orderId);
   Future<void> updateOrderStatus(OrderStatus status);
-  Future<void> completeOrder(
-    String orderId,
-    double finalPrice, {
-    String? deliveryPhotoPath,
-    String? comment,
-  });
   Future<void> cancelOrder(String orderId, String reason);
 }
 
@@ -93,7 +86,6 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
   final DriverRepository _driverRepository;
   final OrderRepository _orderRepository;
   final DriverLocationService _locationService = DriverLocationService();
-  final OrderStatusService _orderStatusService = OrderStatusService();
   final DriverNotificationService _notificationService =
       DriverNotificationService();
 
@@ -268,21 +260,6 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
 
     await _orderRepository.updateOrderStatus(order.id, status);
     state = state.copyWith(currentOrder: order.copyWith(status: status));
-  }
-
-  @override
-  Future<void> completeOrder(
-    String orderId,
-    double finalPrice, {
-    String? deliveryPhotoPath,
-    String? comment,
-  }) async {
-    if (deliveryPhotoPath != null && deliveryPhotoPath.isNotEmpty) {
-      await _orderStatusService.uploadDeliveryPhoto(orderId, deliveryPhotoPath);
-    }
-
-    await _orderRepository.completeOrder(orderId, finalPrice);
-    state = state.copyWith(clearCurrentOrder: true);
   }
 
   @override
