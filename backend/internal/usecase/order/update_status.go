@@ -2,10 +2,13 @@ package order
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
 )
+
+var ErrCompletionRequiresFinalize = errors.New("завершение заказа доступно только через /finalize")
 
 type UpdateStatusUseCase struct {
 	orderRepo      orderdomain.Repository
@@ -21,6 +24,10 @@ func NewUpdateStatusUseCase(orderRepo orderdomain.Repository, driverRepo DriverO
 }
 
 func (uc *UpdateStatusUseCase) Execute(ctx context.Context, orderID string, next orderdomain.Status) (*orderdomain.Order, error) {
+	if next == orderdomain.StatusCompleted {
+		return nil, ErrCompletionRequiresFinalize
+	}
+
 	ord, err := uc.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
 		return nil, err

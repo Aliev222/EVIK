@@ -716,6 +716,8 @@ func (h *OrderHandler) writeOrderError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, err)
 	case errors.Is(err, orderdomain.ErrOrderAlreadyTaken):
 		h.writeError(w, http.StatusConflict, err)
+	case errors.Is(err, orderuc.ErrCompletionRequiresFinalize):
+		h.writeError(w, http.StatusBadRequest, err)
 	default:
 		h.writeError(w, http.StatusInternalServerError, err)
 	}
