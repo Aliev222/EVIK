@@ -247,6 +247,7 @@ moderation_waiting_screen, driver_tax_profile_screen. (Есть дубли/ле�
 | B-43 | `infrastructure/postgres/order_repository.go:549-558` | Админка показывает 0 дохода водителя по наличным заказам. `driver_amount` считается как `SUM(wt.amount) WHERE type='order_income'`, для наличных этой строки нет. | 🟧 high | B-10: хранить `driver_amount` в самой таблице `orders`. |
 | B-44 | `usecase/payment/finance.go:399-423` | `CompleteOrderFinancially` (tx1) и `orderRepo.Update(status=completed)` (tx2) — две отдельные транзакции. При падении между ними деньги начислены, статус не обновлён, заказ не попадёт в выборку заработка. | 🟨 medium | Объединить в одну транзакцию (связано с B-03). |
 | B-45 | `transport/http/order_handler.go:525-549`; `router.go:80`; `usecase/order/update_status.go:23` | `POST /orders/{orderID}/status` (RoleDriver, RoleAdmin) принимает `{"status":"completed"}` и переводит заказ в `completed` БЕЗ `CompleteOrderFinancially`. Клиент не платит, водителю не начислено, комиссия/долг не зафиксированы. | 🟥 critical | Запретить `completed` через общий эндпоинт → ошибка; CHECK-констрейнт: `completed` → `financially_completed_at IS NOT NULL`. |
+| B-46 | `frontend/test/ui_audit_screens_test.dart` | Flutter-тесты `ClientHomeScreen` и `DriverHomeScreen` падают на pending-таймере от `geolocator.getCurrentPosition` (10s). CI бы их не пропустил. | ⬜ low | Мокать `Geolocator` в тестах или выставлять `pump` с `Duration` для таймера. |
 
 ---
 
