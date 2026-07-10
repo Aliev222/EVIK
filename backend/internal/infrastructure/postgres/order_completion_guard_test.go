@@ -3,7 +3,10 @@
 package postgres_test
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestOrderCannotBeCompletedWithoutFinancialClosure(t *testing.T) {
@@ -20,8 +23,9 @@ func TestOrderCannotBeCompletedWithoutFinancialClosure(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected constraint violation when completing order without financially_completed_at, got nil")
 	}
-	if err.Error() != `pq: new row for relation "orders" violates check constraint "chk_orders_completed_financially"` {
-		t.Fatalf("unexpected error: %v", err)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.ConstraintName != "chk_orders_completed_financially" {
+		t.Fatalf("expected check constraint violation on chk_orders_completed_financially, got: %v", err)
 	}
 
 	_, err = db.Exec(`UPDATE orders SET status = 'completed', financially_completed_at = NOW() WHERE id = $1`, orderID)
