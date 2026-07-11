@@ -62,16 +62,14 @@ func TestRepeatedWebhookIsIgnoredBeforeFinancialSideEffects(t *testing.T) {
 	uc := newTestFinanceUseCase(repo, now)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"provider-payment-1","status":"succeeded","paid":true,"metadata":{"purpose":"order","order_id":"order-1"}}}`)
 
-	if err := uc.HandleYooKassaWebhook(context.Background(), payload); err != nil {
+	verifier := NewYooKassaVerifier()
+	if err := uc.HandleProviderWebhook(context.Background(), verifier, payload); err != nil {
 		t.Fatalf("first webhook returned error: %v", err)
 	}
-	if err := uc.HandleYooKassaWebhook(context.Background(), payload); err != nil {
+	if err := uc.HandleProviderWebhook(context.Background(), verifier, payload); err != nil {
 		t.Fatalf("duplicate webhook returned error: %v", err)
 	}
 
-	if repo.storeWebhookCalls != 2 {
-		t.Fatalf("store webhook calls = %d, want 2", repo.storeWebhookCalls)
-	}
 	if repo.updatePaymentCalls != 1 {
 		t.Fatalf("payment update calls = %d, want 1", repo.updatePaymentCalls)
 	}
@@ -165,6 +163,22 @@ func (r *fakeFinanceRepository) StoreWebhook(_ context.Context, eventID, provide
 
 func (r *fakeFinanceRepository) MarkWebhookProcessed(context.Context, string) error {
 	return nil
+}
+
+func (r *fakeFinanceRepository) CheckProcessed(_ context.Context, eventID, provider, eventType string, payload []byte) (bool, error) {
+	if r.webhooks[eventID] {
+		return true, nil
+	}
+	r.webhooks[eventID] = true
+	return false, nil
+}
+
+func (r *fakeFinanceRepository) MarkProcessed(context.Context, string) error {
+	return nil
+}
+
+func (r *fakeFinanceRepository) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
+	return fn(r)
 }
 
 func (r *fakeFinanceRepository) UpdatePaymentFromProvider(_ context.Context, providerPaymentID, status string, paid bool) (*paymentdomain.Payment, error) {

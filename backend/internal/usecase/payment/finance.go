@@ -2,7 +2,6 @@ package payment
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -241,101 +240,83 @@ func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID 
 	return uc.repo.CreatePendingPaymentMethod(ctx, payment, method)
 }
 
-func (uc *FinanceUseCase) HandleYooKassaWebhook(ctx context.Context, payload []byte) error {
-	var event struct {
-		Type   string `json:"type"`
-		Event  string `json:"event"`
-		Object struct {
-			ID            string            `json:"id"`
-			Status        string            `json:"status"`
-			Paid          bool              `json:"paid"`
-			Metadata      map[string]string `json:"metadata"`
-			PaymentMethod struct {
-				ID    string `json:"id"`
-				Saved bool   `json:"saved"`
-				Title string `json:"title"`
-				Card  struct {
-					Last4       string `json:"last4"`
-					ExpiryMonth string `json:"expiry_month"`
-					ExpiryYear  string `json:"expiry_year"`
-					CardType    string `json:"card_type"`
-				} `json:"card"`
-			} `json:"payment_method"`
-		} `json:"object"`
-	}
-	if err := json.Unmarshal(payload, &event); err != nil {
-		return err
-	}
-	eventType := event.Event
-	if eventType == "" {
-		eventType = event.Type
-	}
-	eventID := eventType + ":" + event.Object.ID
-	inserted, err := uc.repo.StoreWebhook(ctx, eventID, string(paymentdomain.ProviderYooKassa), eventType, payload)
-	if err != nil || !inserted {
-		return err
-	}
-
-	status := event.Object.Status
-	paid := event.Object.Paid || event.Object.Status == string(paymentdomain.PaymentStatusSucceeded)
-
-	apiResp, err := uc.provider.GetPayment(ctx, event.Object.ID)
+func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier WebhookVerifier, rawBody []byte) error {
+	event, err := verifier.ParseEvent(rawBody)
 	if err != nil {
-		return fmt.Errorf("failed to verify payment with provider: %w", err)
+		return fmt.Errorf("parse webhook event: %w", err)
 	}
-	status = apiResp.Status
-	paid = apiResp.Paid
 
-	p, err := uc.repo.UpdatePaymentFromProvider(ctx, event.Object.ID, status, paid)
-	if err != nil {
-		return err
-	}
-	if p.Purpose == paymentdomain.PaymentPurposeSubscription && p.Status == paymentdomain.PaymentStatusSucceeded {
-		if err := uc.repo.ActivateSubscriptionByPayment(ctx, p.ID); err != nil {
+	return uc.repo.WithWebhookTx(ctx, func(txOps paymentdomain.WebhookTx) error {
+		processed, err := txOps.CheckProcessed(ctx, event.EventID, event.Provider, event.EventType, rawBody)
+		if err != nil {
+			return fmt.Errorf("check processed: %w", err)
+		}
+		if processed {
+			return nil
+		}
+
+		status := event.Status
+		paid := event.Paid
+
+		apiResp, err := uc.provider.GetPayment(ctx, event.PaymentID)
+		if err != nil {
+			return fmt.Errorf("verify payment with provider: %w", err)
+		}
+		status = apiResp.Status
+		paid = apiResp.Paid
+
+		p, err := txOps.UpdatePaymentFromProvider(ctx, event.PaymentID, status, paid)
+		if err != nil {
 			return err
 		}
-	}
-	if p.Purpose == paymentdomain.PaymentPurposeCardBinding &&
-		event.Object.PaymentMethod.Saved &&
-		event.Object.PaymentMethod.ID != "" {
-		expMonth, err := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryMonth)
-		if err != nil {
-			return fmt.Errorf("parse card exp month %q: %w", event.Object.PaymentMethod.Card.ExpiryMonth, err)
+		if p.Purpose == paymentdomain.PaymentPurposeSubscription && p.Status == paymentdomain.PaymentStatusSucceeded {
+			if err := txOps.ActivateSubscriptionByPayment(ctx, p.ID); err != nil {
+				return err
+			}
 		}
-		expYear, err := strconv.Atoi(event.Object.PaymentMethod.Card.ExpiryYear)
-		if err != nil {
-			return fmt.Errorf("parse card exp year %q: %w", event.Object.PaymentMethod.Card.ExpiryYear, err)
+		if p.Purpose == paymentdomain.PaymentPurposeCardBinding &&
+			event.PaymentMethodSaved &&
+			event.PaymentMethodID != "" {
+			expMonth, err := strconv.Atoi(event.CardExpiryMonth)
+			if err != nil {
+				return fmt.Errorf("parse card exp month %q: %w", event.CardExpiryMonth, err)
+			}
+			expYear, err := strconv.Atoi(event.CardExpiryYear)
+			if err != nil {
+				return fmt.Errorf("parse card exp year %q: %w", event.CardExpiryYear, err)
+			}
+			if err := txOps.ActivatePaymentMethodFromProvider(
+				ctx,
+				event.PaymentID,
+				event.PaymentMethodID,
+				event.CardType,
+				event.CardLast4,
+				expMonth,
+				expYear,
+				event.CardHolder,
+			); err != nil {
+				return err
+			}
 		}
-		if err := uc.repo.ActivatePaymentMethodFromProvider(
-			ctx,
-			event.Object.ID,
-			event.Object.PaymentMethod.ID,
-			event.Object.PaymentMethod.Card.CardType,
-			event.Object.PaymentMethod.Card.Last4,
-			expMonth,
-			expYear,
-			event.Object.PaymentMethod.Title,
-		); err != nil {
-			return err
+		if p.Purpose == paymentdomain.PaymentPurposeOrder && p.Status == paymentdomain.PaymentStatusSucceeded && p.OrderID != nil {
+			orderID := *p.OrderID
+			pct := uc.commissionPercent(ctx)
+			if finErr := txOps.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds, pct); finErr != nil {
+				return finErr
+			}
+			ord, ordErr := uc.orderRepo.GetByID(ctx, orderID)
+			if ordErr != nil {
+				return ordErr
+			}
+			now := uc.clock.Now()
+			ord.Status = orderdomain.StatusCompleted
+			ord.UpdatedAt = now
+			if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
+				return updErr
+			}
 		}
-	}
-	if p.Purpose == paymentdomain.PaymentPurposeOrder && p.Status == paymentdomain.PaymentStatusSucceeded && p.OrderID != nil {
-		orderID := *p.OrderID
-		if finErr := uc.CompleteOrderFinancially(ctx, orderID); finErr != nil {
-			return finErr
-		}
-		ord, ordErr := uc.orderRepo.GetByID(ctx, orderID)
-		if ordErr != nil {
-			return ordErr
-		}
-		now := uc.clock.Now()
-		ord.Status = orderdomain.StatusCompleted
-		ord.UpdatedAt = now
-		if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
-			return updErr
-		}
-	}
-	return uc.repo.MarkWebhookProcessed(ctx, eventID)
+		return txOps.MarkProcessed(ctx, event.EventID)
+	})
 }
 
 const fallbackCommissionPercent = 15

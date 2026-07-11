@@ -88,6 +88,13 @@ func (noopFinanceRepo) ActivateSubscriptionByPayment(context.Context, string) er
 func (noopFinanceRepo) ActivatePaymentMethodFromProvider(context.Context, string, string, string, string, int, int, string) error {
 	return nil
 }
+func (noopFinanceRepo) CheckProcessed(context.Context, string, string, string, []byte) (bool, error) {
+	return false, nil
+}
+func (noopFinanceRepo) MarkProcessed(context.Context, string) error { return nil }
+func (noopFinanceRepo) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
+	return fn(noopFinanceRepo{})
+}
 func (noopFinanceRepo) CreateRefund(_ context.Context, r *paymentdomain.Refund) (*paymentdomain.Refund, error) {
 	return r, nil
 }

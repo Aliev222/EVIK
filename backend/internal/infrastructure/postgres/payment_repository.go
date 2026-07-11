@@ -416,7 +416,13 @@ func (r *PaymentRepository) ActivatePaymentMethodFromProvider(ctx context.Contex
 		return err
 	}
 	defer tx.Rollback()
+	if err := r.activatePaymentMethodFromProviderTx(ctx, tx, providerPaymentID, providerPaymentMethodID, brand, last4, expMonth, expYear, holder); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+func (r *PaymentRepository) activatePaymentMethodFromProviderTx(ctx context.Context, tx *sql.Tx, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error {
 	var userID string
 	var methodID string
 	if err := tx.QueryRowContext(ctx, `
@@ -448,7 +454,7 @@ FOR UPDATE
 	if holder == "" {
 		holder = "Bank card *" + last4
 	}
-	_, err = tx.ExecContext(ctx, `
+	_, err := tx.ExecContext(ctx, `
 UPDATE payment_methods
 SET provider_payment_method_id = $2,
 	brand = $3,
@@ -463,7 +469,7 @@ WHERE id = $1
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
@@ -472,20 +478,26 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 		return err
 	}
 	defer tx.Rollback()
+	if err := r.completeOrderFinanciallyTx(ctx, tx, orderID, idempotencyKey, holdSeconds, commissionPercent); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+func (r *PaymentRepository) completeOrderFinanciallyTx(ctx context.Context, tx *sql.Tx, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
 	var exists bool
 	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM wallet_transactions WHERE idempotency_key = $1)`, idempotencyKey).Scan(&exists); err != nil {
 		return err
 	}
 	if exists {
-		return tx.Commit()
+		return nil
 	}
 
 	var driverID sql.NullString
 	var paymentMethod string
 	var orderAmount sql.NullInt64
 	var surchargeAmount int64
-	err = tx.QueryRowContext(ctx, `
+	err := tx.QueryRowContext(ctx, `
 SELECT o.driver_id,
 	COALESCE((SELECT payment_method FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1), o.payment_method, 'cash'),
 	o.price_total,
@@ -557,7 +569,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 		if err != nil {
 			return err
 		}
-		return tx.Commit()
+		return nil
 	}
 
 	var debt int64
@@ -586,7 +598,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 	if _, err := tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed', driver_amount = $2, commission_amount = $3 WHERE id = $1`, orderID, driverAmount, commission); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (r *PaymentRepository) hasActiveSubscriptionTx(ctx context.Context, tx *sql.Tx, driverID string) (bool, error) {
@@ -1427,6 +1439,77 @@ VALUES (gen_random_uuid()::TEXT, $1, $2, $3, $4, $5, $6, $7, $8, 'RUB', $9, $10,
 ON CONFLICT (idempotency_key) DO NOTHING`,
 		walletID, driverID, orderID, paymentID, payoutID, string(typ), string(direction), amount, string(status), description, idempotencyKey, availableAfter)
 	return err
+}
+
+// --- WebhookTx implementation ---
+
+type webhookTxImpl struct {
+	tx   *sql.Tx
+	repo *PaymentRepository
+}
+
+func (w *webhookTxImpl) CheckProcessed(ctx context.Context, eventID, provider, eventType string, payload []byte) (bool, error) {
+	var processed bool
+	err := w.tx.QueryRowContext(ctx, `
+INSERT INTO payment_webhooks (id, provider, event_type, payload, processed, created_at)
+VALUES ($1, $2, $3, $4, FALSE, NOW())
+ON CONFLICT (id) DO UPDATE SET id = payment_webhooks.id
+RETURNING processed`, eventID, provider, eventType, string(payload)).Scan(&processed)
+	if err != nil {
+		return false, err
+	}
+	return processed, nil
+}
+
+func (w *webhookTxImpl) UpdatePaymentFromProvider(ctx context.Context, providerPaymentID, status string, paid bool) (*paymentdomain.Payment, error) {
+	var paidAt any
+	if paid {
+		paidAt = time.Now().UTC()
+	}
+	p, err := scanPayment(w.tx.QueryRowContext(ctx, `
+UPDATE payments
+SET status = $2, paid_at = COALESCE($3, paid_at), updated_at = NOW()
+WHERE provider_payment_id = $1
+RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+		providerPaymentID, status, paidAt))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, paymentdomain.ErrPaymentNotFound
+	}
+	return p, err
+}
+
+func (w *webhookTxImpl) ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error {
+	_, err := w.tx.ExecContext(ctx, `
+UPDATE subscriptions
+SET status = 'active', starts_at = COALESCE(starts_at, NOW()), ends_at = COALESCE(ends_at, NOW() + INTERVAL '30 days'), updated_at = NOW()
+WHERE payment_id = $1`, paymentID)
+	return err
+}
+
+func (w *webhookTxImpl) ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error {
+	return w.repo.activatePaymentMethodFromProviderTx(ctx, w.tx, providerPaymentID, providerPaymentMethodID, brand, last4, expMonth, expYear, holder)
+}
+
+func (w *webhookTxImpl) CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
+	return w.repo.completeOrderFinanciallyTx(ctx, w.tx, orderID, idempotencyKey, holdSeconds, commissionPercent)
+}
+
+func (w *webhookTxImpl) MarkProcessed(ctx context.Context, eventID string) error {
+	_, err := w.tx.ExecContext(ctx, `UPDATE payment_webhooks SET processed = TRUE, processed_at = NOW() WHERE id = $1`, eventID)
+	return err
+}
+
+func (r *PaymentRepository) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := fn(&webhookTxImpl{tx: tx, repo: r}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func normalizeProviderBrand(value string) paymentdomain.CardBrand {

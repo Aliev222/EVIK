@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,47 +19,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// yooKassaCIDRs lists the IP ranges YooKassa sends webhook requests from.
-var yooKassaCIDRs = []string{
-	"185.71.76.0/27",
-	"185.71.77.0/27",
-	"77.75.153.0/25",
-	"77.75.154.128/25",
-	"77.75.156.11/32",
-	"77.75.156.35/32",
-	"2a02:5180::/32",
-}
-
-func IsYooKassaIP(ipStr string) bool {
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-	for _, cidr := range yooKassaCIDRs {
-		_, network, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		if network.Contains(ip) {
-			return true
-		}
-	}
-	return false
-}
-
-func getClientIP(r *http.Request) string {
-	forwarded := r.Header.Get("X-Forwarded-For")
-	if forwarded != "" {
-		parts := strings.Split(forwarded, ",")
-		return strings.TrimSpace(parts[0])
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
-
 type PaymentHandler struct {
 	repo      paymentdomain.Repository
 	financeUC *paymentuc.FinanceUseCase
@@ -68,6 +26,7 @@ type PaymentHandler struct {
 	gates     *driveruc.GateService
 	idGen     interface{ NewID() string }
 	clock     interface{ Now() time.Time }
+	verifier  paymentuc.WebhookVerifier
 }
 
 func NewPaymentHandler(
@@ -77,8 +36,9 @@ func NewPaymentHandler(
 	gates *driveruc.GateService,
 	idGen interface{ NewID() string },
 	clock interface{ Now() time.Time },
+	verifier paymentuc.WebhookVerifier,
 ) *PaymentHandler {
-	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock}
+	return &PaymentHandler{repo: repo, financeUC: financeUC, orderRepo: orderRepo, gates: gates, idGen: idGen, clock: clock, verifier: verifier}
 }
 
 // writePaymentError maps payment/provider errors to accurate HTTP status codes
@@ -460,17 +420,16 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 // @Failure      403   {object}  ErrorResponse  "forbidden"
 // @Router       /webhooks/yookassa [post]
 func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Request) {
-	clientIP := getClientIP(r)
-	if !IsYooKassaIP(clientIP) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
-		return
-	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	if err := h.financeUC.HandleYooKassaWebhook(r.Context(), body); err != nil {
+	if err := h.verifier.Verify(r, body); err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+		return
+	}
+	if err := h.financeUC.HandleProviderWebhook(r.Context(), h.verifier, body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}

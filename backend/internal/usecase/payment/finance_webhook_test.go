@@ -11,21 +11,30 @@ import (
 
 type webhookRepo struct {
 	noopFinanceRepo
-	storeWebhookCalls      int
+	processed              map[string]bool
 	updatePaymentCalls     int
 	activateSubCalls       int
 	activatePaymentMethods int
 	markProcessedCalls     int
 
-	storeWebhookInserted bool
-
 	purposeOnUpdate paymentdomain.PaymentPurpose
 	statusOnUpdate  paymentdomain.PaymentStatus
 }
 
-func (r *webhookRepo) StoreWebhook(context.Context, string, string, string, []byte) (bool, error) {
-	r.storeWebhookCalls++
-	return r.storeWebhookInserted, nil
+func newWebhookRepo() *webhookRepo {
+	return &webhookRepo{processed: map[string]bool{}}
+}
+
+func (r *webhookRepo) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
+	return fn(r)
+}
+
+func (r *webhookRepo) CheckProcessed(_ context.Context, eventID, provider, eventType string, payload []byte) (bool, error) {
+	if r.processed[eventID] {
+		return true, nil
+	}
+	r.processed[eventID] = true
+	return false, nil
 }
 
 func (r *webhookRepo) UpdatePaymentFromProvider(_ context.Context, _, status string, _ bool) (*paymentdomain.Payment, error) {
@@ -47,8 +56,12 @@ func (r *webhookRepo) ActivatePaymentMethodFromProvider(context.Context, string,
 	return nil
 }
 
-func (r *webhookRepo) MarkWebhookProcessed(context.Context, string) error {
+func (r *webhookRepo) MarkProcessed(context.Context, string) error {
 	r.markProcessedCalls++
+	return nil
+}
+
+func (r *webhookRepo) CompleteOrderFinancially(context.Context, string, string, int, int) error {
 	return nil
 }
 
@@ -58,58 +71,49 @@ func newWebhookUC(repo paymentdomain.Repository) *FinanceUseCase {
 }
 
 func TestHandleWebhookAcceptsValidPayload(t *testing.T) {
-	repo := &webhookRepo{
-		storeWebhookInserted: true,
-		purposeOnUpdate:      paymentdomain.PaymentPurposeOrder,
-	}
+	repo := newWebhookRepo()
+	repo.purposeOnUpdate = paymentdomain.PaymentPurposeOrder
 	uc := newWebhookUC(repo)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true,"metadata":{"purpose":"order","order_id":"order-1"}}}`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err != nil {
 		t.Fatalf("err = %v", err)
-	}
-	if repo.storeWebhookCalls != 1 {
-		t.Errorf("StoreWebhook calls = %d, want 1", repo.storeWebhookCalls)
 	}
 	if repo.updatePaymentCalls != 1 {
 		t.Errorf("UpdatePaymentFromProvider calls = %d, want 1", repo.updatePaymentCalls)
 	}
 	if repo.markProcessedCalls != 1 {
-		t.Errorf("MarkWebhookProcessed calls = %d, want 1", repo.markProcessedCalls)
+		t.Errorf("MarkProcessed calls = %d, want 1", repo.markProcessedCalls)
 	}
 }
 
 func TestHandleWebhookRejectsMalformedJSON(t *testing.T) {
-	repo := &webhookRepo{}
+	repo := newWebhookRepo()
 	uc := newWebhookUC(repo)
 	payload := []byte(`{not valid json`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err == nil {
 		t.Fatal("expected JSON parse error, got nil")
-	}
-	if repo.storeWebhookCalls != 0 {
-		t.Errorf("StoreWebhook should not be called for malformed JSON, calls = %d", repo.storeWebhookCalls)
 	}
 }
 
 func TestHandleWebhookDuplicateIsIgnored(t *testing.T) {
-	repo := &webhookRepo{
-		storeWebhookInserted: false,
-	}
+	repo := newWebhookRepo()
 	uc := newWebhookUC(repo)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err != nil {
-		t.Fatalf("err = %v", err)
+		t.Fatalf("first call err = %v", err)
 	}
-	if repo.storeWebhookCalls != 1 {
-		t.Errorf("StoreWebhook calls = %d, want 1", repo.storeWebhookCalls)
+	err = uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
+	if err != nil {
+		t.Fatalf("duplicate call err = %v", err)
 	}
-	if repo.updatePaymentCalls != 0 {
-		t.Errorf("UpdatePaymentFromProvider should not be called for duplicate webhook")
+	if repo.updatePaymentCalls != 1 {
+		t.Errorf("UpdatePaymentFromProvider calls = %d, want 1 (only first call should update)", repo.updatePaymentCalls)
 	}
 }
 
@@ -119,16 +123,14 @@ func TestHandleWebhookRequeriedStatusFromAPI(t *testing.T) {
 			return &ProviderPaymentResponse{ID: id, Status: "canceled", Paid: false}, nil
 		},
 	}
-	repo := &webhookRepo{
-		storeWebhookInserted: true,
-		purposeOnUpdate:      paymentdomain.PaymentPurposeOrder,
-	}
+	repo := newWebhookRepo()
+	repo.purposeOnUpdate = paymentdomain.PaymentPurposeOrder
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -144,14 +146,12 @@ func TestHandleWebhookRequeriedStatusFromAPI(t *testing.T) {
 }
 
 func TestHandleWebhookSubscriptionSucceededActivates(t *testing.T) {
-	repo := &webhookRepo{
-		storeWebhookInserted: true,
-		purposeOnUpdate:      paymentdomain.PaymentPurposeSubscription,
-	}
+	repo := newWebhookRepo()
+	repo.purposeOnUpdate = paymentdomain.PaymentPurposeSubscription
 	uc := newWebhookUC(repo)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true,"metadata":{"purpose":"subscription"}}}`)
 
-	if err := uc.HandleYooKassaWebhook(context.Background(), payload); err != nil {
+	if err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload); err != nil {
 		t.Fatalf("err = %v", err)
 	}
 	if repo.activateSubCalls != 1 {
@@ -160,14 +160,12 @@ func TestHandleWebhookSubscriptionSucceededActivates(t *testing.T) {
 }
 
 func TestHandleWebhookUnknownEventTypeIsTolerated(t *testing.T) {
-	repo := &webhookRepo{
-		storeWebhookInserted: true,
-		purposeOnUpdate:      paymentdomain.PaymentPurposeOrder,
-	}
+	repo := newWebhookRepo()
+	repo.purposeOnUpdate = paymentdomain.PaymentPurposeOrder
 	uc := newWebhookUC(repo)
 	payload := []byte(`{"event":"payment.something_new","object":{"id":"p-1","status":"pending","paid":false}}`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err != nil {
 		t.Fatalf("unknown event_type should not produce an error, got: %v", err)
 	}
@@ -188,14 +186,12 @@ func TestHandleWebhookProviderErrorIsReturned(t *testing.T) {
 			return nil, errors.New("upstream error")
 		},
 	}
-	repo := &webhookRepo{
-		storeWebhookInserted: true,
-	}
+	repo := newWebhookRepo()
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
-	err := uc.HandleYooKassaWebhook(context.Background(), payload)
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err == nil {
 		t.Fatal("expected error when GetPayment fails, got nil")
 	}

@@ -235,7 +235,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.
 	npdService := driveruc.NewNPDService(userRepo, driveruc.StubNPDProvider{}, clock)
 	driverHandler := httptransport.NewDriverHandler(setDriverStatusUC, driverRepo, locationRepo, userRepo, verificationRepo, orderRepo, driverGates, npdService, clock, allowMockLocation, isProduction, cfg.DebugMode)
-	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock)
+	yooKassaVerifier := paymentuc.NewYooKassaVerifier()
+	paymentHandler := httptransport.NewPaymentHandler(paymentRepo, financeUC, orderRepo, driverGates, idGen, clock, yooKassaVerifier)
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)

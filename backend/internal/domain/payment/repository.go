@@ -17,6 +17,19 @@ type AdminRefundFilter struct {
 	Offset    int
 }
 
+// WebhookTx groups the operations that must run atomically inside a single
+// database transaction during webhook processing. Use Repository.WithWebhookTx
+// to obtain a scoped instance; the transaction commits on nil error from
+// the callback and rolls back otherwise.
+type WebhookTx interface {
+	CheckProcessed(ctx context.Context, eventID, provider, eventType string, payload []byte) (bool, error)
+	UpdatePaymentFromProvider(ctx context.Context, providerPaymentID, status string, paid bool) (*Payment, error)
+	ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error
+	ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error
+	CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int, commissionPercent int) error
+	MarkProcessed(ctx context.Context, eventID string) error
+}
+
 type Repository interface {
 	ListMethods(ctx context.Context, userID string) ([]PaymentMethod, error)
 	AddMethod(ctx context.Context, method PaymentMethod) error
@@ -49,6 +62,8 @@ type Repository interface {
 	ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error
 	CreateRefund(ctx context.Context, refund *Refund) (*Refund, error)
 	ExportFinanceReport(ctx context.Context, reportType string) ([][]string, error)
+
+	WithWebhookTx(ctx context.Context, fn func(WebhookTx) error) error
 
 	// Phase 1 admin endpoints.
 	GetPayout(ctx context.Context, payoutID string) (*Payout, error)
