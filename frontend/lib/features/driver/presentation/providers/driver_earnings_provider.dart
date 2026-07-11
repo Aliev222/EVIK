@@ -1,8 +1,20 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
+    if (dart.library.io) '../../../../core/network/api_client_io.dart'
+    as platform_api;
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/data/repository/driver_earnings_repository.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_earnings.dart';
-import 'new_driver_provider.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
+
+final driverEarningsRepositoryProvider = Provider<DriverEarningsRepository>((ref) {
+  final token = ref.watch(authProvider.select((state) => state.accessToken));
+  return DriverEarningsRepository(
+    apiClient: platform_api.createPlatformApiClient(),
+    accessToken: token,
+  );
+});
 
 class DriverEarningsState {
   const DriverEarningsState({
@@ -34,40 +46,19 @@ class DriverEarningsState {
 }
 
 class DriverEarningsNotifier extends StateNotifier<DriverEarningsState> {
-  DriverEarningsNotifier({required Ref ref})
-      : _ref = ref,
-        super(const DriverEarningsState()) {
-    refresh();
+  DriverEarningsNotifier(this._repository)
+      : super(const DriverEarningsState()) {
+    unawaited(refresh());
   }
 
-  final Ref _ref;
+  final DriverEarningsRepository _repository;
 
   Future<void> refresh() async {
-    final driverId = _ref.read(authProvider).user?.id;
-    if (driverId == null) {
-      state = state.copyWith(isLoading: false);
-      return;
-    }
-
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final repository = _ref.read(httpDriverRepositoryProvider);
-      final orders = await repository.getDriverOrders(driverId);
-      final completedOrders = orders
-          .where((order) => order['status']?.toString() == 'completed')
-          .toList();
-
-      final total = completedOrders.length * 2500.0;
+      final stats = await _repository.getEarnings();
       state = state.copyWith(
-        stats: EarningsStats(
-          today: total,
-          week: total + 12300,
-          month: total + 45600,
-          ordersToday: completedOrders.length,
-          ordersWeek: completedOrders.length + 8,
-          ordersMonth: completedOrders.length + 24,
-          averageRating: 4.9,
-        ),
+        stats: stats,
         isLoading: false,
         lastUpdated: DateTime.now(),
       );
@@ -82,9 +73,32 @@ class DriverEarningsNotifier extends StateNotifier<DriverEarningsState> {
 
 final driverEarningsProvider =
     StateNotifierProvider<DriverEarningsNotifier, DriverEarningsState>((ref) {
-  return DriverEarningsNotifier(ref: ref);
+  return DriverEarningsNotifier(ref.watch(driverEarningsRepositoryProvider));
 });
 
-final driverHomeEarningsProvider = Provider<DriverEarningsState>((ref) {
-  return ref.watch(driverEarningsProvider);
+final driverStatsFromEarningsProvider = Provider<DriverStats>((ref) {
+  final earnings = ref.watch(driverEarningsProvider);
+  final e = earnings.stats;
+  return DriverStats(
+    yesterday: const YesterdayStats(ordersCount: 0, earnings: 0, rating: 0),
+    today: TodayStats(
+      // TODO(B-48): DriverStats в рублях; убрать /100 при унификации
+      ordersCount: e.todayOrders,
+      earnings: e.todayAmount / 100.0,
+    ),
+    weekly: WeeklyStats(
+      // TODO(B-48): DriverStats в рублях; убрать /100 при унификации
+      totalEarnings: e.weekAmount / 100.0,
+      weeklyChange: 0,
+      ordersCount: e.weekOrders,
+      averageOrder: e.weekOrders > 0
+          // TODO(B-48): DriverStats в рублях; убрать /100 при унификации
+          ? (e.weekAmount / e.weekOrders / 100.0)
+          : 0,
+      hoursWorked: 0,
+      rating: e.ratingAverage,
+      // не отображается на home screen (B-48: unused field)
+      availableForWithdrawal: 0,
+    ),
+  );
 });

@@ -16,30 +16,46 @@ class DailyEarnings {
 
 class EarningsStats {
   const EarningsStats({
-    required this.today,
-    required this.week,
-    required this.month,
-    required this.ordersToday,
-    required this.ordersWeek,
-    required this.ordersMonth,
-    required this.averageRating,
+    required this.todayAmount,
+    required this.todayOrders,
+    required this.weekAmount,
+    required this.weekOrders,
+    required this.monthAmount,
+    required this.monthOrders,
+    required this.ratingAverage,
+    required this.ratingCount,
   });
 
-  final double today;
-  final double week;
-  final double month;
-  final int ordersToday;
-  final int ordersWeek;
-  final int ordersMonth;
-  final double averageRating;
+  final int todayAmount;
+  final int todayOrders;
+  final int weekAmount;
+  final int weekOrders;
+  final int monthAmount;
+  final int monthOrders;
+  final double ratingAverage;
+  final int ratingCount;
+
+  factory EarningsStats.fromJson(Map json) {
+    return EarningsStats(
+      todayAmount: (json['today']['amount'] as num).toInt(),
+      todayOrders: (json['today']['orders'] as num).toInt(),
+      weekAmount: (json['week']['amount'] as num).toInt(),
+      weekOrders: (json['week']['orders'] as num).toInt(),
+      monthAmount: (json['month']['amount'] as num).toInt(),
+      monthOrders: (json['month']['orders'] as num).toInt(),
+      ratingAverage: (json['rating']['average'] as num).toDouble(),
+      ratingCount: (json['rating']['count'] as num).toInt(),
+    );
+  }
 
   static const zero = EarningsStats(
-    today: 0,
-    week: 0,
-    month: 0,
-    ordersToday: 0,
-    ordersWeek: 0,
-    ordersMonth: 0,
-    averageRating: 5,
+    todayAmount: 0,
+    todayOrders: 0,
+    weekAmount: 0,
+    weekOrders: 0,
+    monthAmount: 0,
+    monthOrders: 0,
+    ratingAverage: 5,
+    ratingCount: 0,
   );
 }

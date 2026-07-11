@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/format/money.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
@@ -231,7 +232,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              _money(wallet.availableBalance),
+               formatKopecks(wallet.availableBalance),
               style: EvikTypography.h1.copyWith(
                 color: AvroDriverColors.textPrimary,
                 fontSize: 42,
@@ -277,7 +278,7 @@ class _AvailableBalanceCard extends ConsumerWidget {
               Text('Вывести деньги', style: EvikTypography.h3),
               const SizedBox(height: 8),
               Text(
-                'Заявка на вывод ${_money(amount)} будет отправлена в обработку.',
+                   'Заявка на вывод ${formatKopecks(amount)} будет отправлена в обработку.',
                 style: EvikTypography.bodyLarge
                     .copyWith(color: AvroDriverColors.grayHint),
               ),
@@ -756,7 +757,7 @@ class WalletTransactionDetailsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '${isDebit ? '-' : '+'}${_money(transaction.amount)}',
+                   '${isDebit ? '-' : '+'}${formatKopecks(transaction.amount)}',
                   style: EvikTypography.h1.copyWith(
                     fontSize: 34,
                     color: amountColor,
@@ -833,7 +834,7 @@ class _MetricTile extends StatelessWidget {
           Icon(icon, color: color, size: 20),
           const SizedBox(height: 12),
           Text(
-            _money(amount),
+            formatKopecks(amount),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: EvikTypography.h3.copyWith(fontSize: 16),
@@ -1009,7 +1010,7 @@ class _TransactionTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '${isDebit ? '-' : '+'}${_money(transaction.amount)}',
+                '${isDebit ? '-' : '+'}${formatKopecks(transaction.amount)}',
                 style: EvikTypography.bodyMedium
                     .copyWith(color: color, fontSize: 14),
               ),
@@ -1253,15 +1254,6 @@ BoxDecoration _surfaceDecoration() {
       ),
     ],
   );
-}
-
-String _money(int kopecks) {
-  final rubles = kopecks ~/ 100;
-  final text = rubles.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (_) => ' ',
-      );
-  return '$text ₽';
 }
 
 String _payoutMethodSubtitle(List<DriverPayoutMethod> methods) {

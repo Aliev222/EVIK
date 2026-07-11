@@ -12,6 +12,7 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_earnings_provider.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 
@@ -351,24 +352,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   }
 
   Future<DriverStats> _loadStats(String driverId) async {
-    final orders = await _driverRepository.getDriverOrders(driverId);
-    final completed = orders
-        .where((order) => order['status']?.toString() == 'completed')
-        .length;
-    final todayEarnings = completed * 2500.0;
-    return DriverStats(
-      yesterday: const YesterdayStats(ordersCount: 0, earnings: 0, rating: 0),
-      today: TodayStats(ordersCount: completed, earnings: todayEarnings),
-      weekly: WeeklyStats(
-        totalEarnings: todayEarnings,
-        weeklyChange: 0,
-        ordersCount: completed,
-        averageOrder: 2500,
-        hoursWorked: 0,
-        rating: 0.0, // будет обновлен из реальных отзывов
-        availableForWithdrawal: todayEarnings,
-      ),
-    );
+    return _ref.read(driverStatsFromEarningsProvider);
   }
 
   void _startPeriodicRefresh() {

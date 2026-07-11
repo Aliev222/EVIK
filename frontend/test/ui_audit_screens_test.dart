@@ -2,10 +2,8 @@ import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/client_home_screen.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
-import 'package:tow_truck_frontend/features/driver/domain/entities/driver_earnings.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository/driver_verification_repository.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/available_orders_provider.dart';
-import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_earnings_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_moderation_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_status_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_provider.dart';
@@ -107,12 +105,6 @@ void main() {
           ),
           driverHomeAvailableOrdersProvider.overrideWith(
             (ref) => const AsyncValue.data(<Order>[]),
-          ),
-          driverHomeEarningsProvider.overrideWith(
-            (ref) => const DriverEarningsState(
-              stats: EarningsStats.zero,
-              isLoading: false,
-            ),
           ),
         ],
         child: const MaterialApp(home: DriverMainScreen()),

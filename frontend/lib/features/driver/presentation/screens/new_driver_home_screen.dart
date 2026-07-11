@@ -315,55 +315,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               ),
             ),
 
-            const SizedBox(height: 20),
-
-            // Статистика вчера
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AvroDriverColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ВЧЕРА',
-                    style: EvikTypography.sectionLabel.copyWith(
-                      color: AvroDriverColors.grayHint,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildStatColumn(
-                        '${driverState.stats.yesterday.ordersCount}',
-                        'Заказа',
-                      ),
-                      _buildStatColumn(
-                        '${driverState.stats.yesterday.earnings.toInt()} ₽',
-                        'Заработано',
-                      ),
-                      _buildStatColumn(
-                        '${driverState.stats.yesterday.rating} ⭐',
-                        'Рейтинг',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
             const SizedBox(height: 24),
 
             // Кнопка начать работу
@@ -473,29 +424,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
               },
             ),
           ),
-      ],
-    );
-  }
-
-  Widget _buildStatColumn(String value, String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: EvikTypography.bodyMedium.copyWith(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: EvikTypography.bodySmall.copyWith(
-            color: AvroDriverColors.grayHint,
-            fontSize: 11,
-          ),
-        ),
       ],
     );
   }
