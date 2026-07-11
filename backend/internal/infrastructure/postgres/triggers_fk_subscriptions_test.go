@@ -39,7 +39,7 @@ func TestTrigger_RatingStats(t *testing.T) {
 	seedOrderRaw(t, db, order3, clientID)
 
 	for _, oid := range []string{order1, order2, order3} {
-		if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed' WHERE id = $2`, driverID, oid); err != nil {
+		if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed', financially_completed_at = NOW(), driver_amount = price_total, commission_amount = 0 WHERE id = $2`, driverID, oid); err != nil {
 			t.Fatalf("update order %s: %v", oid, err)
 		}
 	}
@@ -190,7 +190,7 @@ func TestGetActiveDriverSubscription(t *testing.T) {
 
 	orderID := "sub-act-order-" + uuid()
 	seedOrderRaw(t, db, orderID, userID)
-	if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed' WHERE id = $2`, driverID, orderID); err != nil {
+	if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed', financially_completed_at = NOW(), driver_amount = price_total, commission_amount = 0 WHERE id = $2`, driverID, orderID); err != nil {
 		t.Fatalf("assign driver: %v", err)
 	}
 
@@ -246,7 +246,7 @@ func TestHasActiveSubscriptionTx(t *testing.T) {
 
 	orderID := "sub-tx-order-" + uuid()
 	seedOrderRaw(t, db, orderID, userID)
-	if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed' WHERE id = $2`, driverID, orderID); err != nil {
+	if _, err := db.Exec(`UPDATE orders SET driver_id = $1, status = 'completed', financially_completed_at = NOW(), driver_amount = price_total, commission_amount = 0 WHERE id = $2`, driverID, orderID); err != nil {
 		t.Fatalf("assign driver: %v", err)
 	}
 

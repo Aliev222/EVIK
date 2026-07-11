@@ -28,7 +28,9 @@ func TestOrderCannotBeCompletedWithoutFinancialClosure(t *testing.T) {
 		t.Fatalf("expected check constraint violation on chk_orders_completed_financially, got: %v", err)
 	}
 
-	_, err = db.Exec(`UPDATE orders SET status = 'completed', financially_completed_at = NOW() WHERE id = $1`, orderID)
+	// A financially-closed order must also satisfy chk_orders_split (migration
+	// 20260605): price_total = driver_amount + commission_amount.
+	_, err = db.Exec(`UPDATE orders SET status = 'completed', financially_completed_at = NOW(), driver_amount = price_total, commission_amount = 0 WHERE id = $1`, orderID)
 	if err != nil {
 		t.Fatalf("expected success when completing order with financially_completed_at, got: %v", err)
 	}

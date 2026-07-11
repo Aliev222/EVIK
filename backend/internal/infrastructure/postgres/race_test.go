@@ -176,8 +176,8 @@ func TestWallet_ParallelIdempotentKey(t *testing.T) {
 	seedUser(t, db, userID, "client")
 
 	_, err = db.Exec(`
-INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, created_at, updated_at)
-VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', 500000, NOW(), NOW())`,
+INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, tow_truck_type, status, price_total, driver_amount, commission_amount, financially_completed_at, financial_status, created_at, updated_at)
+VALUES ($1, $2, $3, 42.0, 47.5, 42.1, 47.6, 'winch', 'completed', 500000, 500000, 0, NOW(), 'completed', NOW(), NOW())`,
 		orderID, userID, driverID)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
