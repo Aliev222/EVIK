@@ -518,6 +518,51 @@ func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// @Summary      Get driver earnings
+// @Description  Returns the driver's real earnings (sum of driver_amount over completed orders) for today/week/month plus current rating. Amounts in kopecks.
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "earnings by period and rating"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/earnings [get]
+func (h *PaymentHandler) GetDriverEarnings(w http.ResponseWriter, r *http.Request) {
+	driverID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday → 7 so the week starts on Monday
+	}
+	weekStart := todayStart.AddDate(0, 0, -(weekday - 1))
+
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+
+	e, err := h.repo.GetDriverEarnings(r.Context(), driverID, todayStart, weekStart, monthStart)
+	if err != nil {
+		log.Printf("ERROR: GetDriverEarnings failed: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load earnings"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"today":  map[string]any{"amount": e.TodayAmount, "orders": e.TodayOrders},
+		"week":   map[string]any{"amount": e.WeekAmount, "orders": e.WeekOrders},
+		"month":  map[string]any{"amount": e.MonthAmount, "orders": e.MonthOrders},
+		"rating": map[string]any{"average": e.RatingAverage, "count": e.RatingCount},
+	})
+}
+
 // @Summary      List driver wallet transactions
 // @Description  Returns the driver's recent wallet transactions.
 // @Tags         driver

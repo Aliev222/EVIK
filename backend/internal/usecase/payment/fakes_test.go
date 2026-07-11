@@ -57,6 +57,9 @@ func (noopFinanceRepo) MarkTransactionReleased(context.Context, string) error { 
 func (noopFinanceRepo) GetDriverWallet(context.Context, string) (*paymentdomain.DriverWallet, error) {
 	return nil, nil
 }
+func (noopFinanceRepo) GetDriverEarnings(context.Context, string, time.Time, time.Time, time.Time) (paymentdomain.DriverEarnings, error) {
+	return paymentdomain.DriverEarnings{}, nil
+}
 func (noopFinanceRepo) ListWalletTransactions(context.Context, string, int) ([]paymentdomain.WalletTransaction, error) {
 	return nil, nil
 }
@@ -123,8 +126,8 @@ type scriptedProvider struct {
 	createPayoutFn  func(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error)
 	getPaymentFn    func(ctx context.Context, id string) (*ProviderPaymentResponse, error)
 
-	paymentCalls []ProviderPaymentRequest
-	payoutCalls  []ProviderPayoutRequest
+	paymentCalls  []ProviderPaymentRequest
+	payoutCalls   []ProviderPayoutRequest
 	getPaymentIDs []string
 }
 

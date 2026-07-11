@@ -553,7 +553,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 		if err := insertWalletTx(ctx, tx, walletID, driverID.String, &orderID, nullableString(paymentID), nil, paymentdomain.WalletTypeCashCommissionDebt, paymentdomain.WalletDirectionCredit, commission, paymentdomain.WalletTxStatusSucceeded, "Tow Truck commission debt for cash order", idempotencyKey+":cash_debt", nil); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed' WHERE id = $1`, orderID)
+		_, err = tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed', driver_amount = $2, commission_amount = $3 WHERE id = $1`, orderID, driverAmount, commission)
 		if err != nil {
 			return err
 		}
@@ -583,7 +583,7 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 			return err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed' WHERE id = $1`, orderID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed', driver_amount = $2, commission_amount = $3 WHERE id = $1`, orderID, driverAmount, commission); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -697,6 +697,45 @@ func (r *PaymentRepository) GetDriverWallet(ctx context.Context, driverID string
 		return nil, err
 	}
 	return w, tx.Commit()
+}
+
+// GetDriverEarnings aggregates the driver's completed-order income for the
+// today/week/month periods in a single pass over the orders table (period
+// boundaries are supplied by the caller as absolute timestamps) and reads the
+// driver's rating from the drivers table. Amounts are in kopecks.
+func (r *PaymentRepository) GetDriverEarnings(ctx context.Context, driverID string, todayStart, weekStart, monthStart time.Time) (paymentdomain.DriverEarnings, error) {
+	var e paymentdomain.DriverEarnings
+	err := r.db.QueryRowContext(ctx, `
+SELECT
+  COALESCE(SUM(driver_amount) FILTER (WHERE financially_completed_at >= $2), 0),
+  COUNT(*)                    FILTER (WHERE financially_completed_at >= $2),
+  COALESCE(SUM(driver_amount) FILTER (WHERE financially_completed_at >= $3), 0),
+  COUNT(*)                    FILTER (WHERE financially_completed_at >= $3),
+  COALESCE(SUM(driver_amount) FILTER (WHERE financially_completed_at >= $4), 0),
+  COUNT(*)                    FILTER (WHERE financially_completed_at >= $4)
+FROM orders
+WHERE driver_id = $1 AND status = 'completed'`,
+		driverID, todayStart, weekStart, monthStart,
+	).Scan(
+		&e.TodayAmount, &e.TodayOrders,
+		&e.WeekAmount, &e.WeekOrders,
+		&e.MonthAmount, &e.MonthOrders,
+	)
+	if err != nil {
+		return paymentdomain.DriverEarnings{}, err
+	}
+
+	err = r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(rating_average, 0), COALESCE(rating_count, 0) FROM drivers WHERE id = $1`,
+		driverID,
+	).Scan(&e.RatingAverage, &e.RatingCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		return e, nil
+	}
+	if err != nil {
+		return paymentdomain.DriverEarnings{}, err
+	}
+	return e, nil
 }
 
 func (r *PaymentRepository) ListWalletTransactions(ctx context.Context, driverID string, limit int) ([]paymentdomain.WalletTransaction, error) {

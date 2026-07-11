@@ -35,6 +35,7 @@ type Repository interface {
 	ListReleasablePendingTransactions(ctx context.Context, limit int) ([]WalletTransaction, error)
 	MarkTransactionReleased(ctx context.Context, txID string) error
 	GetDriverWallet(ctx context.Context, driverID string) (*DriverWallet, error)
+	GetDriverEarnings(ctx context.Context, driverID string, todayStart, weekStart, monthStart time.Time) (DriverEarnings, error)
 	ListWalletTransactions(ctx context.Context, driverID string, limit int) ([]WalletTransaction, error)
 	ListPayouts(ctx context.Context, driverID string, limit int) ([]Payout, error)
 	ListPayoutMethods(ctx context.Context, driverID string) ([]DriverPayoutMethod, error)

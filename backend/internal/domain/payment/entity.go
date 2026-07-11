@@ -149,6 +149,19 @@ type DriverWallet struct {
 	UpdatedAt        time.Time
 }
 
+// DriverEarnings aggregates a driver's completed-order income across the
+// today/week/month periods (amounts in kopecks) plus their current rating.
+type DriverEarnings struct {
+	TodayAmount   int64
+	TodayOrders   int64
+	WeekAmount    int64
+	WeekOrders    int64
+	MonthAmount   int64
+	MonthOrders   int64
+	RatingAverage float64
+	RatingCount   int64
+}
+
 type WalletTransaction struct {
 	ID             string
 	WalletID       string

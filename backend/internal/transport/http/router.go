@@ -101,6 +101,7 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Delete("/payments/cards/{cardID}", paymentHandler.DeleteCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/cards/{cardID}/default", paymentHandler.SetDefaultCard)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/payments/promocode/apply", paymentHandler.ApplyPromocode)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/earnings", paymentHandler.GetDriverEarnings)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/wallet", paymentHandler.GetDriverWallet)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/wallet/transactions", paymentHandler.ListDriverWalletTransactions)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/payouts", paymentHandler.ListDriverPayouts)
