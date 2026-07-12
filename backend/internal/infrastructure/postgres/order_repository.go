@@ -20,11 +20,12 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
-INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`
-	_, err := r.db.ExecContext(
-		ctx,
-		query,
+INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, idempotency_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+ON CONFLICT (idempotency_key) WHERE idempotency_key <> '' DO NOTHING
+RETURNING id`
+	var id string
+	err := r.db.QueryRowContext(ctx, query,
 		ord.ID,
 		ord.UserID,
 		ord.DriverID,
@@ -47,8 +48,16 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $
 		ord.IsExpanded,
 		ord.ExpandedAt,
 		ord.PaymentMethod,
-	)
-	return err
+		ord.IdempotencyKey,
+	).Scan(&id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return orderdomain.ErrIdempotencyConflict
+		}
+		return err
+	}
+	ord.ID = id
+	return nil
 }
 
 func toNullString(s string) sql.NullString {
@@ -197,6 +206,75 @@ WHERE id = $1`
 		paymentMethod  sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&ord.ID,
+		&ord.UserID,
+		&ord.DriverID,
+		&ord.Pickup.Lat,
+		&ord.Pickup.Lng,
+		&ord.Dropoff.Lat,
+		&ord.Dropoff.Lng,
+		&pickupAddress,
+		&dropoffAddress,
+		&towTruckType,
+		&status,
+		&ord.PriceTotal,
+		&ord.DriverAmount,
+		&ord.CommissionAmount,
+		&ord.IsCrossCity,
+		&ord.SurchargeAmount,
+		&ord.SurchargePercent,
+		&ord.CreatedAt,
+		&ord.UpdatedAt,
+		&ord.CancelledAt,
+		&cityID,
+		&ord.IsExpanded,
+		&expandedAt,
+		&cancelReason,
+		&paymentMethod,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, orderdomain.ErrOrderNotFound
+		}
+		return nil, err
+	}
+	ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
+	ord.Status = orderdomain.Status(status)
+	ord.PickupAddress = scanNullableString(pickupAddress)
+	ord.DropoffAddress = scanNullableString(dropoffAddress)
+	ord.PaymentMethod = scanNullableString(paymentMethod)
+	if cityID.Valid {
+		ord.CityID = &cityID.String
+	}
+	if expandedAt.Valid {
+		t := expandedAt.Time
+		ord.ExpandedAt = &t
+	}
+	ord.CancelReason = scanNullableString(cancelReason)
+	return &ord, nil
+}
+
+func (r *OrderRepository) GetByOrderKey(ctx context.Context, idempotencyKey string) (*orderdomain.Order, error) {
+	if idempotencyKey == "" {
+		return nil, orderdomain.ErrOrderNotFound
+	}
+	const query = `
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, driver_amount, commission_amount, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method
+FROM orders
+WHERE idempotency_key = $1`
+
+	var (
+		ord            orderdomain.Order
+		pickupAddress  sql.NullString
+		dropoffAddress sql.NullString
+		cityID         sql.NullString
+		towTruckType   string
+		status         string
+		expandedAt     sql.NullTime
+		cancelReason   sql.NullString
+		paymentMethod  sql.NullString
+	)
+	err := r.db.QueryRowContext(ctx, query, idempotencyKey).Scan(
 		&ord.ID,
 		&ord.UserID,
 		&ord.DriverID,

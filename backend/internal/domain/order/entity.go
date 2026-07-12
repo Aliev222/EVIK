@@ -50,6 +50,7 @@ type Order struct {
 	UpdatedAt        time.Time
 	CancelledAt      *time.Time
 	CancelReason     string
+	IdempotencyKey   *string
 }
 
 func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTruckType, now time.Time) (*Order, error) {
@@ -64,14 +65,14 @@ func NewOrder(id, userID string, pickup, dropoff Coordinate, towTruckType TowTru
 	}
 
 	return &Order{
-		ID:           id,
-		UserID:       userID,
-		Pickup:       pickup,
-		Dropoff:      dropoff,
-		TowTruckType: towTruckType,
-		Status:       StatusCreated,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:             id,
+		UserID:         userID,
+		Pickup:         pickup,
+		Dropoff:        dropoff,
+		TowTruckType:   towTruckType,
+		Status:         StatusCreated,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}, nil
 }
 

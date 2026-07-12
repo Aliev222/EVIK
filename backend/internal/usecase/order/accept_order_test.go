@@ -221,9 +221,10 @@ func TestAcceptOrderReusesSameDriverCurrentOrderOnUnavailable(t *testing.T) {
 }
 
 type fakeOrderRepository struct {
-	order   *orderdomain.Order
-	orders  map[string]*orderdomain.Order
-	updated bool
+	order          *orderdomain.Order
+	orders         map[string]*orderdomain.Order
+	updated        bool
+	getByKeyOrders map[string]*orderdomain.Order
 }
 
 func (r *fakeOrderRepository) AcceptOrder(_ context.Context, orderID, driverID string) (*orderdomain.Order, error) {
@@ -245,8 +246,30 @@ func (r *fakeOrderRepository) AcceptOrder(_ context.Context, orderID, driverID s
 	return &copied, nil
 }
 
-func (r *fakeOrderRepository) Create(context.Context, *orderdomain.Order) error {
+func (r *fakeOrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
+	if ord.IdempotencyKey != nil && *ord.IdempotencyKey != "" {
+		if existing, ok := r.getOrderByKey(*ord.IdempotencyKey); ok {
+			ord.ID = existing.ID
+			return orderdomain.ErrIdempotencyConflict
+		}
+		r.getByKeyOrders[*ord.IdempotencyKey] = ord
+	}
+	if r.orders != nil {
+		r.orders[ord.ID] = ord
+	} else {
+		r.order = ord
+	}
 	return nil
+}
+
+func (r *fakeOrderRepository) getOrderByKey(idempotencyKey string) (*orderdomain.Order, bool) {
+	if r.getByKeyOrders != nil {
+		if ord, ok := r.getByKeyOrders[idempotencyKey]; ok {
+			copied := *ord
+			return &copied, true
+		}
+	}
+	return nil, false
 }
 
 func (r *fakeOrderRepository) Update(_ context.Context, ord *orderdomain.Order) error {
@@ -272,6 +295,13 @@ func (r *fakeOrderRepository) GetByID(_ context.Context, id string) (*orderdomai
 	}
 	copied := *r.order
 	return &copied, nil
+}
+
+func (r *fakeOrderRepository) GetByOrderKey(_ context.Context, idempotencyKey string) (*orderdomain.Order, error) {
+	if ord, ok := r.getOrderByKey(idempotencyKey); ok {
+		return ord, nil
+	}
+	return nil, orderdomain.ErrOrderNotFound
 }
 
 func (r *fakeOrderRepository) ListByStatus(context.Context, orderdomain.Status, int) ([]*orderdomain.Order, error) {

@@ -247,6 +247,7 @@ func (r *fakeFinanceRepository) MarkPayoutPaid(ctx context.Context, payoutID, pr
 
 type fakePaymentOrderRepo struct{}
 
+func (r *fakePaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, nil }
 func (r *fakePaymentOrderRepo) Create(context.Context, *orderdomain.Order) error { return nil }
 func (r *fakePaymentOrderRepo) Update(context.Context, *orderdomain.Order) error { return nil }
 func (r *fakePaymentOrderRepo) GetByID(context.Context, string) (*orderdomain.Order, error) {

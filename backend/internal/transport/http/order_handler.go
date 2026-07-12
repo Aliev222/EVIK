@@ -212,6 +212,8 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		cityID = area.ID
 	}
 
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+
 	ord, err := h.createUC.Execute(r.Context(), orderuc.CreateOrderInput{
 		UserID:         userID,
 		PickupLat:      req.PickupLat,
@@ -224,11 +226,19 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PaymentMethod:  req.PaymentMethod,
 		AutoDispatch:   false,
 		CityID:         cityID,
+		IdempotencyKey: &idempotencyKey,
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, orderdomain.ErrValidationFailed):
 			h.writeError(w, http.StatusBadRequest, err)
+		case errors.Is(err, orderdomain.ErrIdempotencyConflict):
+			idempotencyKey := r.Header.Get("Idempotency-Key")
+			if existing, err := h.createUC.GetOrderByKey(r.Context(), idempotencyKey); err == nil && existing != nil {
+				h.writeJSON(w, http.StatusCreated, map[string]any{"order": newOrderResponse(existing)})
+				return
+			}
+			h.writeError(w, http.StatusInternalServerError, err)
 		default:
 			h.writeError(w, http.StatusInternalServerError, err)
 		}

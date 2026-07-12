@@ -66,6 +66,7 @@ type CreateOrderInput struct {
 	PaymentMethod  string
 	AutoDispatch   bool
 	CityID         string
+	IdempotencyKey *string
 }
 
 func NewCreateOrderUseCase(
@@ -102,7 +103,8 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	ord.PickupAddress = input.PickupAddress
 	ord.DropoffAddress = input.DropoffAddress
 	ord.PaymentMethod = input.PaymentMethod
-	ord.PriceTotal = 0 // will be set after price calculation
+	ord.PriceTotal = 0
+	ord.IdempotencyKey = input.IdempotencyKey
 	if input.CityID != "" {
 		ord.CityID = &input.CityID
 	}
@@ -205,6 +207,10 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	}
 	uc.logger.Info("order created successfully", "order_id", ord.ID)
 	return updated, nil
+}
+
+func (uc *CreateOrderUseCase) GetOrderByKey(ctx context.Context, idempotencyKey string) (*orderdomain.Order, error) {
+	return uc.orderRepo.GetByOrderKey(ctx, idempotencyKey)
 }
 
 // broadcastNewOrderPush sends "новый заказ" notification to every available

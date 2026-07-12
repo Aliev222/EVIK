@@ -41,7 +41,8 @@ func (r *webhookOrderRepo) Update(_ context.Context, ord *orderdomain.Order) err
 	return nil
 }
 
-func (webhookOrderRepo) Create(context.Context, *orderdomain.Order) error               { return nil }
+func (webhookOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, sql.ErrNoRows }
+func (webhookOrderRepo) Create(context.Context, *orderdomain.Order) error                  { return nil }
 func (webhookOrderRepo) AcceptOrder(context.Context, string, string) (*orderdomain.Order, error) {
 	return nil, nil
 }
