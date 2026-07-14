@@ -46,6 +46,7 @@ class OrderFlowState with _$OrderFlowState {
     @Default('') String clientComment,
     @Default(false) bool isLoading,
     String? errorMessage,
+    String? idempotencyKey,
     @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
     @JsonKey(includeFromJson: false, includeToJson: false)
     Driver? assignedDriver,

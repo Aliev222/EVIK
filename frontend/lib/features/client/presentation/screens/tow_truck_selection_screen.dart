@@ -1,7 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -227,7 +226,7 @@ class _TowTruckSelectionScreenState
               width: double.infinity,
               child: EvikButton(
                 text: 'Начать поиск водителя',
-                onPressed: orderFlowState.selectedTowTruckType != null
+                onPressed: orderFlowState.selectedTowTruckType != null && !orderFlowState.isLoading
                     ? _continueToDriverSearch
                     : null,
                 variant: orderFlowState.selectedTowTruckType != null

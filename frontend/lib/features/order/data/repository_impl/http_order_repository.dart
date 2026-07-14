@@ -54,10 +54,14 @@ class HttpOrderRepository implements OrderRepository {
     }
 
     debugPrint('Token: ${_accessTokenProvider?.call() ?? _accessToken}');
+    final headers = <String, String>{
+      if (command.idempotencyKey != null) 'Idempotency-Key': command.idempotencyKey!,
+      ...?_authHeaders,
+    };
     final response = await _apiClient.post(
       '/api/v1/orders',
       body,
-      headers: _authHeaders,
+      headers: headers,
     );
     return Order.fromMap(response['order'] as Map<String, dynamic>);
   }

@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
@@ -112,6 +113,9 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       state = state.copyWith(errorMessage: 'Выберите тип эвакуатора');
       return false;
     }
+    if (state.idempotencyKey == null) {
+      state = state.copyWith(idempotencyKey: _generateIdempotencyKey());
+    }
     return _createOrderWithPaymentFlow();
   }
 
@@ -148,12 +152,18 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     state = const OrderFlowState();
   }
 
+  void resetIdempotencyKey() {
+    state = state.copyWith(idempotencyKey: null);
+  }
+
   void setPickupLocation(MapLocation location) {
     state = state.copyWith(pickupLocation: location, errorMessage: null);
+    state = state.copyWith(idempotencyKey: null);
   }
 
   void setDestinationLocation(MapLocation location) {
     state = state.copyWith(destinationLocation: location, errorMessage: null);
+    state = state.copyWith(idempotencyKey: null);
     _calculateDistanceAndPrice();
   }
 
@@ -162,6 +172,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       selectedVehicleType: vehicleType,
       errorMessage: null,
     );
+    state = state.copyWith(idempotencyKey: null);
     unawaited(_updatePrice());
   }
 
@@ -170,6 +181,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       selectedTowTruckType: towTruckType,
       errorMessage: null,
     );
+    state = state.copyWith(idempotencyKey: null);
     unawaited(_updatePrice());
   }
 
@@ -180,14 +192,17 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       selectedPaymentMethod: paymentMethod,
       errorMessage: null,
     );
+    state = state.copyWith(idempotencyKey: null);
   }
 
   void setBlockedWheelsCount(int count) {
     state = state.copyWith(blockedWheelsCount: count.clamp(0, 4));
+    state = state.copyWith(idempotencyKey: null);
   }
 
   void setClientComment(String comment) {
     state = state.copyWith(clientComment: comment.trim());
+    state = state.copyWith(idempotencyKey: null);
   }
 
   Future<void> detectCurrentLocation() async {
@@ -269,6 +284,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       paymentMethod: _ref.read(selectedOrderPaymentMethodProvider),
       towTruckType: state.selectedTowTruckType,
       notes: _buildOrderNotes(),
+      idempotencyKey: state.idempotencyKey,
     );
 
     try {
@@ -288,6 +304,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
       await _persistActiveOrder(created.id);
       _beginDriverSearchTimers(created.id);
+      state = state.copyWith(idempotencyKey: null);
       return true;
     } catch (error) {
       _handleSearchError('Ошибка при поиске водителя. Попробуйте снова.');
@@ -414,6 +431,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       parts.add('Комментарий клиента: ${state.clientComment.trim()}');
     }
     return parts.isEmpty ? null : parts.join('\n');
+  }
+
+  String _generateIdempotencyKey() {
+    final uuid = const Uuid();
+    return uuid.v4();
   }
 
   void _handleSearchTimeout() {

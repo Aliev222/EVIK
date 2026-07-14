@@ -29,6 +29,7 @@ mixin _$OrderFlowState {
   String get clientComment => throw _privateConstructorUsedError;
   bool get isLoading => throw _privateConstructorUsedError;
   String? get errorMessage => throw _privateConstructorUsedError;
+  String? get idempotencyKey => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
   Order? get activeOrder => throw _privateConstructorUsedError;
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -73,6 +74,7 @@ abstract class $OrderFlowStateCopyWith<$Res> {
       String clientComment,
       bool isLoading,
       String? errorMessage,
+      String? idempotencyKey,
       @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       Driver? assignedDriver,
@@ -115,6 +117,7 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
     Object? clientComment = null,
     Object? isLoading = null,
     Object? errorMessage = freezed,
+    Object? idempotencyKey = freezed,
     Object? activeOrder = freezed,
     Object? assignedDriver = freezed,
     Object? selectedPaymentMethod = null,
@@ -164,6 +167,10 @@ class _$OrderFlowStateCopyWithImpl<$Res, $Val extends OrderFlowState>
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
+      idempotencyKey: freezed == idempotencyKey
+          ? _value.idempotencyKey
+          : idempotencyKey // ignore: cast_nullable_to_non_nullable
               as String?,
       activeOrder: freezed == activeOrder
           ? _value.activeOrder
@@ -235,6 +242,7 @@ abstract class _$$OrderFlowStateImplCopyWith<$Res>
       String clientComment,
       bool isLoading,
       String? errorMessage,
+      String? idempotencyKey,
       @JsonKey(includeFromJson: false, includeToJson: false) Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       Driver? assignedDriver,
@@ -275,6 +283,7 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
     Object? clientComment = null,
     Object? isLoading = null,
     Object? errorMessage = freezed,
+    Object? idempotencyKey = freezed,
     Object? activeOrder = freezed,
     Object? assignedDriver = freezed,
     Object? selectedPaymentMethod = null,
@@ -324,6 +333,10 @@ class __$$OrderFlowStateImplCopyWithImpl<$Res>
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
+      idempotencyKey: freezed == idempotencyKey
+          ? _value.idempotencyKey
+          : idempotencyKey // ignore: cast_nullable_to_non_nullable
               as String?,
       activeOrder: freezed == activeOrder
           ? _value.activeOrder
@@ -390,6 +403,7 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
       this.clientComment = '',
       this.isLoading = false,
       this.errorMessage,
+      this.idempotencyKey,
       @JsonKey(includeFromJson: false, includeToJson: false) this.activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
       this.assignedDriver,
@@ -431,6 +445,8 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
   final bool isLoading;
   @override
   final String? errorMessage;
+  @override
+  final String? idempotencyKey;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   final Order? activeOrder;
@@ -474,7 +490,7 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
 
   @override
   String toString() {
-    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, activeOrder: $activeOrder, assignedDriver: $assignedDriver, selectedPaymentMethod: $selectedPaymentMethod, payment: $payment, receipt: $receipt, isPaymentProcessing: $isPaymentProcessing, isReceiptLoading: $isReceiptLoading, receiptError: $receiptError, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance, tariffs: $tariffs)';
+    return 'OrderFlowState(currentStep: $currentStep, pickupLocation: $pickupLocation, destinationLocation: $destinationLocation, selectedVehicleType: $selectedVehicleType, selectedTowTruckType: $selectedTowTruckType, blockedWheelsCount: $blockedWheelsCount, clientComment: $clientComment, isLoading: $isLoading, errorMessage: $errorMessage, idempotencyKey: $idempotencyKey, activeOrder: $activeOrder, assignedDriver: $assignedDriver, selectedPaymentMethod: $selectedPaymentMethod, payment: $payment, receipt: $receipt, isPaymentProcessing: $isPaymentProcessing, isReceiptLoading: $isReceiptLoading, receiptError: $receiptError, searchDurationSeconds: $searchDurationSeconds, estimatedPrice: $estimatedPrice, distance: $distance, tariffs: $tariffs)';
   }
 
   @override
@@ -500,6 +516,8 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
                 other.isLoading == isLoading) &&
             (identical(other.errorMessage, errorMessage) ||
                 other.errorMessage == errorMessage) &&
+            (identical(other.idempotencyKey, idempotencyKey) ||
+                other.idempotencyKey == idempotencyKey) &&
             (identical(other.activeOrder, activeOrder) ||
                 other.activeOrder == activeOrder) &&
             (identical(other.assignedDriver, assignedDriver) ||
@@ -536,6 +554,7 @@ class _$OrderFlowStateImpl implements _OrderFlowState {
         clientComment,
         isLoading,
         errorMessage,
+        idempotencyKey,
         activeOrder,
         assignedDriver,
         selectedPaymentMethod,
@@ -578,6 +597,7 @@ abstract class _OrderFlowState implements OrderFlowState {
       final String clientComment,
       final bool isLoading,
       final String? errorMessage,
+      final String? idempotencyKey,
       @JsonKey(includeFromJson: false, includeToJson: false)
       final Order? activeOrder,
       @JsonKey(includeFromJson: false, includeToJson: false)
@@ -617,6 +637,8 @@ abstract class _OrderFlowState implements OrderFlowState {
   bool get isLoading;
   @override
   String? get errorMessage;
+  @override
+  String? get idempotencyKey;
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   Order? get activeOrder;

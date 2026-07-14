@@ -27,6 +27,7 @@ _$OrderFlowStateImpl _$$OrderFlowStateImplFromJson(Map<String, dynamic> json) =>
       clientComment: json['clientComment'] as String? ?? '',
       isLoading: json['isLoading'] as bool? ?? false,
       errorMessage: json['errorMessage'] as String?,
+      idempotencyKey: json['idempotencyKey'] as String?,
       selectedPaymentMethod: $enumDecodeNullable(
               _$PaymentMethodEnumMap, json['selectedPaymentMethod']) ??
           PaymentMethod.cash,
@@ -52,6 +53,7 @@ Map<String, dynamic> _$$OrderFlowStateImplToJson(
       'clientComment': instance.clientComment,
       'isLoading': instance.isLoading,
       'errorMessage': instance.errorMessage,
+      'idempotencyKey': instance.idempotencyKey,
       'selectedPaymentMethod':
           _$PaymentMethodEnumMap[instance.selectedPaymentMethod]!,
       'isPaymentProcessing': instance.isPaymentProcessing,
@@ -71,6 +73,7 @@ const _$OrderFlowStepEnumMap = {
   OrderFlowStep.driverSearch: 'driverSearch',
   OrderFlowStep.driverFound: 'driverFound',
   OrderFlowStep.tracking: 'tracking',
+  OrderFlowStep.paymentConfirmation: 'paymentConfirmation',
   OrderFlowStep.completion: 'completion',
   OrderFlowStep.rating: 'rating',
 };

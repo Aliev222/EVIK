@@ -13,6 +13,7 @@ class CreateOrderCommand {
     required this.paymentMethod,
     this.towTruckType,
     this.notes,
+    this.idempotencyKey,
   });
 
   final String clientId;
@@ -24,6 +25,7 @@ class CreateOrderCommand {
   final PaymentMethod paymentMethod;
   final TowTruckType? towTruckType;
   final String? notes;
+  final String? idempotencyKey;
 }
 
 abstract class OrderRepository {
