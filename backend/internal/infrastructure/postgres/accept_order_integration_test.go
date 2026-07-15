@@ -56,7 +56,7 @@ func TestAcceptOrder_Success(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	ord, err := uc.Execute(ctx, orderID, driverID)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestAcceptOrder_BusyDriver_Rejected(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	if _, err := uc.Execute(ctx, orderID1, driverID); err != nil {
 		t.Fatalf("first accept: %v", err)
@@ -154,7 +154,7 @@ func TestAcceptOrder_ConcurrentTwoOrders_OneAccepted(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	for iter := 0; iter < 50; iter++ {
 		db.Exec(`UPDATE orders SET status = 'searching', driver_id = NULL, updated_at = NOW() WHERE id IN ($1, $2)`, orderA, orderB)
@@ -236,7 +236,7 @@ func TestAcceptOrder_ConcurrentTwoDrivers_OneWins(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	for iter := 0; iter < 50; iter++ {
 		db.Exec(`UPDATE orders SET status = 'searching', driver_id = NULL, updated_at = NOW() WHERE id = $1`, orderID)
@@ -315,7 +315,7 @@ func TestAcceptOrder_ThenComplete_DriverFreed(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	if _, err := uc.Execute(ctx, orderID, driverID); err != nil {
 		t.Fatalf("accept: %v", err)
@@ -356,7 +356,7 @@ func TestAcceptOrder_ThenCancel_DriverFreed(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	if _, err := uc.Execute(ctx, orderID, driverID); err != nil {
 		t.Fatalf("accept: %v", err)
@@ -400,7 +400,7 @@ func TestAcceptOrder_CanAcceptAgainAfterRelease(t *testing.T) {
 
 	orderRepo := postgres.NewOrderRepository(db)
 	driverRepo := postgres.NewDriverRepository(db, nil)
-	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
+	uc := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, nil, nil, nil, nil, integrationPublisher{}, nil, integrationClock{now: now}, integrationLogger{})
 
 	if _, err := uc.Execute(ctx, order1, driverID); err != nil {
 		t.Fatalf("accept first order: %v", err)

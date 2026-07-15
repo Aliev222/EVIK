@@ -26,7 +26,7 @@ func TestAcceptOrderRejectsUnavailableDriver(t *testing.T) {
 	}
 	driverRepo := &fakeDriverOrderRepository{assignErr: driverdomain.ErrDriverBusy}
 	publisher := &fakeEventPublisher{}
-	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
 
 	_, err := uc.Execute(context.Background(), "order-1", "driver-1")
 	if !errors.Is(err, driverdomain.ErrDriverBusy) {
@@ -55,7 +55,7 @@ func TestAcceptOrderAssignsDriverAndPublishesEvent(t *testing.T) {
 	}
 	driverRepo := &fakeDriverOrderRepository{}
 	publisher := &fakeEventPublisher{}
-	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
 
 	ord, err := uc.Execute(context.Background(), "order-1", "driver-1")
 	if err != nil {
@@ -98,7 +98,7 @@ func TestAcceptOrderIsIdempotentForSameDriverActiveOrder(t *testing.T) {
 			}
 			driverRepo := &fakeDriverOrderRepository{}
 			publisher := &fakeEventPublisher{}
-			uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+			uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
 
 			ord, err := uc.Execute(context.Background(), "order-1", driverID)
 			if err != nil {
@@ -160,7 +160,7 @@ func TestAcceptOrderRecoversStaleTerminalDriverOrderAndRetries(t *testing.T) {
 		},
 	}
 	publisher := &fakeEventPublisher{}
-	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
 
 	ord, err := uc.Execute(context.Background(), targetID, "driver-1")
 	if err != nil {
@@ -204,7 +204,7 @@ func TestAcceptOrderReusesSameDriverCurrentOrderOnUnavailable(t *testing.T) {
 		},
 	}
 	publisher := &fakeEventPublisher{}
-	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
 
 	_, err := uc.Execute(context.Background(), targetID, "driver-1")
 	if !errors.Is(err, driverdomain.ErrDriverBusy) {

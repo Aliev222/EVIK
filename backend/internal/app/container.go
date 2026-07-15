@@ -37,6 +37,7 @@ type Container struct {
 	Router             http.Handler
 	Scheduler          *Scheduler
 	ExpansionScheduler *SearchExpansionScheduler
+	DispatchScheduler  *DispatchScheduler
 	RateLimiter        *httptransport.RateLimiter
 	db                 *sql.DB
 	rdb                *redis.Client
@@ -197,6 +198,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// Platform settings repository (used by payment, admin, etc.)
 	settingsRepo := postgres.NewSettingsRepository(db)
 
+	offerRepo := postgres.NewOfferRepository(db)
+
 	// Create payment use cases
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, driverRepo, pricingService, yookassaProvider{client: yooClient}, settingsRepo, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
@@ -220,8 +223,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
-	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, eventPublisher, pushSender, clock, idGen, appLogger)
-	acceptUC := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
+	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, eventPublisher, clock, idGen, appLogger)
+	acceptUC := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, offerRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
 	finalizeUC := orderuc.NewFinalizeOrderUseCase(orderRepo, eventPublisher, pushSender, clock, appLogger)
@@ -243,6 +246,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	cityGeocoder := geocoding.NewNominatim()
 	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
 	driverLocationsHandler := httptransport.NewDriverLocationsHandler(driverRepo, locationRepo, serviceAreaRepo)
+	offerHandler := httptransport.NewOfferHandler(offerRepo, orderRepo)
 	settingsHandler := httptransport.NewSettingsHandler(settingsRepo)
 	adminHandler := httptransport.NewAdminHandler(
 		adminRepo,
@@ -280,9 +284,25 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.DriverLastCityTTL,
 	)
 
+	dispatchScheduler := NewDispatchScheduler(
+		offerRepo,
+		orderRepo,
+		matchingService,
+		settingsRepo,
+		hub,
+		eventPublisher,
+		pushSender,
+		idGen,
+		clock,
+		logger,
+		cfg.DispatchCheckInterval,
+		cfg.DispatchOfferTimeout,
+		cfg.DispatchGeoFreshness,
+	)
+
 	limiter := httptransport.NewRateLimiter()
-	router := httptransport.NewRouter(authHandler, orderHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
-	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
+	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
+	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 
 func (c *Container) Close() {

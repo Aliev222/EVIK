@@ -35,12 +35,9 @@ type PricingService interface {
 	CalculatePrice(ctx context.Context, input pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error)
 }
 
-// PushSender mirrors the surface of fcm.PushSender so this package can call
-// out to the FCM layer without importing it.
+// PushSender sends push notifications to individual users.
 type PushSender interface {
 	SendToUser(ctx context.Context, userID, role, title, body string, data map[string]string) error
-	BroadcastToAvailableDrivers(ctx context.Context, title, body string, data map[string]string) error
-	BroadcastToDriversInCity(ctx context.Context, cityID, title, body string, data map[string]string) error
 }
 
 type CreateOrderUseCase struct {
@@ -48,7 +45,6 @@ type CreateOrderUseCase struct {
 	driverMatcher  DriverMatcher
 	pricingService PricingService
 	eventPublisher EventPublisher
-	pushSender     PushSender
 	clock          Clock
 	idGenerator    IDGenerator
 	logger         Logger
@@ -74,7 +70,6 @@ func NewCreateOrderUseCase(
 	driverMatcher DriverMatcher,
 	pricingService PricingService,
 	eventPublisher EventPublisher,
-	pushSender PushSender,
 	clock Clock,
 	idGenerator IDGenerator,
 	logger Logger,
@@ -84,7 +79,6 @@ func NewCreateOrderUseCase(
 		driverMatcher:  driverMatcher,
 		pricingService: pricingService,
 		eventPublisher: eventPublisher,
-		pushSender:     pushSender,
 		clock:          clock,
 		idGenerator:    idGenerator,
 		logger:         logger,
@@ -186,12 +180,6 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 		uc.logger.Error("failed to publish searching event", err, "order_id", ord.ID)
 	}
 
-	// Fan a push out to every currently-available driver. Mirrors the WS
-	// "searching" event for drivers whose app is backgrounded. Errors are
-	// logged but never propagated — a failed FCM broadcast must not abort
-	// order creation.
-	uc.broadcastNewOrderPush(ctx, ord, calculation.TotalPrice)
-
 	if !input.AutoDispatch {
 		uc.logger.Info("order created without auto dispatch", "order_id", ord.ID)
 		return ord, nil
@@ -213,39 +201,4 @@ func (uc *CreateOrderUseCase) GetOrderByKey(ctx context.Context, idempotencyKey 
 	return uc.orderRepo.GetByOrderKey(ctx, idempotencyKey)
 }
 
-// broadcastNewOrderPush sends "новый заказ" notification to every available
-// driver. Payload includes order_id and price so the Flutter app can render
-// a richer notification or jump straight into the order screen on tap.
-//
-// The push runs in a background goroutine with a detached 15s context so the
-// HTTP response is not blocked by FCM retries. Errors are logged but never
-// propagated — a failed FCM broadcast must not abort order creation.
-func (uc *CreateOrderUseCase) broadcastNewOrderPush(parent context.Context, ord *orderdomain.Order, priceKopecks int64) {
-	if uc.pushSender == nil {
-		return
-	}
-	go func() {
-		pushCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 15*time.Second)
-		defer cancel()
 
-		title := "Новый заказ"
-		body := fmt.Sprintf("Эвакуатор %s — %.0f ₽", ord.TowTruckType, float64(priceKopecks)/100)
-		data := map[string]string{
-			"type":           "new_order",
-			"order_id":       ord.ID,
-			"tow_truck_type": string(ord.TowTruckType),
-			"price_kopecks":  fmt.Sprintf("%d", priceKopecks),
-		}
-		var pushErr error
-		if ord.CityID != nil && *ord.CityID != "" {
-			pushErr = uc.pushSender.BroadcastToDriversInCity(pushCtx, *ord.CityID, title, body, data)
-		} else {
-			pushErr = uc.pushSender.BroadcastToAvailableDrivers(pushCtx, title, body, data)
-		}
-		if pushErr != nil {
-			uc.logger.Error("CRITICAL: FCM push failed after retries for order", pushErr, "order_id", ord.ID)
-		} else {
-			uc.logger.Info("FCM push sent for order", "order_id", ord.ID)
-		}
-	}()
-}

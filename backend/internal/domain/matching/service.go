@@ -21,8 +21,18 @@ type DriverAvailabilityRepository interface {
 	IsAvailable(ctx context.Context, id string) (bool, error)
 }
 
+type LiveDriverChecker interface {
+	HasDriver(driverID string) bool
+}
+
+type Candidate struct {
+	DriverID   string
+	DistanceKM float64
+}
+
 type MatchingService interface {
 	FindNearestDriver(ctx context.Context, order *order.Order) (*driver.Driver, error)
+	FindCandidates(ctx context.Context, ord *order.Order, radiusKM float64, exclude []string, liveChecker LiveDriverChecker, geoFreshness time.Duration) ([]Candidate, error)
 }
 
 type nearestMatchingService struct {
@@ -87,6 +97,55 @@ func (s *nearestMatchingService) FindNearestDriver(ctx context.Context, ord *ord
 		}
 	}
 	return nil, ErrNoCandidateDrivers
+}
+
+// FindCandidates returns candidates sorted by distance ASC, without pauses.
+// Filters: exclude list, geo freshness, IsAvailable, live WS connection.
+func (s *nearestMatchingService) FindCandidates(ctx context.Context, ord *order.Order, radiusKM float64, exclude []string, liveChecker LiveDriverChecker, geoFreshness time.Duration) ([]Candidate, error) {
+	excludeSet := make(map[string]struct{}, len(exclude))
+	for _, id := range exclude {
+		excludeSet[id] = struct{}{}
+	}
+
+	pickup := location.Location{
+		Lat:       ord.Pickup.Lat,
+		Lng:       ord.Pickup.Lng,
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	drivers, err := s.repo.GetNearbyDrivers(ctx, pickup, radiusKM, s.limit)
+	if err != nil {
+		return nil, err
+	}
+
+	cutoff := time.Now().UTC().Add(-geoFreshness)
+	out := make([]Candidate, 0, len(drivers))
+	for _, d := range drivers {
+		if _, excluded := excludeSet[d.DriverID]; excluded {
+			continue
+		}
+		if d.Location.UpdatedAt.Before(cutoff) {
+			continue
+		}
+		if liveChecker != nil && !liveChecker.HasDriver(d.DriverID) {
+			continue
+		}
+		available, err := s.driverRepository.IsAvailable(ctx, d.DriverID)
+		if err != nil {
+			return nil, err
+		}
+		if !available {
+			continue
+		}
+		out = append(out, Candidate{
+			DriverID:   d.DriverID,
+			DistanceKM: d.DistanceKM,
+		})
+	}
+	if len(out) == 0 {
+		return nil, ErrNoCandidateDrivers
+	}
+	return out, nil
 }
 
 // ExpandSearchRadius allows orchestration layer to increase search window between retries.

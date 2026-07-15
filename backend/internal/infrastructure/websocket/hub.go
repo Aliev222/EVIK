@@ -120,6 +120,17 @@ func (h *Hub) SendToDriversWhere(predicate func(c *Client) bool, payload []byte)
 }
 
 // SendToRole sends payload to every connected client with the given role.
+func (h *Hub) HasDriver(driverID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	for c := range h.clients {
+		if c.UserID == driverID && c.Role == "driver" {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *Hub) SendToRole(role string, payload []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

@@ -14,6 +14,7 @@ import (
 func NewRouter(
 	authHandler *AuthHandler,
 	orderHandler *OrderHandler,
+	offerHandler *OfferHandler,
 	driverHandler *DriverHandler,
 	paymentHandler *PaymentHandler,
 	pricingHandler *PricingHandler,
@@ -82,6 +83,8 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders/{orderID}/confirm-payment", paymentHandler.ConfirmPayment)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Patch("/orders/{orderID}/payment-method", paymentHandler.UpdateOrderPaymentMethod)
 			secured.Post("/orders/{orderID}/cancel", orderHandler.CancelOrder)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/orders/{orderID}/decline", offerHandler.DeclineOffer)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/current-offer", offerHandler.GetCurrentOffer)
 			secured.Get("/drivers/{driverID}", driverHandler.GetDriver)
 			secured.Get("/drivers/{driverID}/profile", driverHandler.GetDriverProfile)
 			secured.Get("/drivers/{driverID}/location", driverHandler.GetLocation)

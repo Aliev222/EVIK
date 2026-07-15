@@ -42,6 +42,9 @@ type Config struct {
 	OrderExpansionCheckInterval     time.Duration
 	OrderExpansionDelay             time.Duration
 	OrderExpansionRadiusKM          float64
+	DispatchCheckInterval           time.Duration
+	DispatchOfferTimeout            time.Duration
+	DispatchGeoFreshness            time.Duration
 	DriverLastCityTTL               time.Duration
 	DriverSubscriptionRequired      bool
 	DriverGateBypass           bool
@@ -105,6 +108,9 @@ func MustLoad() Config {
 		OrderExpansionCheckInterval:     getEnvDuration("ORDER_EXPANSION_CHECK_INTERVAL", 10*time.Second),
 		OrderExpansionDelay:             getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
 		OrderExpansionRadiusKM:          getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
+		DispatchCheckInterval:           getEnvDuration("DISPATCH_CHECK_INTERVAL", 2*time.Second),
+		DispatchOfferTimeout:            getEnvDuration("DISPATCH_OFFER_TIMEOUT", 15*time.Second),
+		DispatchGeoFreshness:            getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
 		DriverLastCityTTL:          getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),

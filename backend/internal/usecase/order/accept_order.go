@@ -48,10 +48,15 @@ type DriverAcceptStore interface {
 	ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error
 }
 
+type OfferResolver interface {
+	ResolveOfferTx(ctx context.Context, tx *sql.Tx, orderID, driverID string, outcome string) error
+}
+
 type AcceptOrderUseCase struct {
 	db             *sql.DB
 	orderRepo      OrderAcceptStore
 	driverRepo     DriverAcceptStore
+	offerResolver  OfferResolver
 	eventPublisher EventPublisher
 	pushSender     PushSender
 	cityCache      DriverCityCache
@@ -66,6 +71,7 @@ func NewAcceptOrderUseCase(
 	db *sql.DB,
 	orderRepo OrderAcceptStore,
 	driverRepo DriverAcceptStore,
+	offerResolver OfferResolver,
 	cityCache DriverCityCache,
 	locCache DriverLocationCache,
 	cityDetector CityDetector,
@@ -78,6 +84,7 @@ func NewAcceptOrderUseCase(
 		db:             db,
 		orderRepo:      orderRepo,
 		driverRepo:     driverRepo,
+		offerResolver:  offerResolver,
 		cityCache:      cityCache,
 		locCache:       locCache,
 		cityDetector:   cityDetector,
@@ -125,6 +132,12 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 			return err
 		}
 
+		if uc.offerResolver != nil {
+			if resolveErr := uc.offerResolver.ResolveOfferTx(ctx, tx, orderID, driverID, "accepted"); resolveErr != nil {
+				return resolveErr
+			}
+		}
+
 		uc.applySurchargeIfCrossCity(ctx, ord, driverID)
 		return uc.orderRepo.UpdateTx(ctx, tx, ord)
 	})
@@ -142,6 +155,11 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 				}
 				if _, err := uc.driverRepo.AssignOrderTx(ctx, tx, driverID, orderID, now); err != nil {
 					return err
+				}
+				if uc.offerResolver != nil {
+					if resolveErr := uc.offerResolver.ResolveOfferTx(ctx, tx, orderID, driverID, "accepted"); resolveErr != nil {
+						return resolveErr
+					}
 				}
 				uc.applySurchargeIfCrossCity(ctx, ord, driverID)
 				return uc.orderRepo.UpdateTx(ctx, tx, ord)

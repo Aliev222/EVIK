@@ -55,6 +55,7 @@ func main() {
 
 	go container.Scheduler.Run(ctx)
 	go container.ExpansionScheduler.Run(ctx)
+	go container.DispatchScheduler.Run(ctx)
 	container.RateLimiter.StartCleanup(ctx)
 
 	go func() {

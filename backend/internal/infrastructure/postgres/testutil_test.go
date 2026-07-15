@@ -112,7 +112,9 @@ func truncateAll(t *testing.T, db *sql.DB) {
 		t.Fatalf("failed to clear driver current_order_id: %v", err)
 	}
 
+	// Truncate order_offers first (before orders due to FK constraints)
 	tables := []string{
+		"order_offers",
 		"wallet_transactions",
 		"wallet_transaction_locks",
 		"payouts",
