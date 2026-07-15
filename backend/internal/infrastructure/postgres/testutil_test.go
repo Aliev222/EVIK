@@ -107,6 +107,11 @@ func uuid() string {
 func truncateAll(t *testing.T, db *sql.DB) {
 	t.Helper()
 
+	// Clear FK references on drivers before deleting orders.
+	if _, err := db.Exec(`UPDATE drivers SET current_order_id = NULL WHERE current_order_id IS NOT NULL`); err != nil {
+		t.Fatalf("failed to clear driver current_order_id: %v", err)
+	}
+
 	tables := []string{
 		"wallet_transactions",
 		"wallet_transaction_locks",

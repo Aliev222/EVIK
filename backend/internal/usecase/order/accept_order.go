@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -29,9 +30,28 @@ type CityDetector interface {
 	CheckPoint(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, bool, error)
 }
 
+// OrderAcceptStore collects all OrderRepository methods needed by the
+// accept usecase. It is a subset that includes both the transactional
+// methods (AcceptOrderTx, UpdateTx) and the plain-context GetByID so the
+// usecase does not depend on the full orderdomain.Repository.
+type OrderAcceptStore interface {
+	GetByID(ctx context.Context, id string) (*orderdomain.Order, error)
+	AcceptOrderTx(ctx context.Context, tx *sql.Tx, orderID, driverID string) (*orderdomain.Order, error)
+	UpdateTx(ctx context.Context, tx *sql.Tx, ord *orderdomain.Order) error
+}
+
+// DriverAcceptStore collects all DriverRepository methods needed by the
+// accept usecase, including the transactional AssignOrderTx.
+type DriverAcceptStore interface {
+	GetByID(ctx context.Context, id string) (*driverdomain.Driver, error)
+	AssignOrderTx(ctx context.Context, tx *sql.Tx, driverID, orderID string, now time.Time) (*driverdomain.Driver, error)
+	ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error
+}
+
 type AcceptOrderUseCase struct {
-	orderRepo      orderdomain.Repository
-	driverRepo     DriverOrderRepository
+	db             *sql.DB
+	orderRepo      OrderAcceptStore
+	driverRepo     DriverAcceptStore
 	eventPublisher EventPublisher
 	pushSender     PushSender
 	cityCache      DriverCityCache
@@ -39,11 +59,13 @@ type AcceptOrderUseCase struct {
 	cityDetector   CityDetector
 	clock          Clock
 	logger         Logger
+	withTx         func(ctx context.Context, fn func(*sql.Tx) error) error
 }
 
 func NewAcceptOrderUseCase(
-	orderRepo orderdomain.Repository,
-	driverRepo DriverOrderRepository,
+	db *sql.DB,
+	orderRepo OrderAcceptStore,
+	driverRepo DriverAcceptStore,
 	cityCache DriverCityCache,
 	locCache DriverLocationCache,
 	cityDetector CityDetector,
@@ -53,6 +75,7 @@ func NewAcceptOrderUseCase(
 	logger Logger,
 ) *AcceptOrderUseCase {
 	return &AcceptOrderUseCase{
+		db:             db,
 		orderRepo:      orderRepo,
 		driverRepo:     driverRepo,
 		cityCache:      cityCache,
@@ -62,61 +85,80 @@ func NewAcceptOrderUseCase(
 		pushSender:     pushSender,
 		clock:          clock,
 		logger:         logger,
+		withTx:         defaultWithTx(db),
+	}
+}
+
+func defaultWithTx(db *sql.DB) func(ctx context.Context, fn func(*sql.Tx) error) error {
+	return func(ctx context.Context, fn func(*sql.Tx) error) error {
+		if db == nil {
+			return fn(nil)
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		if err := fn(tx); err != nil {
+			return err
+		}
+		return tx.Commit()
 	}
 }
 
 func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, driverID string) (*orderdomain.Order, error) {
-	ord, err := uc.orderRepo.AcceptOrder(ctx, orderID, driverID)
-	if err != nil {
-		if errors.Is(err, orderdomain.ErrOrderAlreadyTaken) {
-			// Idempotency: this driver may already hold the order.
-			existing, getErr := uc.orderRepo.GetByID(ctx, orderID)
-			if getErr != nil {
-				return nil, getErr
-			}
-			if isSameDriverActiveOrder(existing, driverID) {
-				return existing, nil
-			}
-			return nil, err
-		}
-		return nil, err
+	// Idempotency: this driver may already hold the order.
+	existing, getErr := uc.orderRepo.GetByID(ctx, orderID)
+	if getErr == nil && isSameDriverActiveOrder(existing, driverID) {
+		return existing, nil
 	}
 
 	now := uc.clock.Now()
-	driverAssigned := false
-	if _, err := uc.driverRepo.AssignOrder(ctx, driverID, orderID, now); err != nil {
-		if errors.Is(err, driverdomain.ErrDriverUnavailable) {
-			reuseCurrentOrder, recovered, recoverErr := uc.tryRecoverDriverAvailability(ctx, driverID, orderID, now)
-			if recoverErr != nil {
-				return nil, recoverErr
+
+	err := uc.withTx(ctx, func(tx *sql.Tx) error {
+		ord, err := uc.orderRepo.AcceptOrderTx(ctx, tx, orderID, driverID)
+		if err != nil {
+			return err
+		}
+
+		if _, err := uc.driverRepo.AssignOrderTx(ctx, tx, driverID, orderID, now); err != nil {
+			return err
+		}
+
+		uc.applySurchargeIfCrossCity(ctx, ord, driverID)
+		return uc.orderRepo.UpdateTx(ctx, tx, ord)
+	})
+	if err != nil {
+		if errors.Is(err, driverdomain.ErrDriverBusy) {
+			recovered := uc.tryRecoverAndRetry(ctx, orderID, driverID, now)
+			if !recovered {
+				return nil, driverdomain.ErrDriverBusy
 			}
-			switch {
-			case reuseCurrentOrder:
-				driverAssigned = true
-			case recovered:
-				if _, retryErr := uc.driverRepo.AssignOrder(ctx, driverID, orderID, now); retryErr != nil {
-					return nil, retryErr
+			// Recovery released a stale order — retry the full tx once.
+			err = uc.withTx(ctx, func(tx *sql.Tx) error {
+				ord, err := uc.orderRepo.AcceptOrderTx(ctx, tx, orderID, driverID)
+				if err != nil {
+					return err
 				}
-				driverAssigned = true
-			default:
+				if _, err := uc.driverRepo.AssignOrderTx(ctx, tx, driverID, orderID, now); err != nil {
+					return err
+				}
+				uc.applySurchargeIfCrossCity(ctx, ord, driverID)
+				return uc.orderRepo.UpdateTx(ctx, tx, ord)
+			})
+			if err != nil {
 				return nil, err
 			}
 		} else {
 			return nil, err
 		}
-	} else {
-		driverAssigned = true
 	}
 
-	uc.applySurchargeIfCrossCity(ctx, ord, driverID)
-	if err := uc.orderRepo.Update(ctx, ord); err != nil {
-		if driverAssigned {
-			if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, orderID, now); releaseErr != nil {
-				uc.logger.Error("failed to release driver after order update failure", releaseErr, "order_id", ord.ID, "driver_id", driverID)
-			}
-		}
+	ord, err := uc.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
 		return nil, err
 	}
+
 	if err := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventAccepted,
 		OrderID: ord.ID,
@@ -133,6 +175,42 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	uc.notifyClientAccepted(ctx, ord, driverID)
 
 	return ord, nil
+}
+
+// tryRecoverAndRetry attempts to release a stale terminal order from the
+// driver so the accept retry can succeed. Returns true if recovery released
+// something and a retry is worthwhile.
+func (uc *AcceptOrderUseCase) tryRecoverAndRetry(ctx context.Context, driverID string, targetOrderID string, now time.Time) bool {
+	drv, err := uc.driverRepo.GetByID(ctx, driverID)
+	if err != nil {
+		return false
+	}
+	if drv.CurrentOrderID == nil {
+		return false
+	}
+	currentOrderID := *drv.CurrentOrderID
+	if currentOrderID == targetOrderID {
+		return false
+	}
+	activeOrder, err := uc.orderRepo.GetByID(ctx, currentOrderID)
+	if err != nil {
+		if errors.Is(err, orderdomain.ErrOrderNotFound) {
+			if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, currentOrderID, now); releaseErr != nil {
+				uc.logger.Error("failed to release missing stale order from driver", releaseErr, "driver_id", driverID, "order_id", currentOrderID)
+				return false
+			}
+			return true
+		}
+		return false
+	}
+	if !isTerminalOrderStatus(activeOrder.Status) {
+		return false
+	}
+	if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, currentOrderID, now); releaseErr != nil {
+		uc.logger.Error("failed to release terminal stale order from driver", releaseErr, "driver_id", driverID, "order_id", currentOrderID)
+		return false
+	}
+	return true
 }
 
 // notifyClientAccepted fires a "водитель в пути" push at the client when a
@@ -205,66 +283,21 @@ func (uc *AcceptOrderUseCase) applySurchargeIfCrossCity(ctx context.Context, ord
 	}
 }
 
-func (uc *AcceptOrderUseCase) tryRecoverDriverAvailability(
-	ctx context.Context,
-	driverID string,
-	targetOrderID string,
-	now time.Time,
-) (reuseCurrentOrder bool, recovered bool, err error) {
-	drv, err := uc.driverRepo.GetByID(ctx, driverID)
-	if err != nil {
-		if errors.Is(err, driverdomain.ErrDriverNotFound) {
-			return false, false, nil
-		}
-		return false, false, err
-	}
-	if drv.CurrentOrderID == nil {
-		return false, false, nil
-	}
-
-	currentOrderID := *drv.CurrentOrderID
-	if currentOrderID == targetOrderID {
-		return true, false, nil
-	}
-
-	activeOrder, err := uc.orderRepo.GetByID(ctx, currentOrderID)
-	if err != nil {
-		if errors.Is(err, orderdomain.ErrOrderNotFound) {
-			if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, currentOrderID, now); releaseErr != nil {
-				uc.logger.Error("failed to release missing stale order from driver", releaseErr, "driver_id", driverID, "order_id", currentOrderID)
-				return false, false, releaseErr
-			}
-			return false, true, nil
-		}
-		return false, false, err
-	}
-
-	if !isTerminalOrderStatus(activeOrder.Status) {
-		return false, false, nil
-	}
-
-	if releaseErr := uc.driverRepo.ReleaseOrder(ctx, driverID, currentOrderID, now); releaseErr != nil {
-		uc.logger.Error("failed to release terminal stale order from driver", releaseErr, "driver_id", driverID, "order_id", currentOrderID)
-		return false, false, releaseErr
-	}
-	return false, true, nil
-}
-
-func isTerminalOrderStatus(status orderdomain.Status) bool {
-	switch status {
-	case orderdomain.StatusCompleted, orderdomain.StatusCancelled, orderdomain.StatusNoDriverFound:
-		return true
-	default:
-		return false
-	}
-}
-
 func isSameDriverActiveOrder(ord *orderdomain.Order, driverID string) bool {
 	if ord.DriverID == nil || *ord.DriverID != driverID {
 		return false
 	}
 	switch ord.Status {
 	case orderdomain.StatusAccepted, orderdomain.StatusArrived, orderdomain.StatusInProgress:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTerminalOrderStatus(status orderdomain.Status) bool {
+	switch status {
+	case orderdomain.StatusCompleted, orderdomain.StatusCancelled, orderdomain.StatusNoDriverFound:
 		return true
 	default:
 		return false

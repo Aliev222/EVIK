@@ -301,6 +301,54 @@ WHERE id = $1 AND current_order_id = $2`
 	return err
 }
 
+// AssignOrderTx is the tx variant of AssignOrder.
+func (r *DriverRepository) AssignOrderTx(ctx context.Context, tx *sql.Tx, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error) {
+	const query = `
+UPDATE drivers
+SET status = $3, current_order_id = $2, last_seen_at = $4, updated_at = $4
+WHERE id = $1 AND status = $5 AND current_order_id IS NULL
+RETURNING id, user_id, status, current_order_id, last_seen_at, updated_at`
+
+	var (
+		drv    driverdomain.Driver
+		status string
+	)
+	err := tx.QueryRowContext(
+		ctx,
+		query,
+		driverID,
+		orderID,
+		string(driverdomain.StatusBusy),
+		now,
+		string(driverdomain.StatusOnline),
+	).Scan(
+		&drv.ID,
+		&drv.UserID,
+		&status,
+		&drv.CurrentOrderID,
+		&drv.LastSeenAt,
+		&drv.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, driverdomain.ErrDriverBusy
+		}
+		return nil, err
+	}
+	drv.Status = driverdomain.Status(status)
+	return &drv, nil
+}
+
+// ReleaseOrderTx is the tx variant of ReleaseOrder.
+func (r *DriverRepository) ReleaseOrderTx(ctx context.Context, tx *sql.Tx, driverID string, orderID string, now time.Time) error {
+	const query = `
+UPDATE drivers
+SET status = $3, current_order_id = NULL, updated_at = $4
+WHERE id = $1 AND current_order_id = $2`
+	_, err := tx.ExecContext(ctx, query, driverID, orderID, string(driverdomain.StatusOnline), now)
+	return err
+}
+
 func (r *DriverRepository) FindNearestAvailable(ctx context.Context, pickup orderdomain.Coordinate, radiusKM float64, limit int) ([]driverdomain.Driver, error) {
 	nearby, err := r.locationRepo.GetNearbyDrivers(ctx, location.Location{Lat: pickup.Lat, Lng: pickup.Lng}, radiusKM, limit)
 	if err != nil {

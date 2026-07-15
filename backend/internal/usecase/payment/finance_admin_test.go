@@ -196,5 +196,6 @@ func (r *fakeAdminPaymentRepo) ListAdminRefunds(_ context.Context, filter paymen
 }
 
 func newAdminFinanceUseCase(repo *fakeAdminPaymentRepo, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakePricingService{}, &fakePaymentProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, &fakePaymentProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
+

@@ -43,7 +43,7 @@ func TestWebhook_ConcurrentDuplicate(t *testing.T) {
 	}
 	provider := &webhookProvider{}
 	paymentRepo := postgres.NewPaymentRepository(db)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, webhookPricingService{}, provider, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, provider, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
 
 	payload, err := json.Marshal(map[string]any{
 		"event": "payment.succeeded",

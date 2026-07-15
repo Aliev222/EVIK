@@ -78,9 +78,16 @@ type ProviderPayoutResponse struct {
 	Status string
 }
 
+// DriverReleaseStore is the subset of DriverRepository needed to free a
+// driver when an order reaches a terminal status.
+type DriverReleaseStore interface {
+	ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error
+}
+
 type FinanceUseCase struct {
 	repo              paymentdomain.Repository
 	orderRepo         orderdomain.Repository
+	driverRepo        DriverReleaseStore
 	pricingService    PricingService
 	provider          PaymentProvider
 	settingsRepo      settings.Repository
@@ -101,10 +108,11 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, pricingService PricingService, provider PaymentProvider, settingsRepo settings.Repository, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, driverRepo DriverReleaseStore, pricingService PricingService, provider PaymentProvider, settingsRepo settings.Repository, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
+		driverRepo:        driverRepo,
 		pricingService:    pricingService,
 		provider:          provider,
 		settingsRepo:      settingsRepo,
@@ -314,6 +322,11 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 			if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
 				return updErr
 			}
+			if ord.DriverID != nil {
+				if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
+					log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
+				}
+			}
 		}
 		return txOps.MarkProcessed(ctx, event.EventID)
 	})
@@ -386,6 +399,12 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.orderRepo.Update(ctx, ord); err != nil {
 			return nil, err
 		}
+		if ord.DriverID != nil {
+			now := uc.clock.Now()
+			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
+				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
+			}
+		}
 		return nil, nil
 	}
 
@@ -401,6 +420,12 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		ord.UpdatedAt = uc.clock.Now()
 		if err := uc.orderRepo.Update(ctx, ord); err != nil {
 			return nil, err
+		}
+		if ord.DriverID != nil {
+			now := uc.clock.Now()
+			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
+				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
+			}
 		}
 	}
 	return payment, nil

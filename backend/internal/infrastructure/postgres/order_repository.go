@@ -160,6 +160,91 @@ RETURNING id, user_id, driver_id,
 	return &ord, nil
 }
 
+// AcceptOrderTx is the tx variant of AcceptOrder. It uses the supplied
+// transaction instead of the repository's db connection.
+func (r *OrderRepository) AcceptOrderTx(ctx context.Context, tx *sql.Tx, orderID, driverID string) (*orderdomain.Order, error) {
+	const query = `
+UPDATE orders
+SET driver_id  = $2,
+    status     = 'accepted',
+    updated_at = NOW()
+WHERE id        = $1
+  AND status    = 'searching'
+  AND driver_id IS NULL
+RETURNING id, user_id, driver_id,
+          pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+          pickup_address, dropoff_address,
+          tow_truck_type, status, price_total,
+          is_cross_city, surcharge_amount, surcharge_percent,
+          created_at, updated_at, cancelled_at,
+          city_id, is_expanded, expanded_at,
+          payment_method`
+
+	var (
+		ord            orderdomain.Order
+		pickupAddress  sql.NullString
+		dropoffAddress sql.NullString
+		cityID         sql.NullString
+		towTruckType   string
+		status         string
+		expandedAt     sql.NullTime
+		paymentMethod  sql.NullString
+	)
+	err := tx.QueryRowContext(ctx, query, orderID, driverID).Scan(
+		&ord.ID,
+		&ord.UserID,
+		&ord.DriverID,
+		&ord.Pickup.Lat,
+		&ord.Pickup.Lng,
+		&ord.Dropoff.Lat,
+		&ord.Dropoff.Lng,
+		&pickupAddress,
+		&dropoffAddress,
+		&towTruckType,
+		&status,
+		&ord.PriceTotal,
+		&ord.IsCrossCity,
+		&ord.SurchargeAmount,
+		&ord.SurchargePercent,
+		&ord.CreatedAt,
+		&ord.UpdatedAt,
+		&ord.CancelledAt,
+		&cityID,
+		&ord.IsExpanded,
+		&expandedAt,
+		&paymentMethod,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, orderdomain.ErrOrderAlreadyTaken
+		}
+		return nil, err
+	}
+	ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
+	ord.Status = orderdomain.Status(status)
+	ord.PickupAddress = scanNullableString(pickupAddress)
+	ord.DropoffAddress = scanNullableString(dropoffAddress)
+	ord.PaymentMethod = scanNullableString(paymentMethod)
+	if cityID.Valid {
+		ord.CityID = &cityID.String
+	}
+	if expandedAt.Valid {
+		t := expandedAt.Time
+		ord.ExpandedAt = &t
+	}
+	return &ord, nil
+}
+
+// UpdateTx is the tx variant of Update.
+func (r *OrderRepository) UpdateTx(ctx context.Context, tx *sql.Tx, ord *orderdomain.Order) error {
+	const query = `
+UPDATE orders
+SET driver_id = $2, tow_truck_type = $3, status = $4, updated_at = $5, cancelled_at = $6, is_expanded = $7, expanded_at = $8, price_total = $9, is_cross_city = $10, surcharge_amount = $11, surcharge_percent = $12, cancel_reason = $13, payment_method = $14, driver_amount = $15, commission_amount = $16
+WHERE id = $1`
+	_, err := tx.ExecContext(ctx, query, ord.ID, ord.DriverID, string(ord.TowTruckType), string(ord.Status), ord.UpdatedAt, ord.CancelledAt, ord.IsExpanded, ord.ExpandedAt, ord.PriceTotal, ord.IsCrossCity, ord.SurchargeAmount, ord.SurchargePercent, toNullString(ord.CancelReason), ord.PaymentMethod, ord.DriverAmount, ord.CommissionAmount)
+	return err
+}
+
 // HasActiveOrderWithDriver returns true if clientID has an active order
 // (accepted, arrived, or in_progress) currently assigned to driverID.
 func (r *OrderRepository) HasActiveOrderWithDriver(ctx context.Context, clientID, driverID string) (bool, error) {

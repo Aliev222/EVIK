@@ -8,6 +8,13 @@ import (
 	pricingdomain "evik/backend/internal/domain/pricing"
 )
 
+// fakeDriverReleaseStore is a no-op stub for the DriverReleaseStore interface.
+type fakeDriverReleaseStore struct{}
+
+func (s *fakeDriverReleaseStore) ReleaseOrder(_ context.Context, _ string, _ string, _ time.Time) error {
+	return nil
+}
+
 // noopFinanceRepo provides a baseline no-op implementation of every method
 // of paymentdomain.Repository. Tests embed it in their own fake type and
 // override only the methods they exercise. This avoids panics from missing

@@ -27,7 +27,7 @@ func (r *refundRepo) CreateRefund(_ context.Context, refund *paymentdomain.Refun
 
 func newRefundUC(repo paymentdomain.Repository) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &scriptedPricing{}, &scriptedProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, &scriptedProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
 }
 
 func TestCreateRefundRejectsNonPositiveAmount(t *testing.T) {
@@ -120,3 +120,4 @@ func TestCreateRefundRepoErrorPropagates(t *testing.T) {
 		t.Fatalf("err = %v, want %v", err, wantErr)
 	}
 }
+
