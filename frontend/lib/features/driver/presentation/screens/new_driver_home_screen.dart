@@ -47,7 +47,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   String? _routePreviewOrderId;
   RoutePreview? _routePreview;
   bool _routePreviewFailed = false;
-  static const Duration _offerLifetime = Duration(seconds: 10);
+
 
   // Координаты Москвы по умолчанию
   static const double _moscowLat = 55.7558;
@@ -152,9 +152,21 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     _offerAnimationController?.dispose();
     _visibleOfferId = incoming.id;
 
-    // Create new animation controller for this offer
+    Duration duration;
+    if (incoming.expiresAt != null) {
+      final remaining = incoming.expiresAt!.difference(DateTime.now().toUtc());
+      duration = remaining > Duration.zero ? remaining : Duration.zero;
+    } else {
+      duration = const Duration(seconds: 15);
+    }
+
+    if (duration == Duration.zero) {
+      _visibleOfferId = null;
+      return;
+    }
+
     _offerAnimationController = AnimationController(
-      duration: _offerLifetime,
+      duration: duration,
       vsync: this,
     );
 
@@ -168,7 +180,6 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
 
     _offerAnimationController!.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
-        ref.read(newDriverProvider.notifier).declineOrder(incoming.id);
         setState(() {
           _visibleOfferId = null;
         });

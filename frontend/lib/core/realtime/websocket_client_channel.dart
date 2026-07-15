@@ -16,6 +16,10 @@ class ChannelWebSocketClient implements WebSocketClient {
       StreamController<WebSocketConnectionStatus>.broadcast();
   final StreamController<void> _onReconnectedController =
       StreamController<void>.broadcast();
+  String? _url;
+  int _reconnectAttempt = 0;
+  Timer? _reconnectTimer;
+  bool _intentionalDisconnect = false;
 
   @override
   Stream<WebSocketConnectionStatus> get connectionStatus =>
@@ -26,6 +30,10 @@ class ChannelWebSocketClient implements WebSocketClient {
 
   @override
   Future<void> connect(String url) async {
+    _intentionalDisconnect = false;
+    _url = url;
+    _reconnectAttempt = 0;
+    _reconnectTimer?.cancel();
     await disconnect();
     _messages = StreamController<String>.broadcast();
     _channel = WebSocketChannel.connect(Uri.parse(url));
@@ -39,6 +47,7 @@ class ChannelWebSocketClient implements WebSocketClient {
       onError: (Object error, StackTrace stackTrace) {
         _messages?.addError(error, stackTrace);
         _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+        _scheduleReconnect();
       },
       onDone: () {
         final controller = _messages;
@@ -46,6 +55,9 @@ class ChannelWebSocketClient implements WebSocketClient {
           controller.close();
         }
         _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+        if (!_intentionalDisconnect) {
+          _scheduleReconnect();
+        }
       },
     );
   }
@@ -61,6 +73,8 @@ class ChannelWebSocketClient implements WebSocketClient {
 
   @override
   Future<void> disconnect() async {
+    _intentionalDisconnect = true;
+    _reconnectTimer?.cancel();
     final channel = _channel;
     final controller = _messages;
     final subscription = _subscription;
@@ -75,5 +89,25 @@ class ChannelWebSocketClient implements WebSocketClient {
       await controller.close();
     }
     _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
+  }
+
+  void _scheduleReconnect() {
+    if (_url == null || _intentionalDisconnect) return;
+    _reconnectAttempt++;
+    final delay = Duration(
+      milliseconds: (_reconnectAttempt <= 6)
+          ? (1000 * (1 << (_reconnectAttempt - 1))).clamp(1000, 30000)
+          : 30000,
+    );
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () {
+      _connectionStatusController.add(WebSocketConnectionStatus.connecting);
+      connect(_url!).then((_) {
+        _reconnectAttempt = 0;
+        _onReconnectedController.add(null);
+      }).catchError((_) {
+        _scheduleReconnect();
+      });
+    });
   }
 }

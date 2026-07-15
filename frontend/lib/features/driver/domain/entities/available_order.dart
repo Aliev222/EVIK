@@ -2,6 +2,7 @@
 
 class AvailableOrder {
   final String id;
+  final String offerId;
   final VehicleType vehicleType;
   final String vehicleModel;
   final String pickupAddress;
@@ -17,11 +18,13 @@ class AvailableOrder {
   final int blockedWheelsCount;
   final ProblemSeverity severity;
   final DateTime createdAt;
+  final DateTime? expiresAt;
   final String clientName;
   final String clientPhone;
 
   const AvailableOrder({
     required this.id,
+    this.offerId = '',
     required this.vehicleType,
     required this.vehicleModel,
     required this.pickupAddress,
@@ -37,6 +40,7 @@ class AvailableOrder {
     required this.blockedWheelsCount,
     required this.severity,
     required this.createdAt,
+    this.expiresAt,
     required this.clientName,
     required this.clientPhone,
   });

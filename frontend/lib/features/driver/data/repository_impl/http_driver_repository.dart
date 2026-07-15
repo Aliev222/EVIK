@@ -108,6 +108,20 @@ class HttpDriverRepository implements DriverRepository {
     return _getOrdersByStatus('searching');
   }
 
+  Future<Map<String, dynamic>?> getCurrentOffer() async {
+    try {
+      final response = await _apiClient.get(
+        '/api/v1/driver/current-offer',
+        headers: _authHeaders,
+      );
+      final offer = response['offer'];
+      if (offer == null) return null;
+      return offer as Map<String, dynamic>;
+    } on ApiClientException {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> acceptOrder(String orderId) async {
     final response = await _apiClient.post(
       '/api/v1/orders/$orderId/accept',
@@ -169,6 +183,18 @@ class HttpDriverRepository implements DriverRepository {
     yield const <Driver>[];
   }
 
+  Future<void> declineOffer(String orderId) async {
+    try {
+      await _apiClient.post(
+        '/api/v1/orders/$orderId/decline',
+        const <String, dynamic>{},
+        headers: _authHeaders,
+      );
+    } on ApiClientException {
+      // Server will expire the offer on its own — network errors are fine.
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _getOrdersByStatus(String status) async {
     final response = await _apiClient.get(
       '/api/v1/orders?status=$status',
@@ -218,6 +244,53 @@ AvailableOrder availableOrderFromBackend(Map<String, dynamic> map) {
     createdAt: order.createdAt,
     clientName: 'Клиент',
     clientPhone: '', // No phone available from order data
+  );
+}
+
+AvailableOrder availableOrderFromOffer(Map<String, dynamic> map, String orderId) {
+  final vehicleType = switch (map['tow_truck_type']?.toString()) {
+    'light' => VehicleType.light,
+    'suv' => VehicleType.suv,
+    'minibus' => VehicleType.minibus,
+    'truck' => VehicleType.truck,
+    _ => VehicleType.light,
+  };
+  final vehicleModel = switch (vehicleType) {
+    VehicleType.light => 'Легковой автомобиль',
+    VehicleType.suv => 'Внедорожник',
+    VehicleType.minibus => 'Минивэн',
+    VehicleType.truck => 'Грузовой автомобиль',
+  };
+  final priceTotal = (map['price_total'] as num?)?.toDouble() ?? 0;
+  final distanceKm = (map['distance_km'] as num?)?.toDouble() ?? 0;
+
+  DateTime? expiresAt;
+  final expiresAtStr = map['expires_at']?.toString();
+  if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
+    expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
+  }
+
+  return AvailableOrder(
+    id: orderId,
+    offerId: map['offer_id']?.toString() ?? '',
+    vehicleType: vehicleType,
+    vehicleModel: vehicleModel,
+    pickupAddress: map['pickup_address']?.toString() ?? '',
+    dropoffAddress: map['dropoff_address']?.toString() ?? '',
+    pickupLat: (map['pickup_lat'] as num?)?.toDouble() ?? 0,
+    pickupLng: (map['pickup_lng'] as num?)?.toDouble() ?? 0,
+    dropoffLat: (map['dropoff_lat'] as num?)?.toDouble() ?? 0,
+    dropoffLng: (map['dropoff_lng'] as num?)?.toDouble() ?? 0,
+    distanceKm: distanceKm,
+    estimatedMinutes: _estimateMinutes(distanceKm),
+    price: priceTotal > 0 ? priceTotal / 100 : 0,
+    problemType: 'Эвакуация',
+    blockedWheelsCount: 0,
+    severity: ProblemSeverity.medium,
+    createdAt: DateTime.now(),
+    expiresAt: expiresAt,
+    clientName: 'Клиент',
+    clientPhone: '',
   );
 }
 

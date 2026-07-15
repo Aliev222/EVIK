@@ -23,6 +23,7 @@ abstract class EventDispatcher {
   Stream<Event> orderEvents(String orderId);
   void handleEvent(Event event);
   Future<void> stop();
+  Stream<void> get onReconnected;
 }
 
 class WsEventDispatcher implements EventDispatcher {
@@ -40,6 +41,9 @@ class WsEventDispatcher implements EventDispatcher {
   bool _started = false;
 
   @override
+  Stream<void> get onReconnected => _client.onReconnected;
+
+  @override
   Future<void> start() async {
     if (_started) return;
     await _client.connect(_wsUrl);
@@ -51,11 +55,12 @@ class WsEventDispatcher implements EventDispatcher {
           final orderId = decoded['order_id']?.toString();
           final type = decoded['type']?.toString();
           if (orderId != null && type != null) {
+            final payload = decoded['payload'] ?? decoded;
             handleEvent(
               Event(
                 type: type,
                 orderId: orderId,
-                payload: decoded['payload'],
+                payload: payload,
               ),
             );
           }
@@ -89,6 +94,10 @@ class WsEventDispatcher implements EventDispatcher {
       case 'no_driver_found':
       case 'order_expanded':
         debugPrint('WS event dispatched: type=${event.type} orderId=${event.orderId}');
+        _orderEvents.add(event);
+        break;
+      case 'offer':
+        debugPrint('WS offer received: orderId=${event.orderId}');
         _orderEvents.add(event);
         break;
       default:

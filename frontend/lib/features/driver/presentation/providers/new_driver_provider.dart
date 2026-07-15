@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
+import 'package:tow_truck_frontend/core/realtime/event_dispatcher.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
@@ -70,7 +71,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
   DriverNotifier({
     required HttpDriverRepository driverRepository,
     required Ref ref,
+    EventDispatcher? eventDispatcher,
   })  : _driverRepository = driverRepository,
+        _eventDispatcher = eventDispatcher,
         _ref = ref,
         super(DriverState(
           workState: DriverWorkState.offline,
@@ -98,14 +101,16 @@ class DriverNotifier extends StateNotifier<DriverState> {
         )) {
     unawaited(_initializeDriver());
     _startPeriodicRefresh();
+    _startWsListener();
   }
 
   final HttpDriverRepository _driverRepository;
+  final EventDispatcher? _eventDispatcher;
   final Ref _ref;
   Timer? _refreshTimer;
   Timer? _paymentPollTimer;
+  StreamSubscription<Event>? _wsSubscription;
   final Random _random = Random();
-  final Set<String> _declinedOrderIds = <String>{};
 
   String? get _currentDriverId {
     final userId = _ref.read(authProvider).user?.id;
@@ -148,7 +153,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
       );
 
       if (nextWorkState == DriverWorkState.online) {
-        await _loadAvailableOrders();
+        await _loadCurrentOffer();
       }
     } catch (error) {
       if (!mounted) return;
@@ -175,11 +180,11 @@ class DriverNotifier extends StateNotifier<DriverState> {
         workState: DriverWorkState.online,
         isLoading: false,
       );
-      await _loadAvailableOrders();
+      await _loadCurrentOffer();
     } catch (error) {
       state = state.copyWith(
+        workState: DriverWorkState.online,
         isLoading: false,
-        error: 'Не удалось выйти на линию: $error',
       );
     }
   }
@@ -229,11 +234,39 @@ class DriverNotifier extends StateNotifier<DriverState> {
   }
 
   Future<void> declineOrder(String orderId) async {
-    _declinedOrderIds.add(orderId);
+    await _driverRepository.declineOffer(orderId);
     state = state.copyWith(
-      availableOrders:
-          state.availableOrders.where((order) => order.id != orderId).toList(),
+      availableOrders: const <AvailableOrder>[],
     );
+    unawaited(_loadCurrentOffer());
+  }
+
+  void _startWsListener() {
+    final dispatcher = _eventDispatcher;
+    if (dispatcher == null) return;
+    _wsSubscription?.cancel();
+    unawaited(dispatcher.start());
+    _wsSubscription = dispatcher.events().listen((event) {
+      if (event.type != 'offer' || !mounted) return;
+      final offerMap = event.payload;
+      if (offerMap is! Map<String, dynamic>) return;
+      final orderId = event.orderId;
+      final expiresAtStr = offerMap['expires_at']?.toString();
+      DateTime? expiresAt;
+      if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
+        expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
+      }
+      if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) return;
+      final order = availableOrderFromOffer(offerMap, orderId);
+      state = state.copyWith(
+        availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
+      );
+    });
+    dispatcher.onReconnected.listen((_) {
+      if (mounted && state.workState == DriverWorkState.online) {
+        unawaited(_loadCurrentOffer());
+      }
+    });
   }
 
   Future<void> arrivedAtClient() async {
@@ -314,7 +347,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
             workState: DriverWorkState.online,
             clearActiveOrder: true,
           );
-          await _loadAvailableOrders();
+          await _loadCurrentOffer();
         }
       } catch (_) {
         // continue polling
@@ -336,18 +369,39 @@ class DriverNotifier extends StateNotifier<DriverState> {
     }
   }
 
-  Future<void> _loadAvailableOrders() async {
+  Future<void> _loadCurrentOffer() async {
     try {
-      final orders = await _driverRepository.getAvailableOrders();
-      final visibleOrders = orders.where((order) {
-        final orderId = order['id']?.toString();
-        return orderId == null || !_declinedOrderIds.contains(orderId);
-      });
+      final offerMap = await _driverRepository.getCurrentOffer();
+      if (offerMap == null) {
+        state = state.copyWith(
+          availableOrders: const <AvailableOrder>[],
+        );
+        return;
+      }
+      final orderId = offerMap['order_id']?.toString() ?? '';
+      if (orderId.isEmpty) {
+        state = state.copyWith(
+          availableOrders: const <AvailableOrder>[],
+        );
+        return;
+      }
+      final expiresAtStr = offerMap['expires_at']?.toString();
+      DateTime? expiresAt;
+      if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
+        expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
+      }
+      if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) {
+        state = state.copyWith(
+          availableOrders: const <AvailableOrder>[],
+        );
+        return;
+      }
+      final order = availableOrderFromOffer(offerMap, orderId);
       state = state.copyWith(
-        availableOrders: visibleOrders.map(availableOrderFromBackend).toList(),
+        availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
       );
     } catch (error) {
-      state = state.copyWith(error: 'Не удалось загрузить заказы: $error');
+      // Polling errors are expected (network flakiness) — don't spam the UI.
     }
   }
 
@@ -357,10 +411,10 @@ class DriverNotifier extends StateNotifier<DriverState> {
 
   void _startPeriodicRefresh() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted) return;
       if (state.workState == DriverWorkState.online) {
-        unawaited(_loadAvailableOrders());
+        unawaited(_loadCurrentOffer());
       }
     });
   }
@@ -369,6 +423,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   void dispose() {
     _refreshTimer?.cancel();
     _paymentPollTimer?.cancel();
+    _wsSubscription?.cancel();
     super.dispose();
   }
 }
@@ -377,6 +432,7 @@ final newDriverProvider =
     StateNotifierProvider<DriverNotifier, DriverState>((ref) {
   return DriverNotifier(
     driverRepository: ref.watch(httpDriverRepositoryProvider),
+    eventDispatcher: ref.watch(eventDispatcherProvider),
     ref: ref,
   );
 });
