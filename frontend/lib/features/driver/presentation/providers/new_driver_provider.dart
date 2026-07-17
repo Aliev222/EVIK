@@ -164,7 +164,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     }
   }
 
-  Future<void> goOnline() async {
+  Future<void> goOnline({double? lat, double? lng}) async {
     final driverId = _currentDriverId;
     if (driverId == null || state.workState.hasActiveOrder) return;
 
@@ -173,8 +173,8 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await _driverRepository.updateDriverStatus(
         driverId: driverId,
         isOnline: true,
-        lat: 55.7558 + (_random.nextDouble() - 0.5) * 0.01,
-        lng: 37.6176 + (_random.nextDouble() - 0.5) * 0.01,
+        lat: lat ?? 55.7558,
+        lng: lng ?? 37.6176,
       );
       state = state.copyWith(
         workState: DriverWorkState.online,

@@ -47,11 +47,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   String? _routePreviewOrderId;
   RoutePreview? _routePreview;
   bool _routePreviewFailed = false;
-
-
-  // Координаты Москвы по умолчанию
-  static const double _moscowLat = 55.7558;
-  static const double _moscowLng = 37.6173;
+  double _currentLat = 55.7558;
+  double _currentLng = 37.6173;
 
   @override
   void initState() {
@@ -71,6 +68,10 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
       try {
         final pos = await LocationService.getCurrentPositionWithFallback();
         if (mounted) {
+          setState(() {
+            _currentLat = pos.latitude;
+            _currentLng = pos.longitude;
+          });
           ref
               .read(serviceAreaProvider.notifier)
               .checkServiceArea(pos.latitude, pos.longitude);
@@ -79,7 +80,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         if (mounted) {
           ref
               .read(serviceAreaProvider.notifier)
-              .checkServiceArea(_moscowLat, _moscowLng);
+              .checkServiceArea(_currentLat, _currentLng);
         }
       }
     });
@@ -336,7 +337,10 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   ? null
                   : () {
                       try { HapticFeedback.selectionClick(); } catch (_) {}
-                      ref.read(newDriverProvider.notifier).goOnline();
+                      ref.read(newDriverProvider.notifier).goOnline(
+                        lat: _currentLat,
+                        lng: _currentLng,
+                      );
                     },
               width: double.infinity,
               variant: EvikButtonVariant.green,
@@ -361,8 +365,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         Positioned.fill(
           child: RepaintBoundary(
             child: EvikOsmMapView(
-              initialLat: incomingOrder?.pickupLat ?? _moscowLat,
-              initialLng: incomingOrder?.pickupLng ?? _moscowLng,
+              initialLat: incomingOrder?.pickupLat ?? _currentLat,
+              initialLng: incomingOrder?.pickupLng ?? _currentLng,
               initialZoom: incomingOrder == null ? 12.2 : 13.5,
               markers: _mapMarkers(incomingOrder),
               routePoints: _routePreview?.points ?? const <LatLng>[],
@@ -441,9 +445,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
 
   List<EvikMapMarker> _mapMarkers(AvailableOrder? incoming) {
     return [
-      const EvikMapMarker(
-        lat: _moscowLat,
-        lng: _moscowLng,
+      EvikMapMarker(
+        lat: _currentLat,
+        lng: _currentLng,
         title: 'Вы',
         color: AvroDriverColors.success,
       ),
@@ -471,8 +475,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     _routePreview = null;
     _routePreviewFailed = false;
     OpenStreetMapService.getRoutePreview(
-      fromLat: _moscowLat,
-      fromLng: _moscowLng,
+      fromLat: _currentLat,
+      fromLng: _currentLng,
       toLat: incoming.pickupLat,
       toLng: incoming.pickupLng,
     ).then((preview) {
