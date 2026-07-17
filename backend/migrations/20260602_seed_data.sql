@@ -4,16 +4,16 @@
 -- ============================================================
 -- SEED: service_areas
 -- ============================================================
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
-SELECT gen_random_uuid()::text, 'Махачкала', 'makhachkala-default', 42.85, 47.58, 42.93, 47.68, true, NOW(), NOW()
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active, created_at, updated_at)
+SELECT gen_random_uuid()::text, 'Махачкала', 'makhachkala-default', 42.85, 47.58, 42.93, 47.68, 42.9764, 47.5024, 25, true, NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM service_areas WHERE slug = 'makhachkala-default');
 
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
-SELECT gen_random_uuid()::text, 'Каспийск', 'kaspiysk-default', 42.83, 47.60, 42.88, 47.65, true, NOW(), NOW()
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active, created_at, updated_at)
+SELECT gen_random_uuid()::text, 'Каспийск', 'kaspiysk-default', 42.83, 47.60, 42.88, 47.65, 42.8817, 47.6406, 15, true, NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM service_areas WHERE slug = 'kaspiysk-default');
 
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
-SELECT gen_random_uuid()::text, 'Дербент', 'derbent-default', 42.0, 48.0, 42.1, 48.1, false, NOW(), NOW()
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active, created_at, updated_at)
+SELECT gen_random_uuid()::text, 'Дербент', 'derbent-default', 42.0, 48.0, 42.1, 48.1, 42.0678, 48.2905, 20, false, NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM service_areas WHERE slug = 'derbent-default');
 
 -- ============================================================

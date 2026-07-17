@@ -135,5 +135,5 @@ func (h *DriverLocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func withinCityBounds(lat, lng float64, area *servicearea.ServiceArea) bool {
-	return lat >= area.MinLat && lat <= area.MaxLat && lng >= area.MinLng && lng <= area.MaxLng
+	return area.Contains(lat, lng)
 }

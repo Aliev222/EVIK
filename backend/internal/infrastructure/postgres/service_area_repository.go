@@ -30,9 +30,13 @@ WHERE s.id = $1
 		(o.dropoff_lat BETWEEN s.min_lat AND s.max_lat AND o.dropoff_lng BETWEEN s.min_lng AND s.max_lng)
 	)`
 
+const areaColumns = `id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active`
+
 func (r *ServiceAreaRepository) CheckPoint(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, bool, error) {
+	// Step 1: coarse bbox prefilter in SQL (fast, index-friendly)
+	// Step 2: exact haversine check in Go domain entity
 	const query = `
-SELECT id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, is_active
+SELECT ` + areaColumns + `
 FROM service_areas
 WHERE is_active = TRUE
 	AND $1 BETWEEN min_lat AND max_lat
@@ -40,19 +44,28 @@ WHERE is_active = TRUE
 ORDER BY name ASC
 LIMIT 1`
 	var area servicearea.ServiceArea
-	err := r.db.QueryRowContext(ctx, query, lat, lng).Scan(&area.ID, &area.Name, &area.Slug, &area.MinLat, &area.MinLng, &area.MaxLat, &area.MaxLng, &area.IsActive)
+	err := r.db.QueryRowContext(ctx, query, lat, lng).Scan(
+		&area.ID, &area.Name, &area.Slug,
+		&area.MinLat, &area.MinLng, &area.MaxLat, &area.MaxLng,
+		&area.CenterLat, &area.CenterLng, &area.RadiusKM,
+		&area.IsActive,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, false, nil
 		}
 		return nil, false, err
 	}
+	// Exact haversine check
+	if !area.Contains(lat, lng) {
+		return nil, false, nil
+	}
 	return &area, true, nil
 }
 
 func (r *ServiceAreaRepository) List(ctx context.Context) ([]servicearea.ServiceArea, error) {
 	const query = `
-SELECT id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, is_active
+SELECT ` + areaColumns + `
 FROM service_areas
 ORDER BY name ASC`
 	rows, err := r.db.QueryContext(ctx, query)
@@ -64,7 +77,12 @@ ORDER BY name ASC`
 	areas := make([]servicearea.ServiceArea, 0)
 	for rows.Next() {
 		var a servicearea.ServiceArea
-		if err := rows.Scan(&a.ID, &a.Name, &a.Slug, &a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng, &a.IsActive); err != nil {
+		if err := rows.Scan(
+			&a.ID, &a.Name, &a.Slug,
+			&a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng,
+			&a.CenterLat, &a.CenterLng, &a.RadiusKM,
+			&a.IsActive,
+		); err != nil {
 			return nil, err
 		}
 		areas = append(areas, a)
@@ -74,11 +92,16 @@ ORDER BY name ASC`
 
 func (r *ServiceAreaRepository) GetByID(ctx context.Context, id string) (*servicearea.ServiceArea, error) {
 	const query = `
-SELECT id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, is_active
+SELECT ` + areaColumns + `
 FROM service_areas
 WHERE id = $1`
 	var a servicearea.ServiceArea
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Name, &a.Slug, &a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng, &a.IsActive)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&a.ID, &a.Name, &a.Slug,
+		&a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng,
+		&a.CenterLat, &a.CenterLng, &a.RadiusKM,
+		&a.IsActive,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, servicearea.ErrNotFound
@@ -90,11 +113,12 @@ WHERE id = $1`
 
 func (r *ServiceAreaRepository) Create(ctx context.Context, area servicearea.ServiceArea) error {
 	const query = `
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, is_active, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		area.ID, area.Name, area.Slug,
 		area.MinLat, area.MinLng, area.MaxLat, area.MaxLng,
+		area.CenterLat, area.CenterLng, area.RadiusKM,
 		area.IsActive,
 	)
 	return err
@@ -103,11 +127,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`
 func (r *ServiceAreaRepository) Update(ctx context.Context, area servicearea.ServiceArea) error {
 	const query = `
 UPDATE service_areas
-SET name = $2, slug = $3, min_lat = $4, min_lng = $5, max_lat = $6, max_lng = $7, is_active = $8, updated_at = NOW()
+SET name = $2, slug = $3, min_lat = $4, min_lng = $5, max_lat = $6, max_lng = $7,
+    center_lat = $8, center_lng = $9, radius_km = $10, is_active = $11, updated_at = NOW()
 WHERE id = $1`
 	res, err := r.db.ExecContext(ctx, query,
 		area.ID, area.Name, area.Slug,
 		area.MinLat, area.MinLng, area.MaxLat, area.MaxLng,
+		area.CenterLat, area.CenterLng, area.RadiusKM,
 		area.IsActive,
 	)
 	if err != nil {

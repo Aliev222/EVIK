@@ -170,14 +170,17 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	area := servicearea.ServiceArea{
-		ID:       h.idGen.NewID(),
-		Name:     name,
-		Slug:     res.Slug,
-		MinLat:   res.MinLat,
-		MinLng:   res.MinLng,
-		MaxLat:   res.MaxLat,
-		MaxLng:   res.MaxLng,
-		IsActive: true,
+		ID:        h.idGen.NewID(),
+		Name:      name,
+		Slug:      res.Slug,
+		MinLat:    res.MinLat,
+		MinLng:    res.MinLng,
+		MaxLat:    res.MaxLat,
+		MaxLng:    res.MaxLng,
+		CenterLat: res.CenterLat,
+		CenterLng: res.CenterLng,
+		RadiusKM:  25,
+		IsActive:  true,
 	}
 	if err := h.repo.Create(r.Context(), area); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -319,6 +322,11 @@ func cityResponse(a servicearea.ServiceArea) map[string]any {
 			MinLng: a.MinLng,
 			MaxLng: a.MaxLng,
 		},
+		"center": centerPayload{
+			Lat: a.CenterLat,
+			Lng: a.CenterLng,
+		},
+		"radius_km": a.RadiusKM,
 		"is_active": a.IsActive,
 	}
 }

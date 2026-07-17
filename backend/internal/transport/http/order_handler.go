@@ -199,9 +199,12 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	area, err := h.ensureServiceAreaAllows(r.Context(), req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng)
 	if err != nil {
 		if errors.Is(err, servicearea.ErrOutsideServiceArea) {
+			log.Printf("WARN: service area rejected: pickup=%.6f,%.6f dropoff=%.6f,%.6f err=%v",
+				req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng, err)
 			h.writeError(w, http.StatusForbidden, errors.New("Сервис недоступен в вашем регионе"))
 		} else {
-			log.Printf("ERROR: service area check failed: %v", err)
+			log.Printf("ERROR: service area check failed: pickup=%.6f,%.6f dropoff=%.6f,%.6f err=%v",
+				req.PickupLat, req.PickupLng, req.DropoffLat, req.DropoffLng, err)
 			h.writeError(w, http.StatusInternalServerError, errors.New("Internal server error"))
 		}
 		return
