@@ -279,26 +279,18 @@ func (uc *AcceptOrderUseCase) applySurchargeIfCrossCity(ctx context.Context, ord
 		return
 	}
 	ord.IsCrossCity = true
-	// TODO: для карточной оплаты нужно делать доплату через YooKassa
-	// или пересчитывать цену до создания платежа
-	if ord.PaymentMethod == "cash" {
-		original := ord.PriceTotal
-		ord.SurchargePercent = 50
-		ord.SurchargeAmount = (original*50 + 50) / 100
-		ord.PriceTotal = original + ord.SurchargeAmount
-		uc.logger.Info("applied cross-city surcharge",
-			"order_id", ord.ID,
-			"driver_id", driverID,
-			"order_city", *ord.CityID,
-			"driver_city", driverCity,
-			"original_price", original,
-			"surcharge_amount", ord.SurchargeAmount,
-			"new_total", ord.PriceTotal)
-	} else {
-		uc.logger.Info("skipped cross-city surcharge for non-cash payment",
-			"order_id", ord.ID,
-			"payment_method", ord.PaymentMethod)
-	}
+	original := ord.PriceTotal
+	ord.SurchargePercent = 50
+	ord.SurchargeAmount = (original*50 + 50) / 100
+	ord.PriceTotal = original + ord.SurchargeAmount
+	uc.logger.Info("applied cross-city surcharge",
+		"order_id", ord.ID,
+		"driver_id", driverID,
+		"order_city", *ord.CityID,
+		"driver_city", driverCity,
+		"original_price", original,
+		"surcharge_amount", ord.SurchargeAmount,
+		"new_total", ord.PriceTotal)
 }
 
 func isSameDriverActiveOrder(ord *orderdomain.Order, driverID string) bool {
