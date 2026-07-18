@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -67,14 +66,6 @@ func writePaymentError(w http.ResponseWriter, err error) {
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Payment processing failed"})
 	}
-}
-
-type addCardRequest struct {
-	CardNumber string `json:"card_number"`
-	ExpMonth   int    `json:"exp_month"`
-	ExpYear    int    `json:"exp_year"`
-	Holder     string `json:"holder"`
-	SetDefault bool   `json:"set_default"`
 }
 
 type applyPromocodeRequest struct {
@@ -1016,39 +1007,6 @@ func (h *PaymentHandler) writeDriverGateError(w http.ResponseWriter, err error) 
 	}
 }
 
-func (h *PaymentHandler) addCardLegacyDisabled(w http.ResponseWriter, r *http.Request) {
-	role, err := roleFromContext(r.Context())
-	if err != nil {
-		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	if role != auth.RoleClient && role != auth.RoleAdmin {
-		writeAuthError(w, http.StatusForbidden, "forbidden")
-		return
-	}
-	userID, err := userIDFromContext(r.Context())
-	if err != nil {
-		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	var req addCardRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	method, err := h.paymentMethodFromRequest(userID, req)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	if err := h.repo.AddMethod(r.Context(), method); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"card": newPaymentMethodResponse(method)})
-}
-
 // @Summary      Set default card
 // @Description  Marks a saved card as the default payment method. Client-only endpoint.
 // @Tags         payments
@@ -1136,39 +1094,6 @@ func (h *PaymentHandler) ApplyPromocode(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *PaymentHandler) paymentMethodFromRequest(userID string, req addCardRequest) (paymentdomain.PaymentMethod, error) {
-	cardNumber := onlyDigits(req.CardNumber)
-	holder := strings.TrimSpace(req.Holder)
-	if len(cardNumber) < 13 || len(cardNumber) > 19 || !validLuhn(cardNumber) {
-		return paymentdomain.PaymentMethod{}, errors.New("invalid card number")
-	}
-	if req.ExpMonth < 1 || req.ExpMonth > 12 {
-		return paymentdomain.PaymentMethod{}, errors.New("invalid expiration month")
-	}
-	if req.ExpYear < 100 {
-		req.ExpYear += 2000
-	}
-	now := h.clock.Now()
-	expiresAt := time.Date(req.ExpYear, time.Month(req.ExpMonth)+1, 1, 0, 0, 0, 0, time.UTC)
-	if !expiresAt.After(now) {
-		return paymentdomain.PaymentMethod{}, errors.New("card is expired")
-	}
-	if len(holder) < 3 || len(holder) > 80 {
-		return paymentdomain.PaymentMethod{}, errors.New("invalid card holder")
-	}
-	return paymentdomain.PaymentMethod{
-		ID:        h.idGen.NewID(),
-		UserID:    userID,
-		Brand:     detectCardBrand(cardNumber),
-		Last4:     cardNumber[len(cardNumber)-4:],
-		ExpMonth:  req.ExpMonth,
-		ExpYear:   req.ExpYear,
-		Holder:    holder,
-		IsDefault: req.SetDefault,
-		CreatedAt: now,
-	}, nil
-}
-
 func newPaymentMethodResponse(method paymentdomain.PaymentMethod) paymentMethodResponse {
 	return paymentMethodResponse{
 		ID:                      method.ID,
@@ -1212,44 +1137,4 @@ func newFinancePaymentResponse(payment *paymentdomain.Payment) map[string]any {
 	}
 }
 
-func onlyDigits(value string) string {
-	var builder strings.Builder
-	for _, char := range value {
-		if char >= '0' && char <= '9' {
-			builder.WriteRune(char)
-		}
-	}
-	return builder.String()
-}
 
-func detectCardBrand(cardNumber string) paymentdomain.CardBrand {
-	switch {
-	case strings.HasPrefix(cardNumber, "4"):
-		return paymentdomain.CardBrandVisa
-	case strings.HasPrefix(cardNumber, "220"):
-		return paymentdomain.CardBrandMir
-	case len(cardNumber) >= 2:
-		prefix, _ := strconv.Atoi(cardNumber[:2])
-		if prefix >= 51 && prefix <= 55 {
-			return paymentdomain.CardBrandMastercard
-		}
-	}
-	return paymentdomain.CardBrandUnknown
-}
-
-func validLuhn(cardNumber string) bool {
-	sum := 0
-	alternate := false
-	for i := len(cardNumber) - 1; i >= 0; i-- {
-		n := int(cardNumber[i] - '0')
-		if alternate {
-			n *= 2
-			if n > 9 {
-				n -= 9
-			}
-		}
-		sum += n
-		alternate = !alternate
-	}
-	return sum%10 == 0
-}
