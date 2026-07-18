@@ -317,8 +317,9 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 				return ordErr
 			}
 			now := uc.clock.Now()
-			ord.Status = orderdomain.StatusCompleted
-			ord.UpdatedAt = now
+			if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
+				return err
+			}
 			if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
 				return updErr
 			}
@@ -394,8 +395,9 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
 			return nil, err
 		}
-		ord.Status = orderdomain.StatusCompleted
-		ord.UpdatedAt = uc.clock.Now()
+		if err := ord.TransitionTo(orderdomain.StatusCompleted, uc.clock.Now()); err != nil {
+			return nil, err
+		}
 		if err := uc.orderRepo.Update(ctx, ord); err != nil {
 			return nil, err
 		}
@@ -416,8 +418,9 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
 			return nil, err
 		}
-		ord.Status = orderdomain.StatusCompleted
-		ord.UpdatedAt = uc.clock.Now()
+		if err := ord.TransitionTo(orderdomain.StatusCompleted, uc.clock.Now()); err != nil {
+			return nil, err
+		}
 		if err := uc.orderRepo.Update(ctx, ord); err != nil {
 			return nil, err
 		}
