@@ -80,7 +80,7 @@ func TestWebhook_ConcurrentDuplicate(t *testing.T) {
 			if _, err := db.ExecContext(ctx, `
 				INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
 					tow_truck_type, status, price_total, payment_method, created_at, updated_at)
-				VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'accepted', 500000, 'card', $4, $4)
+				VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'awaiting_payment', 500000, 'card', $4, $4)
 				`, "order-cc", "client-cc", "driver-cc", now); err != nil {
 				t.Fatalf("insert order: %v", err)
 			}
@@ -97,7 +97,7 @@ func TestWebhook_ConcurrentDuplicate(t *testing.T) {
 				t.Fatalf("reset wallet: %v", err)
 			}
 
-			orderRepo.orders["order-cc"].Status = orderdomain.StatusAccepted
+			orderRepo.orders["order-cc"].Status = orderdomain.StatusAwaitingPayment
 			orderRepo.updateCalls = 0
 
 			var wg sync.WaitGroup
