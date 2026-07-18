@@ -152,7 +152,7 @@ func TestWebhook_CurrentBehavior_Success(t *testing.T) {
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
 			tow_truck_type, status, price_total, payment_method, created_at, updated_at)
-		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'accepted', 500000, 'card', $4, $4)`,
+		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'awaiting_payment', 500000, 'card', $4, $4)`,
 		"order-1", "client-1", "driver-1", now)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
@@ -185,7 +185,7 @@ func TestWebhook_CurrentBehavior_Success(t *testing.T) {
 				Pickup:        orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
 				Dropoff:       orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
 				TowTruckType:  orderdomain.TowTruckWinch,
-				Status:        orderdomain.StatusAccepted,
+				Status:        orderdomain.StatusAwaitingPayment,
 				PriceTotal:    500000,
 				PaymentMethod: "card",
 				CreatedAt:     now,
@@ -395,7 +395,7 @@ func TestWebhook_RetryAfterFailure(t *testing.T) {
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
 			tow_truck_type, status, price_total, payment_method, created_at, updated_at)
-		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'accepted', 500000, 'card', $4, $4)`,
+		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'awaiting_payment', 500000, 'card', $4, $4)`,
 		"order-rf", "client-rf", "driver-rf", now)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
@@ -424,7 +424,7 @@ func TestWebhook_RetryAfterFailure(t *testing.T) {
 			"order-rf": {
 				ID: "order-rf", UserID: "client-rf", DriverID: strPtr("driver-rf"),
 				Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Dropoff: orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
-				TowTruckType: orderdomain.TowTruckWinch, Status: orderdomain.StatusAccepted,
+				TowTruckType: orderdomain.TowTruckWinch, Status: orderdomain.StatusAwaitingPayment,
 				PriceTotal: 500000, PaymentMethod: "card", CreatedAt: now, UpdatedAt: now,
 			},
 		},
@@ -497,7 +497,7 @@ func TestWebhook_RetryAfterSuccess(t *testing.T) {
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
 			tow_truck_type, status, price_total, payment_method, created_at, updated_at)
-		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'accepted', 500000, 'card', $4, $4)`,
+		VALUES ($1, $2, $3, 55.75, 37.62, 55.76, 37.63, 'winch', 'awaiting_payment', 500000, 'card', $4, $4)`,
 		"order-rs", "client-rs", "driver-rs", now)
 	if err != nil {
 		t.Fatalf("insert order: %v", err)
@@ -525,7 +525,7 @@ func TestWebhook_RetryAfterSuccess(t *testing.T) {
 			"order-rs": {
 				ID: "order-rs", UserID: "client-rs", DriverID: strPtr("driver-rs"),
 				Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Dropoff: orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
-				TowTruckType: orderdomain.TowTruckWinch, Status: orderdomain.StatusAccepted,
+				TowTruckType: orderdomain.TowTruckWinch, Status: orderdomain.StatusAwaitingPayment,
 				PriceTotal: 500000, PaymentMethod: "card", CreatedAt: now, UpdatedAt: now,
 			},
 		},
