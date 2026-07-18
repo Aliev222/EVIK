@@ -130,14 +130,8 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _selectedLat = AppConstants.moscowLat;
-        _selectedLng = AppConstants.moscowLng;
-        _selectedAddress = 'Москва, центр';
-        _hasSelection = true;
-      });
       _showError(
-          'Не удалось определить геолокацию. Выберите точку на карте или введите адрес.');
+          'Не удалось определить местоположение. Укажите точку на карте или введите адрес.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

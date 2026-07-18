@@ -1,7 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/network/api_client_stub.dart'
     if (dart.library.io) 'core/network/api_client_io.dart'
@@ -10,11 +9,30 @@ import 'features/auth/domain/entities/user.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
 import 'features/driver/presentation/driver_screen.dart';
 import 'features/client/presentation/screens/client_app_shell.dart';
+import 'features/client/presentation/screens/pickup_location_screen.dart';
+import 'features/client/presentation/screens/destination_location_screen.dart';
+import 'features/client/presentation/screens/vehicle_selection_screen.dart';
+import 'features/client/presentation/screens/tow_truck_selection_screen.dart';
+import 'features/client/presentation/screens/driver_search_screen.dart';
+import 'features/client/presentation/screens/driver_info_screen.dart';
+import 'features/client/presentation/screens/tracking_screen.dart';
+import 'features/client/presentation/screens/order_review_screen.dart';
+import 'features/client/presentation/screens/driver_rating_screen.dart';
+import 'features/driver/presentation/screens/active_order_screen.dart';
+import 'features/order/screens/payment_confirmation_screen.dart';
 import 'features/onboarding/presentation/screens/role_selection_screen.dart';
+import 'shared/providers/service_area_provider.dart';
 
 void main() {
   runApp(
     ProviderScope(
+      overrides: [
+        serviceAreaProvider.overrideWithProvider(
+          StateNotifierProvider<ServiceAreaNotifier, ServiceAreaState>((ref) {
+            return _FakeServiceAreaNotifier();
+          }),
+        ),
+      ],
       child: const TestApp(),
     ),
   );
@@ -25,11 +43,26 @@ class TestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Авро (Test)',
       theme: ThemeData.light(),
       debugShowCheckedModeBanner: false,
-      home: const _TestRouter(),
+      routerConfig: GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (_, __) => const _TestRouter()),
+          GoRoute(path: '/order/pickup', builder: (_, __) => const PickupLocationScreen()),
+          GoRoute(path: '/order/destination', builder: (_, __) => const DestinationLocationScreen()),
+          GoRoute(path: '/order/vehicle', builder: (_, __) => const VehicleSelectionScreen()),
+          GoRoute(path: '/order/tow-truck', builder: (_, __) => const TowTruckSelectionScreen()),
+          GoRoute(path: '/order/search', builder: (_, __) => const DriverSearchScreen()),
+          GoRoute(path: '/order/driver-info', builder: (_, __) => const DriverInfoScreen()),
+          GoRoute(path: '/order/tracking', builder: (_, __) => const TrackingScreen()),
+          GoRoute(path: '/order/payment-confirmation', builder: (_, __) => const PaymentConfirmationScreen()),
+          GoRoute(path: '/order/review/:orderId', builder: (_, state) => OrderReviewScreen(orderId: state.pathParameters['orderId']!)),
+          GoRoute(path: '/order/rating', builder: (_, __) => const DriverRatingScreen()),
+        ],
+      ),
     );
   }
 }
@@ -147,5 +180,19 @@ class _TestRouterState extends ConsumerState<_TestRouter> {
         _registerError = error.toString();
       });
     });
+  }
+}
+
+class _FakeServiceAreaNotifier extends ServiceAreaNotifier {
+  _FakeServiceAreaNotifier() : super() {
+    state = const ServiceAreaState(
+      isChecked: true,
+      isAllowed: true,
+    );
+  }
+
+  @override
+  Future<void> checkServiceArea(double lat, double lng) async {
+    // no-op — always allowed
   }
 }

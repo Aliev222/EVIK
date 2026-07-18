@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
@@ -212,36 +211,28 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       final locationService = _ref.read(locationServiceProvider);
       final locationModel = await locationService.getCurrentLocation();
 
-      final location = locationModel == null
-          ? const MapLocation(
-              latitude: AppConstants.moscowLat,
-              longitude: AppConstants.moscowLng,
-              address: 'Москва, центр',
-              description: 'Адрес определен приблизительно',
-            )
-          : MapLocation(
-              latitude: locationModel.lat,
-              longitude: locationModel.lng,
-              address: locationModel.address,
-              description: 'Определено автоматически',
-            );
+      if (locationModel == null) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Не удалось определить местоположение. Укажите точку на карте.',
+        );
+        return;
+      }
 
       state = state.copyWith(
-        pickupLocation: location,
+        pickupLocation: MapLocation(
+          latitude: locationModel.lat,
+          longitude: locationModel.lng,
+          address: locationModel.address,
+          description: 'Определено автоматически',
+        ),
         isLoading: false,
         errorMessage: null,
       );
     } catch (_) {
       state = state.copyWith(
-        pickupLocation: const MapLocation(
-          latitude: AppConstants.moscowLat,
-          longitude: AppConstants.moscowLng,
-          address: 'Москва, центр',
-          description: 'Fallback location',
-        ),
         isLoading: false,
-        errorMessage:
-            'Не удалось получить точную геолокацию. Используем центр Москвы.',
+        errorMessage: 'Не удалось определить местоположение. Укажите точку на карте.',
       );
     }
   }
