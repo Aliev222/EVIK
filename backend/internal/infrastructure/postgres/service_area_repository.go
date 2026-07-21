@@ -33,34 +33,53 @@ WHERE s.id = $1
 const areaColumns = `id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active`
 
 func (r *ServiceAreaRepository) CheckPoint(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, bool, error) {
-	// Step 1: coarse bbox prefilter in SQL (fast, index-friendly)
-	// Step 2: exact haversine check in Go domain entity
+	// Step 1: coarse bbox prefilter in SQL (fast, index-friendly) —
+	// fetch ALL active candidates whose bbox contains the point.
+	// Step 2: exact haversine check in Go domain entity for each candidate.
+	// Step 3: if multiple zones accept the point, return the closest one.
 	const query = `
 SELECT ` + areaColumns + `
 FROM service_areas
 WHERE is_active = TRUE
 	AND $1 BETWEEN min_lat AND max_lat
-	AND $2 BETWEEN min_lng AND max_lng
-ORDER BY name ASC
-LIMIT 1`
-	var area servicearea.ServiceArea
-	err := r.db.QueryRowContext(ctx, query, lat, lng).Scan(
-		&area.ID, &area.Name, &area.Slug,
-		&area.MinLat, &area.MinLng, &area.MaxLat, &area.MaxLng,
-		&area.CenterLat, &area.CenterLng, &area.RadiusKM,
-		&area.IsActive,
-	)
+	AND $2 BETWEEN min_lng AND max_lng`
+	rows, err := r.db.QueryContext(ctx, query, lat, lng)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, false, nil
-		}
 		return nil, false, err
 	}
-	// Exact haversine check
-	if !area.Contains(lat, lng) {
+	defer rows.Close()
+
+	var best servicearea.ServiceArea
+	var bestDist float64
+	var found bool
+
+	for rows.Next() {
+		var area servicearea.ServiceArea
+		if err := rows.Scan(
+			&area.ID, &area.Name, &area.Slug,
+			&area.MinLat, &area.MinLng, &area.MaxLat, &area.MaxLng,
+			&area.CenterLat, &area.CenterLng, &area.RadiusKM,
+			&area.IsActive,
+		); err != nil {
+			return nil, false, err
+		}
+		if !area.Contains(lat, lng) {
+			continue
+		}
+		dist := servicearea.HaversineDistance(area.CenterLat, area.CenterLng, lat, lng)
+		if !found || dist < bestDist {
+			best = area
+			bestDist = dist
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	if !found {
 		return nil, false, nil
 	}
-	return &area, true, nil
+	return &best, true, nil
 }
 
 func (r *ServiceAreaRepository) List(ctx context.Context) ([]servicearea.ServiceArea, error) {

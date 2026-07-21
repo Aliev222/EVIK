@@ -173,15 +173,12 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ID:        h.idGen.NewID(),
 		Name:      name,
 		Slug:      res.Slug,
-		MinLat:    res.MinLat,
-		MinLng:    res.MinLng,
-		MaxLat:    res.MaxLat,
-		MaxLng:    res.MaxLng,
 		CenterLat: res.CenterLat,
 		CenterLng: res.CenterLng,
 		RadiusKM:  25,
 		IsActive:  true,
 	}
+	area.ComputeBBox()
 	if err := h.repo.Create(r.Context(), area); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

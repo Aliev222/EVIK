@@ -23,6 +23,30 @@ func (a ServiceArea) Contains(lat, lng float64) bool {
 	return haversineKM(a.CenterLat, a.CenterLng, lat, lng) <= a.RadiusKM
 }
 
+// ComputeBBox overwrites min/max lat/lng so the bbox fully contains the
+// circle defined by center+radius. This guarantees any point passing the
+// haversine check also passes the SQL bbox prefilter.
+func (a *ServiceArea) ComputeBBox() {
+	const earthRadius = 6371.0
+	angRad := a.RadiusKM / earthRadius
+	dLat := angRad * 180 / math.Pi
+
+	cosLat := math.Cos(a.CenterLat * math.Pi / 180)
+	if cosLat < 0.01 {
+		cosLat = 0.01
+	}
+	dLng := angRad / cosLat * 180 / math.Pi
+
+	a.MinLat = a.CenterLat - dLat
+	a.MaxLat = a.CenterLat + dLat
+	a.MinLng = a.CenterLng - dLng
+	a.MaxLng = a.CenterLng + dLng
+}
+
+func HaversineDistance(lat1, lng1, lat2, lng2 float64) float64 {
+	return haversineKM(lat1, lng1, lat2, lng2)
+}
+
 func haversineKM(lat1, lng1, lat2, lng2 float64) float64 {
 	const R = 6371.0
 	dLat := (lat2 - lat1) * math.Pi / 180
