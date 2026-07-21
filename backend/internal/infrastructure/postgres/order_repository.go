@@ -83,6 +83,11 @@ WHERE id = $1`
 	return err
 }
 
+func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, status orderdomain.Status, updatedAt time.Time) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE orders SET status = $2, updated_at = $3 WHERE id = $1`, id, string(status), updatedAt)
+	return err
+}
+
 // AcceptOrder atomically claims an order for driverID using a single
 // UPDATE...RETURNING. The WHERE clause ensures only one driver can win:
 // the row must still be in 'searching' status with no driver_id assigned.

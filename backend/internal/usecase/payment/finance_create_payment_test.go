@@ -30,6 +30,7 @@ type createPaymentOrderRepo struct {
 func (r *createPaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, nil }
 func (r *createPaymentOrderRepo) Create(context.Context, *orderdomain.Order) error { return nil }
 func (r *createPaymentOrderRepo) Update(context.Context, *orderdomain.Order) error { return nil }
+func (r *createPaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error { return nil }
 func (r *createPaymentOrderRepo) GetByID(context.Context, string) (*orderdomain.Order, error) {
 	if r.err != nil {
 		return nil, r.err

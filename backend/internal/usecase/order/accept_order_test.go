@@ -270,6 +270,16 @@ func (r *fakeOrderRepository) getOrderByKey(idempotencyKey string) (*orderdomain
 	return nil, false
 }
 
+func (r *fakeOrderRepository) UpdateStatus(_ context.Context, id string, status orderdomain.Status, updatedAt time.Time) error {
+	ord, err := r.GetByID(context.Background(), id)
+	if err != nil {
+		return err
+	}
+	ord.Status = status
+	ord.UpdatedAt = updatedAt
+	return nil
+}
+
 func (r *fakeOrderRepository) Update(_ context.Context, ord *orderdomain.Order) error {
 	copied := *ord
 	r.order = &copied

@@ -250,6 +250,7 @@ type fakePaymentOrderRepo struct{}
 func (r *fakePaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, nil }
 func (r *fakePaymentOrderRepo) Create(context.Context, *orderdomain.Order) error { return nil }
 func (r *fakePaymentOrderRepo) Update(context.Context, *orderdomain.Order) error { return nil }
+func (r *fakePaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error { return nil }
 func (r *fakePaymentOrderRepo) GetByID(context.Context, string) (*orderdomain.Order, error) {
 	return &orderdomain.Order{
 		ID:           "order-1",
@@ -337,6 +338,24 @@ func TestCommissionPercentFromSettings(t *testing.T) {
 	}
 	if repo.lastCommissionPercent != 20 {
 		t.Errorf("commission percent = %d, want 20", repo.lastCommissionPercent)
+	}
+}
+
+func TestCommissionPercentFloat64FromSettings(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	repo := newFakeFinanceRepository()
+	settingsRepo := &scriptedSettingsRepo{
+		settings: []settings.Setting{
+			{Key: "commission_percent", Value: float64(20)},
+		},
+	}
+	uc := newUseCaseWithSettings(repo, settingsRepo, now)
+
+	if err := uc.CompleteOrderFinancially(context.Background(), "order-1"); err != nil {
+		t.Fatalf("CompleteOrderFinancially returned error: %v", err)
+	}
+	if repo.lastCommissionPercent != 20 {
+		t.Errorf("commission percent = %d, want 20 (not fallback 15)", repo.lastCommissionPercent)
 	}
 }
 

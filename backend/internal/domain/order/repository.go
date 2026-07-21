@@ -8,6 +8,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, order *Order) error
 	Update(ctx context.Context, order *Order) error
+	UpdateStatus(ctx context.Context, id string, status Status, updatedAt time.Time) error
 	GetByID(ctx context.Context, id string) (*Order, error)
 	GetByOrderKey(ctx context.Context, idempotencyKey string) (*Order, error)
 	// AcceptOrder atomatically sets driver_id and status='accepted' only when the

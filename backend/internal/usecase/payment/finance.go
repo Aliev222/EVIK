@@ -341,27 +341,12 @@ func (uc *FinanceUseCase) commissionPercent(ctx context.Context) int {
 		log.Printf("WARN: settings unavailable, commission fallback %d%%: %v", fallbackCommissionPercent, err)
 		return fallbackCommissionPercent
 	}
-	for _, s := range list {
-		if s.Key != "commission_percent" {
-			continue
-		}
-		str, ok := s.Value.(string)
-		if !ok {
-			log.Printf("WARN: commission_percent not a string (%T), fallback %d%%", s.Value, fallbackCommissionPercent)
-			return fallbackCommissionPercent
-		}
-		f, err := strconv.ParseFloat(str, 64)
-		if err != nil || f < 0 || f > 100 {
-			log.Printf("WARN: invalid commission_percent %q, fallback %d%%", str, fallbackCommissionPercent)
-			return fallbackCommissionPercent
-		}
-		if f != float64(int(f)) {
-			log.Printf("WARN: fractional commission_percent %.2f truncated to %d", f, int(f))
-		}
-		return int(f)
+	pct := settings.GetInt(list, "commission_percent", fallbackCommissionPercent)
+	if pct < 0 || pct > 100 {
+		log.Printf("WARN: invalid commission_percent %d%%, fallback %d%%", pct, fallbackCommissionPercent)
+		return fallbackCommissionPercent
 	}
-	log.Printf("WARN: commission_percent not found in settings, fallback %d%%", fallbackCommissionPercent)
-	return fallbackCommissionPercent
+	return pct
 }
 
 func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID string) error {
@@ -395,14 +380,14 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
 			return nil, err
 		}
-		if err := ord.TransitionTo(orderdomain.StatusCompleted, uc.clock.Now()); err != nil {
+		now := uc.clock.Now()
+		if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
 			return nil, err
 		}
-		if err := uc.orderRepo.Update(ctx, ord); err != nil {
+		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
 			return nil, err
 		}
 		if ord.DriverID != nil {
-			now := uc.clock.Now()
 			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
 				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
 			}
@@ -418,14 +403,14 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
 			return nil, err
 		}
-		if err := ord.TransitionTo(orderdomain.StatusCompleted, uc.clock.Now()); err != nil {
+		now := uc.clock.Now()
+		if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
 			return nil, err
 		}
-		if err := uc.orderRepo.Update(ctx, ord); err != nil {
+		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
 			return nil, err
 		}
 		if ord.DriverID != nil {
-			now := uc.clock.Now()
 			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
 				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
 			}
