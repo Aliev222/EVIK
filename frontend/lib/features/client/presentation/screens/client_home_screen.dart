@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -11,6 +12,8 @@ import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
+
+enum _LocationState { initial, determining, unavailable, available }
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({
@@ -25,25 +28,160 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
+  _LocationState _locationState = _LocationState.initial;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initLocation());
+  }
+
+  Future<void> _initLocation() async {
+    setState(() => _locationState = _LocationState.determining);
+
+    final permission = await LocationService.requestLocationPermission();
+
+    if (!mounted) return;
+
+    switch (permission) {
+      case PermissionResult.serviceDisabled:
+        _locationState = _LocationState.unavailable;
+        _showServiceDisabledDialog();
+        return;
+
+      case PermissionResult.denied:
+        _locationState = _LocationState.unavailable;
+        _showLocationExplanationDialog();
+        return;
+
+      case PermissionResult.deniedForever:
+        _locationState = _LocationState.unavailable;
+        _showDeniedForeverDialog();
+        return;
+
+      case PermissionResult.granted:
+        break;
+    }
+
+    try {
+      final pos = await LocationService.getCurrentPositionWithFallback();
+      if (mounted) {
+        _locationState = _LocationState.available;
+        ref
+            .read(serviceAreaProvider.notifier)
+            .checkServiceArea(pos.latitude, pos.longitude);
+      }
+    } catch (_) {
+      if (mounted) {
+        _locationState = _LocationState.unavailable;
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _showServiceDisabledDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Геолокация отключена'),
+        content: const Text(
+          'Для работы приложения необходимо включить геолокацию на устройстве.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Закрыть'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Geolocator.openLocationSettings();
+            },
+            child: const Text('Открыть настройки'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLocationExplanationDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Доступ к геолокации'),
+        content: const Text(
+          'Авро использует ваше местоположение, чтобы определить адрес подачи эвакуатора.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _retryPermission();
+            },
+            child: const Text('Разрешить'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Пока нет'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeniedForeverDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Геолокация запрещена'),
+        content: const Text(
+          'Разрешите геолокацию в настройках приложения, чтобы Авро мог определить адрес подачи эвакуатора.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Закрыть'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Geolocator.openAppSettings();
+            },
+            child: const Text('Настройки приложения'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retryPermission() async {
+    final permission = await LocationService.requestLocationPermission();
+    if (!mounted) return;
+    if (permission == PermissionResult.granted) {
+      _locationState = _LocationState.determining;
       try {
         final pos = await LocationService.getCurrentPositionWithFallback();
         if (mounted) {
+          _locationState = _LocationState.available;
           ref
               .read(serviceAreaProvider.notifier)
               .checkServiceArea(pos.latitude, pos.longitude);
         }
       } catch (_) {
         if (mounted) {
-          ref
-              .read(serviceAreaProvider.notifier)
-              .checkServiceArea(AppConstants.moscowLat, AppConstants.moscowLng);
+          _locationState = _LocationState.unavailable;
         }
       }
-    });
+    } else if (permission == PermissionResult.deniedForever) {
+      _locationState = _LocationState.unavailable;
+      _showDeniedForeverDialog();
+    } else {
+      _locationState = _LocationState.unavailable;
+    }
+    if (mounted) setState(() {});
   }
 
   void _openPickupSelection() {
@@ -84,8 +222,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     final lat = location?.latitude ?? AppConstants.moscowLat;
     final lng = location?.longitude ?? AppConstants.moscowLng;
 
+    final locationUnavailable = _locationState == _LocationState.unavailable;
     final outsideServiceArea =
         serviceArea.isChecked && !serviceArea.isAllowed;
+    final canRequest = !locationUnavailable && !outsideServiceArea;
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
@@ -104,6 +244,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 if (outsideServiceArea) ...[
                   const SizedBox(height: 8),
                   _ServiceAreaBanner(),
+                ],
+                if (locationUnavailable) ...[
+                  const SizedBox(height: 8),
+                  _LocationUnavailableBanner(),
                 ],
                 const SizedBox(height: 12),
                 SizedBox(
@@ -145,7 +289,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 _CallTowTruckButton(
-                  onPressed: outsideServiceArea ? null : _openPickupSelection,
+                  onPressed: canRequest ? _openPickupSelection : null,
                 ),
               ],
             ),
@@ -230,6 +374,41 @@ class _ServiceAreaBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Авро пока не работает в вашем городе. Мы скоро появимся!',
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AvroClientColors.background,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationUnavailableBanner extends StatelessWidget {
+  const _LocationUnavailableBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AvroClientColors.warning,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.location_off_rounded,
+            size: 20,
+            color: AvroClientColors.background,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Местоположение недоступно. Разрешите геолокацию в настройках.',
               style: GoogleFonts.inter(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,

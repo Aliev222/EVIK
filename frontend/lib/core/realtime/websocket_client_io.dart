@@ -19,6 +19,7 @@ class ChannelWebSocketClient implements WebSocketClient {
   String? _url;
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
+  Timer? _pingTimer;
   bool _intentionalDisconnect = false;
 
   @override
@@ -45,11 +46,13 @@ class ChannelWebSocketClient implements WebSocketClient {
         }
       },
       onError: (Object error, StackTrace stackTrace) {
+        _pingTimer?.cancel();
         _messages?.addError(error, stackTrace);
         _connectionStatusController.add(WebSocketConnectionStatus.disconnected);
         _scheduleReconnect();
       },
       onDone: () {
+        _pingTimer?.cancel();
         final controller = _messages;
         if (controller != null && !controller.isClosed) {
           controller.close();
@@ -60,6 +63,14 @@ class ChannelWebSocketClient implements WebSocketClient {
         }
       },
     );
+    _startPingTimer();
+  }
+
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _channel?.sink.add('HEARTBEAT');
+    });
   }
 
   @override
@@ -75,6 +86,7 @@ class ChannelWebSocketClient implements WebSocketClient {
   Future<void> disconnect() async {
     _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
+    _pingTimer?.cancel();
     final channel = _channel;
     final controller = _messages;
     final subscription = _subscription;

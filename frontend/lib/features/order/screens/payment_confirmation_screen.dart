@@ -186,12 +186,20 @@ class _PaymentConfirmationScreenState
 
     if (result == null || !mounted) return;
 
+    // If card selected but no saved cards, guide the user.
+    if (result == PaymentMethod.card && cards.isEmpty) {
+      _showError('Сначала добавьте карту в профиле');
+      return;
+    }
+
     setState(() => _isChangingMethod = true);
     try {
       final order = ref.read(orderFlowProvider).activeOrder;
       if (order == null) return;
       final repo = ref.read(orderRepositoryProvider);
       if (repo is! HttpOrderRepository) return;
+      // TODO: When the acquiring provider (Точка/Cyclops) is live, create
+      // a real card charge here. For now the PATCH only persists the choice.
       await repo.updatePaymentMethod(order.id, result);
       ref.read(orderFlowProvider.notifier).selectPaymentMethod(result);
     } catch (e) {
@@ -351,8 +359,10 @@ class _PaymentMethodCard extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  isCard && defaultCard != null
-                      ? '${defaultCard.displayBrand} •••• ${defaultCard.last4}'
+                  isCard
+                      ? (defaultCard != null
+                          ? '${defaultCard.displayBrand} •••• ${defaultCard.last4}'
+                          : 'Банковская карта')
                       : 'Наличные',
                   style: EvikTypography.bodyMedium.copyWith(
                     color: AvroClientColors.textPrimary,
@@ -407,13 +417,14 @@ class _PaymentMethodSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            if (hasCards)
-              _OptionTile(
-                icon: Icons.credit_card_rounded,
-                title: '${cards.first.displayBrand} •••• ${cards.first.last4}',
-                subtitle: 'Банковская карта',
-                onTap: () => Navigator.pop(context, PaymentMethod.card),
-              ),
+            _OptionTile(
+              icon: Icons.credit_card_rounded,
+              title: 'Банковская карта',
+              subtitle: hasCards
+                  ? '${cards.first.displayBrand} •••• ${cards.first.last4}'
+                  : 'Добавьте карту в профиле',
+              onTap: () => Navigator.pop(context, PaymentMethod.card),
+            ),
             const SizedBox(height: 8),
             _OptionTile(
               icon: Icons.money_rounded,

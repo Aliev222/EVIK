@@ -47,8 +47,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   String? _routePreviewOrderId;
   RoutePreview? _routePreview;
   bool _routePreviewFailed = false;
-  double _currentLat = 55.7558;
-  double _currentLng = 37.6173;
+  double? _currentLat;
+  double? _currentLng;
+  bool _locationUnavailable = false;
 
   @override
   void initState() {
@@ -64,26 +65,45 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
       },
     );
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final pos = await LocationService.getCurrentPositionWithFallback();
-        if (mounted) {
-          setState(() {
-            _currentLat = pos.latitude;
-            _currentLng = pos.longitude;
-          });
-          ref
-              .read(serviceAreaProvider.notifier)
-              .checkServiceArea(pos.latitude, pos.longitude);
-        }
-      } catch (_) {
-        if (mounted) {
-          ref
-              .read(serviceAreaProvider.notifier)
-              .checkServiceArea(_currentLat, _currentLng);
-        }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initLocation());
+  }
+
+  Future<void> _initLocation() async {
+    final permission = await LocationService.requestLocationPermission();
+
+    if (!mounted) return;
+
+    if (permission == PermissionResult.serviceDisabled) {
+      setState(() => _locationUnavailable = true);
+      return;
+    }
+
+    if (permission == PermissionResult.deniedForever) {
+      setState(() => _locationUnavailable = true);
+      return;
+    }
+
+    if (permission == PermissionResult.denied) {
+      setState(() => _locationUnavailable = true);
+      return;
+    }
+
+    try {
+      final pos = await LocationService.getCurrentPositionWithFallback();
+      if (mounted) {
+        setState(() {
+          _currentLat = pos.latitude;
+          _currentLng = pos.longitude;
+        });
+        ref
+            .read(serviceAreaProvider.notifier)
+            .checkServiceArea(pos.latitude, pos.longitude);
       }
-    });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _locationUnavailable = true);
+      }
+    }
   }
 
   @override
@@ -223,6 +243,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   Widget _buildOfflineView(
       DriverState driverState, AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
     final outsideServiceArea = serviceArea.isChecked && !serviceArea.isAllowed;
+    final canGoOnline = !_locationUnavailable && !outsideServiceArea;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
@@ -230,6 +251,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (outsideServiceArea) _DriverServiceAreaBanner(),
+            if (_locationUnavailable) _LocationUnavailableBanner(),
             // Приветствие
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -333,7 +355,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
             EvikButton(
               text: 'Начать работу',
               isLoading: driverState.isLoading,
-              onPressed: driverState.isLoading || outsideServiceArea
+              onPressed: driverState.isLoading || !canGoOnline
                   ? null
                   : () {
                       try { HapticFeedback.selectionClick(); } catch (_) {}
@@ -365,8 +387,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         Positioned.fill(
           child: RepaintBoundary(
             child: EvikOsmMapView(
-              initialLat: incomingOrder?.pickupLat ?? _currentLat,
-              initialLng: incomingOrder?.pickupLng ?? _currentLng,
+              initialLat: incomingOrder?.pickupLat ?? _currentLat ?? 42.9764,
+              initialLng: incomingOrder?.pickupLng ?? _currentLng ?? 47.5024,
               initialZoom: incomingOrder == null ? 12.2 : 13.5,
               markers: _mapMarkers(incomingOrder),
               routePoints: _routePreview?.points ?? const <LatLng>[],
@@ -446,8 +468,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   List<EvikMapMarker> _mapMarkers(AvailableOrder? incoming) {
     return [
       EvikMapMarker(
-        lat: _currentLat,
-        lng: _currentLng,
+        lat: _currentLat ?? 42.9764,
+        lng: _currentLng ?? 47.5024,
         title: 'Вы',
         color: AvroDriverColors.success,
       ),
@@ -475,8 +497,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     _routePreview = null;
     _routePreviewFailed = false;
     OpenStreetMapService.getRoutePreview(
-      fromLat: _currentLat,
-      fromLng: _currentLng,
+      fromLat: _currentLat ?? 42.9764,
+      fromLng: _currentLng ?? 47.5024,
       toLat: incoming.pickupLat,
       toLng: incoming.pickupLng,
     ).then((preview) {
@@ -559,6 +581,42 @@ class _DriverServiceAreaBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Авро пока не работает в вашем городе. Мы скоро появимся!',
+              style: EvikTypography.bodySmall.copyWith(
+                color: AvroDriverColors.background,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationUnavailableBanner extends StatelessWidget {
+  const _LocationUnavailableBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AvroDriverColors.warning,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.location_off_rounded,
+            size: 20,
+            color: AvroDriverColors.background,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Местоположение недоступно. Разрешите геолокацию в настройках.',
               style: EvikTypography.bodySmall.copyWith(
                 color: AvroDriverColors.background,
                 fontWeight: FontWeight.w600,
@@ -728,6 +786,7 @@ class _IncomingOrderSheet extends StatelessWidget {
       child: Material(
         color: AvroDriverColors.surface,
         borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
         elevation: 10,
         shadowColor: Colors.black.withValues(alpha: 0.16),
         child: Padding(

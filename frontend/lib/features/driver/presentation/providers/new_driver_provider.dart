@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
-import 'package:tow_truck_frontend/core/realtime/event_dispatcher.dart';
+import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
@@ -14,6 +14,7 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/available_ord
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_earnings_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_realtime_provider.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 
@@ -71,9 +72,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   DriverNotifier({
     required HttpDriverRepository driverRepository,
     required Ref ref,
-    EventDispatcher? eventDispatcher,
   })  : _driverRepository = driverRepository,
-        _eventDispatcher = eventDispatcher,
         _ref = ref,
         super(DriverState(
           workState: DriverWorkState.offline,
@@ -101,15 +100,14 @@ class DriverNotifier extends StateNotifier<DriverState> {
         )) {
     unawaited(_initializeDriver());
     _startPeriodicRefresh();
-    _startWsListener();
+    _startOfferListener();
   }
 
   final HttpDriverRepository _driverRepository;
-  final EventDispatcher? _eventDispatcher;
   final Ref _ref;
   Timer? _refreshTimer;
   Timer? _paymentPollTimer;
-  StreamSubscription<Event>? _wsSubscription;
+  StreamSubscription<OrderUpdate>? _wsSubscription;
   final Random _random = Random();
 
   String? get _currentDriverId {
@@ -153,6 +151,14 @@ class DriverNotifier extends StateNotifier<DriverState> {
       );
 
       if (nextWorkState == DriverWorkState.online) {
+        final token = _ref.read(authProvider).accessToken;
+        if (token == null || token.isEmpty) {
+          state = state.copyWith(error: 'Ошибка авторизации: нет токена');
+          return;
+        }
+        final realtime = _ref.read(driverRealTimeProvider.notifier);
+        await realtime.connectAsDriver(driverId, accessToken: token);
+        await realtime.goOnline();
         await _loadCurrentOffer();
       }
     } catch (error) {
@@ -173,9 +179,20 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await _driverRepository.updateDriverStatus(
         driverId: driverId,
         isOnline: true,
-        lat: lat ?? 55.7558,
-        lng: lng ?? 37.6176,
+        lat: lat,
+        lng: lng,
       );
+
+      // Подключаем WS: регистрируем водителя в Hub, шлём локацию
+      final token = _ref.read(authProvider).accessToken;
+      if (token == null || token.isEmpty) {
+        state = state.copyWith(error: 'Ошибка авторизации: нет токена');
+        return;
+      }
+      final realtime = _ref.read(driverRealTimeProvider.notifier);
+      await realtime.connectAsDriver(driverId, accessToken: token);
+      await realtime.goOnline();
+
       state = state.copyWith(
         workState: DriverWorkState.online,
         isLoading: false,
@@ -198,9 +215,14 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await _driverRepository.updateDriverStatus(
         driverId: driverId,
         isOnline: false,
-        lat: 55.7558,
-        lng: 37.6176,
+        lat: null,
+        lng: null,
       );
+
+      // Отключаем WS: останавливаем локацию, закрываем линию
+      final realtime = _ref.read(driverRealTimeProvider.notifier);
+      await realtime.goOffline();
+
       state = state.copyWith(
         workState: DriverWorkState.offline,
         availableOrders: const <AvailableOrder>[],
@@ -241,30 +263,25 @@ class DriverNotifier extends StateNotifier<DriverState> {
     unawaited(_loadCurrentOffer());
   }
 
-  void _startWsListener() {
-    final dispatcher = _eventDispatcher;
-    if (dispatcher == null) return;
+  void _startOfferListener() {
     _wsSubscription?.cancel();
-    unawaited(dispatcher.start());
-    _wsSubscription = dispatcher.events().listen((event) {
-      if (event.type != 'offer' || !mounted) return;
-      final offerMap = event.payload;
-      if (offerMap is! Map<String, dynamic>) return;
-      final orderId = event.orderId;
-      final expiresAtStr = offerMap['expires_at']?.toString();
-      DateTime? expiresAt;
-      if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
-        expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
-      }
-      if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) return;
-      final order = availableOrderFromOffer(offerMap, orderId);
-      state = state.copyWith(
-        availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
-      );
-    });
-    dispatcher.onReconnected.listen((_) {
-      if (mounted && state.workState == DriverWorkState.online) {
-        unawaited(_loadCurrentOffer());
+    final realTimeService = _ref.read(realTimeLocationServiceProvider);
+    _wsSubscription = realTimeService.orderUpdateStream.listen((update) {
+      if (!mounted) return;
+      if (update.status == OrderUpdateType.offerAssigned) {
+        final rawPayload = update.rawPayload;
+        if (rawPayload != null) {
+          final expiresAtStr = rawPayload['expires_at']?.toString();
+          DateTime? expiresAt;
+          if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
+            expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
+          }
+          if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) return;
+          final order = availableOrderFromOffer(rawPayload, update.orderId);
+          state = state.copyWith(
+            availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
+          );
+        }
       }
     });
   }
@@ -432,7 +449,6 @@ final newDriverProvider =
     StateNotifierProvider<DriverNotifier, DriverState>((ref) {
   return DriverNotifier(
     driverRepository: ref.watch(httpDriverRepositoryProvider),
-    eventDispatcher: ref.watch(eventDispatcherProvider),
     ref: ref,
   );
 });

@@ -28,10 +28,11 @@ class ServiceDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
-  double _lat = AppConstants.moscowLat;
-  double _lng = AppConstants.moscowLng;
+  double? _lat;
+  double? _lng;
   String _address = 'Определяем местоположение...';
   bool _loading = true;
+  bool _locationUnavailable = false;
 
   @override
   void initState() {
@@ -40,6 +41,19 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
   }
 
   Future<void> _loadLocation() async {
+    final permission = await LocationService.requestLocationPermission();
+
+    if (!mounted) return;
+
+    if (permission != PermissionResult.granted) {
+      setState(() {
+        _loading = false;
+        _locationUnavailable = true;
+        _address = 'Местоположение недоступно';
+      });
+      return;
+    }
+
     try {
       final pos = await LocationService.getCurrentPositionWithFallback();
       if (!mounted) return;
@@ -59,8 +73,9 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _address = 'Адрес не определён';
         _loading = false;
+        _locationUnavailable = true;
+        _address = 'Местоположение недоступно';
       });
     }
   }
@@ -89,6 +104,9 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final displayLat = _lat ?? AppConstants.moscowLat;
+    final displayLng = _lng ?? AppConstants.moscowLng;
+    final showLocationWarning = _locationUnavailable && !_loading;
     return Scaffold(
       backgroundColor: AvroClientColors.background,
       appBar: AppBar(
@@ -143,6 +161,28 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
                   height: 1.4,
                 ),
               ),
+              if (showLocationWarning) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AvroClientColors.warning,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.location_off_rounded, size: 20, color: AvroClientColors.background),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Местоположение недоступно',
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: AvroClientColors.background),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -150,8 +190,8 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
                   height: 200,
                   child: EvikOsmMapView(
                     key: const ValueKey('service_detail_map'),
-                    initialLat: _lat,
-                    initialLng: _lng,
+                    initialLat: displayLat,
+                    initialLng: displayLng,
                     initialZoom: 15,
                     showControls: false,
                     showLocationButton: false,
@@ -159,8 +199,8 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
                     fitToMarkers: false,
                     markers: [
                       EvikMapMarker(
-                        lat: _lat,
-                        lng: _lng,
+                        lat: displayLat,
+                        lng: displayLng,
                         title: _address,
                         color: AvroClientColors.accent,
                       ),

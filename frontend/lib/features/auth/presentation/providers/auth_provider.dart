@@ -722,10 +722,6 @@ class BackendAuthApi {
       '/api/v1/drivers/$userID/status',
       <String, dynamic>{
         'status': 'offline',
-        'location': <String, dynamic>{
-          'lat': 55.7558,
-          'lng': 37.6176,
-        },
       },
       headers: <String, String>{
         'Authorization': 'Bearer $accessToken',

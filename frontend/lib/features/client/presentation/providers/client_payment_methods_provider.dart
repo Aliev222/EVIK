@@ -18,14 +18,21 @@ class ClientPaymentMethodsNotifier
   }
 
   final Ref _ref;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   Future<void> load() async {
     state = const AsyncValue.loading();
     try {
       final wallet = await _ref.read(paymentRepositoryProvider).getWallet();
-      state = AsyncValue.data(wallet.cards);
+      if (!_disposed) state = AsyncValue.data(wallet.cards);
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      if (!_disposed) state = AsyncValue.error(error, stackTrace);
     }
   }
 
@@ -56,7 +63,7 @@ class ClientPaymentMethodsNotifier
             (c) => !previous.any((p) => p.id == c.id),
           );
           if (hasNewCard) {
-            state = AsyncValue.data(cards);
+            if (!_disposed) state = AsyncValue.data(cards);
             return init.paymentMethodId;
           }
         } catch (_) {
@@ -64,12 +71,14 @@ class ClientPaymentMethodsNotifier
         }
       }
       // Timeout — show whatever we got last
-      state = AsyncValue.data(cards);
+      if (!_disposed) state = AsyncValue.data(cards);
       return init.paymentMethodId;
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      if (!_disposed) state = AsyncValue.error(error, stackTrace);
       if (previous.isNotEmpty) {
-        scheduleMicrotask(() => state = AsyncValue.data(previous));
+        scheduleMicrotask(() {
+          if (!_disposed) state = AsyncValue.data(previous);
+        });
       }
       rethrow;
     }
@@ -82,8 +91,10 @@ class ClientPaymentMethodsNotifier
       await _ref.read(paymentRepositoryProvider).deleteCard(id);
       await load();
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-      scheduleMicrotask(() => state = AsyncValue.data(previous));
+      if (!_disposed) state = AsyncValue.error(error, stackTrace);
+      scheduleMicrotask(() {
+        if (!_disposed) state = AsyncValue.data(previous);
+      });
       rethrow;
     }
   }
@@ -97,8 +108,10 @@ class ClientPaymentMethodsNotifier
       await _ref.read(paymentRepositoryProvider).setDefaultCard(id);
       await load();
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-      scheduleMicrotask(() => state = AsyncValue.data(previous));
+      if (!_disposed) state = AsyncValue.error(error, stackTrace);
+      scheduleMicrotask(() {
+        if (!_disposed) state = AsyncValue.data(previous);
+      });
       rethrow;
     }
   }

@@ -251,9 +251,10 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   }
 
   Future<bool> _createOrderWithPaymentFlow() async {
-    if (state.pickupLocation == null ||
-        state.destinationLocation == null ||
-        state.selectedVehicleType == null) {
+    final pickup = state.pickupLocation;
+    final dropoff = state.destinationLocation;
+    final vehicle = state.selectedVehicleType;
+    if (pickup == null || dropoff == null || vehicle == null) {
       _handleSearchError('Не заполнены обязательные параметры заказа');
       return false;
     }
@@ -267,9 +268,9 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
     final command = CreateOrderCommand(
       clientId: clientId,
-      pickupLocation: state.pickupLocation!.toLocationModel(),
-      dropoffLocation: state.destinationLocation!.toLocationModel(),
-      vehicleType: state.selectedVehicleType!,
+      pickupLocation: pickup.toLocationModel(),
+      dropoffLocation: dropoff.toLocationModel(),
+      vehicleType: vehicle,
       distance: state.distance,
       estimatedPrice: state.estimatedPrice,
       paymentMethod: _ref.read(selectedOrderPaymentMethodProvider),
@@ -329,27 +330,26 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       if (!mounted) return;
       unawaited(_refreshActiveOrder(orderId));
     });
-    unawaited(_refreshActiveOrder(orderId));
   }
 
   Future<void> _refreshActiveOrder(String orderId) async {
     try {
       final order = await _ref.read(orderRepositoryProvider).getOrder(orderId);
       if (!mounted || order == null) return;
-      _applyBackendOrderUpdate(order);
+      await _applyBackendOrderUpdate(order);
     } catch (_) {
       // Keep the visible flow stable during transient local-server failures.
     }
   }
 
-  void _applyBackendOrderUpdate(Order order) {
+  Future<void> _applyBackendOrderUpdate(Order order) async {
+    if (!mounted) return;
     var nextStep = state.currentStep;
-    var assignedDriver = state.assignedDriver;
 
     if (order.driverId != null && order.driverId!.isNotEmpty) {
-      // If we don't have driver data yet, fetch it from the backend
-      if (assignedDriver == null || assignedDriver.userId != order.driverId) {
-        _fetchDriverProfile(order.driverId!);
+      if (state.assignedDriver == null ||
+          state.assignedDriver!.userId != order.driverId) {
+        await _fetchDriverProfile(order.driverId!);
       }
       if (nextStep == OrderFlowStep.driverSearch) {
         _searchTimer?.cancel();
@@ -388,9 +388,9 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       return;
     }
 
+    _syncOrderLocations(order);
     state = state.copyWith(
       activeOrder: order,
-      assignedDriver: assignedDriver,
       currentStep: nextStep,
       isLoading: false,
       errorMessage: null,
@@ -405,12 +405,33 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
       if (mounted && driver != null) {
         state = state.copyWith(assignedDriver: driver);
+      } else if (mounted) {
+        state = state.copyWith(assignedDriver: null);
       }
     } catch (error) {
-      // If we can't fetch driver data, we'll continue without it
-      // Rather than showing synthetic data, we'll handle this gracefully in the UI
-      // Error is logged internally by the API client
+      if (mounted) {
+        state = state.copyWith(assignedDriver: null);
+      }
     }
+  }
+
+  /// Copies pickup/destination locations from backend order into state
+  /// when the local state doesn't have them (e.g. after app restore).
+  void _syncOrderLocations(Order order) {
+    state = state.copyWith(
+      pickupLocation: state.pickupLocation ??
+          MapLocation(
+            latitude: order.pickupLocation.lat,
+            longitude: order.pickupLocation.lng,
+            address: order.pickupLocation.address,
+          ),
+      destinationLocation: state.destinationLocation ??
+          MapLocation(
+            latitude: order.dropoffLocation.lat,
+            longitude: order.dropoffLocation.lng,
+            address: order.dropoffLocation.address,
+          ),
+    );
   }
 
   String? _buildOrderNotes() {
@@ -453,15 +474,15 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   }
 
   void _calculateDistanceAndPrice() {
-    if (state.pickupLocation == null || state.destinationLocation == null) {
-      return;
-    }
+    final pickup = state.pickupLocation;
+    final dropoff = state.destinationLocation;
+    if (pickup == null || dropoff == null) return;
 
     final distance = Geolocator.distanceBetween(
-          state.pickupLocation!.latitude,
-          state.pickupLocation!.longitude,
-          state.destinationLocation!.latitude,
-          state.destinationLocation!.longitude,
+          pickup.latitude,
+          pickup.longitude,
+          dropoff.latitude,
+          dropoff.longitude,
         ) /
         1000;
 
@@ -513,6 +534,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       final order = await repo.getOrder(orderId);
       if (!mounted || order == null) return;
 
+      _syncOrderLocations(order);
       state = state.copyWith(
         activeOrder: order,
         currentStep: order.status == OrderStatus.completed

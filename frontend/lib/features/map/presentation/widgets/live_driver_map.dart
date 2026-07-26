@@ -50,11 +50,11 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
     final centerLat = widget.pickupLocation?.latitude ??
         (widget.activeDrivers.isNotEmpty
             ? widget.activeDrivers.first.lat
-            : 55.7558); // Moscow default
+            : 42.9764);
     final centerLng = widget.pickupLocation?.longitude ??
         (widget.activeDrivers.isNotEmpty
             ? widget.activeDrivers.first.lng
-            : 37.6173); // Moscow default
+            : 47.5024);
 
     final zoom = widget.adminMode ? 12.0 : 15.0; // Zoom out for admin view
 

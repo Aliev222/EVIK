@@ -55,7 +55,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
 
   double get _interpolatedDriverLat {
     if (_prevDriverPos == null || _currDriverPos == null) {
-      return _currDriverPos?.latitude ?? 55.7558;
+      return _currDriverPos?.latitude ?? 42.9764;
     }
     final t = Curves.easeInOut.transform(_markerAnimController.value);
     return _prevDriverPos!.latitude +
@@ -64,7 +64,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
 
   double get _interpolatedDriverLng {
     if (_prevDriverPos == null || _currDriverPos == null) {
-      return _currDriverPos?.longitude ?? 37.6173;
+      return _currDriverPos?.longitude ?? 47.5024;
     }
     final t = Curves.easeInOut.transform(_markerAnimController.value);
     return _prevDriverPos!.longitude +
@@ -251,7 +251,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         children: [
           Positioned.fill(
             child: LiveDriverMap(
-              pickupLocation: state.pickupLocation!,
+              pickupLocation: state.pickupLocation,
               destinationLocation: state.destinationLocation,
               showSearchAnimation: false,
               driverLocation: _latestDriverLocation,

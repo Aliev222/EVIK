@@ -310,6 +310,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case OrderUpdateType.driverFound:
         return AvroClientColors.success;
       case OrderUpdateType.newOrderAssigned:
+      case OrderUpdateType.offerAssigned:
         return AvroClientColors.info;
       case OrderUpdateType.noDriversAvailable:
         return AvroClientColors.error;
@@ -323,6 +324,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case OrderUpdateType.driverFound:
         return 'DRIVER FOUND';
       case OrderUpdateType.newOrderAssigned:
+      case OrderUpdateType.offerAssigned:
         return 'ASSIGNED';
       case OrderUpdateType.noDriversAvailable:
         return 'NO DRIVERS';

@@ -36,7 +36,7 @@ class HttpOrderRepository implements OrderRepository {
       'dropoff_lat': command.dropoffLocation.lat,
       'dropoff_lng': command.dropoffLocation.lng,
       'payment_method': command.paymentMethod.name,
-      'auto_dispatch': false,
+      'auto_dispatch': true,
       'is_mock': command.pickupLocation.isMocked || command.dropoffLocation.isMocked,
     };
 

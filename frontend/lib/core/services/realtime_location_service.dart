@@ -16,8 +16,13 @@ class RealTimeLocationService {
 
   WebSocketChannel? _channel;
   bool _isConnected = false;
+  String? _savedUserId;
+  String? _savedUserType;
   String? _userId;
-  String? _userType; // 'driver', 'client', 'admin'
+  String? _userType;
+  String? _savedAccessToken;
+  bool _shouldReconnect = false;
+  Timer? _pingTimer;
 
   // Stream controllers для потоков данных локации
   final StreamController<DriverLocationUpdate> _driverLocationController =
@@ -43,12 +48,23 @@ class RealTimeLocationService {
   Future<bool> connect({
     required String userId,
     required String userType, // 'driver', 'client', 'admin'
+    String accessToken = '',
   }) async {
     try {
+      _savedUserId = userId;
+      _savedUserType = userType;
       _userId = userId;
       _userType = userType;
+      _savedAccessToken = accessToken;
+      _shouldReconnect = true;
 
-      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      var wsUrl = _wsUrl;
+      if (accessToken.isNotEmpty) {
+        wsUrl = Uri.parse(_wsUrl).replace(
+          queryParameters: <String, String>{'access_token': accessToken},
+        ).toString();
+      }
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
       // Слушаем входящие сообщения
       _channel!.stream.listen(
@@ -62,6 +78,7 @@ class RealTimeLocationService {
 
       _isConnected = true;
       _connectionController.add('connected');
+      _startPingTimer();
 
       debugPrint('WebSocket connected as $_userType: $_userId');
       return true;
@@ -82,6 +99,32 @@ class RealTimeLocationService {
     };
 
     _sendMessage(message);
+  }
+
+  void _startPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (_isConnected) {
+        _sendMessage({'type': 'ping'});
+      }
+    });
+  }
+
+  void _stopPingTimer() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
+  }
+
+  void _scheduleReconnect() {
+    Future.delayed(const Duration(seconds: 2), () async {
+      if (_savedUserId != null && _savedUserType != null && _shouldReconnect) {
+        await connect(
+          userId: _savedUserId!,
+          userType: _savedUserType!,
+          accessToken: _savedAccessToken ?? '',
+        );
+      }
+    });
   }
 
   /// Отправка GPS координат водителя на сервер
@@ -199,6 +242,15 @@ class RealTimeLocationService {
           _handleNoDriversAvailable(message);
           break;
 
+        case 'offer':
+        case 'order_offer':
+          _handleOffer(message);
+          break;
+
+        case 'ping':
+        case 'pong':
+          break;
+
         case 'initial_state':
           _handleInitialState(message);
           break;
@@ -314,6 +366,28 @@ class RealTimeLocationService {
     _orderUpdateController.add(orderUpdate);
   }
 
+  /// Обработка оффера (входящий заказ для водителя)
+  void _handleOffer(Map<String, dynamic> message) {
+    try {
+      final orderId = message['order_id']?.toString() ?? '';
+      final orderData = message['payload'] ?? message;
+      final orderUpdate = OrderUpdate(
+        orderId: orderId,
+        status: OrderUpdateType.offerAssigned,
+        message: message['message'],
+        pickupLat: orderData['pickup_lat']?.toDouble(),
+        pickupLng: orderData['pickup_lng']?.toDouble(),
+        dropoffLat: orderData['dropoff_lat']?.toDouble(),
+        dropoffLng: orderData['dropoff_lng']?.toDouble(),
+        clientId: orderData['client_id'],
+        rawPayload: orderData is Map<String, dynamic> ? orderData : null,
+      );
+      _orderUpdateController.add(orderUpdate);
+    } catch (e) {
+      debugPrint('Error parsing offer: $e');
+    }
+  }
+
   /// Обработка начального состояния для карты клиента
   void _handleInitialState(Map<String, dynamic> message) {
     try {
@@ -361,19 +435,29 @@ class RealTimeLocationService {
   /// Обработка ошибок WebSocket
   void _handleError(Object error) {
     debugPrint('WebSocket error: $error');
+    _stopPingTimer();
     _isConnected = false;
     _connectionController.add('error');
+    if (_shouldReconnect) {
+      _scheduleReconnect();
+    }
   }
 
   /// Обработка отключения WebSocket
   void _handleDisconnection() {
     debugPrint('WebSocket disconnected');
+    _stopPingTimer();
     _isConnected = false;
     _connectionController.add('disconnected');
+    if (_shouldReconnect) {
+      _scheduleReconnect();
+    }
   }
 
   /// Отключение от сервера
   Future<void> disconnect() async {
+    _shouldReconnect = false;
+    _stopPingTimer();
     _isConnected = false;
     await _channel?.sink.close();
     _channel = null;
@@ -452,6 +536,7 @@ class OrderUpdate {
   final double? dropoffLat;
   final double? dropoffLng;
   final String? clientId;
+  final Map<String, dynamic>? rawPayload;
 
   const OrderUpdate({
     required this.orderId,
@@ -463,6 +548,7 @@ class OrderUpdate {
     this.dropoffLat,
     this.dropoffLng,
     this.clientId,
+    this.rawPayload,
   });
 }
 
@@ -472,6 +558,7 @@ enum OrderUpdateType {
   newOrderAssigned,
   noDriversAvailable,
   orderCompleted,
+  offerAssigned,
 }
 
 /// Provider для real-time сервиса

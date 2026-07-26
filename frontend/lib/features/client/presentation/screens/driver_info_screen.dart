@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -65,10 +64,10 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
 
     final centerLat = driver.currentLocation?.lat ??
         pickup?.latitude ??
-        AppConstants.moscowLat;
+        42.9764;
     final centerLng = driver.currentLocation?.lng ??
         pickup?.longitude ??
-        AppConstants.moscowLng;
+        47.5024;
 
     // Use real driver data instead of hardcoded values
     final driverName = driver.fullName?.isNotEmpty == true

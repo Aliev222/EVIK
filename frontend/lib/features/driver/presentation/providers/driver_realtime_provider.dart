@@ -64,12 +64,14 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
   final LocationService _locationService = LocationService.instance;
 
   Timer? _locationTimer;
+  StreamSubscription<String>? _connectionSubscription;
   StreamSubscription? _orderUpdateSubscription;
   String? _driverId;
 
   @override
   void dispose() {
     _locationTimer?.cancel();
+    _connectionSubscription?.cancel();
     _orderUpdateSubscription?.cancel();
     _realTimeService.dispose();
     super.dispose();
@@ -80,15 +82,24 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     _orderUpdateSubscription = _realTimeService.orderUpdateStream.listen(
       _handleOrderUpdate,
     );
+    // Слушаем статус соединения для авто-обновления isConnected после реконнекта
+    _connectionSubscription = _realTimeService.connectionStream.listen((status) {
+      if (status == 'connected') {
+        state = state.copyWith(isConnected: true);
+      } else if (status == 'disconnected' || status == 'connection_failed') {
+        state = state.copyWith(isConnected: false);
+      }
+    });
   }
 
   /// Подключение водителя к real-time системе
-  Future<bool> connectAsDriver(String driverId) async {
+  Future<bool> connectAsDriver(String driverId, {required String accessToken}) async {
     _driverId = driverId;
 
     final connected = await _realTimeService.connect(
       userId: driverId,
       userType: 'driver',
+      accessToken: accessToken,
     );
 
     state = state.copyWith(
@@ -288,9 +299,8 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
 
   /// Обработка входящих заказов от сервера
   void _handleOrderUpdate(OrderUpdate update) {
-    if (update.status == OrderUpdateType.newOrderAssigned) {
-      // Новый заказ назначен этому водителю
-      // В реальном приложении показать уведомление
+    if (update.status == OrderUpdateType.newOrderAssigned ||
+        update.status == OrderUpdateType.offerAssigned) {
       state = state.copyWith(
         currentOrder: update.orderId,
         status: DriverMarkerStatus.toPickup,

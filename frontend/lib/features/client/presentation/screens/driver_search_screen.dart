@@ -62,13 +62,14 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
       });
 
       // Create order if we have all required data
-      if (orderFlowState.pickupLocation != null &&
-          orderFlowState.destinationLocation != null) {
+      final pickup = orderFlowState.pickupLocation;
+      final dropoff = orderFlowState.destinationLocation;
+      if (pickup != null && dropoff != null) {
         await realTimeService.createOrder(
-          pickupLat: orderFlowState.pickupLocation!.latitude,
-          pickupLng: orderFlowState.pickupLocation!.longitude,
-          dropoffLat: orderFlowState.destinationLocation!.latitude,
-          dropoffLng: orderFlowState.destinationLocation!.longitude,
+          pickupLat: pickup.latitude,
+          pickupLng: pickup.longitude,
+          dropoffLat: dropoff.latitude,
+          dropoffLng: dropoff.longitude,
           vehicleType: VehicleType.light, // Based on selected vehicle
           notes: 'Order from client app',
         );
@@ -260,6 +261,7 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final orderFlowState = ref.watch(orderFlowProvider);
+    final pickupLocation = orderFlowState.pickupLocation;
     final searchTimer = ref.watch(searchTimerDisplayProvider);
 
     if (orderFlowState.currentStep == OrderFlowStep.driverFound) {
@@ -310,11 +312,11 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
         children: [
           // Map background only. Search feedback lives in the sheet below, so
           // fallback map states never compete with markers or pulse overlays.
-          if (orderFlowState.pickupLocation != null)
+          if (pickupLocation != null)
             Positioned.fill(
               child: EvikOsmMapView(
-                initialLat: orderFlowState.pickupLocation!.latitude,
-                initialLng: orderFlowState.pickupLocation!.longitude,
+                initialLat: pickupLocation.latitude,
+                initialLng: pickupLocation.longitude,
                 initialZoom: 15,
               ),
             ),

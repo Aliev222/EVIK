@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/navigation_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
@@ -22,11 +23,31 @@ class ActiveOrderScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
-  static const double _driverLat = 55.7558;
-  static const double _driverLng = 37.6173;
+  double? _driverLat;
+  double? _driverLng;
   String? _routeKey;
   RoutePreview? _routePreview;
   bool _routePreviewFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initLocation());
+  }
+
+  Future<void> _initLocation() async {
+    try {
+      final pos = await LocationService.getCurrentPositionWithFallback();
+      if (mounted) {
+        setState(() {
+          _driverLat = pos.latitude;
+          _driverLng = pos.longitude;
+        });
+      }
+    } catch (_) {
+      // Location unavailable — routes fall back to pickup/dropoff coords.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,8 +80,8 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
         children: [
           Positioned.fill(
             child: EvikOsmMapView(
-              initialLat: _driverLat,
-              initialLng: _driverLng,
+              initialLat: _driverLat ?? order.pickupLat,
+              initialLng: _driverLng ?? order.pickupLng,
               initialZoom: 13.4,
               markers: _mapMarkers(order),
               routePoints: _routePreview?.points ?? const <LatLng>[],
@@ -103,12 +124,13 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
 
   List<EvikMapMarker> _mapMarkers(ActiveOrder order) {
     return [
-      const EvikMapMarker(
-        lat: _driverLat,
-        lng: _driverLng,
-        title: 'Водитель',
-        color: AvroDriverColors.info,
-      ),
+      if (_driverLat != null && _driverLng != null)
+        EvikMapMarker(
+          lat: _driverLat!,
+          lng: _driverLng!,
+          title: 'Водитель',
+          color: AvroDriverColors.info,
+        ),
       EvikMapMarker(
         lat: order.pickupLat,
         lng: order.pickupLng,
@@ -179,9 +201,11 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
     _routeKey = nextKey;
     _routePreview = null;
     _routePreviewFailed = false;
+    final fromLat = _driverLat ?? order.pickupLat;
+    final fromLng = _driverLng ?? order.pickupLng;
     OpenStreetMapService.getRoutePreview(
-      fromLat: _driverLat,
-      fromLng: _driverLng,
+      fromLat: fromLat,
+      fromLng: fromLng,
       toLat: target.lat,
       toLng: target.lng,
     ).then((preview) {

@@ -157,14 +157,31 @@ class LocationService {
     }
   }
 
-  Future<bool> _ensureLocationPermission() async {
+  static Future<PermissionResult> requestLocationPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return PermissionResult.serviceDisabled;
+    }
+
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    return permission != LocationPermission.denied &&
-        permission != LocationPermission.deniedForever;
+    if (permission == LocationPermission.deniedForever) {
+      return PermissionResult.deniedForever;
+    }
+
+    if (permission == LocationPermission.denied) {
+      return PermissionResult.denied;
+    }
+
+    return PermissionResult.granted;
+  }
+
+  Future<bool> _ensureLocationPermission() async {
+    final result = await requestLocationPermission();
+    return result == PermissionResult.granted;
   }
 
   Future<String?> _getAddressByCoordinates(double lat, double lng) async {
@@ -177,8 +194,15 @@ class LocationService {
   }
 
   String _coordinatesAddress(double lat, double lng) {
-    return 'Москва, ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+    return '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
   }
+}
+
+enum PermissionResult {
+  granted,
+  denied,
+  deniedForever,
+  serviceDisabled,
 }
 
 class LocationException implements Exception {

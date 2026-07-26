@@ -73,7 +73,19 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
   Future<void> _submitReview() async {
     final order = _order;
     final driver = _driver;
-    if (order == null || driver == null || _rating == 0) return;
+    if (!mounted) return;
+    if (order == null) {
+      _showError('Информация о заказе не найдена');
+      return;
+    }
+    if (driver == null) {
+      _showError('Не удалось загрузить данные водителя. Попробуйте позже или нажмите «Пропустить»');
+      return;
+    }
+    if (_rating == 0) {
+      _showError('Пожалуйста, поставьте оценку');
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {
@@ -93,9 +105,7 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
         if (e.toString().contains('409')) {
           msg = 'Вы уже оставили отзыв по этому заказу';
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: AvroClientColors.error),
-        );
+        _showError(msg);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -103,8 +113,26 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
   }
 
   void _skip() {
-    ref.read(orderFlowProvider.notifier).resetFlow();
-    context.go('/');
+    try {
+      ref.read(orderFlowProvider.notifier).resetFlow();
+    } catch (_) {
+      // Non-critical — navigation proceeds even if resetFlow fails.
+    }
+    if (!mounted) return;
+    try {
+      context.go('/');
+    } catch (e) {
+      if (mounted) {
+        _showError('Не удалось перейти на главный экран: $e');
+      }
+    }
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: AvroClientColors.error),
+    );
   }
 
   @override

@@ -87,10 +87,13 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   }
 
   void _onCameraEnd() {
-    setState(() {
-      _selectedLat = _pendingLat;
-      _selectedLng = _pendingLng;
-      _hasSelection = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _selectedLat = _pendingLat;
+        _selectedLng = _pendingLng;
+        _hasSelection = true;
+      });
     });
     _cameraReverseGeocodeTimer?.cancel();
     _cameraReverseGeocodeTimer = Timer(

@@ -242,7 +242,7 @@ class _ReceiptCard extends StatelessWidget {
           if ((receipt.driverId ?? order.driverId ?? '').isNotEmpty)
             _ReceiptRow(
               label: 'ID водителя',
-              value: receipt.driverId ?? order.driverId!,
+              value: receipt.driverId ?? order.driverId ?? '',
             ),
         ],
       ),

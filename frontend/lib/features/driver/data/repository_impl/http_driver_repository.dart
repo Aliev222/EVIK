@@ -49,8 +49,8 @@ class HttpDriverRepository implements DriverRepository {
     await updateDriverStatus(
       driverId: driver.userId,
       isOnline: driver.isOnline,
-      lat: driver.currentLocation?.lat ?? 55.7558,
-      lng: driver.currentLocation?.lng ?? 37.6176,
+      lat: driver.currentLocation?.lat,
+      lng: driver.currentLocation?.lng,
     );
   }
 
@@ -75,24 +75,27 @@ class HttpDriverRepository implements DriverRepository {
     return updateDriverStatus(
       driverId: userId,
       isOnline: isOnline,
-      lat: 55.7558,
-      lng: 37.6176,
+      lat: null,
+      lng: null,
     );
   }
 
   Future<void> updateDriverStatus({
     required String driverId,
     required bool isOnline,
-    required double lat,
-    required double lng,
+    required double? lat,
+    required double? lng,
     bool isMock = false,
   }) async {
+    final body = <String, dynamic>{
+      'status': isOnline ? 'online' : 'offline',
+    };
+    if (lat != null && lng != null) {
+      body['location'] = <String, dynamic>{'lat': lat, 'lng': lng, 'is_mock': isMock};
+    }
     await _apiClient.post(
         '/api/v1/drivers/$driverId/status',
-        <String, dynamic>{
-          'status': isOnline ? 'online' : 'offline',
-          'location': <String, dynamic>{'lat': lat, 'lng': lng, 'is_mock': isMock},
-        },
+        body,
         headers: _authHeaders);
   }
 

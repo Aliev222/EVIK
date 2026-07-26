@@ -102,7 +102,9 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
         widget.initialLng != oldWidget.initialLng ||
         widget.initialZoom != oldWidget.initialZoom;
     if (centerChanged && !widget.fitToMarkers) {
-      _mapController.move(_initialCenter, widget.initialZoom);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mapController.move(_initialCenter, _mapController.camera.zoom);
+      });
       return;
     }
 
@@ -310,7 +312,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
     ];
     if (points.length < 2) {
       if (points.length == 1) {
-        _mapController.move(points.first, widget.initialZoom);
+        _mapController.move(points.first, _mapController.camera.zoom);
       }
       return;
     }
@@ -320,7 +322,6 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
       CameraFit.bounds(
         bounds: bounds,
         padding: const EdgeInsets.all(42),
-        maxZoom: widget.initialZoom,
       ),
     );
   }

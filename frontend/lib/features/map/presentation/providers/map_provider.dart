@@ -2,7 +2,6 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
@@ -61,8 +60,12 @@ class MapNotifier extends StateNotifier<MapState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final permission = await Permission.location.request();
-      if (permission.isDenied) {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         state = state.copyWith(
           isLoading: false,
           error: 'Разрешение на геолокацию отклонено',
