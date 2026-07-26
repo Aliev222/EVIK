@@ -56,6 +56,8 @@ func main() {
 	go container.Scheduler.Run(ctx)
 	go container.ExpansionScheduler.Run(ctx)
 	go container.DispatchScheduler.Run(ctx)
+	go container.DriverPresenceReaper.Run(ctx)
+	go container.StuckOrderReaper.Run(ctx)
 	container.RateLimiter.StartCleanup(ctx)
 
 	go func() {

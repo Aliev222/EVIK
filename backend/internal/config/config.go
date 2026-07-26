@@ -48,6 +48,15 @@ type Config struct {
 	DriverLastCityTTL               time.Duration
 	DriverSubscriptionRequired      bool
 	DriverGateBypass           bool
+	DriverPresenceReaperInterval     time.Duration
+	DriverPresenceGracePeriod        time.Duration
+	StuckOrderReaperInterval         time.Duration
+	StuckSearchingTimeout            time.Duration
+	StuckAcceptedTimeout             time.Duration
+	StuckArrivedFlagThreshold        time.Duration
+	StuckInProgressFlagThreshold     time.Duration
+	StuckAwaitingPaymentFlagThreshold time.Duration
+	StuckAcceptedAction              string
 	ExposeSwagger              bool
 	FirebaseCredentialsJSON    string
 	OTPFixedCode               string
@@ -112,6 +121,15 @@ func MustLoad() Config {
 		DispatchOfferTimeout:            getEnvDuration("DISPATCH_OFFER_TIMEOUT", 15*time.Second),
 		DispatchGeoFreshness:            getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
 		DriverLastCityTTL:          getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
+		DriverPresenceReaperInterval:      getEnvDuration("DRIVER_PRESENCE_REAPER_INTERVAL", 30*time.Second),
+		DriverPresenceGracePeriod:         getEnvDuration("DRIVER_PRESENCE_GRACE_PERIOD", 90*time.Second),
+		StuckOrderReaperInterval:          getEnvDuration("STUCK_ORDER_REAPER_INTERVAL", 30*time.Second),
+		StuckSearchingTimeout:             getEnvDuration("STUCK_SEARCHING_TIMEOUT", 5*time.Minute),
+		StuckAcceptedTimeout:              getEnvDuration("STUCK_ACCEPTED_TIMEOUT", 15*time.Minute),
+		StuckArrivedFlagThreshold:         getEnvDuration("STUCK_ARRIVED_FLAG_THRESHOLD", 2*time.Hour),
+		StuckInProgressFlagThreshold:       getEnvDuration("STUCK_IN_PROGRESS_FLAG_THRESHOLD", 4*time.Hour),
+		StuckAwaitingPaymentFlagThreshold:  getEnvDuration("STUCK_AWAITING_PAYMENT_FLAG_THRESHOLD", 24*time.Hour),
+		StuckAcceptedAction:               getEnv("STUCK_ACCEPTED_ACTION", "cancel"),
 		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
 		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),

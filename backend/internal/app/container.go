@@ -28,7 +28,6 @@ import (
 	httptransport "evik/backend/internal/transport/http"
 	wstransport "evik/backend/internal/transport/ws"
 	driveruc "evik/backend/internal/usecase/driver"
-	matchinguc "evik/backend/internal/usecase/matching"
 	orderuc "evik/backend/internal/usecase/order"
 	paymentuc "evik/backend/internal/usecase/payment"
 )
@@ -38,6 +37,8 @@ type Container struct {
 	Scheduler          *Scheduler
 	ExpansionScheduler *SearchExpansionScheduler
 	DispatchScheduler  *DispatchScheduler
+	DriverPresenceReaper *DriverPresenceReaper
+	StuckOrderReaper     *StuckOrderReaper
 	RateLimiter        *httptransport.RateLimiter
 	db                 *sql.DB
 	rdb                *redis.Client
@@ -202,7 +203,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	// Create payment use cases
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, driverRepo, pricingService, yookassaProvider{client: yooClient}, settingsRepo, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, driverRepo, pricingService, yookassaProvider{client: yooClient}, settingsRepo, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, eventPublisher)
 	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
@@ -222,8 +223,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		}
 	}
 
-	matcher := matchinguc.NewFinder(orderRepo, driverRepo, matchingService, eventPublisher, clock)
-	createUC := orderuc.NewCreateOrderUseCase(orderRepo, matcher, pricingService, eventPublisher, clock, idGen, appLogger)
+	createUC := orderuc.NewCreateOrderUseCase(orderRepo, pricingService, eventPublisher, clock, idGen, appLogger)
 	acceptUC := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, offerRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
@@ -268,7 +268,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction(), cfg.OTPFixedCode, cfg.IsProduction(), cfg.DebugMode)
 	hub := wsinfra.NewHub()
 	go hub.Run()
-	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager)
+	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager, locationRepo, orderRepo, eventPublisher, clock.Now)
 	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, logger)
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, paymentRepo, logger, cfg.BalanceReleaseInterval)
@@ -300,9 +300,34 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.DispatchGeoFreshness,
 	)
 
+	driverPresenceReaper := NewDriverPresenceReaper(
+		driverRepo,
+		locationRepo,
+		hub,
+		eventPublisher,
+		logger,
+		cfg.DriverPresenceReaperInterval,
+		cfg.DriverPresenceGracePeriod,
+	)
+
+	stuckOrderReaper := NewStuckOrderReaper(
+		db,
+		orderRepo,
+		driverRepo,
+		eventPublisher,
+		logger,
+		cfg.StuckOrderReaperInterval,
+		cfg.StuckSearchingTimeout,
+		cfg.StuckAcceptedTimeout,
+		cfg.StuckArrivedFlagThreshold,
+		cfg.StuckInProgressFlagThreshold,
+		cfg.StuckAwaitingPaymentFlagThreshold,
+		cfg.StuckAcceptedAction,
+	)
+
 	limiter := httptransport.NewRateLimiter()
 	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
-	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, RateLimiter: limiter, db: db, rdb: rdb}, nil
+	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 
 func (c *Container) Close() {

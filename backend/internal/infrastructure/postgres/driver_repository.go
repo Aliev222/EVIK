@@ -132,6 +132,41 @@ WHERE d.id = $1`
 	return &profile, nil
 }
 
+func (r *DriverRepository) ListOnlineStale(ctx context.Context, olderThan time.Time, limit int) ([]*driverdomain.Driver, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	const query = `
+SELECT id, user_id, status, current_order_id, last_seen_at, updated_at
+FROM drivers
+WHERE status = $1 AND current_order_id IS NULL AND updated_at < $2
+ORDER BY updated_at ASC
+LIMIT $3`
+	rows, err := r.db.QueryContext(ctx, query, string(driverdomain.StatusOnline), olderThan, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	drivers := make([]*driverdomain.Driver, 0, limit)
+	for rows.Next() {
+		var (
+			drv    driverdomain.Driver
+			status string
+		)
+		if err := rows.Scan(
+			&drv.ID, &drv.UserID, &status, &drv.CurrentOrderID, &drv.LastSeenAt, &drv.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		drv.Status = driverdomain.Status(status)
+		drivers = append(drivers, &drv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return drivers, nil
+}
+
 func (r *DriverRepository) ListActive(ctx context.Context, limit int) ([]*driverdomain.Driver, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
