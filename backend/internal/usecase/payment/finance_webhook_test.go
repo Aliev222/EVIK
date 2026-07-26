@@ -67,7 +67,7 @@ func (r *webhookRepo) CompleteOrderFinancially(context.Context, string, string, 
 
 func newWebhookUC(repo paymentdomain.Repository) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, &scriptedProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, &scriptedProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 }
 
 func TestHandleWebhookAcceptsValidPayload(t *testing.T) {
@@ -126,7 +126,7 @@ func TestHandleWebhookRequeriedStatusFromAPI(t *testing.T) {
 	repo := newWebhookRepo()
 	repo.purposeOnUpdate = paymentdomain.PaymentPurposeOrder
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
@@ -188,7 +188,7 @@ func TestHandleWebhookProviderErrorIsReturned(t *testing.T) {
 	}
 	repo := newWebhookRepo()
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 	payload := []byte(`{"event":"payment.succeeded","object":{"id":"p-1","status":"succeeded","paid":true}}`)
 
 	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)

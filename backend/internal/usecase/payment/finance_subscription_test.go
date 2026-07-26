@@ -41,7 +41,7 @@ func (r *subscriptionRepo) GetLatestDriverSubscription(context.Context, string) 
 }
 
 func newSubscriptionUC(repo paymentdomain.Repository, provider PaymentProvider, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 }
 
 func TestCreateDriverSubscriptionPaymentProMonth(t *testing.T) {

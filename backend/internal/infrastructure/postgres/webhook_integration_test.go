@@ -202,7 +202,7 @@ func TestWebhook_CurrentBehavior_Success(t *testing.T) {
 	provider := &webhookProvider{}
 
 	paymentRepo := postgres.NewPaymentRepository(db)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, provider, settingsRepo, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, provider, settingsRepo, webhookClock{now: now}, webhookIDGen{}, 600, 10000, nil)
 
 	// --- execute ---
 	payload, _ := json.Marshal(map[string]any{
@@ -336,7 +336,7 @@ func TestWebhook_MidTxFailure_RollsBack(t *testing.T) {
 	}
 
 	paymentRepo := postgres.NewPaymentRepository(db)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, &webhookOrderRepo{}, releaseStore{}, webhookPricingService{}, &failProvider{}, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, &webhookOrderRepo{}, releaseStore{}, webhookPricingService{}, &failProvider{}, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000, nil)
 
 	payload, _ := json.Marshal(map[string]any{
 		"event": "payment.succeeded",
@@ -431,7 +431,7 @@ func TestWebhook_RetryAfterFailure(t *testing.T) {
 		},
 	}
 	paymentRepo := postgres.NewPaymentRepository(db)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, retryProv, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, retryProv, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000, nil)
 
 	payload, _ := json.Marshal(map[string]any{
 		"event": "payment.succeeded",
@@ -533,7 +533,7 @@ func TestWebhook_RetryAfterSuccess(t *testing.T) {
 	}
 	provider := &webhookProvider{}
 	paymentRepo := postgres.NewPaymentRepository(db)
-	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, provider, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000)
+	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, releaseStore{}, webhookPricingService{}, provider, &webhookSettingsRepo{settings: []settings.Setting{{Key: "commission_percent", Value: "15"}}}, webhookClock{now: now}, webhookIDGen{}, 600, 10000, nil)
 
 	payload, _ := json.Marshal(map[string]any{
 		"event": "payment.succeeded",

@@ -56,7 +56,7 @@ type CreateOrderRequest struct {
 	DropoffAddress string  `json:"dropoff_address" example:"ул. Арбат, 10"`
 	TowTruckType   string  `json:"tow_truck_type" example:"winch" enums:"winch,platform,manipulator"`
 	PaymentMethod  string  `json:"payment_method" example:"card" enums:"cash,card"`
-	AutoDispatch   bool    `json:"auto_dispatch" example:"false"`
+	AutoDispatch   bool    `json:"auto_dispatch" example:"true"`
 }
 
 // OrderDTO is the order representation returned in single-order and list

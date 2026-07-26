@@ -1,13 +1,18 @@
 package ws
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"evik/backend/internal/auth"
+	"evik/backend/internal/domain/location"
+	orderdomain "evik/backend/internal/domain/order"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 	gws "github.com/gorilla/websocket"
 )
@@ -18,15 +23,43 @@ const (
 	writeWait  = 10 * time.Second
 )
 
+type WSLocationRepo interface {
+	SaveLocation(ctx context.Context, driverID string, loc location.Location) error
+}
+
+type WSOrderRepo interface {
+	GetByID(ctx context.Context, id string) (*orderdomain.Order, error)
+}
+
+type WSEventPublisher interface {
+	Publish(ctx context.Context, event orderdomain.Event) error
+}
+
 type OrderWSHandler struct {
 	hub            *wsinfra.Hub
 	upgrader       gws.Upgrader
 	logger         *log.Logger
 	allowedOrigins []string
 	tokenManager   *auth.TokenManager
+	locationRepo   WSLocationRepo
+	orderRepo      WSOrderRepo
+	eventPublisher WSEventPublisher
+	clock          func() time.Time
+
+	lastLocationPublish   map[string]time.Time
+	lastLocationPublishMu sync.Mutex
 }
 
-func NewOrderWSHandler(hub *wsinfra.Hub, allowedOrigins []string, logger *log.Logger, tokenManager *auth.TokenManager) *OrderWSHandler {
+func NewOrderWSHandler(
+	hub *wsinfra.Hub,
+	allowedOrigins []string,
+	logger *log.Logger,
+	tokenManager *auth.TokenManager,
+	locationRepo WSLocationRepo,
+	orderRepo WSOrderRepo,
+	eventPublisher WSEventPublisher,
+	clock func() time.Time,
+) *OrderWSHandler {
 	return &OrderWSHandler{
 		hub:            hub,
 		allowedOrigins: allowedOrigins,
@@ -34,28 +67,31 @@ func NewOrderWSHandler(hub *wsinfra.Hub, allowedOrigins []string, logger *log.Lo
 		upgrader: gws.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				origin := r.Header.Get("Origin")
-				// Allow requests with no Origin header (direct connections, mobile apps)
 				if origin == "" {
 					return true
 				}
 				return slices.Contains(allowedOrigins, origin)
 			},
 		},
-		logger: logger,
+		logger:                logger,
+		locationRepo:          locationRepo,
+		orderRepo:             orderRepo,
+		eventPublisher:        eventPublisher,
+		clock:                 clock,
+		lastLocationPublish:   make(map[string]time.Time),
+		lastLocationPublishMu: sync.Mutex{},
 	}
 }
 
 func (h *OrderWSHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	// Extract token from Authorization header or query parameter
 	var token string
 	authHeader := r.Header.Get("Authorization")
 	if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 		token = strings.TrimPrefix(authHeader, "Bearer ")
 	} else {
-		// Fallback to query parameter for frontend compatibility
 		token = r.URL.Query().Get("access_token")
 		if token == "" {
-			token = r.URL.Query().Get("token") // legacy fallback
+			token = r.URL.Query().Get("token")
 		}
 	}
 
@@ -64,7 +100,6 @@ func (h *OrderWSHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse token and extract user info
 	claims, err := h.tokenManager.ParseAccessToken(token)
 	if err != nil {
 		h.logger.Printf("ws auth failed: %v", err)
@@ -92,6 +127,23 @@ func (h *OrderWSHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	go h.readPump(client)
 }
 
+type wsIncomingMessage struct {
+	Type      string          `json:"type"`
+	DriverID  string          `json:"driver_id,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
+	Timestamp string          `json:"timestamp,omitempty"`
+}
+
+type wsLocationData struct {
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+	Bearing float64 `json:"bearing,omitempty"`
+	Speed   float64 `json:"speed,omitempty"`
+	Status  string  `json:"status,omitempty"`
+	OrderID string  `json:"order_id,omitempty"`
+	IsMock  bool    `json:"is_mock"`
+}
+
 func (h *OrderWSHandler) readPump(c *wsinfra.Client) {
 	defer func() {
 		h.hub.Unregister(c)
@@ -104,9 +156,99 @@ func (h *OrderWSHandler) readPump(c *wsinfra.Client) {
 	})
 
 	for {
-		if _, _, err := c.Conn.ReadMessage(); err != nil {
-			return
+		_, msgBytes, err := c.Conn.ReadMessage()
+		if err != nil {
+			break
 		}
+		h.handleWSMessage(c, msgBytes)
+	}
+}
+
+func (h *OrderWSHandler) handleWSMessage(c *wsinfra.Client, msgBytes []byte) {
+	var msg wsIncomingMessage
+	if err := json.Unmarshal(msgBytes, &msg); err != nil {
+		h.logger.Printf("ws: failed to parse message from user=%s: %v", c.UserID, err)
+		return
+	}
+
+	switch msg.Type {
+	case "ping", "pong":
+		h.sendPong(c)
+	case "location_update":
+		h.handleLocationUpdate(c, msgBytes)
+	case "register_driver", "register_client", "register_admin", "client_location_update", "create_order":
+	default:
+	}
+}
+
+func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte) {
+	if c.Role != "driver" {
+		return
+	}
+
+	var incoming struct {
+		DriverID string          `json:"driver_id"`
+		Data     json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(msgBytes, &incoming); err != nil {
+		return
+	}
+
+	var locData wsLocationData
+	if err := json.Unmarshal(incoming.Data, &locData); err != nil {
+		h.logger.Printf("ws: failed to parse location data from driver=%s: %v", c.UserID, err)
+		return
+	}
+
+	if locData.Lat < -90 || locData.Lat > 90 || locData.Lng < -180 || locData.Lng > 180 {
+		h.logger.Printf("ws: invalid lat/lng from driver=%s: %f %f", c.UserID, locData.Lat, locData.Lng)
+		return
+	}
+
+	h.lastLocationPublishMu.Lock()
+	lastPub := h.lastLocationPublish[c.UserID]
+	now := h.clock()
+	if now.Sub(lastPub) < 2*time.Second {
+		h.lastLocationPublishMu.Unlock()
+		return
+	}
+	h.lastLocationPublish[c.UserID] = now
+	h.lastLocationPublishMu.Unlock()
+
+	if h.locationRepo == nil {
+		return
+	}
+	if err := h.locationRepo.SaveLocation(context.Background(), c.UserID, location.Location{
+		Lat:       locData.Lat,
+		Lng:       locData.Lng,
+		UpdatedAt: now,
+	}); err != nil {
+		h.logger.Printf("ws: SaveLocation error for driver=%s: %v", c.UserID, err)
+		return
+	}
+
+	if locData.OrderID != "" && h.orderRepo != nil && h.eventPublisher != nil {
+		ord, ordErr := h.orderRepo.GetByID(context.Background(), locData.OrderID)
+		if ordErr == nil && ord != nil && ord.UserID != "" {
+			_ = h.eventPublisher.Publish(context.Background(), orderdomain.Event{
+				Type:    orderdomain.EventDriverLocationUpdated,
+				OrderID: locData.OrderID,
+				Payload: map[string]any{
+					"driver_id": c.UserID,
+					"user_id":   ord.UserID,
+					"lat":       locData.Lat,
+					"lng":       locData.Lng,
+				},
+			})
+		}
+	}
+}
+
+func (h *OrderWSHandler) sendPong(c *wsinfra.Client) {
+	msg, _ := json.Marshal(map[string]string{"type": "pong"})
+	select {
+	case c.Send <- msg:
+	default:
 	}
 }
 

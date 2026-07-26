@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"evik/backend/internal/domain/driver"
 	"evik/backend/internal/domain/location"
 	"evik/backend/internal/domain/order"
 )
@@ -31,7 +30,6 @@ type Candidate struct {
 }
 
 type MatchingService interface {
-	FindNearestDriver(ctx context.Context, order *order.Order) (*driver.Driver, error)
 	FindCandidates(ctx context.Context, ord *order.Order, radiusKM float64, exclude []string, liveChecker LiveDriverChecker, geoFreshness time.Duration) ([]Candidate, error)
 }
 
@@ -54,49 +52,6 @@ func NewNearestMatchingService(repo NearbyDriverRepository, driverRepository Dri
 		stepDelay:        3 * time.Second,
 		limit:            5,
 	}
-}
-
-func (s *nearestMatchingService) FindNearestDriver(ctx context.Context, ord *order.Order) (*driver.Driver, error) {
-	s.mu.Lock()
-	maxRadius := s.maxRadius
-	stepRadius := s.stepRadius
-	stepDelay := s.stepDelay
-	limit := s.limit
-	s.mu.Unlock()
-
-	pickup := location.Location{
-		Lat:       ord.Pickup.Lat,
-		Lng:       ord.Pickup.Lng,
-		UpdatedAt: time.Now().UTC(),
-	}
-
-	for radius := stepRadius; radius <= maxRadius; radius += stepRadius {
-		drivers, err := s.repo.GetNearbyDrivers(ctx, pickup, radius, limit)
-		if err != nil {
-			return nil, err
-		}
-		if len(drivers) > 0 {
-			for _, candidate := range drivers {
-				available, err := s.driverRepository.IsAvailable(ctx, candidate.DriverID)
-				if err != nil {
-					return nil, err
-				}
-				if available {
-					return &driver.Driver{
-						ID:     candidate.DriverID,
-						Status: driver.StatusOnline,
-					}, nil
-				}
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(stepDelay):
-		}
-	}
-	return nil, ErrNoCandidateDrivers
 }
 
 // FindCandidates returns candidates sorted by distance ASC, without pauses.

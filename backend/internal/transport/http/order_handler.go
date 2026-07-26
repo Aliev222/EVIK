@@ -102,7 +102,7 @@ type createOrderRequest struct {
 	DropoffAddress string  `json:"dropoff_address"`
 	TowTruckType   string  `json:"tow_truck_type"`
 	PaymentMethod  string  `json:"payment_method"`
-	AutoDispatch   bool    `json:"auto_dispatch"`
+	AutoDispatch   *bool   `json:"auto_dispatch"`
 	IsMock         bool    `json:"is_mock"`
 }
 
@@ -217,6 +217,11 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	idempotencyKey := r.Header.Get("Idempotency-Key")
 
+	autoDispatch := true
+	if req.AutoDispatch != nil {
+		autoDispatch = *req.AutoDispatch
+	}
+
 	ord, err := h.createUC.Execute(r.Context(), orderuc.CreateOrderInput{
 		UserID:         userID,
 		PickupLat:      req.PickupLat,
@@ -227,7 +232,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		DropoffAddress: req.DropoffAddress,
 		TowTruckType:   towTruckType,
 		PaymentMethod:  req.PaymentMethod,
-		AutoDispatch:   false,
+		AutoDispatch:   autoDispatch,
 		CityID:         cityID,
 		IdempotencyKey: &idempotencyKey,
 	})
@@ -481,11 +486,6 @@ func (h *OrderHandler) GetActiveOrder(w http.ResponseWriter, r *http.Request) {
 // @Router       /orders/{orderID}/accept [post]
 func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "orderID")
-	var req acceptOrderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-		h.writeError(w, http.StatusBadRequest, err)
-		return
-	}
 	role, err := roleFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
@@ -494,6 +494,11 @@ func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req acceptOrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	driverID := req.DriverID

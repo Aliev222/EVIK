@@ -15,6 +15,7 @@ const (
 	EventOrderExpanded      EventType = "order_expanded"
 	EventDriverLocationUpdated EventType = "driver_location"
 	EventAdminDriverLocation   EventType = "admin_driver_location"
+	EventPaymentMethodChanged  EventType = "payment_method_changed"
 )
 
 type Event struct {

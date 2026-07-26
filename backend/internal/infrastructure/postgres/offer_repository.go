@@ -42,6 +42,15 @@ RETURNING id`
 	return true, nil
 }
 
+func (r *OfferRepository) GetActiveForOrderAndDriver(ctx context.Context, orderID, driverID string) (*orderdomain.Offer, error) {
+	const query = `
+SELECT id, order_id, driver_id, round, distance_km, offered_at, expires_at, outcome, resolved_at
+FROM order_offers
+WHERE order_id = $1 AND driver_id = $2 AND outcome IS NULL AND expires_at > NOW()
+LIMIT 1`
+	return r.scanOffer(r.db.QueryRowContext(ctx, query, orderID, driverID))
+}
+
 func (r *OfferRepository) GetActiveForOrder(ctx context.Context, orderID string) (*orderdomain.Offer, error) {
 	const query = `
 SELECT id, order_id, driver_id, round, distance_km, offered_at, expires_at, outcome, resolved_at

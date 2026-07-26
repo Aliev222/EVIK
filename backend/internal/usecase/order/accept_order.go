@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
@@ -49,6 +50,7 @@ type DriverAcceptStore interface {
 }
 
 type OfferResolver interface {
+	GetActiveForOrderAndDriver(ctx context.Context, orderID, driverID string) (*orderdomain.Offer, error)
 	ResolveOfferTx(ctx context.Context, tx *sql.Tx, orderID, driverID string, outcome string) error
 }
 
@@ -121,6 +123,15 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	}
 
 	now := uc.clock.Now()
+
+	// Require an active offer for this driver on this order, unless checking
+	// is not possible (nil offerResolver). Admins bypass in the handler.
+	if uc.offerResolver != nil {
+		activeOffer, offerErr := uc.offerResolver.GetActiveForOrderAndDriver(ctx, orderID, driverID)
+		if offerErr != nil || activeOffer == nil {
+			return nil, fmt.Errorf("no active offer for driver %s on order %s", driverID, orderID)
+		}
+	}
 
 	err := uc.withTx(ctx, func(tx *sql.Tx) error {
 		ord, err := uc.orderRepo.AcceptOrderTx(ctx, tx, orderID, driverID)

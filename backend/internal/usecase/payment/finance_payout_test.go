@@ -45,7 +45,7 @@ func (r *payoutRepo) MarkPayoutFailed(_ context.Context, payoutID, reason string
 
 func newPayoutUC(repo paymentdomain.Repository, provider PaymentProvider) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 }
 
 func TestRequestDriverPayoutRejectsNonPositiveAmount(t *testing.T) {

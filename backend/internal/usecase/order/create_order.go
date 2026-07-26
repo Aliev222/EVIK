@@ -2,7 +2,6 @@ package order
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -27,10 +26,6 @@ type EventPublisher interface {
 	Publish(ctx context.Context, event orderdomain.Event) error
 }
 
-type DriverMatcher interface {
-	Execute(ctx context.Context, orderID string) (*orderdomain.Order, error)
-}
-
 type PricingService interface {
 	CalculatePrice(ctx context.Context, input pricingdomain.CalculatePriceInput) (*pricingdomain.PriceCalculation, error)
 }
@@ -42,7 +37,6 @@ type PushSender interface {
 
 type CreateOrderUseCase struct {
 	orderRepo      orderdomain.Repository
-	driverMatcher  DriverMatcher
 	pricingService PricingService
 	eventPublisher EventPublisher
 	clock          Clock
@@ -67,7 +61,6 @@ type CreateOrderInput struct {
 
 func NewCreateOrderUseCase(
 	orderRepo orderdomain.Repository,
-	driverMatcher DriverMatcher,
 	pricingService PricingService,
 	eventPublisher EventPublisher,
 	clock Clock,
@@ -76,7 +69,6 @@ func NewCreateOrderUseCase(
 ) *CreateOrderUseCase {
 	return &CreateOrderUseCase{
 		orderRepo:      orderRepo,
-		driverMatcher:  driverMatcher,
 		pricingService: pricingService,
 		eventPublisher: eventPublisher,
 		clock:          clock,
@@ -182,19 +174,13 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 
 	if !input.AutoDispatch {
 		uc.logger.Info("order created without auto dispatch", "order_id", ord.ID)
-		return ord, nil
 	}
 
-	updated, err := uc.driverMatcher.Execute(ctx, ord.ID)
-	if err != nil {
-		uc.logger.Error("matching did not find driver", err, "order_id", ord.ID)
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return nil, err
-		}
-		return ord, nil
-	}
+	// Auto-dispatch is handled asynchronously by the dispatch scheduler,
+	// which picks up searching orders every 2s and creates offers.
+	// No synchronous driver assignment happens here.
 	uc.logger.Info("order created successfully", "order_id", ord.ID)
-	return updated, nil
+	return ord, nil
 }
 
 func (uc *CreateOrderUseCase) GetOrderByKey(ctx context.Context, idempotencyKey string) (*orderdomain.Order, error) {

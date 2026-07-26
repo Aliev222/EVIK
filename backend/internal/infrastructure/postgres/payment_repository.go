@@ -569,6 +569,9 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 		if err != nil {
 			return err
 		}
+		if _, releaseErr := tx.ExecContext(ctx, `UPDATE drivers SET status = 'online', current_order_id = NULL, updated_at = NOW() WHERE id = $1 AND current_order_id = $2`, driverID.String, orderID); releaseErr != nil {
+			return releaseErr
+		}
 		return nil
 	}
 
@@ -597,6 +600,9 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE orders SET financially_completed_at = NOW(), financial_status = 'completed', driver_amount = $2, commission_amount = $3 WHERE id = $1`, orderID, driverAmount, commission); err != nil {
 		return err
+	}
+	if _, releaseErr := tx.ExecContext(ctx, `UPDATE drivers SET status = 'online', current_order_id = NULL, updated_at = NOW() WHERE id = $1 AND current_order_id = $2`, driverID.String, orderID); releaseErr != nil {
+		return releaseErr
 	}
 	return nil
 }

@@ -35,7 +35,7 @@ func TestPayoutIsCreatedOnlyByRequestDriverPayout(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	repo := newFakeFinanceRepository()
 	provider := &fakePaymentProvider{}
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 
 	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 850000, "payout-key-1")
 	if err != nil {
@@ -121,7 +121,7 @@ func (r *fakeSettingsRepo) Upsert(_ context.Context, key string, value any) erro
 }
 
 func newTestFinanceUseCase(repo *fakeFinanceRepository, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, &fakePaymentProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, &fakePaymentProvider{}, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 }
 
 type fakeFinanceRepository struct {
@@ -320,7 +320,7 @@ func (r *scriptedSettingsRepo) Upsert(_ context.Context, key string, value any) 
 }
 
 func newUseCaseWithSettings(repo *fakeFinanceRepository, settingsRepo settings.Repository, now time.Time) *FinanceUseCase {
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, &fakePaymentProvider{}, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &fakePricingService{}, &fakePaymentProvider{}, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 }
 
 func TestCommissionPercentFromSettings(t *testing.T) {
@@ -500,7 +500,7 @@ func TestSubscriptionPriceFromSettings(t *testing.T) {
 			return &ProviderPaymentResponse{ID: "provider-sub-1", Status: "pending"}, nil
 		},
 	}
-	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, settingsRepo, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
 
 	payment, err := uc.CreateDriverSubscriptionPayment(context.Background(), "driver-1", "pro_day")
 	if err != nil {

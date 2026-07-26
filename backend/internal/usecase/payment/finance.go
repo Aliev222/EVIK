@@ -84,6 +84,10 @@ type DriverReleaseStore interface {
 	ReleaseOrder(ctx context.Context, driverID string, orderID string, now time.Time) error
 }
 
+type EventPublisher interface {
+	Publish(ctx context.Context, event orderdomain.Event) error
+}
+
 type FinanceUseCase struct {
 	repo              paymentdomain.Repository
 	orderRepo         orderdomain.Repository
@@ -95,6 +99,7 @@ type FinanceUseCase struct {
 	idGen             IDGenerator
 	holdSeconds       int
 	minimumWithdrawal int64
+	eventPublisher    EventPublisher
 }
 
 type DriverSubscriptionStatus struct {
@@ -108,7 +113,7 @@ type DriverSubscriptionStatus struct {
 	CanAcceptOrders bool       `json:"can_accept_orders"`
 }
 
-func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, driverRepo DriverReleaseStore, pricingService PricingService, provider PaymentProvider, settingsRepo settings.Repository, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64) *FinanceUseCase {
+func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repository, driverRepo DriverReleaseStore, pricingService PricingService, provider PaymentProvider, settingsRepo settings.Repository, clock Clock, idGen IDGenerator, holdSeconds int, minimumWithdrawal int64, eventPublisher EventPublisher) *FinanceUseCase {
 	return &FinanceUseCase{
 		repo:              repo,
 		orderRepo:         orderRepo,
@@ -120,6 +125,7 @@ func NewFinanceUseCase(repo paymentdomain.Repository, orderRepo orderdomain.Repo
 		idGen:             idGen,
 		holdSeconds:       holdSeconds,
 		minimumWithdrawal: minimumWithdrawal,
+		eventPublisher:    eventPublisher,
 	}
 }
 
@@ -323,9 +329,17 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 			if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
 				return updErr
 			}
-			if ord.DriverID != nil {
-				if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
-					log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
+			if uc.eventPublisher != nil {
+				evPayload := map[string]any{"status": ord.Status, "user_id": ord.UserID}
+				if ord.DriverID != nil {
+					evPayload["driver_id"] = *ord.DriverID
+				}
+				if pubErr := uc.eventPublisher.Publish(context.Background(), orderdomain.Event{
+					Type:    orderdomain.EventCompleted,
+					OrderID: ord.ID,
+					Payload: evPayload,
+				}); pubErr != nil {
+					log.Printf("CRITICAL: failed to publish completed event for order %s: %v", ord.ID, pubErr)
 				}
 			}
 		}
@@ -387,11 +401,7 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
 			return nil, err
 		}
-		if ord.DriverID != nil {
-			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
-				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
-			}
-		}
+		uc.publishCompletedEvent(ctx, ord, orderID)
 		return nil, nil
 	}
 
@@ -410,11 +420,7 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
 			return nil, err
 		}
-		if ord.DriverID != nil {
-			if relErr := uc.driverRepo.ReleaseOrder(ctx, *ord.DriverID, orderID, now); relErr != nil {
-				log.Printf("CRITICAL: failed to release driver %s from completed order %s: %v", *ord.DriverID, orderID, relErr)
-			}
-		}
+		uc.publishCompletedEvent(ctx, ord, orderID)
 	}
 	return payment, nil
 }
@@ -438,7 +444,11 @@ func (uc *FinanceUseCase) UpdateOrderPaymentMethod(ctx context.Context, userID, 
 	}
 	ord.PaymentMethod = string(method)
 	ord.UpdatedAt = uc.clock.Now()
-	return uc.orderRepo.Update(ctx, ord)
+	if err := uc.orderRepo.Update(ctx, ord); err != nil {
+		return err
+	}
+	uc.publishPaymentMethodChanged(ctx, ord)
+	return nil
 }
 
 func (uc *FinanceUseCase) ReleasePendingBalances(ctx context.Context, limit int) (int, error) {
@@ -732,4 +742,38 @@ func (uc *FinanceUseCase) subscriptionStatus(subscription *paymentdomain.Subscri
 
 func strPtr(v string) *string {
 	return &v
+}
+
+func (uc *FinanceUseCase) publishCompletedEvent(ctx context.Context, ord *orderdomain.Order, orderID string) {
+	if uc.eventPublisher == nil {
+		return
+	}
+	evPayload := map[string]any{"status": ord.Status, "user_id": ord.UserID}
+	if ord.DriverID != nil {
+		evPayload["driver_id"] = *ord.DriverID
+	}
+	if pubErr := uc.eventPublisher.Publish(ctx, orderdomain.Event{
+		Type:    orderdomain.EventCompleted,
+		OrderID: orderID,
+		Payload: evPayload,
+	}); pubErr != nil {
+		log.Printf("CRITICAL: failed to publish completed event for order %s: %v", orderID, pubErr)
+	}
+}
+
+func (uc *FinanceUseCase) publishPaymentMethodChanged(ctx context.Context, ord *orderdomain.Order) {
+	if uc.eventPublisher == nil {
+		return
+	}
+	evPayload := map[string]any{"payment_method": ord.PaymentMethod, "user_id": ord.UserID}
+	if ord.DriverID != nil {
+		evPayload["driver_id"] = *ord.DriverID
+	}
+	if pubErr := uc.eventPublisher.Publish(ctx, orderdomain.Event{
+		Type:    orderdomain.EventPaymentMethodChanged,
+		OrderID: ord.ID,
+		Payload: evPayload,
+	}); pubErr != nil {
+		log.Printf("failed to publish payment-method-changed event for order %s: %v", ord.ID, pubErr)
+	}
 }

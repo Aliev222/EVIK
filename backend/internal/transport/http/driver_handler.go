@@ -215,8 +215,19 @@ func (h *DriverHandler) GetDriver(w http.ResponseWriter, r *http.Request) {
 // @Failure      404  {object}  ErrorResponse  "driver not found"
 // @Router       /drivers/{driverID}/profile [get]
 func (h *DriverHandler) GetDriverProfile(w http.ResponseWriter, r *http.Request) {
-	driverID, ok := h.authorizeDriverScope(w, r)
-	if !ok {
+	driverID := chi.URLParam(r, "driverID")
+	callerID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	callerRole, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !h.canAccessDriver(r.Context(), callerID, callerRole, driverID) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
 		return
 	}
 
