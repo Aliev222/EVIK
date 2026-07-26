@@ -62,6 +62,8 @@ type Config struct {
 	OTPFixedCode               string
 	AllowMockLocation          bool
 	DebugMode                  bool
+	YooKassaStubMode           bool
+	S3StubMode                 bool
 }
 
 func MustLoad() Config {
@@ -137,6 +139,8 @@ func MustLoad() Config {
 		OTPFixedCode:               otpFixedCode,
 		AllowMockLocation:          getEnvBool("ALLOW_MOCK_LOCATION", !isProduction),
 		DebugMode:                  debugMode,
+		YooKassaStubMode:           getEnvBool("YOOKASSA_STUB_MODE", false),
+		S3StubMode:                 getEnvBool("S3_STUB_MODE", false),
 	}
 	validateProductionConfig(cfg)
 	return cfg
@@ -185,11 +189,15 @@ func validateProductionConfig(cfg Config) {
 	if len(cfg.AdminPassword) < 12 {
 		missing = append(missing, "ADMIN_PASSWORD(>=12 chars)")
 	}
-	if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3PublicBaseURL == "" {
-		missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY/S3_PUBLIC_BASE_URL")
+	if !cfg.S3StubMode {
+		if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3PublicBaseURL == "" {
+			missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY/S3_PUBLIC_BASE_URL")
+		}
 	}
-	if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
-		missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
+	if !cfg.YooKassaStubMode {
+		if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
+			missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
+		}
 	}
 	if len(missing) > 0 {
 		log.Fatalf("invalid production config: %s", strings.Join(missing, ", "))
