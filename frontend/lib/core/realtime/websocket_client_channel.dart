@@ -31,6 +31,7 @@ class ChannelWebSocketClient implements WebSocketClient {
 
   @override
   Future<void> connect(String url) async {
+    if (_channel != null && _url == url) return;
     _intentionalDisconnect = false;
     _url = url;
     _reconnectAttempt = 0;
@@ -69,7 +70,7 @@ class ChannelWebSocketClient implements WebSocketClient {
   void _startPingTimer() {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      _channel?.sink.add('HEARTBEAT');
+      _channel?.sink.add('{"type":"heartbeat"}');
     });
   }
 

@@ -56,6 +56,7 @@ type CreateOrderInput struct {
 	PaymentMethod  string
 	AutoDispatch   bool
 	CityID         string
+	Notes          string
 	IdempotencyKey *string
 }
 
@@ -90,6 +91,7 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	ord.DropoffAddress = input.DropoffAddress
 	ord.PaymentMethod = input.PaymentMethod
 	ord.PriceTotal = 0
+	ord.Notes = input.Notes
 	ord.IdempotencyKey = input.IdempotencyKey
 	if input.CityID != "" {
 		ord.CityID = &input.CityID

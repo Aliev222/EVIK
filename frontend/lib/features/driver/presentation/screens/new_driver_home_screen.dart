@@ -640,6 +640,7 @@ class _OnlineStatusBar extends StatelessWidget {
     return Material(
       color: AvroDriverColors.surface,
       borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       elevation: 5,
       shadowColor: Colors.black.withValues(alpha: 0.14),
       child: Padding(
@@ -709,7 +710,8 @@ class _WaitingForOrdersCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AvroDriverColors.surface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
       elevation: 6,
       shadowColor: Colors.black.withValues(alpha: 0.14),
       child: Padding(

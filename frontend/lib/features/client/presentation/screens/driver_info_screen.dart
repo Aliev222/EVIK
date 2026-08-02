@@ -9,6 +9,7 @@ import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/real_time_driver_provider.dart';
 
 class DriverInfoScreen extends ConsumerStatefulWidget {
   const DriverInfoScreen({super.key});
@@ -62,10 +63,13 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
       );
     }
 
-    final centerLat = driver.currentLocation?.lat ??
+    final liveDriverLoc = ref.watch(realTimeDriverProvider).driverLocation;
+    final centerLat = liveDriverLoc?.lat ??
+        driver.currentLocation?.lat ??
         pickup?.latitude ??
         42.9764;
-    final centerLng = driver.currentLocation?.lng ??
+    final centerLng = liveDriverLoc?.lng ??
+        driver.currentLocation?.lng ??
         pickup?.longitude ??
         47.5024;
 
@@ -90,10 +94,10 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
               controlsBackgroundColor: AvroClientColors.background,
               controlsIconColor: AvroClientColors.accent,
               markers: [
-                if (driver.currentLocation != null)
+                if (liveDriverLoc != null)
                   EvikMapMarker(
-                    lat: driver.currentLocation!.lat,
-                    lng: driver.currentLocation!.lng,
+                    lat: liveDriverLoc.lat,
+                    lng: liveDriverLoc.lng,
                     title: 'Водитель',
                     color: AvroClientColors.info,
                     icon: Icons.local_shipping_rounded,

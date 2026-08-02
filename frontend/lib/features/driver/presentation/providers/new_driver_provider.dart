@@ -1,5 +1,4 @@
 ﻿import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +7,7 @@ import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     as platform_api;
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
@@ -108,7 +108,6 @@ class DriverNotifier extends StateNotifier<DriverState> {
   Timer? _refreshTimer;
   Timer? _paymentPollTimer;
   StreamSubscription<OrderUpdate>? _wsSubscription;
-  final Random _random = Random();
 
   String? get _currentDriverId {
     final userId = _ref.read(authProvider).user?.id;
@@ -150,7 +149,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
         clearError: true,
       );
 
-      if (nextWorkState == DriverWorkState.online) {
+      if (nextWorkState == DriverWorkState.online ||
+          nextWorkState == DriverWorkState.hasActiveOrder ||
+          nextWorkState == DriverWorkState.navigatingToDropoff) {
         final token = _ref.read(authProvider).accessToken;
         if (token == null || token.isEmpty) {
           state = state.copyWith(error: 'Ошибка авторизации: нет токена');
@@ -158,8 +159,18 @@ class DriverNotifier extends StateNotifier<DriverState> {
         }
         final realtime = _ref.read(driverRealTimeProvider.notifier);
         await realtime.connectAsDriver(driverId, accessToken: token);
+        if (activeOrder != null) {
+          realtime.restoreOrder(
+            activeOrder.id,
+            activeOrder.status == ActiveOrderStatus.drivingToDestination
+                ? DriverMarkerStatus.toDestination
+                : DriverMarkerStatus.toPickup,
+          );
+        }
         await realtime.goOnline();
-        await _loadCurrentOffer();
+        if (nextWorkState == DriverWorkState.online) {
+          await _loadCurrentOffer();
+        }
       }
     } catch (error) {
       if (!mounted) return;
@@ -247,6 +258,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         availableOrders: const <AvailableOrder>[],
         isLoading: false,
       );
+      _ref.read(driverRealTimeProvider.notifier).acceptOrder(orderId);
     } catch (error) {
       state = state.copyWith(
         isLoading: false,
@@ -299,6 +311,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
             activeOrder.copyWith(status: ActiveOrderStatus.arrivedAtClient),
         isLoading: false,
       );
+      _ref.read(driverRealTimeProvider.notifier).arrivedAtPickup();
     } catch (_) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false);
@@ -320,6 +333,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         ),
         isLoading: false,
       );
+      _ref.read(driverRealTimeProvider.notifier).startToDestination();
     } catch (_) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false);
@@ -340,6 +354,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         workState: DriverWorkState.waitingForPayment,
         isLoading: false,
       );
+      _ref.read(driverRealTimeProvider.notifier).completeOrder();
       _startPaymentPolling(activeOrder.id);
     } catch (_) {
       if (!mounted) return;

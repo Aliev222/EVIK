@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
-import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/real_time_driver_provider.dart';
@@ -82,22 +81,6 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
               routePoints: driverState.route?.points ?? const [],
             ),
           ),
-
-          // Animated driver marker overlay
-          if (driverState.driverLocation != null)
-            Positioned.fill(
-              child: AnimatedDriverMarker(
-                driverLocation: driverState.driverLocation!,
-                destination: widget.pickupLocation,
-                driverName: 'Водитель ${widget.order.driverId}',
-                vehicleType: widget.order.vehicleType.toString(),
-                status: driverState.status,
-                onPositionUpdate: (position) {
-                  // Update map center to follow driver
-                  // This would update the underlying map if needed
-                },
-              ),
-            ),
 
           // Driver info overlay
           Positioned(

@@ -1,4 +1,5 @@
-﻿import 'dart:math' as math;
+﻿import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/real_time_driver_provider.dart';
 
 class TrackingScreen extends ConsumerStatefulWidget {
   const TrackingScreen({super.key});
@@ -34,11 +36,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   LatLng? _prevDriverPos;
   LatLng? _currDriverPos;
 
+  late AnimationController _bearingAnimController;
+  double _displayBearing = 0.0;
+  double _bearingFrom = 0.0;
+  double _bearingTo = 0.0;
+
   List<LatLng> _routePoints = [];
   double? _lastRouteLat;
   double? _lastRouteLng;
   DateTime? _lastRouteTime;
   bool _firstRouteFitted = false;
+  StreamSubscription<DriverLocationUpdate>? _driverLocationSub;
 
   @override
   void initState() {
@@ -50,7 +58,19 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
     _markerAnimController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    _bearingAnimController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _bearingAnimController.addListener(() {
+      _displayBearing = (_bearingFrom +
+          (_bearingTo - _bearingFrom) * _bearingAnimController.value) % 360;
+      if (mounted) setState(() {});
+    });
+
     _initializeRealTimeTracking();
+    _establishWsTracking();
   }
 
   double get _interpolatedDriverLat {
@@ -74,7 +94,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   void _initializeRealTimeTracking() {
     final realTimeService = ref.read(realTimeLocationServiceProvider);
 
-    realTimeService.driverLocationStream.listen((driverUpdate) {
+    _driverLocationSub?.cancel();
+    _driverLocationSub = realTimeService.driverLocationStream.listen((driverUpdate) {
       if (!mounted) return;
       setState(() {
         _prevDriverPos = _currDriverPos;
@@ -86,7 +107,36 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         _markerAnimController.reset();
         _markerAnimController.forward();
       }
+      _animateBearing(driverUpdate.bearing);
       _refreshRouteIfNeeded(driverUpdate);
+    });
+  }
+
+  void _animateBearing(double targetBearing) {
+    final current = _displayBearing;
+    var delta = (targetBearing - current) % 360;
+    if (delta > 180) {
+      delta -= 360;
+    } else if (delta < -180) {
+      delta += 360;
+    }
+    _bearingFrom = current;
+    _bearingTo = current + delta;
+    _bearingAnimController.reset();
+    _bearingAnimController.forward();
+  }
+
+  void _establishWsTracking() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final orderFlow = ref.read(orderFlowProvider);
+      final order = orderFlow.activeOrder;
+      if (order == null) return;
+      final pickupLoc = orderFlow.pickupLocation;
+      final pickup = pickupLoc != null
+          ? LocationModel(lat: pickupLoc.latitude, lng: pickupLoc.longitude, address: pickupLoc.displayAddress)
+          : order.pickupLocation;
+      ref.read(realTimeDriverProvider.notifier).startTracking(order.id, pickup);
     });
   }
 
@@ -196,7 +246,9 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
 
   @override
   void dispose() {
+    _driverLocationSub?.cancel();
     _markerAnimController.dispose();
+    _bearingAnimController.dispose();
     super.dispose();
   }
 
@@ -226,16 +278,19 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
       );
     }
 
-    // Build driver marker with interpolated position
+    // Build driver marker with interpolated position, rotation, and icon
     final driverMarker = _latestDriverLocation != null
         ? EvikMapMarker(
             lat: _interpolatedDriverLat,
             lng: _interpolatedDriverLng,
             title: 'Водитель',
-            icon: Icons.local_shipping_rounded,
             color: _latestDriverLocation!.status == DriverMarkerStatus.toDestination
                 ? AvroClientColors.info
                 : AvroClientColors.success,
+            child: _DriverTruckMarker(
+              bearing: _displayBearing,
+              status: _latestDriverLocation!.status,
+            ),
           )
         : null;
 
@@ -290,6 +345,60 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Custom rotating tow-truck marker for the driver on the tracking map.
+class _DriverTruckMarker extends StatelessWidget {
+  const _DriverTruckMarker({
+    required this.bearing,
+    required this.status,
+  });
+
+  final double bearing;
+  final DriverMarkerStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final assetPath = status.iconPath;
+    final isLoaded = status == DriverMarkerStatus.toDestination;
+
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Transform.rotate(
+        angle: bearing * math.pi / 180,
+        child: Image.asset(
+          assetPath,
+          width: 48,
+          height: 56,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isLoaded ? AvroClientColors.info : AvroClientColors.success,
+                shape: BoxShape.circle,
+                border: Border.all(color: AvroClientColors.background, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.local_shipping_rounded,
+                color: AvroClientColors.background,
+                size: 22,
+              ),
+            );
+          },
+        ),
       ),
     );
   }

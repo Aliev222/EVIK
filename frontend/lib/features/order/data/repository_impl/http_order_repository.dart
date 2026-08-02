@@ -53,6 +53,11 @@ class HttpOrderRepository implements OrderRepository {
       body['dropoff_address'] = command.dropoffLocation.address;
     }
 
+    // Add notes (blocked wheels count, client comment) if present
+    if (command.notes != null && command.notes!.isNotEmpty) {
+      body['notes'] = command.notes;
+    }
+
     debugPrint('Token: ${_accessTokenProvider?.call() ?? _accessToken}');
     final headers = <String, String>{
       if (command.idempotencyKey != null) 'Idempotency-Key': command.idempotencyKey!,

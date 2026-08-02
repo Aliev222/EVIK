@@ -147,7 +147,7 @@ class HttpDriverRepository implements DriverRepository {
   }
 
   Future<Map<String, dynamic>> getActiveOrder(String driverId) async {
-    for (final status in const <String>['accepted', 'arrived', 'in_progress']) {
+    for (final status in const <String>['accepted', 'arrived', 'in_progress', 'awaiting_payment']) {
       final orders = await _getOrdersByStatus(status);
       for (final order in orders) {
         if (order['driver_id'] == driverId) {

@@ -174,6 +174,14 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     state = state.copyWith(isConnected: false);
   }
 
+  /// Восстановление заказа после перезапуска приложения
+  void restoreOrder(String orderId, DriverMarkerStatus status) {
+    state = state.copyWith(
+      currentOrder: orderId,
+      status: status,
+    );
+  }
+
   /// Принятие заказа водителем
   Future<void> acceptOrder(String orderId) async {
     if (!state.isOnline) return;

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
+	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 )
@@ -52,8 +53,22 @@ func (f *fakePresenceDriverRepo) GetByID(_ context.Context, id string) (*driverd
 }
 
 type fakePresenceLocationStore struct {
-	mu       sync.Mutex
-	removed  map[string]bool
+	mu        sync.Mutex
+	removed   map[string]bool
+	locations map[string]*locationdomain.Location
+}
+
+func (f *fakePresenceLocationStore) GetLastLocation(_ context.Context, driverID string) (*locationdomain.Location, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.locations == nil {
+		return nil, locationdomain.ErrLocationNotFound
+	}
+	loc, ok := f.locations[driverID]
+	if !ok {
+		return nil, locationdomain.ErrLocationNotFound
+	}
+	return loc, nil
 }
 
 func (f *fakePresenceLocationStore) RemoveDriver(_ context.Context, driverID string) error {
@@ -219,6 +234,46 @@ func TestDriverPresenceReaperSkipsDriverWithWSConnection(t *testing.T) {
 	repo.mu.Unlock()
 	if updated.Status != driverdomain.StatusOnline {
 		t.Fatalf("expected driver with WS connection to remain online, got %s", updated.Status)
+	}
+}
+
+func TestDriverPresenceReaperSkipsDriverWithFreshLocation(t *testing.T) {
+	hub := wsinfra.NewHub()
+	go hub.Run()
+
+	now := time.Now().UTC()
+	staleDbDriver := &driverdomain.Driver{
+		ID:         "d5",
+		UserID:     "u5",
+		Status:     driverdomain.StatusOnline,
+		UpdatedAt:  now.Add(-5 * time.Minute),
+		LastSeenAt: now.Add(-5 * time.Minute),
+	}
+
+	repo := &fakePresenceDriverRepo{
+		drivers: map[string]*driverdomain.Driver{"d5": staleDbDriver},
+	}
+	locStore := &fakePresenceLocationStore{
+		locations: map[string]*locationdomain.Location{
+			"d5": {Lat: 47.5, Lng: 42.9, UpdatedAt: now.Add(-30 * time.Second)},
+		},
+	}
+	eventPub := &fakePresenceEventPublisher{}
+
+	reaper := NewDriverPresenceReaper(repo, locStore, hub, eventPub, log.Default(), 10*time.Minute, 90*time.Second)
+	reaper.reapStaleDrivers(context.Background())
+
+	repo.mu.Lock()
+	updated := repo.drivers["d5"]
+	repo.mu.Unlock()
+	if updated.Status == driverdomain.StatusOffline {
+		t.Fatal("expected driver with fresh location NOT to be set offline")
+	}
+	locStore.mu.Lock()
+	_, removed := locStore.removed["d5"]
+	locStore.mu.Unlock()
+	if removed {
+		t.Fatal("expected driver with fresh location geo entry NOT to be removed")
 	}
 }
 

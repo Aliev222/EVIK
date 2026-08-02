@@ -170,22 +170,11 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
   }
 
   Future<void> _bindBackendState(String orderId) async {
-    if (!_dispatcherStarted) {
-      await _eventDispatcher.start();
-      _dispatcherStarted = true;
-    }
-
     await _orderStateSub?.cancel();
     await _orderEventsSub?.cancel();
     _orderStatusPollTimer?.cancel();
 
-    _orderStateSub = _repository.watchOrderState(orderId).listen(
-      (nextState) => state = state.copyWith(status: nextState),
-      onError: (Object e, StackTrace _) {
-        state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
-      },
-    );
-
+    // Subscribe BEFORE start to avoid losing events between connect and listen
     _orderEventsSub = _eventDispatcher.orderEvents(orderId).listen(
       (event) {
         final next = _fromBackendEvent(event.type);
@@ -208,6 +197,11 @@ class OrderStateNotifier extends StateNotifier<OrderUiState> {
         state = state.copyWith(error: 'Ошибка при создании заказа. Попробуйте позже.');
       },
     );
+
+    if (!_dispatcherStarted) {
+      await _eventDispatcher.start();
+      _dispatcherStarted = true;
+    }
 
     _orderStatusPollTimer =
         Timer.periodic(const Duration(milliseconds: 3000), (_) {
