@@ -33,7 +33,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AvroClientColors.accent,
+          backgroundColor: AvroClientColors.accentStrong,
           foregroundColor: AvroClientColors.background,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(

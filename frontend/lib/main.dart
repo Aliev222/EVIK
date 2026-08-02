@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:vibration/vibration.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/error/global_error_handler.dart';
@@ -183,143 +182,30 @@ class _LaunchScreenState extends State<_LaunchScreen> {
   }
 }
 
-class _SplashScreen extends StatefulWidget {
+class _SplashScreen extends StatelessWidget {
   const _SplashScreen({super.key});
-
-  @override
-  State<_SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<_SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  late Animation<double> _logoScale;
-  late Animation<double> _glow;
-  late Animation<double> _slide;
-  late Animation<double> _textFade;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    );
-
-    _logoScale = TweenSequence([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.85, end: 1.08)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.08, end: 1.0),
-        weight: 50,
-      ),
-    ]).animate(_controller);
-
-    _glow = Tween<double>(begin: 0.0, end: 1.0)
-        .chain(CurveTween(curve: Curves.easeOut))
-        .animate(_controller);
-
-    _slide = Tween<double>(begin: -1.0, end: 1.0)
-        .chain(CurveTween(curve: Curves.easeInOut))
-        .animate(_controller);
-
-    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.5, 0.85, curve: Curves.easeIn),
-      ),
-    );
-
-    if (!kIsWeb) {
-      Vibration.vibrate(duration: 800, amplitude: 64);
-    }
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B1220),
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 250,
-              height: 250,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // glow ring
-                  Container(
-                    width: 240,
-                    height: 240,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          const Color(0xFF2F80FF)
-                              .withOpacity(0.25 * _glow.value),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                  // moving pulse (route effect)
-                  Transform.translate(
-                    offset: Offset(40 * _slide.value, 0),
-                    child: Container(
-                      width: 120,
-                      height: 2,
-                      color: const Color(0xFF27E0A3)
-                          .withOpacity(0.6 * _glow.value),
-                    ),
-                  ),
-                  // logo
-                  Transform.scale(
-                    scale: _logoScale.value,
-                    child: Image.asset(
-                      'assets/img/load.png',
-                      width: 140,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ],
-              ),
+            Image.asset(
+              'assets/img/load.png',
+              width: 160,
+              fit: BoxFit.contain,
             ),
-            const SizedBox(height: 27),
-            FadeTransition(
-              opacity: _textFade,
-              child: Text(
-                'Авро',
-                style: GoogleFonts.inter(
-                  fontSize: 60,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            FadeTransition(
-              opacity: _textFade,
-              child: Text(
-                'Помощь на дороге',
-                style: GoogleFonts.inter(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF9CA3AF),
-                ),
+            const SizedBox(height: 24),
+            Text(
+              'Авро',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF0B1220),
               ),
             ),
           ],
@@ -328,6 +214,11 @@ class _SplashScreenState extends State<_SplashScreen>
     );
   }
 }
+
+const bool _skipAuthForDevelopment = bool.fromEnvironment(
+  'EVIK_SKIP_AUTH',
+  defaultValue: false,
+);
 
 class _AppRouter extends ConsumerStatefulWidget {
   const _AppRouter({super.key});
@@ -342,6 +233,12 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
 
   @override
   Widget build(BuildContext context) {
+    // Dev bypass: skip onboarding/auth and land directly on the client main
+    // screen. Enabled via --dart-define=EVIK_SKIP_AUTH=true.
+    if (_skipAuthForDevelopment) {
+      return _homeFor(UserRole.client);
+    }
+
     // Обычная логика авторизации
     final authState = ref.watch(authProvider);
     final currentUser = ref.watch(currentUserProvider);
@@ -392,7 +289,10 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       // Driver active-order UI is owned by ActiveOrderScreen and reads its
       // state from newDriverProvider — surface it directly here so the
       // driver lands on the active order instead of the home dashboard.
-      return const ActiveOrderScreen();
+      return Theme(
+        data: AppTheme.driver(),
+        child: const ActiveOrderScreen(),
+      );
     }
 
     // Client: GoRouter owns the order flow routes, so push via go() and

@@ -24,7 +24,7 @@ class AppScaffold extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: <Color>[
               Color(0xFFF7F7F7),
-              AvroClientColors.textPrimary,
+              AvroClientColors.background,
               Color(0xFFF0F0F0),
             ],
           ),

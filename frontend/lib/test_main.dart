@@ -18,7 +18,6 @@ import 'features/client/presentation/screens/driver_info_screen.dart';
 import 'features/client/presentation/screens/tracking_screen.dart';
 import 'features/client/presentation/screens/order_review_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
-import 'features/driver/presentation/screens/active_order_screen.dart';
 import 'features/order/screens/payment_confirmation_screen.dart';
 import 'features/onboarding/presentation/screens/role_selection_screen.dart';
 import 'shared/providers/service_area_provider.dart';

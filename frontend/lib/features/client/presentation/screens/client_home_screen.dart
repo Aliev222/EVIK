@@ -440,8 +440,8 @@ class _CallTowTruckButton extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFFFF6B35),
-              Color(0xFFFF7B42),
+              AvroClientColors.accentDeep,
+              AvroClientColors.accentStrong,
             ],
           ),
           boxShadow: [

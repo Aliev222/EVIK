@@ -24,14 +24,20 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>yandexnavi</string>
 		<string>dgis</string>
 		<string>comgooglemaps</string>
 	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Фоновая геолокация нужна, чтобы клиент видел движение водителя во время активного заказа</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Для показа вашего местоположения на карте и поиска ближайших заказов</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Уведомления нужны для новых заказов, статусов и критичных событий</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -76,11 +82,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Для показа вашего местоположения на карте и поиска ближайших заказов</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Фоновая геолокация нужна, чтобы клиент видел движение водителя во время активного заказа</string>
-	<key>NSUserNotificationUsageDescription</key>
-	<string>Уведомления нужны для новых заказов, статусов и критичных событий</string>
 </dict>
 </plist>

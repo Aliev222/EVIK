@@ -133,8 +133,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
         );
       case HistoryState.loaded:
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(12, 14, 12, 100),
-          cacheExtent: 200,
+          scrollCacheExtent: ScrollCacheExtent.pixels(200), padding: const EdgeInsets.fromLTRB(12, 14, 12, 100),
           itemBuilder: (context, index) => AnimatedListItem(
             index: index,
             child: _HistoryCard(order: orders[index], realOrder: _orders[index]),

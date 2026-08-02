@@ -4,6 +4,8 @@ class AvroClientColors {
   static const Color background = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFE3E3E3);
   static const Color accent = Color(0xFFFF7B42);
+  static const Color accentStrong = Color(0xFFC2410C);
+  static const Color accentDeep = Color(0xFFB45309);
   static const Color textPrimary = Color(0xFF000000);
   static const Color textSecondary = Color(0xFF212121);
   static const Color navBar = Color(0xFFFFFFFF);
@@ -22,7 +24,7 @@ class AvroDriverColors {
   static const Color surface = Color(0xFF1E1E1E);
   static const Color accent = Color(0xFF4ADE80);
   static const Color textPrimary = Color(0xFFF5F5F5);
-  static const Color textSecondary = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFA1A1AA);
   static const Color navBar = Color(0xFF1A1A1A);
   static const Color tabActive = Color(0xFF4ADE80);
   static const Color tabInactive = Color(0xFF555555);
