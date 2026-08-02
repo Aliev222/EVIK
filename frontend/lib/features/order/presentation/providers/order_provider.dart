@@ -69,7 +69,22 @@ final orderUpdatesProvider = StreamProvider<Order>((ref) {
 
   Future<void> start() async {
     try {
-      await dispatcher.start();
+      // Subscribe BEFORE connect to avoid losing events
+      subscription = dispatcher.events().listen(
+        (event) async {
+          try {
+            final order = await repository.getOrder(event.orderId);
+            if (order != null && !controller.isClosed) {
+              controller.add(order);
+            }
+          } catch (error, stackTrace) {
+            if (!controller.isClosed) {
+              controller.addError(error, stackTrace);
+            }
+          }
+        },
+        onError: controller.addError,
+      );
 
       reconnectionSub = client.onReconnected.listen((_) async {
         debugPrint('WS reconnected, fetching active order for catch-up');
@@ -86,21 +101,7 @@ final orderUpdatesProvider = StreamProvider<Order>((ref) {
         }
       });
 
-      subscription = dispatcher.events().listen(
-        (event) async {
-          try {
-            final order = await repository.getOrder(event.orderId);
-            if (order != null && !controller.isClosed) {
-              controller.add(order);
-            }
-          } catch (error, stackTrace) {
-            if (!controller.isClosed) {
-              controller.addError(error, stackTrace);
-            }
-          }
-        },
-        onError: controller.addError,
-      );
+      await dispatcher.start();
     } catch (error, stackTrace) {
       if (!controller.isClosed) {
         controller.addError(error, stackTrace);

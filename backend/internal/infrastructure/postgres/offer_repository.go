@@ -152,7 +152,7 @@ func (r *OfferRepository) ListSearchingWithoutOffer(ctx context.Context, limit i
 		limit = 50
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders o
 WHERE o.status = 'searching'
 AND NOT EXISTS (SELECT 1 FROM order_offers f WHERE f.order_id = o.id AND f.outcome IS NULL)
@@ -206,6 +206,7 @@ func scanOrderRows(rows *sql.Rows) ([]*orderdomain.Order, error) {
 			&ord.IsExpanded,
 			&expandedAt,
 			&paymentMethod,
+			&ord.Notes,
 		); err != nil {
 			return nil, err
 		}

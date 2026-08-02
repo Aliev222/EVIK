@@ -190,13 +190,16 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                 MarkerLayer(
                   markers: widget.markers
                       .map(
-                        (marker) => Marker(
-                          point: LatLng(marker.lat, marker.lng),
-                          width: 48,
-                          height: 56,
-                          alignment: Alignment.topCenter,
-                          child: _AnimatedMapMarker(marker: marker),
-                        ),
+                        (marker) {
+                          final isCustom = marker.child != null;
+                          return Marker(
+                            point: LatLng(marker.lat, marker.lng),
+                            width: isCustom ? 56 : 48,
+                            height: isCustom ? 56 : 56,
+                            alignment: isCustom ? Alignment.center : Alignment.topCenter,
+                            child: _AnimatedMapMarker(marker: marker),
+                          );
+                        },
                       )
                       .toList(growable: false),
                 ),
@@ -334,6 +337,9 @@ class _AnimatedMapMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (marker.child != null) {
+      return marker.child!;
+    }
     return TweenAnimationBuilder<double>(
       key: ValueKey('${marker.title}-${marker.lat}-${marker.lng}'),
       tween: Tween<double>(begin: 0.88, end: 1),
@@ -542,6 +548,7 @@ class EvikMapMarker {
     this.title,
     this.color = AvroClientColors.accent,
     this.icon,
+    this.child,
   });
 
   final double lat;
@@ -549,4 +556,5 @@ class EvikMapMarker {
   final String? title;
   final Color color;
   final IconData? icon;
+  final Widget? child;
 }

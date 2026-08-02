@@ -104,6 +104,7 @@ type createOrderRequest struct {
 	PaymentMethod  string  `json:"payment_method"`
 	AutoDispatch   *bool   `json:"auto_dispatch"`
 	IsMock         bool    `json:"is_mock"`
+	Notes          string  `json:"notes"`
 }
 
 type acceptOrderRequest struct {
@@ -153,6 +154,7 @@ type orderResponse struct {
 	DistanceKM      *float64           `json:"distance_km,omitempty"`
 	CreatedAt       string             `json:"created_at"`
 	UpdatedAt       string             `json:"updated_at"`
+	Notes           string             `json:"notes"`
 	CancelledAt     *string            `json:"cancelled_at"`
 	CancelReason    string             `json:"cancel_reason,omitempty"`
 }
@@ -234,6 +236,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		PaymentMethod:  req.PaymentMethod,
 		AutoDispatch:   autoDispatch,
 		CityID:         cityID,
+		Notes:          req.Notes,
 		IdempotencyKey: &idempotencyKey,
 	})
 	if err != nil {
@@ -436,12 +439,14 @@ func (h *OrderHandler) GetActiveOrder(w http.ResponseWriter, r *http.Request) {
 			orderdomain.StatusAccepted,
 			orderdomain.StatusArrived,
 			orderdomain.StatusInProgress,
+			orderdomain.StatusAwaitingPayment,
 		}
 	case auth.RoleDriver:
 		statuses = []orderdomain.Status{
 			orderdomain.StatusAccepted,
 			orderdomain.StatusArrived,
 			orderdomain.StatusInProgress,
+			orderdomain.StatusAwaitingPayment,
 		}
 	default:
 		writeAuthError(w, http.StatusForbidden, "forbidden")
@@ -787,6 +792,7 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		PriceBreakdown:  breakdown,
 		CreatedAt:       ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
 		UpdatedAt:       ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		Notes:           ord.Notes,
 		CancelledAt:     cancelledAt,
 		CancelReason:    ord.CancelReason,
 	}

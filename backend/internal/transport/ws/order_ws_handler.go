@@ -160,6 +160,7 @@ func (h *OrderWSHandler) readPump(c *wsinfra.Client) {
 		if err != nil {
 			break
 		}
+		_ = c.Conn.SetReadDeadline(time.Now().Add(pongWait))
 		h.handleWSMessage(c, msgBytes)
 	}
 }
@@ -172,7 +173,7 @@ func (h *OrderWSHandler) handleWSMessage(c *wsinfra.Client, msgBytes []byte) {
 	}
 
 	switch msg.Type {
-	case "ping", "pong":
+	case "ping", "pong", "heartbeat":
 		h.sendPong(c)
 	case "location_update":
 		h.handleLocationUpdate(c, msgBytes)
@@ -230,15 +231,19 @@ func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte
 	if locData.OrderID != "" && h.orderRepo != nil && h.eventPublisher != nil {
 		ord, ordErr := h.orderRepo.GetByID(context.Background(), locData.OrderID)
 		if ordErr == nil && ord != nil && ord.UserID != "" {
+			payload := map[string]any{
+				"driver_id": c.UserID,
+				"user_id":   ord.UserID,
+				"lat":       locData.Lat,
+				"lng":       locData.Lng,
+				"bearing":   locData.Bearing,
+				"speed":     locData.Speed,
+				"status":    locData.Status,
+			}
 			_ = h.eventPublisher.Publish(context.Background(), orderdomain.Event{
 				Type:    orderdomain.EventDriverLocationUpdated,
 				OrderID: locData.OrderID,
-				Payload: map[string]any{
-					"driver_id": c.UserID,
-					"user_id":   ord.UserID,
-					"lat":       locData.Lat,
-					"lng":       locData.Lng,
-				},
+				Payload: payload,
 			})
 		}
 	}

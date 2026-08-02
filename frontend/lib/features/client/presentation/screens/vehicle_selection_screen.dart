@@ -109,10 +109,11 @@ class VehicleSelectionScreen extends ConsumerWidget {
                     text: 'Начать поиск водителя',
                     width: double.infinity,
                     onPressed: canStart
-                        ? () {
-                            ref
+                        ? () async {
+                            final started = await ref
                                 .read(orderFlowProvider.notifier)
                                 .goToDriverSearch();
+                            if (!context.mounted || !started) return;
                             context.push('/order/search');
                           }
                         : null,

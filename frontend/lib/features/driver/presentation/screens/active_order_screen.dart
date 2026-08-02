@@ -104,8 +104,8 @@ class _ActiveOrderScreenState extends ConsumerState<ActiveOrderScreen> {
             child: _ActiveOrderTopBar(order: order),
           ),
           Positioned(
-            left: 0,
-            right: 0,
+            left: 10,
+            right: 10,
             bottom: 0,
             child: _ActiveOrderBottomSheet(
               order: order,
@@ -348,13 +348,13 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AvroDriverColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-        child: Column(
+      child: Material(
+        color: AvroDriverColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -462,6 +462,7 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
                 ),
             ],
           ],
+          ),
         ),
       ),
     );

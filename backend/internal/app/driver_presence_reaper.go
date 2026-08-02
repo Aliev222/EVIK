@@ -6,6 +6,7 @@ import (
 	"time"
 
 	driverdomain "evik/backend/internal/domain/driver"
+	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 )
 
@@ -16,6 +17,7 @@ type presenceDriverRepo interface {
 }
 
 type presenceLocationStore interface {
+	GetLastLocation(ctx context.Context, driverID string) (*locationdomain.Location, error)
 	RemoveDriver(ctx context.Context, driverID string) error
 }
 
@@ -100,6 +102,11 @@ func (r *DriverPresenceReaper) reapStaleDrivers(ctx context.Context) {
 			continue
 		}
 		if r.hub.HasDriver(drv.ID) {
+			continue
+		}
+		loc, locErr := r.locationStore.GetLastLocation(ctx, drv.ID)
+		if locErr == nil && loc != nil && time.Since(loc.UpdatedAt) < r.gracePeriod {
+			r.logger.Printf("presence reaper: skip driver=%s (location fresh, age=%s)", drv.ID, time.Since(loc.UpdatedAt).Round(time.Second))
 			continue
 		}
 		r.reapDriver(ctx, drv)

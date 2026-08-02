@@ -50,6 +50,7 @@ type Order struct {
 	UpdatedAt        time.Time
 	CancelledAt      *time.Time
 	CancelReason     string
+	Notes            string
 	IdempotencyKey   *string
 }
 

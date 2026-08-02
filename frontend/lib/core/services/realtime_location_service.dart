@@ -221,6 +221,10 @@ class RealTimeLocationService {
           debugPrint('Connection established: ${message['message']}');
           break;
 
+        case 'driver_location':
+          _handleServerDriverLocation(message);
+          break;
+
         case 'driver_location_update':
           _handleDriverLocationUpdate(message);
           break;
@@ -260,6 +264,28 @@ class RealTimeLocationService {
       }
     } catch (e) {
       debugPrint('Error handling message: $e');
+    }
+  }
+
+  /// Обработка обновления местоположения водителя (формат сервера)
+  void _handleServerDriverLocation(Map<String, dynamic> message) {
+    try {
+      final payload = message['payload'] as Map<String, dynamic>?;
+      if (payload == null) return;
+      final update = DriverLocationUpdate(
+        driverId: payload['driver_id']?.toString() ?? '',
+        lat: (payload['lat'] as num?)?.toDouble() ?? 0.0,
+        lng: (payload['lng'] as num?)?.toDouble() ?? 0.0,
+        bearing: (payload['bearing'] as num?)?.toDouble() ?? 0.0,
+        speed: (payload['speed'] as num?)?.toDouble() ?? 0.0,
+        status: _parseDriverStatus(payload['status']?.toString()),
+        orderId: message['order_id']?.toString(),
+        timestamp: DateTime.now(),
+      );
+
+      _driverLocationController.add(update);
+    } catch (e) {
+      debugPrint('Error parsing server driver location: $e');
     }
   }
 

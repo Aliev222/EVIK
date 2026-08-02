@@ -176,8 +176,10 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   }
 
   void selectTowTruckType(TowTruckType towTruckType) {
+    final local = localPriceFor(towTruckType);
     state = state.copyWith(
       selectedTowTruckType: towTruckType,
+      estimatedPrice: local ?? state.estimatedPrice,
       errorMessage: null,
     );
     state = state.copyWith(idempotencyKey: null);
@@ -508,7 +510,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         towTruckType: towTruckType,
       );
       // Игнорируем устаревший ответ, если пользователь успел переключить тип.
-      if (!mounted || seq != _priceRequestSeq) return;
+      if (!mounted) return;
+      if (seq != _priceRequestSeq) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
       state = state.copyWith(
         distance: quote.distanceKm,
         estimatedPrice: quote.totalPrice / 100,
@@ -516,7 +522,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         errorMessage: null,
       );
     } catch (error) {
-      if (!mounted || seq != _priceRequestSeq) return;
+      if (!mounted) return;
+      if (seq != _priceRequestSeq) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Не удалось рассчитать цену. Попробуйте позже.',

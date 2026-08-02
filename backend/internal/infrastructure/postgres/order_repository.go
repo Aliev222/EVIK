@@ -20,8 +20,8 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
-INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, idempotency_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, idempotency_key, notes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 ON CONFLICT (idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING id`
 	var id string
@@ -49,6 +49,7 @@ RETURNING id`
 		ord.ExpandedAt,
 		ord.PaymentMethod,
 		ord.IdempotencyKey,
+		ord.Notes,
 	).Scan(&id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -108,7 +109,7 @@ RETURNING id, user_id, driver_id,
           is_cross_city, surcharge_amount, surcharge_percent,
           created_at, updated_at, cancelled_at,
           city_id, is_expanded, expanded_at,
-          payment_method`
+          payment_method, notes`
 
 	var (
 		ord            orderdomain.Order
@@ -143,6 +144,7 @@ RETURNING id, user_id, driver_id,
 		&ord.IsExpanded,
 		&expandedAt,
 		&paymentMethod,
+		&ord.Notes,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -183,7 +185,7 @@ RETURNING id, user_id, driver_id,
           is_cross_city, surcharge_amount, surcharge_percent,
           created_at, updated_at, cancelled_at,
           city_id, is_expanded, expanded_at,
-          payment_method`
+          payment_method, notes`
 
 	var (
 		ord            orderdomain.Order
@@ -218,6 +220,7 @@ RETURNING id, user_id, driver_id,
 		&ord.IsExpanded,
 		&expandedAt,
 		&paymentMethod,
+		&ord.Notes,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -280,7 +283,7 @@ func (r *OrderRepository) MarkExpanded(ctx context.Context, orderID string, now 
 
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*orderdomain.Order, error) {
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, driver_amount, commission_amount, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, driver_amount, commission_amount, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method, notes
 FROM orders
 WHERE id = $1`
 
@@ -321,6 +324,7 @@ WHERE id = $1`
 		&expandedAt,
 		&cancelReason,
 		&paymentMethod,
+		&ord.Notes,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -349,7 +353,7 @@ func (r *OrderRepository) GetByOrderKey(ctx context.Context, idempotencyKey stri
 		return nil, orderdomain.ErrOrderNotFound
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, driver_amount, commission_amount, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, driver_amount, commission_amount, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, cancel_reason, payment_method, notes
 FROM orders
 WHERE idempotency_key = $1`
 
@@ -390,6 +394,7 @@ WHERE idempotency_key = $1`
 		&expandedAt,
 		&cancelReason,
 		&paymentMethod,
+		&ord.Notes,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -419,7 +424,7 @@ func (r *OrderRepository) ListByStatus(ctx context.Context, status orderdomain.S
 	}
 
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE status = $1
 ORDER BY created_at ASC
@@ -466,6 +471,7 @@ LIMIT $2`
 			&ord.IsExpanded,
 			&expandedAt,
 			&paymentMethod,
+			&ord.Notes,
 		); err != nil {
 			return nil, err
 		}
@@ -494,7 +500,7 @@ func (r *OrderRepository) ListByStatusAndCity(ctx context.Context, status orderd
 		limit = 20
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE status = $1 AND city_id = $2
 ORDER BY created_at ASC
@@ -507,7 +513,7 @@ func (r *OrderRepository) ListByUserID(ctx context.Context, userID string, statu
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE user_id = $1`
 	args := []any{userID}
@@ -526,7 +532,7 @@ func (r *OrderRepository) ListByDriverID(ctx context.Context, driverID string, s
 		limit = 20
 	}
 	query := `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE driver_id = $1`
 	args := []any{driverID}
@@ -547,7 +553,7 @@ func (r *OrderRepository) ListSearchingForExpansion(ctx context.Context, olderTh
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE status = 'searching' AND is_expanded = FALSE AND created_at < $1
 ORDER BY created_at ASC
@@ -562,7 +568,7 @@ func (r *OrderRepository) ListExpandedSearching(ctx context.Context, limit int) 
 		limit = 100
 	}
 	const query = `
-SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method
+SELECT id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, 	surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, notes
 FROM orders
 WHERE status = 'searching' AND is_expanded = TRUE
 ORDER BY created_at ASC
@@ -620,6 +626,7 @@ func (r *OrderRepository) scanOrders(rows *sql.Rows) ([]*orderdomain.Order, erro
 			&ord.IsExpanded,
 			&expandedAt,
 			&paymentMethod,
+			&ord.Notes,
 		); err != nil {
 			return nil, err
 		}
