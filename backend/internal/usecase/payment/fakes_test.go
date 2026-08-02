@@ -57,6 +57,9 @@ func (noopFinanceRepo) MarkWebhookProcessed(context.Context, string) error { ret
 func (noopFinanceRepo) CompleteOrderFinancially(context.Context, string, string, int, int) error {
 	return nil
 }
+func (noopFinanceRepo) UpdateOrderStatus(context.Context, string, string, time.Time) error {
+	return nil
+}
 func (noopFinanceRepo) ListReleasablePendingTransactions(context.Context, int) ([]paymentdomain.WalletTransaction, error) {
 	return nil, nil
 }

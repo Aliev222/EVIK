@@ -326,7 +326,7 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 			if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
 				return err
 			}
-			if updErr := uc.orderRepo.Update(ctx, ord); updErr != nil {
+			if updErr := txOps.UpdateOrderStatus(ctx, orderID, string(ord.Status), now); updErr != nil {
 				return updErr
 			}
 			if uc.eventPublisher != nil {
@@ -391,14 +391,17 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 	}
 
 	if paymentMethod == "cash" {
-		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
-			return nil, err
-		}
-		now := uc.clock.Now()
-		if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
-			return nil, err
-		}
-		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
+		pct := uc.commissionPercent(ctx)
+		if err := uc.repo.WithWebhookTx(ctx, func(txOps paymentdomain.WebhookTx) error {
+			if err := txOps.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds, pct); err != nil {
+				return err
+			}
+			now := uc.clock.Now()
+			if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
+				return err
+			}
+			return txOps.UpdateOrderStatus(ctx, orderID, string(ord.Status), now)
+		}); err != nil {
 			return nil, err
 		}
 		uc.publishCompletedEvent(ctx, ord, orderID)
@@ -410,14 +413,17 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 		return nil, err
 	}
 	if payment.Status == paymentdomain.PaymentStatusSucceeded {
-		if err := uc.CompleteOrderFinancially(ctx, orderID); err != nil {
-			return nil, err
-		}
-		now := uc.clock.Now()
-		if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
-			return nil, err
-		}
-		if err := uc.orderRepo.UpdateStatus(ctx, orderID, ord.Status, now); err != nil {
+		pct := uc.commissionPercent(ctx)
+		if err := uc.repo.WithWebhookTx(ctx, func(txOps paymentdomain.WebhookTx) error {
+			if err := txOps.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds, pct); err != nil {
+				return err
+			}
+			now := uc.clock.Now()
+			if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
+				return err
+			}
+			return txOps.UpdateOrderStatus(ctx, orderID, string(ord.Status), now)
+		}); err != nil {
 			return nil, err
 		}
 		uc.publishCompletedEvent(ctx, ord, orderID)

@@ -154,7 +154,7 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	})
 	if err != nil {
 		if errors.Is(err, driverdomain.ErrDriverBusy) {
-			recovered := uc.tryRecoverAndRetry(ctx, orderID, driverID, now)
+			recovered := uc.tryRecoverAndRetry(ctx, driverID, orderID, now)
 			if !recovered {
 				return nil, driverdomain.ErrDriverBusy
 			}

@@ -221,6 +221,10 @@ func (r *fakeFinanceRepository) CompleteOrderFinancially(_ context.Context, orde
 	return nil
 }
 
+func (r *fakeFinanceRepository) UpdateOrderStatus(context.Context, string, string, time.Time) error {
+	return nil
+}
+
 func (r *fakeFinanceRepository) ListPayoutMethods(_ context.Context, driverID string) ([]paymentdomain.DriverPayoutMethod, error) {
 	return []paymentdomain.DriverPayoutMethod{{
 		ID:                  "method-1",

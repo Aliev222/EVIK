@@ -27,6 +27,12 @@ type WebhookTx interface {
 	ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error
 	ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error
 	CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int, commissionPercent int) error
+	// UpdateOrderStatus writes the order status inside the same transaction as
+	// the financial settlement. Keeping money settlement, driver release and
+	// the terminal status update in one tx makes order completion atomic: a
+	// failure rolls back all three instead of leaving a settled order stuck in
+	// awaiting_payment with the driver still busy.
+	UpdateOrderStatus(ctx context.Context, orderID, status string, updatedAt time.Time) error
 	MarkProcessed(ctx context.Context, eventID string) error
 }
 

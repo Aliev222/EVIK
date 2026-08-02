@@ -1501,6 +1501,11 @@ func (w *webhookTxImpl) CompleteOrderFinancially(ctx context.Context, orderID, i
 	return w.repo.completeOrderFinanciallyTx(ctx, w.tx, orderID, idempotencyKey, holdSeconds, commissionPercent)
 }
 
+func (w *webhookTxImpl) UpdateOrderStatus(ctx context.Context, orderID, status string, updatedAt time.Time) error {
+	_, err := w.tx.ExecContext(ctx, `UPDATE orders SET status = $2, updated_at = $3 WHERE id = $1`, orderID, status, updatedAt)
+	return err
+}
+
 func (w *webhookTxImpl) MarkProcessed(ctx context.Context, eventID string) error {
 	_, err := w.tx.ExecContext(ctx, `UPDATE payment_webhooks SET processed = TRUE, processed_at = NOW() WHERE id = $1`, eventID)
 	return err

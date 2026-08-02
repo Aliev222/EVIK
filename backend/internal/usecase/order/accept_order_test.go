@@ -177,6 +177,71 @@ func TestAcceptOrderRecoversStaleTerminalDriverOrderAndRetries(t *testing.T) {
 	}
 }
 
+// TestAcceptOrderRecoveryUsesDriverAndTargetOrderIDs guards against the
+// B-06.x argument swap where tryRecoverAndRetry was called as
+// (orderID, driverID) instead of (driverID, orderID). With the swapped order
+// the driver repo would be looked up by the target order id, recovery would
+// silently fail and the accept would surface ErrDriverBusy instead of
+// succeeding.
+func TestAcceptOrderRecoveryUsesDriverAndTargetOrderIDs(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	staleID := "order-stale"
+	targetID := "order-1"
+	orderRepo := &fakeOrderRepository{
+		orders: map[string]*orderdomain.Order{
+			targetID: {
+				ID:        targetID,
+				UserID:    "client-1",
+				Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+				Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+				Status:    orderdomain.StatusSearching,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			staleID: {
+				ID:        staleID,
+				UserID:    "client-2",
+				Pickup:    orderdomain.Coordinate{Lat: 55.70, Lng: 37.60},
+				Dropoff:   orderdomain.Coordinate{Lat: 55.71, Lng: 37.61},
+				Status:    orderdomain.StatusCancelled,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+	driverRepo := &fakeDriverOrderRepository{
+		assignErrSequence: []error{driverdomain.ErrDriverBusy, nil},
+		driver: &driverdomain.Driver{
+			ID:             "driver-1",
+			Status:         driverdomain.StatusBusy,
+			CurrentOrderID: &staleID,
+			LastSeenAt:     now,
+			UpdatedAt:      now,
+		},
+	}
+	publisher := &fakeEventPublisher{}
+	uc := NewAcceptOrderUseCase(nil, orderRepo, driverRepo, nil, nil, nil, nil, publisher, nil, fakeClock{now: now}, fakeLogger{})
+
+	if _, err := uc.Execute(context.Background(), targetID, "driver-1"); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	// The driver repo must be queried by the driver id, never by an order id.
+	if len(driverRepo.getByIDCalls) == 0 {
+		t.Fatal("recovery did not query the driver repository")
+	}
+	for _, id := range driverRepo.getByIDCalls {
+		if id == targetID {
+			t.Fatalf("driver repository queried with target order id %q instead of driver id", id)
+		}
+	}
+	// The released order must be the stale driver current order, not the target.
+	if len(driverRepo.releasedOrders) != 1 || driverRepo.releasedOrders[0] != staleID {
+		t.Fatalf("released orders = %+v, want [%s]", driverRepo.releasedOrders, staleID)
+	}
+}
+
+
 func TestAcceptOrderReusesSameDriverCurrentOrderOnUnavailable(t *testing.T) {
 	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
 	targetID := "order-1"
@@ -357,6 +422,7 @@ type fakeDriverOrderRepository struct {
 	released          bool
 	assignCalls       int
 	releasedOrders    []string
+	getByIDCalls      []string
 	driver            *driverdomain.Driver
 	getByIDErr        error
 }
@@ -404,7 +470,8 @@ func (r *fakeDriverOrderRepository) ReleaseOrder(_ context.Context, driverID str
 	return nil
 }
 
-func (r *fakeDriverOrderRepository) GetByID(context.Context, string) (*driverdomain.Driver, error) {
+func (r *fakeDriverOrderRepository) GetByID(_ context.Context, id string) (*driverdomain.Driver, error) {
+	r.getByIDCalls = append(r.getByIDCalls, id)
 	if r.getByIDErr != nil {
 		return nil, r.getByIDErr
 	}

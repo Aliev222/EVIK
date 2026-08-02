@@ -284,9 +284,18 @@ func TestWebhook_CurrentBehavior_Success(t *testing.T) {
 		t.Errorf("pending_balance = %d, want 425000", pending)
 	}
 
-	// 6. orderRepo.Update was called (status transition to completed)
-	if orderRepo.updateCalls != 1 {
-		t.Errorf("orderRepo.Update calls = %d, want 1", orderRepo.updateCalls)
+	// 6. order status transitioned to completed inside the same tx as the
+	// financial settlement (previously done via orderRepo.Update outside the tx).
+	var ordStatus string
+	err = db.QueryRowContext(ctx, `SELECT status FROM orders WHERE id = $1`, "order-1").Scan(&ordStatus)
+	if err != nil {
+		t.Fatalf("query order status: %v", err)
+	}
+	if ordStatus != string(orderdomain.StatusCompleted) {
+		t.Errorf("order status = %q, want %q", ordStatus, orderdomain.StatusCompleted)
+	}
+	if orderRepo.updateCalls != 0 {
+		t.Errorf("orderRepo.Update calls = %d, want 0 (status write must go through the completion tx)", orderRepo.updateCalls)
 	}
 
 	// 7. GetPayment called once (provider-side verification)
