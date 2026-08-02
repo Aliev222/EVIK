@@ -70,7 +70,7 @@ class ChannelWebSocketClient implements WebSocketClient {
   void _startPingTimer() {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      _channel?.sink.add('{"type":"heartbeat"}');
+      _channel?.sink.add('{"type":"ping"}');
     });
   }
 

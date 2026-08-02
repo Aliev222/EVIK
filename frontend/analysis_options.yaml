@@ -11,6 +11,7 @@ include: package:flutter_lints/flutter.yaml
 
 analyzer:
   exclude:
+    - build/**
     - lib/core/services/location_service.dart
     - lib/core/services/price_calculator.dart
     - lib/features/order/data/dto/order_dto.dart

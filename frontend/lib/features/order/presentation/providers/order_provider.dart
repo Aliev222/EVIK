@@ -172,7 +172,6 @@ class OrderNotifier extends StateNotifier<OrderProviderState> {
   Future<void> createOrder(CreateOrderCommand command) async {
     state = state.copyWith(isLoading: true, clearError: true);
     final authState = _ref.read(authProvider);
-    debugPrint('Token: ${authState.accessToken}');
     debugPrint('User role: ${authState.user?.role}');
     try {
       final order = await _repository.createOrder(command);

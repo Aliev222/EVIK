@@ -74,21 +74,23 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   }
 
   double get _interpolatedDriverLat {
-    if (_prevDriverPos == null || _currDriverPos == null) {
-      return _currDriverPos?.latitude ?? 42.9764;
+    final prev = _prevDriverPos;
+    final curr = _currDriverPos;
+    if (curr == null || prev == null) {
+      return curr!.latitude;
     }
     final t = Curves.easeInOut.transform(_markerAnimController.value);
-    return _prevDriverPos!.latitude +
-        (_currDriverPos!.latitude - _prevDriverPos!.latitude) * t;
+    return prev.latitude + (curr.latitude - prev.latitude) * t;
   }
 
   double get _interpolatedDriverLng {
-    if (_prevDriverPos == null || _currDriverPos == null) {
-      return _currDriverPos?.longitude ?? 47.5024;
+    final prev = _prevDriverPos;
+    final curr = _currDriverPos;
+    if (curr == null || prev == null) {
+      return curr!.longitude;
     }
     final t = Curves.easeInOut.transform(_markerAnimController.value);
-    return _prevDriverPos!.longitude +
-        (_currDriverPos!.longitude - _prevDriverPos!.longitude) * t;
+    return prev.longitude + (curr.longitude - prev.longitude) * t;
   }
 
   void _initializeRealTimeTracking() {
@@ -279,7 +281,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
     }
 
     // Build driver marker with interpolated position, rotation, and icon
-    final driverMarker = _latestDriverLocation != null
+    final driverMarker = _latestDriverLocation != null && _currDriverPos != null
         ? EvikMapMarker(
             lat: _interpolatedDriverLat,
             lng: _interpolatedDriverLng,
