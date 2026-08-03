@@ -54,6 +54,26 @@ class _TowTruckSelectionScreenState
     final orderFlowState = ref.watch(orderFlowProvider);
     final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
 
+    ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
+      if (!mounted) return;
+      if (next.errorMessage != null &&
+          previous?.errorMessage != next.errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            backgroundColor: AvroClientColors.error,
+            action: SnackBarAction(
+              label: 'Повторить',
+              onPressed: () {
+                ref.read(orderFlowProvider.notifier).goToDriverSearch();
+              },
+            ),
+          ),
+        );
+        ref.read(orderFlowProvider.notifier).clearError();
+      }
+    });
+
     return Scaffold(
       backgroundColor: AvroClientColors.background,
       appBar: AppBar(

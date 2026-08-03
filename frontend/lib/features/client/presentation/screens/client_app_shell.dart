@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/network/connectivity_provider.dart';
 import 'package:tow_truck_frontend/core/realtime/websocket_client.dart';
 import 'package:tow_truck_frontend/core/theme/app_theme.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
@@ -28,8 +29,12 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
     final wsStatus = ref.watch(webSocketStatusProvider).valueOrNull;
-    final showBanner = wsStatus != null && wsStatus != WebSocketConnectionStatus.connected;
+    final offline = !isOnline;
+    final showBanner =
+        offline ||
+        (wsStatus != null && wsStatus != WebSocketConnectionStatus.connected);
 
     return Theme(
       data: AppTheme.client(),
@@ -42,9 +47,11 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
               color: AvroClientColors.accent,
               child: Text(
-                wsStatus == WebSocketConnectionStatus.connecting
-                    ? 'Подключаемся...'
-                    : 'Нет соединения',
+                offline
+                    ? 'Нет подключения к интернету'
+                    : wsStatus == WebSocketConnectionStatus.connecting
+                        ? 'Подключаемся...'
+                        : 'Нет соединения',
                 style: TextStyle(color: AvroClientColors.background, fontSize: 13),
                 textAlign: TextAlign.center,
               ),

@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
@@ -197,12 +198,27 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         onlineSince: null,
       );
     } catch (error) {
+      // Статус не подтверждён сервером — не меняем isOnline, только сообщаем.
       state = state.copyWith(
         isUpdatingOnlineStatus: false,
-        hasLocationPermission: false,
-        errorMessage: 'Нет соединения с сервером. Проверьте интернет.',
+        errorMessage: _cleanError(
+          error,
+          fallback: 'Не удалось изменить статус',
+        ),
       );
     }
+  }
+
+  /// Чистое сообщение об ошибке действия водителя.
+  /// Состояние меняется только после подтверждения сервера.
+  String _cleanError(Object error, {required String fallback}) {
+    if (error is ApiClientException) {
+      if (error.statusCode == 0) {
+        return '$fallback — проверьте соединение';
+      }
+      return error.message;
+    }
+    return '$fallback — проверьте соединение';
   }
 
   @override
@@ -258,14 +274,32 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
       return;
     }
 
-    await _orderRepository.updateOrderStatus(order.id, status);
-    state = state.copyWith(currentOrder: order.copyWith(status: status));
+    try {
+      await _orderRepository.updateOrderStatus(order.id, status);
+      state = state.copyWith(currentOrder: order.copyWith(status: status));
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _cleanError(
+          error,
+          fallback: 'Не удалось обновить статус заказа',
+        ),
+      );
+    }
   }
 
   @override
   Future<void> cancelOrder(String orderId, String reason) async {
-    await _orderRepository.cancelOrder(orderId, reason: reason);
-    state = state.copyWith(clearCurrentOrder: true);
+    try {
+      await _orderRepository.cancelOrder(orderId, reason: reason);
+      state = state.copyWith(clearCurrentOrder: true);
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _cleanError(
+          error,
+          fallback: 'Не удалось отменить заказ',
+        ),
+      );
+    }
   }
 
   @override

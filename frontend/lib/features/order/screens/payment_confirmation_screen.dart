@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -142,7 +143,12 @@ class _PaymentConfirmationScreenState
         ref.read(orderFlowProvider.notifier).goToCompletion();
       }
     } catch (e) {
-      _showError('Ошибка оплаты: ${e.toString()}');
+      final msg = e is ApiClientException
+          ? (e.statusCode == 0
+              ? 'Нет подключения к интернету — проверьте соединение'
+              : e.message)
+          : 'Ошибка оплаты: ${e.toString()}';
+      _showError(msg);
     } finally {
       if (mounted) setState(() => _isPaying = false);
     }

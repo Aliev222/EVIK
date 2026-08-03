@@ -182,22 +182,25 @@ class OrderNotifier extends StateNotifier<OrderProviderState> {
         isLoading: false,
         errorMessage: 'Не удалось создать заказ: $error',
       );
+      rethrow;
     }
   }
 
-  Future<void> cancelCurrentOrder({String? reason}) async {
+  Future<bool> cancelCurrentOrder({String? reason}) async {
     final currentOrder = state.currentOrder;
-    if (currentOrder == null) return;
+    if (currentOrder == null) return true;
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _repository.cancelOrder(currentOrder.id, reason: reason);
       state = state.copyWith(clearCurrentOrder: true, isLoading: false);
+      return true;
     } catch (error) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: 'Не удалось отменить заказ: $error',
       );
+      return false;
     }
   }
 

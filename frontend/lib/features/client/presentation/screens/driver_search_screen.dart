@@ -116,8 +116,23 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   void _cancelSearch() {
     if (_isNavigatingToDriverInfo) return;
     _isNavigatingToDriverInfo = true;
-    ref.read(orderFlowProvider.notifier).cancelSearch();
+    final notifier = ref.read(orderFlowProvider.notifier);
+    unawaited(_finishCancel(notifier));
     context.go('/');
+  }
+
+  Future<void> _finishCancel(OrderFlowNotifier notifier) async {
+    final cancelled = await notifier.cancelSearch();
+    if (!cancelled && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Не удалось отменить заказ — проверьте соединение',
+          ),
+          backgroundColor: AvroClientColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _goToDriverInfo() async {
@@ -243,7 +258,8 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
       );
 
       if (accepted != true) {
-        ref.read(orderFlowProvider.notifier).cancelSearch();
+        final notifier = ref.read(orderFlowProvider.notifier);
+        unawaited(_finishCancel(notifier));
         if (mounted) {
           _isNavigatingToDriverInfo = false;
           context.go('/');

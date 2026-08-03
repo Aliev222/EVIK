@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -63,7 +64,9 @@ class _DriverRatingScreenState extends ConsumerState<DriverRatingScreen> {
       if (mounted) {
         String errorMessage = 'Ошибка отправки отзыва';
 
-        if (e.toString().contains('409') || e.toString().contains('already reviewed')) {
+        if (e is ApiClientException && e.statusCode == 0) {
+          errorMessage = 'Нет подключения к интернету — проверьте соединение';
+        } else if (e.toString().contains('409') || e.toString().contains('already reviewed')) {
           errorMessage = 'Вы уже оставили отзыв по этому заказу';
         } else if (e.toString().contains('403')) {
           errorMessage = 'Нет прав для оставления отзыва';

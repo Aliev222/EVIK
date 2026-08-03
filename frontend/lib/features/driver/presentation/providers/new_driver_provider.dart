@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
@@ -185,6 +186,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     final driverId = _currentDriverId;
     if (driverId == null || state.workState.hasActiveOrder) return;
 
+    final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _driverRepository.updateDriverStatus(
@@ -197,7 +199,11 @@ class DriverNotifier extends StateNotifier<DriverState> {
       // Подключаем WS: регистрируем водителя в Hub, шлём локацию
       final token = _ref.read(authProvider).accessToken;
       if (token == null || token.isEmpty) {
-        state = state.copyWith(error: 'Ошибка авторизации: нет токена');
+        state = state.copyWith(
+          workState: previousWorkState,
+          isLoading: false,
+          error: 'Ошибка авторизации: нет токена',
+        );
         return;
       }
       final realtime = _ref.read(driverRealTimeProvider.notifier);
@@ -211,8 +217,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await _loadCurrentOffer();
     } catch (error) {
       state = state.copyWith(
-        workState: DriverWorkState.online,
+        workState: previousWorkState,
         isLoading: false,
+        error: _cleanError(error, fallback: 'Не удалось изменить статус'),
       );
     }
   }
@@ -221,6 +228,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     final driverId = _currentDriverId;
     if (driverId == null || state.workState.hasActiveOrder) return;
 
+    final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _driverRepository.updateDriverStatus(
@@ -242,10 +250,23 @@ class DriverNotifier extends StateNotifier<DriverState> {
       );
     } catch (error) {
       state = state.copyWith(
+        workState: previousWorkState,
         isLoading: false,
-        error: 'Не удалось уйти с линии: $error',
+        error: _cleanError(error, fallback: 'Не удалось изменить статус'),
       );
     }
+  }
+
+  /// Чистое сообщение об ошибке пользовательского действия.
+  /// Состояние заказа/статуса меняется только после подтверждения сервера.
+  String _cleanError(Object error, {required String fallback}) {
+    if (error is ApiClientException) {
+      if (error.statusCode == 0) {
+        return '$fallback — проверьте соединение';
+      }
+      return error.message;
+    }
+    return '$fallback: $error';
   }
 
   Future<void> acceptOrder(String orderId) async {
@@ -268,11 +289,17 @@ class DriverNotifier extends StateNotifier<DriverState> {
   }
 
   Future<void> declineOrder(String orderId) async {
-    await _driverRepository.declineOffer(orderId);
-    state = state.copyWith(
-      availableOrders: const <AvailableOrder>[],
-    );
-    unawaited(_loadCurrentOffer());
+    try {
+      await _driverRepository.declineOffer(orderId);
+      state = state.copyWith(
+        availableOrders: const <AvailableOrder>[],
+      );
+      unawaited(_loadCurrentOffer());
+    } catch (error) {
+      state = state.copyWith(
+        error: _cleanError(error, fallback: 'Не удалось отклонить заказ'),
+      );
+    }
   }
 
   void _startOfferListener() {
@@ -312,9 +339,12 @@ class DriverNotifier extends StateNotifier<DriverState> {
         isLoading: false,
       );
       _ref.read(driverRealTimeProvider.notifier).arrivedAtPickup();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(
+        isLoading: false,
+        error: _cleanError(error, fallback: 'Не удалось отметить прибытие'),
+      );
     }
   }
 
@@ -334,9 +364,12 @@ class DriverNotifier extends StateNotifier<DriverState> {
         isLoading: false,
       );
       _ref.read(driverRealTimeProvider.notifier).startToDestination();
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(
+        isLoading: false,
+        error: _cleanError(error, fallback: 'Не удалось начать поездку'),
+      );
     }
   }
 
@@ -356,9 +389,12 @@ class DriverNotifier extends StateNotifier<DriverState> {
       );
       _ref.read(driverRealTimeProvider.notifier).completeOrder();
       _startPaymentPolling(activeOrder.id);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(
+        isLoading: false,
+        error: _cleanError(error, fallback: 'Не удалось завершить заказ'),
+      );
     }
   }
 
@@ -390,15 +426,10 @@ class DriverNotifier extends StateNotifier<DriverState> {
   Future<void> _updateOrderStatus(String status) async {
     final activeOrder = state.activeOrder;
     if (activeOrder == null) return;
-    try {
-      await _driverRepository.updateOrderStatus(
-        orderId: activeOrder.id,
-        status: status,
-      );
-    } catch (error) {
-      state = state.copyWith(error: 'Не удалось обновить заказ: $error');
-      rethrow;
-    }
+    await _driverRepository.updateOrderStatus(
+      orderId: activeOrder.id,
+      status: status,
+    );
   }
 
   Future<void> _loadCurrentOffer() async {

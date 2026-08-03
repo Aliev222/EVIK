@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -102,7 +103,9 @@ class _OrderReviewScreenState extends ConsumerState<OrderReviewScreen> {
     } catch (e) {
       if (mounted) {
         String msg = 'Ошибка отправки отзыва';
-        if (e.toString().contains('409')) {
+        if (e is ApiClientException && e.statusCode == 0) {
+          msg = 'Нет подключения к интернету — проверьте соединение';
+        } else if (e.toString().contains('409')) {
           msg = 'Вы уже оставили отзыв по этому заказу';
         }
         _showError(msg);

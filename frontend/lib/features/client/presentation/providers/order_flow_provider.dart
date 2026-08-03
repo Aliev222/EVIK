@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -239,13 +240,15 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     }
   }
 
-  void cancelSearch() {
+  Future<bool> cancelSearch() async {
     _searchTimer?.cancel();
     _driverFoundTimer?.cancel();
     _orderPollTimer?.cancel();
     final orderNotifier = _ref.read(orderProvider.notifier);
-    unawaited(orderNotifier.cancelCurrentOrder(reason: 'Отменено клиентом'));
+    final cancelled =
+        await orderNotifier.cancelCurrentOrder(reason: 'Отменено клиентом');
     resetFlow();
+    return cancelled;
   }
 
   void clearError() {
@@ -300,6 +303,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       _beginDriverSearchTimers(created.id);
       state = state.copyWith(idempotencyKey: null);
       return true;
+    } on ApiClientException catch (error) {
+      _handleSearchError(
+        error.statusCode == 0
+            ? 'Нет подключения к интернету — проверьте соединение'
+            : 'Не удалось создать заказ: ${error.message}',
+      );
+      return false;
     } catch (error) {
       _handleSearchError('Ошибка при поиске водителя. Попробуйте снова.');
       return false;
