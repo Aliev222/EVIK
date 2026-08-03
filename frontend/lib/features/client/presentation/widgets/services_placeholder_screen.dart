@@ -61,6 +61,8 @@ class ServicesPlaceholderScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            const _RoadmapAnnouncement(),
+            const SizedBox(height: 20),
             ..._services.map((service) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _ServiceCard(service: service),
@@ -202,6 +204,94 @@ class _PartnerSection extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoadmapAnnouncement extends StatelessWidget {
+  const _RoadmapAnnouncement();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AvroClientColors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AvroClientColors.accent.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AvroClientColors.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.handshake_rounded,
+              color: AvroClientColors.accent,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Скоро — партнёры вашего города',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AvroClientColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AvroClientColors.accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'скоро',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AvroClientColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Автосервисы, шиномонтаж, выездные мастера и доставка '
+                  'топлива. Мы подключаем их к Авро — заказ будет '
+                  'оформляться в пару нажатий.',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: AvroClientColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

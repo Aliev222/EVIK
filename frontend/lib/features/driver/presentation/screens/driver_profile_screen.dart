@@ -9,6 +9,7 @@ import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
 import 'package:tow_truck_frontend/features/review/presentation/providers/review_provider.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 
 // Provider for driver profile data
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
@@ -302,39 +303,57 @@ class DriverProfileScreen extends ConsumerWidget {
               _ProfileMenuItem(
                 icon: Icons.description_outlined,
                 title: 'Документы',
-                subtitle: 'Загрузите документы в разделе верификации',
-                onTap: () => _showDriverFeature(context, 'Документы', const [
-                  'Загрузите документы в разделе верификации',
-                ]),
+                subtitle: 'Паспорт, права, СТС',
+                comingSoon: true,
+                onTap: () => _showDriverFeature(
+                  context,
+                  'Документы',
+                  'Сохранение документов водителя и их загрузка в профиль. '
+                      'Сейчас документы загружаются в разделе верификации.',
+                  const ['Паспорт', 'Водительское удостоверение', 'СТС'],
+                ),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
                 icon: Icons.notifications_outlined,
                 title: 'Уведомления',
                 subtitle: 'Новые заказы, выплаты',
-                onTap: () => _showDriverFeature(context, 'Уведомления', const [
-                  'Новые заказы: включены',
-                  'Выплаты: включены',
-                  'Новости сервиса: отключены',
-                ]),
+                comingSoon: true,
+                onTap: () => _showDriverFeature(
+                  context,
+                  'Уведомления',
+                  'Гибкая настройка оповещений: новые заказы, выплаты и '
+                      'новости сервиса — где и как вам удобно.',
+                  const ['Новые заказы', 'Выплаты', 'Новости сервиса'],
+                ),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
                 icon: Icons.credit_card_outlined,
                 title: 'Реквизиты',
-                subtitle: 'Карта не привязана',
-                onTap: () => _showDriverFeature(context, 'Реквизиты', const [
-                  'Карта не привязана',
-                ]),
+                subtitle: 'Получение выплат за заказы',
+                comingSoon: true,
+                onTap: () => _showDriverFeature(
+                  context,
+                  'Реквизиты',
+                  'Привязка банковской карты или реквизитов счёта для '
+                      'автоматического получения выплат за выполненные заказы.',
+                  const ['Привязать карту', 'Автовыплаты'],
+                ),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
                 icon: Icons.security_outlined,
                 title: 'Страхование',
-                subtitle: 'Страховка не загружена',
-                onTap: () => _showDriverFeature(context, 'Страхование', const [
-                  'Страховка не загружена',
-                ]),
+                subtitle: 'ОСАГО, КАСКО',
+                comingSoon: true,
+                onTap: () => _showDriverFeature(
+                  context,
+                  'Страхование',
+                  'Загрузка полиса ОСАГО или КАСКО для допуска к заказам. '
+                      'Страховка не загружена.',
+                  const ['ОСАГО', 'КАСКО'],
+                ),
               ),
               const SizedBox(height: 12),
               _ProfileMenuItem(
@@ -348,12 +367,14 @@ class DriverProfileScreen extends ConsumerWidget {
                 icon: Icons.support_agent_outlined,
                 title: 'Поддержка водителей',
                 subtitle: '24/7 • Приоритетная линия',
-                onTap: () =>
-                    _showDriverFeature(context, 'Поддержка водителей', const [
-                  'Чат с диспетчером',
-                  'support@avro.app',
-                  'Вопрос по выплатам',
-                ]),
+                comingSoon: true,
+                onTap: () => _showDriverFeature(
+                  context,
+                  'Поддержка водителей',
+                  'Приоритетная линия для водителей: чат с диспетчером, '
+                      'вопросы по заказам и выплатам.',
+                  const ['Чат с диспетчером', 'support@avro.app'],
+                ),
               ),
             ],
 
@@ -427,10 +448,8 @@ class DriverProfileScreen extends ConsumerWidget {
   void _openVehicleInfo(BuildContext context) => _showDriverFeature(
         context,
         'Мой эвакуатор',
-        const [
-          'Информация об автомобиле',
-          'Загружается из профиля...',
-        ],
+        'Информация об эвакуаторе, выбранном для заказов.',
+        const ['Модель и номер эвакуатора'],
       );
 
   String _getReviewsSubtitle(BuildContext context, WidgetRef ref, String? driverId) {
@@ -454,75 +473,22 @@ class DriverProfileScreen extends ConsumerWidget {
   void _showDriverFeature(
     BuildContext context,
     String title,
-    List<String> options,
+    String description,
+    List<String> items,
   ) {
-    try { HapticFeedback.lightImpact(); } catch (_) {}
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _DriverFeatureSheet(
+    FeatureAnnouncementSheet.show(
+      context,
+      FeatureAnnouncementSheet(
         title: title,
-        options: options,
-      ),
-    );
-  }
-}
-
-class _DriverFeatureSheet extends StatelessWidget {
-  const _DriverFeatureSheet({
-    required this.title,
-    required this.options,
-  });
-
-  final String title;
-  final List<String> options;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AvroDriverColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(child: Text(title, style: EvikTypography.h3)),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...options.map(
-              (option) => Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                decoration: BoxDecoration(
-                  color: AvroDriverColors.background,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AvroDriverColors.border),
-                ),
-                child: Text(
-                  option,
-                  style: EvikTypography.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        icon: Icons.info_outline_rounded,
+        description: description,
+        items: items,
+        accent: AvroDriverColors.accent,
+        background: AvroDriverColors.background,
+        itemBackground: AvroDriverColors.border,
+        textPrimary: AvroDriverColors.textPrimary,
+        textSecondary: AvroDriverColors.grayHint,
+        badge: AvroDriverColors.grayHint,
       ),
     );
   }
@@ -533,12 +499,14 @@ class _ProfileMenuItem extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool comingSoon;
 
   const _ProfileMenuItem({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.comingSoon = false,
   });
 
   @override
@@ -605,6 +573,26 @@ class _ProfileMenuItem extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (comingSoon) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AvroDriverColors.accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'скоро',
+                      style: EvikTypography.bodySmall.copyWith(
+                        color: AvroDriverColors.accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 const Icon(
                   Icons.chevron_right,
                   color: AvroDriverColors.grayHint,

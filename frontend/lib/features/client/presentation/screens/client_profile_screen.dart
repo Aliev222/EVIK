@@ -1,11 +1,12 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/client_wallet_screen.dart';
+import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
+import 'package:tow_truck_frontend/shared/widgets/offline_sos_screen.dart';
 
 class ClientProfileScreen extends ConsumerWidget {
   const ClientProfileScreen({super.key});
@@ -96,7 +97,8 @@ class ClientProfileScreen extends ConsumerWidget {
                   _ProfileTile(
                     icon: Icons.notifications_none,
                     title: 'Уведомления',
-                    subtitle: 'SMS, Push-уведомления',
+                    subtitle: 'Оповещения о статусе заказа',
+                    comingSoon: true,
                     onTap: () => _openNotifications(context),
                   ),
                   const SizedBox(height: 12),
@@ -110,7 +112,8 @@ class ClientProfileScreen extends ConsumerWidget {
                   _ProfileTile(
                     icon: Icons.chat_bubble_outline,
                     title: 'Поддержка',
-                    subtitle: 'Чат, email, телефон',
+                    subtitle: 'Связь с оператором Авро',
+                    comingSoon: true,
                     onTap: () => _openSupport(context),
                   ),
                   const SizedBox(height: 12),
@@ -179,136 +182,46 @@ class ClientProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _openNotifications(BuildContext context) => _showFeatureSheet(
-        context,
-        'Уведомления',
-        Icons.notifications_none,
-        const ['Push-уведомления', 'SMS о заказах', 'Новости и акции'],
-      );
-
-  void _openEmergency(BuildContext context) => _showFeatureSheet(
-        context,
-        'Экстренная связь',
-        Icons.health_and_safety_outlined,
-        const ['112', 'ГИБДД', 'Скорая помощь'],
-      );
-
-  void _openSupport(BuildContext context) => _showFeatureSheet(
-        context,
-        'Поддержка',
-        Icons.chat_bubble_outline,
-        const ['Чат с оператором', 'Позвонить в поддержку', 'Написать email'],
-      );
-
-  void _showFeatureSheet(
-    BuildContext context,
-    String title,
-    IconData icon,
-    List<String> options,
-  ) {
-    try { HapticFeedback.lightImpact(); } catch (_) {}
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _FeatureBottomSheet(
-        title: title,
-        icon: icon,
-        options: options,
+  void _openNotifications(BuildContext context) {
+    FeatureAnnouncementSheet.show(
+      context,
+      const FeatureAnnouncementSheet(
+        title: 'Уведомления',
+        icon: Icons.notifications_none,
+        description:
+            'Будем сообщать о статусе заказа: push и SMS, когда эвакуатор '
+            'назначен, в пути и работа завершена.',
+        items: [
+          'Push-уведомления о заказе',
+          'SMS о статусе эвакуатора',
+          'Новости и акции',
+        ],
       ),
     );
   }
-}
 
-class _FeatureBottomSheet extends StatelessWidget {
-  const _FeatureBottomSheet({
-    required this.title,
-    required this.icon,
-    required this.options,
-  });
-
-  final String title;
-  final IconData icon;
-  final List<String> options;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SheetFrame(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AvroClientColors.surface,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: AvroClientColors.accent),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(title, style: EvikTypography.h3)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...options.map(
-              (option) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: ListTile(
-                  minTileHeight: 54,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  tileColor: AvroClientColors.surface,
-                  title: Text(
-                    option,
-                    style: EvikTypography.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  trailing: Text(
-                    'Скоро',
-                    style: EvikTypography.bodySmall.copyWith(
-                      color: AvroClientColors.tabInactive,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  onTap: () {
-                    try { HapticFeedback.lightImpact(); } catch (_) {}
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('$option будет доступно позже.')),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
+  void _openEmergency(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const OfflineSosScreen(isSosOnly: true),
       ),
     );
   }
-}
 
-class _SheetFrame extends StatelessWidget {
-  const _SheetFrame({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: AvroClientColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: child,
+  void _openSupport(BuildContext context) {
+    FeatureAnnouncementSheet.show(
+      context,
+      const FeatureAnnouncementSheet(
+        title: 'Поддержка',
+        icon: Icons.chat_bubble_outline,
+        description:
+            'Оператор поможет с заказом, оплатой и нештатными ситуациями: '
+            'чат, звонок или email.',
+        items: [
+          'Чат с оператором',
+          'Позвонить в поддержку',
+          'Написать email',
+        ],
       ),
     );
   }
@@ -320,12 +233,14 @@ class _ProfileTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.comingSoon = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
@@ -376,6 +291,26 @@ class _ProfileTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (comingSoon) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AvroClientColors.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'скоро',
+                    style: EvikTypography.bodySmall.copyWith(
+                      color: AvroClientColors.accent,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               const Icon(Icons.chevron_right, color: AvroClientColors.tabInactive),
             ],
           ),

@@ -12,6 +12,8 @@ import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
+import 'package:tow_truck_frontend/shared/widgets/offline_sos_screen.dart';
+import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 
 enum _LocationState { initial, determining, unavailable, available }
 
@@ -189,26 +191,30 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     context.push('/order/pickup');
   }
 
-  void _showComingSoon(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AvroClientColors.background,
-            ),
-          ),
-          backgroundColor: AvroClientColors.textPrimary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+  void _openSos() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const OfflineSosScreen(isSosOnly: true),
+      ),
+    );
+  }
+
+  void _openNotificationsAnnouncement() {
+    FeatureAnnouncementSheet.show(
+      context,
+      const FeatureAnnouncementSheet(
+        title: 'Уведомления',
+        icon: Icons.notifications_none_rounded,
+        description:
+            'Будем сообщать о статусе заказа: когда эвакуатор назначен, '
+            'в пути и работа завершена.',
+        items: [
+          'Push-уведомления о заказе',
+          'SMS о статусе эвакуатора',
+          'Новости и акции',
+        ],
+      ),
+    );
   }
 
   @override
@@ -238,8 +244,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Header(
-                  onNotificationsPressed: () =>
-                      _showComingSoon('Уведомления — скоро будет доступно'),
+                  onNotificationsPressed: _openNotificationsAnnouncement,
                 ),
                 if (outsideServiceArea) ...[
                   const SizedBox(height: 8),
@@ -252,10 +257,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 62,
-                  child: _SosSlider(
-                    onConfirmed: () =>
-                        _showComingSoon('SOS — скоро будет доступно'),
-                  ),
+                  child: _SosSlider(onConfirmed: _openSos),
                 ),
                 const SizedBox(height: 8),
                 Flexible(
@@ -537,13 +539,33 @@ class _QuickServicesGrid extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Быстрые услуги',
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AvroClientColors.textPrimary,
-          ),
+        Row(
+          children: [
+            Text(
+              'Быстрые услуги',
+              style: GoogleFonts.inter(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AvroClientColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AvroClientColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'скоро',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AvroClientColors.accent,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Expanded(

@@ -8,6 +8,7 @@ import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 
 class ServiceDetailScreen extends ConsumerStatefulWidget {
   const ServiceDetailScreen({
@@ -80,26 +81,25 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
     }
   }
 
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Скоро будет доступно',
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AvroClientColors.background,
-            ),
-          ),
-          backgroundColor: AvroClientColors.textPrimary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+  void _showPartnerNetworkAnnouncement() {
+    FeatureAnnouncementSheet.show(
+      context,
+      const FeatureAnnouncementSheet(
+        title: 'Партнёры Авро',
+        icon: Icons.handshake_rounded,
+        description:
+            'Вызвать мастера пока нельзя — мы подключаем к Авро партнёров '
+            'вашего города: автосервисы, шиномонтаж, выездных мастеров и '
+            'доставку топлива. Как только мастера появятся в вашем городе, '
+            'заказ будет оформляться в пару нажатий.',
+        items: [
+          'Автосервисы и СТО',
+          'Шиномонтаж',
+          'Выездные мастера',
+          'Доставка топлива',
+        ],
+      ),
+    );
   }
 
   @override
@@ -230,7 +230,7 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _showComingSoon,
+                  onPressed: _showPartnerNetworkAnnouncement,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AvroClientColors.accent,
                     foregroundColor: AvroClientColors.background,
@@ -286,7 +286,7 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
               ),
               const SizedBox(height: 32),
               Text(
-                'Скоро здесь появятся\nмастера вашего города',
+                'Скоро к Авро подключатся партнёры\nвашего города: автосервисы и выездные мастера',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   fontSize: 13,
