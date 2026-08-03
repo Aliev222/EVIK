@@ -69,8 +69,8 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   bool _locationErrorShown = false;
 
   LatLng get _initialCenter => LatLng(
-        widget.initialLat ?? AppConstants.moscowLat,
-        widget.initialLng ?? AppConstants.moscowLng,
+        widget.initialLat ?? AppConstants.makhachkalaLat,
+        widget.initialLng ?? AppConstants.makhachkalaLng,
       );
 
   @override

@@ -219,8 +219,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         ref.watch(orderFlowProvider.select((state) => state.isLoading));
     final serviceArea = ref.watch(serviceAreaProvider);
     final address = location?.displayAddress ?? 'Адрес не определён';
-    final lat = location?.latitude ?? AppConstants.moscowLat;
-    final lng = location?.longitude ?? AppConstants.moscowLng;
+    final lat = location?.latitude ?? AppConstants.makhachkalaLat;
+    final lng = location?.longitude ?? AppConstants.makhachkalaLng;
 
     final locationUnavailable = _locationState == _LocationState.unavailable;
     final outsideServiceArea =

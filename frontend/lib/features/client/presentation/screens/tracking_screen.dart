@@ -31,6 +31,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
     with TickerProviderStateMixin {
   DriverLocationUpdate? _latestDriverLocation;
   String? _estimatedArrival;
+  double? _routeDurationSeconds;
 
   late AnimationController _markerAnimController;
   LatLng? _prevDriverPos;
@@ -187,6 +188,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         _lastRouteLat = update.lat;
         _lastRouteLng = update.lng;
         _lastRouteTime = DateTime.now();
+        _routeDurationSeconds = route?.durationSeconds;
+        _estimatedArrival = _calculateETA(update);
       });
       debugPrint('[TRACKING] _routePoints set to ${_routePoints.length} points');
       if (!_firstRouteFitted) {
@@ -238,12 +241,22 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   String _calculateETA(DriverLocationUpdate driverUpdate) {
     switch (driverUpdate.status) {
       case DriverMarkerStatus.toPickup:
-        return '5-10 мин';
+        final duration = _routeDurationSeconds;
+        if (duration == null || duration <= 0) return 'время уточняется';
+        return _formatDuration(duration);
       case DriverMarkerStatus.waiting:
         return 'прибыл';
       case DriverMarkerStatus.toDestination:
         return 'едет к месту назначения';
     }
+  }
+
+  String _formatDuration(double seconds) {
+    final minutes = (seconds / 60).round();
+    if (minutes < 1) return 'менее 1 мин';
+    if (minutes <= 60) return '~$minutes мин';
+    final hours = minutes / 60;
+    return '~${hours.toStringAsFixed(1)} ч';
   }
 
   @override

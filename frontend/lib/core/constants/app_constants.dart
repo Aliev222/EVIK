@@ -52,8 +52,8 @@
     'truck': 2.0,
   };
 
-  static const double moscowLat = 55.7558;
-  static const double moscowLng = 37.6173;
+  static const double makhachkalaLat = 42.9849;
+  static const double makhachkalaLng = 47.5047;
 
   static const List<String> activeOrderStatuses = <String>[
     'searching',

@@ -635,7 +635,7 @@ class _TowTruckCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '~${_durationLabel(towTruck)}',
+                    'Время в пути зависит от маршрута',
                     style: EvikTypography.bodySmall.copyWith(
                       color: AvroClientColors.tabInactive,
                     ),
@@ -655,17 +655,6 @@ class _TowTruckCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _durationLabel(TowTruckType type) {
-    switch (type) {
-      case TowTruckType.winch:
-        return '1 час 22 минуты';
-      case TowTruckType.platform:
-        return '1 час 40 минут';
-      case TowTruckType.manipulator:
-        return '2 часа 10 минут';
-    }
   }
 }
 

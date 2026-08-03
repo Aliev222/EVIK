@@ -104,8 +104,8 @@ class _ServiceDetailScreenState extends ConsumerState<ServiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayLat = _lat ?? AppConstants.moscowLat;
-    final displayLng = _lng ?? AppConstants.moscowLng;
+    final displayLat = _lat ?? AppConstants.makhachkalaLat;
+    final displayLng = _lng ?? AppConstants.makhachkalaLng;
     final showLocationWarning = _locationUnavailable && !_loading;
     return Scaffold(
       backgroundColor: AvroClientColors.background,

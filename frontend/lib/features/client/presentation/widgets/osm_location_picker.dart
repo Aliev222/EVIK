@@ -47,8 +47,8 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   @override
   void initState() {
     super.initState();
-    _selectedLat = widget.initialLocation?.latitude ?? AppConstants.moscowLat;
-    _selectedLng = widget.initialLocation?.longitude ?? AppConstants.moscowLng;
+    _selectedLat = widget.initialLocation?.latitude ?? AppConstants.makhachkalaLat;
+    _selectedLng = widget.initialLocation?.longitude ?? AppConstants.makhachkalaLng;
     _selectedAddress =
         widget.initialLocation?.displayAddress ?? widget.initialAddress;
     _addressController = TextEditingController();

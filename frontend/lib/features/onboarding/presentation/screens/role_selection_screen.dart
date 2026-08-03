@@ -39,13 +39,13 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       tag: 'Для владельцев авто',
       icon: 'assets/img/rolecar.png',
       title: 'Нужен\nэвакуатор?',
-      subtitle: 'Вызовите за 30 секунд.\nВодитель приедет\nв течение 15 минут.',
+      subtitle: 'Вызовите эвакуатор онлайн.\nСледите за водителем\nна карте в реальном времени.',
       ctaText: 'Вызвать эвакуатор',
       switchLabel: 'Я водитель ->',
       stats: [
-        _RoleStat(value: '< 15\nмин', label: 'среднее\nвремя'),
-        _RoleStat(value: '4.9 ★', label: 'рейтинг'),
-        _RoleStat(value: '24/7', label: 'работаем'),
+        _RoleStat(value: 'GPS', label: 'трекинг\nводителя'),
+        _RoleStat(value: 'Онлайн', label: 'оплата\nкартой'),
+        _RoleStat(value: 'Чек', label: 'после\nоплаты'),
       ],
     ),
     _RoleData(
@@ -56,13 +56,13 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       icon: 'assets/img/rolecar2.png',
       title: 'Зарабатывай\nна эвакуации',
       subtitle:
-          'Принимай заказы поблизости.\nСвободный график,\nстабильный доход.',
+          'Принимай заказы поблизости.\nСвободный график,\nпрозрачный заработок.',
       ctaText: 'Начать работать',
       switchLabel: '<- Я клиент',
       stats: [
-        _RoleStat(value: '6 200 ₽', label: 'в среднем\nв день'),
-        _RoleStat(value: '148', label: 'заказов\nв мес'),
-        _RoleStat(value: 'Свой', label: 'график'),
+        _RoleStat(value: 'Гибкий', label: 'график'),
+        _RoleStat(value: 'Вывод', label: 'на карту'),
+        _RoleStat(value: 'Прозрачно', label: 'комиссия'),
       ],
     ),
   ];
