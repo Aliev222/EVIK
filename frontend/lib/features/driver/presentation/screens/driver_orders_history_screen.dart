@@ -7,51 +7,20 @@ import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/skeleton_card.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/order_history_item.dart';
+import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 
-// Пример истории заказов
-final driverOrderHistoryProvider = Provider<List<OrderHistoryItem>>((ref) {
-  return [
-    OrderHistoryItem(
-      id: '1',
-      date: DateTime.parse('2024-04-24 09:10'),
-      vehicleModel: 'Toyota Camry',
-      pickupAddress: 'Ленинский пр. 4',
-      dropoffAddress: 'СТО Мотор, Вавилова',
-      duration: 42,
-      earnings: 2300,
-      status: OrderHistoryStatus.completed,
-    ),
-    OrderHistoryItem(
-      id: '2',
-      date: DateTime.parse('2024-04-23 17:44'),
-      vehicleModel: 'Porsche Cayenne',
-      pickupAddress: 'ул. Арбат, 22',
-      dropoffAddress: 'Дилерский центр, Варшавка',
-      duration: 58,
-      earnings: 3800,
-      status: OrderHistoryStatus.completed,
-    ),
-    OrderHistoryItem(
-      id: '3',
-      date: DateTime.parse('2024-04-23 15:30'),
-      vehicleModel: 'Mercedes GLE',
-      pickupAddress: 'Рублёвское ш. 14',
-      dropoffAddress: 'Парковка ТЦ Крокус',
-      duration: 0,
-      earnings: 0,
-      status: OrderHistoryStatus.cancelled,
-    ),
-    OrderHistoryItem(
-      id: '4',
-      date: DateTime.parse('2024-04-22 11:00'),
-      vehicleModel: 'Lada Granta',
-      pickupAddress: 'ул. Большая Дмитровка',
-      dropoffAddress: 'Кузовной цех №1',
-      duration: 35,
-      earnings: 1900,
-      status: OrderHistoryStatus.completed,
-    ),
-  ];
+final driverOrderHistoryProvider =
+    FutureProvider<List<OrderHistoryItem>>((ref) async {
+  final repository = ref.watch(orderRepositoryProvider);
+
+  final completedOrders = await repository.getOrdersByStatus('completed');
+  final cancelledOrders = await repository.getOrdersByStatus('cancelled');
+
+  final allOrders = <Order>[...completedOrders, ...cancelledOrders];
+  allOrders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+  return allOrders.map((order) => OrderHistoryItem.fromOrder(order)).toList();
 });
 
 enum DriverHistoryState { loading, empty, loaded, error }
@@ -68,11 +37,9 @@ class DriverOrdersHistoryScreen extends ConsumerStatefulWidget {
 
 class _DriverOrdersHistoryScreenState
     extends ConsumerState<DriverOrdersHistoryScreen> {
-  DriverHistoryState _state = DriverHistoryState.loaded;
-
   @override
   Widget build(BuildContext context) {
-    final orders = ref.watch(driverOrderHistoryProvider);
+    final ordersAsync = ref.watch(driverOrderHistoryProvider);
 
     return Scaffold(
       backgroundColor: AvroDriverColors.background,
@@ -97,79 +64,36 @@ class _DriverOrdersHistoryScreenState
           splashRadius: 24,
           padding: const EdgeInsets.all(8),
         ),
-        actions: [
-          _DriverHistoryStateAction(
-            label: 'Empty',
-            onTap: () => setState(() => _state = DriverHistoryState.empty),
-          ),
-          _DriverHistoryStateAction(
-            label: 'Loading',
-            onTap: () => setState(() => _state = DriverHistoryState.loading),
-          ),
-          _DriverHistoryStateAction(
-            label: 'Error',
-            onTap: () => setState(() => _state = DriverHistoryState.error),
-          ),
-          _DriverHistoryStateAction(
-            label: 'Loaded',
-            onTap: () => setState(() => _state = DriverHistoryState.loaded),
-          ),
-        ],
       ),
-      body: _buildBody(orders),
-    );
-  }
-
-  Widget _buildBody(List<OrderHistoryItem> orders) {
-    switch (_state) {
-      case DriverHistoryState.loading:
-        return ListView.builder(
+      body: ordersAsync.when(
+        loading: () => ListView.builder(
           padding: const EdgeInsets.only(top: 8, bottom: 100),
           itemCount: 5,
           itemBuilder: (_, __) => const SkeletonCard(height: 128),
-        );
-      case DriverHistoryState.empty:
-        return EmptyState(
-          icon: Icons.local_shipping_outlined,
-          title: 'Пока заказов нет',
-          subtitle: 'Включите статус «Онлайн» чтобы получать заказы',
-          buttonText: 'Перейти на главную',
-          onButtonTap: widget.onGoHome,
-        );
-      case DriverHistoryState.error:
-        return ErrorState(
-          message: 'История заказов временно недоступна.',
-          onRetry: () => setState(() => _state = DriverHistoryState.loading),
-        );
-      case DriverHistoryState.loaded:
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-          itemCount: orders.length,
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return _OrderHistoryCard(order: order);
-          },
-        );
-    }
-  }
-}
-
-class _DriverHistoryStateAction extends StatelessWidget {
-  const _DriverHistoryStateAction({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton(
-      onPressed: onTap,
-      child: Text(
-        label,
-        style: EvikTypography.bodySmall.copyWith(
-          color: AvroDriverColors.accent,
-          fontWeight: FontWeight.w800,
         ),
+        error: (error, _) => ErrorState(
+          message: 'История заказов временно недоступна.',
+          onRetry: () => ref.invalidate(driverOrderHistoryProvider),
+        ),
+        data: (orders) {
+          if (orders.isEmpty) {
+            return EmptyState(
+              icon: Icons.local_shipping_outlined,
+              title: 'Пока заказов нет',
+              subtitle: 'Включите статус «Онлайн» чтобы получать заказы',
+              buttonText: 'Перейти на главную',
+              onButtonTap: widget.onGoHome,
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+            itemCount: orders.length,
+            itemBuilder: (context, index) {
+              final order = orders[index];
+              return _OrderHistoryCard(order: order);
+            },
+          );
+        },
       ),
     );
   }

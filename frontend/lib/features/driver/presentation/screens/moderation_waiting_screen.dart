@@ -1,9 +1,75 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_verification_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/moderation_polling_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/screens/driver_main_screen.dart';
 
-class ModerationWaitingScreen extends StatelessWidget {
+class ModerationWaitingScreen extends ConsumerStatefulWidget {
   const ModerationWaitingScreen({super.key});
+
+  @override
+  ConsumerState<ModerationWaitingScreen> createState() =>
+      _ModerationWaitingScreenState();
+}
+
+class _ModerationWaitingScreenState
+    extends ConsumerState<ModerationWaitingScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final userId = ref.read(authProvider).user?.id;
+      if (userId != null) {
+        ref.invalidate(autoRefreshingVerificationStatusProvider(userId));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = ref.watch(authProvider).user?.id;
+
+    if (userId == null) {
+      return const _WaitingContent();
+    }
+
+    ref.watch(autoModerationPollingProvider);
+
+    final verificationStatusAsync =
+        ref.watch(autoRefreshingVerificationStatusProvider(userId));
+
+    verificationStatusAsync.whenData((status) {
+      if (status.status == 'approved' && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const DriverMainScreen()),
+            (route) => route.isFirst,
+          );
+        });
+      }
+    });
+
+    return const _WaitingContent();
+  }
+}
+
+class _WaitingContent extends StatelessWidget {
+  const _WaitingContent();
 
   @override
   Widget build(BuildContext context) {

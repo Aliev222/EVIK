@@ -143,6 +143,18 @@ class HttpOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<List<Order>> getOrdersByStatus(String status) async {
+    final response = await _apiClient.get(
+      '/api/v1/orders?status=$status&limit=100',
+      headers: _authHeaders,
+    );
+    final ordersData = response['orders'] as List<dynamic>? ?? const [];
+    return ordersData
+        .map((data) => Order.fromMap(data as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
   Future<Order?> getOrder(String orderId) async {
     final response = await _apiClient.get(
       '/api/v1/orders/$orderId',

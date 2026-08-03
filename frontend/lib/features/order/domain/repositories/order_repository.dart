@@ -75,6 +75,9 @@ abstract class OrderRepository {
   /// Получить историю заказов пользователя
   Future<List<Order>> getOrders();
 
+  /// Получить заказы по статусу (для истории водителя)
+  Future<List<Order>> getOrdersByStatus(String status);
+
   /// Получить тарифы для всех типов эвакуаторов (цены в копейках)
   Future<List<Tariff>> getTariffs();
 

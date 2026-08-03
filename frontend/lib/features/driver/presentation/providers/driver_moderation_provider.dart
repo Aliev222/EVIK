@@ -1,6 +1,9 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_verification_provider.dart';
 
 enum DriverModerationStatus {
   pending,
@@ -61,27 +64,56 @@ class DriverVerificationDocument {
       case 'approved':
         return DriverModerationStatus.approved;
       case 'rejected':
+      case 'blocked':
         return DriverModerationStatus.rejected;
       default:
         return DriverModerationStatus.pending;
     }
   }
+
+  factory DriverVerificationDocument.fromVerificationStatus(
+      DriverVerificationStatus status) {
+    final documentUrls = <String, String>{};
+    status.documentsUploaded.forEach((key, doc) {
+      documentUrls[key] = doc.url;
+    });
+
+    return DriverVerificationDocument(
+      userId: status.driverId,
+      fullName: '',
+      vehicleModel: '',
+      vehicleNumber: '',
+      vehicleType: 'light',
+      documentUrls: documentUrls,
+      status: _parseStatus(status.status),
+      submittedAt: status.submittedAt ?? DateTime.now(),
+      reviewedAt: status.updatedAt,
+      rejectionReason: status.adminComments,
+    );
+  }
 }
 
 final watchDriverModerationProvider =
     StreamProvider.family<DriverVerificationDocument?, String>((ref, userId) {
-  return Stream<DriverVerificationDocument?>.value(
-    DriverVerificationDocument(
+  final verificationStatusAsync =
+      ref.watch(autoRefreshingVerificationStatusProvider(userId));
+
+  final doc = verificationStatusAsync.when(
+    data: (status) => DriverVerificationDocument.fromVerificationStatus(status),
+    loading: () => null,
+    error: (_, __) => DriverVerificationDocument(
       userId: userId,
-      fullName: 'Авро Driver',
-      vehicleModel: 'Эвакуатор Авро',
+      fullName: '',
+      vehicleModel: '',
       vehicleNumber: '',
       vehicleType: 'light',
       documentUrls: const <String, String>{},
-      status: DriverModerationStatus.approved,
+      status: DriverModerationStatus.pending,
       submittedAt: DateTime.now(),
     ),
   );
+
+  return Stream<DriverVerificationDocument?>.value(doc);
 });
 
 final currentDriverModerationProvider =
