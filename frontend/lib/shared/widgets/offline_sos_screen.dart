@@ -340,7 +340,9 @@ class _OfflineSosScreenState extends ConsumerState<OfflineSosScreen> {
                       lng: lng,
                       title: 'Ваши координаты',
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+                    const _SosStepsCard(),
+                    const SizedBox(height: 20),
                     _SosButton(
                       label: 'Позвонить 112',
                       icon: Icons.phone_rounded,
@@ -523,5 +525,119 @@ class _SosCoordsCard extends StatelessWidget {
     final deg = value.abs().floor();
     final min = ((value.abs() - deg) * 60);
     return '$deg°${min.toStringAsFixed(2)}';
+  }
+}
+
+class _SosStepsCard extends StatelessWidget {
+  const _SosStepsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    const steps = <_SosStep>[
+      _SosStep(
+        title: 'Позвоните по 112',
+        detail: 'Работает без интернета и без денег на счёте.',
+      ),
+      _SosStep(
+        title: 'Назовите координаты',
+        detail: 'Они определены по GPS и видны на экране.',
+      ),
+      _SosStep(
+        title: 'Оставайтесь на месте',
+        detail: 'Если это безопасно.',
+      ),
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AvroClientColors.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Как действовать',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AvroClientColors.tabInactive,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < steps.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _SosStepRow(number: i + 1, step: steps[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SosStep {
+  const _SosStep({required this.title, required this.detail});
+
+  final String title;
+  final String detail;
+}
+
+class _SosStepRow extends StatelessWidget {
+  const _SosStepRow({required this.number, required this.step});
+
+  final int number;
+  final _SosStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: AvroClientColors.sosRed.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '$number',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: AvroClientColors.sosRed,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                step.title,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AvroClientColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                step.detail,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: AvroClientColors.textSecondary,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
