@@ -550,47 +550,58 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       final orderId = prefs.getString(_activeOrderIdKey);
       if (orderId == null || orderId.isEmpty) return;
 
-      final repo = _ref.read(orderRepositoryProvider);
-      final order = await repo.getOrder(orderId);
-      if (!mounted || order == null) return;
+      if (!mounted) return;
 
-      _syncOrderLocations(order);
-      state = state.copyWith(
-        activeOrder: order,
-        currentStep: order.status == OrderStatus.completed
-            ? OrderFlowStep.completion
-            : _stepForRestoredOrder(order),
-        estimatedPrice: order.finalPrice ?? order.estimatedPrice,
-        isLoading: false,
-      );
+      try {
+        final repo = _ref.read(orderRepositoryProvider);
+        final order = await repo.getOrder(orderId);
+        if (!mounted || order == null) return;
 
-      if (repo is HttpOrderRepository) {
-        try {
-          final payment = await repo.getOrderPaymentStatus(orderId);
-          final priceRub = payment.amount / 100;
-          state = state.copyWith(
-            activeOrder: order.copyWith(
+        _syncOrderLocations(order);
+        state = state.copyWith(
+          activeOrder: order,
+          currentStep: order.status == OrderStatus.completed
+              ? OrderFlowStep.completion
+              : _stepForRestoredOrder(order),
+          estimatedPrice: order.finalPrice ?? order.estimatedPrice,
+          isLoading: false,
+        );
+
+        if (repo is HttpOrderRepository) {
+          try {
+            final payment = await repo.getOrderPaymentStatus(orderId);
+            if (!mounted) return;
+            final priceRub = payment.amount / 100;
+            state = state.copyWith(
+              activeOrder: order.copyWith(
+                estimatedPrice: priceRub,
+                finalPrice: priceRub,
+                paymentMethod: payment.paymentMethod,
+                paymentId: payment.id,
+                paymentStatus: payment.status,
+                paymentConfirmationUrl: payment.confirmationUrl,
+              ),
+              selectedPaymentMethod: payment.paymentMethod,
               estimatedPrice: priceRub,
-              finalPrice: priceRub,
-              paymentMethod: payment.paymentMethod,
-              paymentId: payment.id,
-              paymentStatus: payment.status,
-              paymentConfirmationUrl: payment.confirmationUrl,
-            ),
-            selectedPaymentMethod: payment.paymentMethod,
-            estimatedPrice: priceRub,
-          );
-          _ref.read(selectedOrderPaymentMethodProvider.notifier).state =
-              payment.paymentMethod;
-        } catch (_) {
-          // Order restore is still useful if the payment endpoint is transiently unavailable.
+            );
+            _ref.read(selectedOrderPaymentMethodProvider.notifier).state =
+                payment.paymentMethod;
+          } catch (_) {
+            // Order restore is still useful if the payment endpoint is transiently unavailable.
+          }
         }
-      }
 
-      if (order.status == OrderStatus.completed) {
-        await loadReceipt(orderId);
-      } else {
-        _beginDriverSearchTimers(orderId);
+        if (order.status == OrderStatus.completed) {
+          await loadReceipt(orderId);
+        } else {
+          _beginDriverSearchTimers(orderId);
+        }
+      } catch (_) {
+        // Transient error fetching order; clear persisted ID so we don't
+        // retry indefinitely on each launch.
+        if (mounted) {
+          await _clearPersistedActiveOrder();
+        }
       }
     } catch (_) {
       // Restore is best-effort; a failed restore must not block a new order.

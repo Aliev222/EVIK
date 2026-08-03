@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -59,7 +61,8 @@ void main() async {
       .setRouteHandler(EvikApp.navigateFromNotification);
   PushNotificationService.instance
       .setCurrentRouteResolver(EvikApp.currentRoute);
-  await PushNotificationService.instance.initialize();
+  // Initialize push notifications in background to avoid blocking startup
+  unawaited(PushNotificationService.instance.initialize());
 
   runApp(
     ProviderScope(
@@ -220,6 +223,11 @@ const bool _skipAuthForDevelopment = bool.fromEnvironment(
   defaultValue: false,
 );
 
+const bool _uiPreview = bool.fromEnvironment(
+  'UI_PREVIEW',
+  defaultValue: false,
+);
+
 class _AppRouter extends ConsumerStatefulWidget {
   const _AppRouter({super.key});
 
@@ -236,6 +244,12 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
     // Dev bypass: skip onboarding/auth and land directly on the client main
     // screen. Enabled via --dart-define=EVIK_SKIP_AUTH=true.
     if (_skipAuthForDevelopment) {
+      return _homeFor(UserRole.client);
+    }
+
+    // UI preview mode: land directly on home without persisting state,
+    // ensuring relaunch works cleanly. Enabled via --dart-define=UI_PREVIEW=true.
+    if (_uiPreview) {
       return _homeFor(UserRole.client);
     }
 
