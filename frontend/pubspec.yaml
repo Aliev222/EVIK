@@ -5,6 +5,11 @@ version: 1.0.0+1
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+# Firebase requires iOS 15.0 minimum
+platforms:
+  ios:
 
 dependencies:
   flutter:
