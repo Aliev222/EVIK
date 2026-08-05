@@ -12,6 +12,11 @@ type Service interface {
 	// CalculatePrice calculates the price for an order
 	CalculatePrice(ctx context.Context, input CalculatePriceInput) (*PriceCalculation, error)
 
+	// CalculateAllPrices calculates the price for every active tow truck type
+	// for a single route, so the client receives all type prices in one
+	// estimate response and never recomputes on tow-truck-type switch.
+	CalculateAllPrices(ctx context.Context, input CalculateAllPricesInput) (*AllPricesCalculation, error)
+
 	// GetActiveTariff retrieves the active tariff for a tow truck type
 	GetActiveTariff(ctx context.Context, truckType orderdomain.TowTruckType) (*Tariff, error)
 
@@ -74,6 +79,48 @@ func (s *ServiceImpl) CalculatePrice(ctx context.Context, input CalculatePriceIn
 	calculation.OrderID = input.OrderID
 
 	return calculation, nil
+}
+
+// CalculateAllPrices calculates the price for every active tow truck type for
+// a given route. The distance is computed once and the same DB tariff logic
+// (Tariff.CalculatePrice) is reused for each type — no formula is duplicated.
+func (s *ServiceImpl) CalculateAllPrices(ctx context.Context, input CalculateAllPricesInput) (*AllPricesCalculation, error) {
+	if err := input.IsValid(); err != nil {
+		return nil, err
+	}
+
+	distance, err := s.distCalc.CalculateDistance(
+		input.PickupLat, input.PickupLng,
+		input.DropoffLat, input.DropoffLng,
+	)
+	if err != nil {
+		return nil, ErrDistanceCalculationFailed
+	}
+
+	tariffs, err := s.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.clock.Now()
+	prices := make(map[orderdomain.TowTruckType]*PriceCalculation, len(tariffs))
+	for _, tariff := range tariffs {
+		if tariff == nil || !tariff.IsActive {
+			continue
+		}
+		calculation := tariff.CalculatePrice(distance, now)
+		calculation.OrderID = input.OrderID
+		prices[tariff.TowTruckType] = calculation
+	}
+
+	if len(prices) == 0 {
+		return nil, ErrTariffNotFound
+	}
+
+	return &AllPricesCalculation{
+		DistanceKm: distance,
+		Prices:     prices,
+	}, nil
 }
 
 // GetActiveTariff retrieves the active tariff for a tow truck type

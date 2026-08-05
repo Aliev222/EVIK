@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class InMemoryOrderRepository implements OrderRepository {
@@ -22,9 +21,6 @@ class InMemoryOrderRepository implements OrderRepository {
       _emit();
     }
   }
-
-  @override
-  Future<List<Tariff>> getTariffs() async => const <Tariff>[];
 
   @override
   Future<Order> createOrder(CreateOrderCommand command) async {

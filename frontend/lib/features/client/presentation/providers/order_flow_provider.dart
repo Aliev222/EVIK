@@ -12,7 +12,6 @@ import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dar
 import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
 import 'payment_wallet_provider.dart';
@@ -36,6 +35,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   Timer? _orderPollTimer;
   Timer? _paymentPollTimer;
   int _priceRequestSeq = 0;
+
+  /// Last route (pickup+dropoff) for which server prices were requested.
+  /// Prices are only re-fetched when the route changes; switching the
+  /// tow-truck type uses the cached server prices with zero latency.
+  String? _priceRouteKey;
 
   static const _activeOrderIdKey = 'client_active_order_id';
 
@@ -67,34 +71,6 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       currentStep: OrderFlowStep.vehicleSelection,
       errorMessage: null,
     );
-    unawaited(_loadTariffs());
-  }
-
-  Future<void> _loadTariffs() async {
-    if (state.tariffs.isNotEmpty) return;
-    try {
-      final repo = _ref.read(orderRepositoryProvider);
-      final list = await repo.getTariffs();
-      if (list.isEmpty) return;
-      final map = <TowTruckType, Tariff>{
-        for (final t in list) t.towTruckType: t,
-      };
-      state = state.copyWith(tariffs: map);
-    } catch (_) {
-      // best-effort: ошибка загрузки тарифов не блокирует выбор
-    }
-  }
-
-  /// Локальная оценка цены по уже загруженным тарифам (формула как на бэке:
-  /// base + distance*pricePerKm, минимум minimumPrice, результат в рублях).
-  /// Позволяет показать цену для каждого типа эвакуатора без ожидания сервера.
-  double? localPriceFor(TowTruckType type) {
-    final t = state.tariffs[type];
-    if (t == null || state.distance <= 0) return null;
-    final distanceKopecks = (state.distance * t.pricePerKm);
-    var total = t.basePrice + distanceKopecks;
-    if (total < t.minimumPrice) total = t.minimumPrice.toDouble();
-    return total / 100;
   }
 
   void goToTowTruckSelection() {
@@ -111,6 +87,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   Future<bool> goToDriverSearch() async {
     if (state.selectedTowTruckType == null) {
       state = state.copyWith(errorMessage: 'Выберите тип эвакуатора');
+      return false;
+    }
+    final price = state.serverPrices[state.selectedTowTruckType];
+    if (price == null || price <= 0) {
+      state = state.copyWith(
+        errorMessage: 'Цена недоступна — проверьте соединение',
+      );
       return false;
     }
     if (state.idempotencyKey == null) {
@@ -173,18 +156,18 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       errorMessage: null,
     );
     state = state.copyWith(idempotencyKey: null);
-    unawaited(_updatePrice());
   }
 
   void selectTowTruckType(TowTruckType towTruckType) {
-    final local = localPriceFor(towTruckType);
+    // Instant: show the server price for this type from the cache. Prices are
+    // fixed by the server and never recomputed/refetched on type switch.
+    final price = state.serverPrices[towTruckType];
     state = state.copyWith(
       selectedTowTruckType: towTruckType,
-      estimatedPrice: local ?? state.estimatedPrice,
+      estimatedPrice: price ?? 0,
       errorMessage: null,
     );
     state = state.copyWith(idempotencyKey: null);
-    unawaited(_updatePrice());
   }
 
   void selectPaymentMethod(PaymentMethod paymentMethod) {
@@ -502,44 +485,54 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     unawaited(_updatePrice());
   }
 
+  /// One estimate request returns the price for ALL tow-truck types at once.
+  /// The server is the only price authority; the client caches those prices
+  /// and re-requests only when the route (pickup/dropoff) changes.
   Future<void> _updatePrice() async {
     final pickup = state.pickupLocation;
     final dropoff = state.destinationLocation;
-    final towTruckType = state.selectedTowTruckType;
-    if (pickup == null || dropoff == null || towTruckType == null) return;
+    if (pickup == null || dropoff == null) return;
+
+    final routeKey = '${pickup.latitude},${pickup.longitude}:'
+        '${dropoff.latitude},${dropoff.longitude}';
+    if (routeKey == _priceRouteKey) return;
+    _priceRouteKey = routeKey;
 
     final repo = _ref.read(orderRepositoryProvider);
     if (repo is! HttpOrderRepository) return;
 
     final seq = ++_priceRequestSeq;
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isPriceLoading: true, isPriceUnavailable: false);
     try {
       final quote = await repo.calculatePrice(
         pickup: pickup.toLocationModel(),
         dropoff: dropoff.toLocationModel(),
-        towTruckType: towTruckType,
       );
-      // Игнорируем устаревший ответ, если пользователь успел переключить тип.
+      // Игнорируем устаревший ответ, если маршрут успел измениться.
       if (!mounted) return;
-      if (seq != _priceRequestSeq) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
+      if (seq != _priceRequestSeq) return;
+      final serverPrices = <TowTruckType, double>{
+        for (final entry in quote.prices.entries)
+          entry.key: entry.value / 100,
+      };
+      final selectedPrice = state.selectedTowTruckType == null
+          ? null
+          : serverPrices[state.selectedTowTruckType];
       state = state.copyWith(
         distance: quote.distanceKm,
-        estimatedPrice: quote.totalPrice / 100,
-        isLoading: false,
-        errorMessage: null,
+        serverPrices: serverPrices,
+        estimatedPrice: selectedPrice ?? 0,
+        isPriceLoading: false,
+        isPriceUnavailable: false,
       );
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      if (seq != _priceRequestSeq) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
+      if (seq != _priceRequestSeq) return;
       state = state.copyWith(
-        isLoading: false,
-        errorMessage: 'Не удалось рассчитать цену. Попробуйте позже.',
+        isPriceLoading: false,
+        isPriceUnavailable: true,
+        serverPrices: const {},
+        estimatedPrice: 0,
       );
     }
   }
@@ -693,9 +686,14 @@ final canStartSearchProvider = Provider<bool>((ref) {
 });
 
 final formattedEstimatedPriceProvider = Provider<String>((ref) {
-  final price = ref.watch(orderFlowProvider).estimatedPrice;
-  if (price <= 0) return 'Расчет...';
-  return '${price.round()} ₽';
+  final state = ref.watch(orderFlowProvider);
+  if (state.isPriceUnavailable) {
+    return 'Цена недоступна — проверьте соединение';
+  }
+  if (state.isPriceLoading || state.estimatedPrice <= 0) {
+    return 'Цена рассчитывается…';
+  }
+  return '${state.estimatedPrice.round()} ₽';
 });
 
 final formattedDistanceProvider = Provider<String>((ref) {

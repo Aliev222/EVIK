@@ -106,6 +106,40 @@ func (input CalculatePriceInput) IsValid() error {
 	return nil
 }
 
+// CalculateAllPricesInput represents input for calculating prices for every
+// active tow truck type for a single route. The server is the only price
+// authority: one estimate request returns all type prices at once, so the
+// client never has to recompute on tow-truck-type switch.
+type CalculateAllPricesInput struct {
+	OrderID    string
+	PickupLat  float64
+	PickupLng  float64
+	DropoffLat float64
+	DropoffLng float64
+}
+
+// IsValid validates the input
+func (input CalculateAllPricesInput) IsValid() error {
+	if input.OrderID == "" {
+		return ErrInvalidOrderID
+	}
+	if !isValidCoordinate(input.PickupLat, input.PickupLng) {
+		return ErrInvalidPickupCoordinate
+	}
+	if !isValidCoordinate(input.DropoffLat, input.DropoffLng) {
+		return ErrInvalidDropoffCoordinate
+	}
+	return nil
+}
+
+// AllPricesCalculation is the result of estimating a route for every active
+// tow truck type. Prices are keyed by tow truck type and each entry carries
+// the full breakdown (base + distance, minimum applied).
+type AllPricesCalculation struct {
+	DistanceKm float64
+	Prices     map[orderdomain.TowTruckType]*PriceCalculation
+}
+
 func isValidCoordinate(lat, lng float64) bool {
 	return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
 }

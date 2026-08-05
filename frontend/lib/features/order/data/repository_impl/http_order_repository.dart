@@ -3,7 +3,6 @@
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 
 class HttpOrderRepository implements OrderRepository {
@@ -72,7 +71,6 @@ class HttpOrderRepository implements OrderRepository {
   Future<OrderPriceQuote> calculatePrice({
     required LocationModel pickup,
     required LocationModel dropoff,
-    required TowTruckType towTruckType,
   }) async {
     final response = await _apiClient.post(
       '/api/v1/pricing/calculate',
@@ -81,7 +79,6 @@ class HttpOrderRepository implements OrderRepository {
         'pickup_lng': pickup.lng,
         'dropoff_lat': dropoff.lat,
         'dropoff_lng': dropoff.lng,
-        'tow_truck_type': towTruckType.name,
       },
       headers: _authHeaders,
     );
@@ -114,20 +111,6 @@ class HttpOrderRepository implements OrderRepository {
       headers: _authHeaders,
     );
     return OrderReceipt.fromJson(response);
-  }
-
-  @override
-  Future<List<Tariff>> getTariffs() async {
-    final response = await _apiClient.get(
-      '/api/v1/pricing/tariffs',
-      headers: _authHeaders,
-    );
-    final raw = response['tariffs'] as List<dynamic>? ?? const [];
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map(Tariff.fromJson)
-        .whereType<Tariff>()
-        .toList();
   }
 
   @override
@@ -327,23 +310,50 @@ class HttpOrderRepository implements OrderRepository {
   }
 }
 
+/// One estimate request returns the price for EVERY tow truck type in one
+/// response (`prices`), computed server-side from DB tariffs. The client only
+/// displays what the server sent; it never recomputes a price locally.
 class OrderPriceQuote {
   const OrderPriceQuote({
     required this.distanceKm,
     required this.totalPrice,
     required this.currency,
+    required this.prices,
   });
 
   final double distanceKm;
   final int totalPrice;
   final String currency;
+  final Map<TowTruckType, int> prices;
+
+  int? priceKopecksFor(TowTruckType type) => prices[type];
 
   factory OrderPriceQuote.fromJson(Map<String, dynamic> json) {
+    final prices = <TowTruckType, int>{};
+    final rawPrices = json['prices'];
+    if (rawPrices is Map<String, dynamic>) {
+      rawPrices.forEach((key, value) {
+        final type = _parseTowTruckType(key);
+        if (type != null) {
+          prices[type] = (value as num).toInt();
+        }
+      });
+    }
     return OrderPriceQuote(
       distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
       totalPrice: (json['total_price'] as num?)?.toInt() ?? 0,
       currency: json['currency']?.toString() ?? 'RUB',
+      prices: prices,
     );
+  }
+
+  static TowTruckType? _parseTowTruckType(String value) {
+    return switch (value) {
+      'winch' => TowTruckType.winch,
+      'platform' => TowTruckType.platform,
+      'manipulator' => TowTruckType.manipulator,
+      _ => null,
+    };
   }
 }
 

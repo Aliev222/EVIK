@@ -38,6 +38,8 @@ _$OrderFlowStateImpl _$$OrderFlowStateImplFromJson(Map<String, dynamic> json) =>
           (json['searchDurationSeconds'] as num?)?.toInt() ?? 0,
       estimatedPrice: (json['estimatedPrice'] as num?)?.toDouble() ?? 0.0,
       distance: (json['distance'] as num?)?.toDouble() ?? 0.0,
+      isPriceLoading: json['isPriceLoading'] as bool? ?? false,
+      isPriceUnavailable: json['isPriceUnavailable'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$OrderFlowStateImplToJson(
@@ -62,6 +64,8 @@ Map<String, dynamic> _$$OrderFlowStateImplToJson(
       'searchDurationSeconds': instance.searchDurationSeconds,
       'estimatedPrice': instance.estimatedPrice,
       'distance': instance.distance,
+      'isPriceLoading': instance.isPriceLoading,
+      'isPriceUnavailable': instance.isPriceUnavailable,
     };
 
 const _$OrderFlowStepEnumMap = {

@@ -30,17 +30,22 @@ type calculatePriceRequest struct {
 	TowTruckType string  `json:"tow_truck_type"`
 }
 
+// calculatePriceResponse mirrors the legacy single-type breakdown and adds
+// `prices` — the estimated total (in kopecks) for EVERY active tow truck type
+// for the requested route. The client caches this map and never recomputes a
+// price locally when the user switches the tow-truck type.
 type calculatePriceResponse struct {
-	OrderID         string  `json:"order_id"`
-	DistanceKm      float64 `json:"distance_km"`
-	BasePrice       int64   `json:"base_price"`
-	DistancePrice   int64   `json:"distance_price"`
-	TotalPrice      int64   `json:"total_price"`
-	SurchargeAmount  int64   `json:"surcharge_amount"`
-	SurchargePercent int     `json:"surcharge_percent"`
-	SurchargeReason  *string `json:"surcharge_reason"`
-	TariffID        string  `json:"tariff_id"`
-	Currency        string  `json:"currency"`
+	OrderID          string           `json:"order_id"`
+	DistanceKm       float64          `json:"distance_km"`
+	BasePrice        int64            `json:"base_price"`
+	DistancePrice    int64            `json:"distance_price"`
+	TotalPrice       int64            `json:"total_price"`
+	SurchargeAmount  int64            `json:"surcharge_amount"`
+	SurchargePercent int              `json:"surcharge_percent"`
+	SurchargeReason  *string          `json:"surcharge_reason"`
+	TariffID         string           `json:"tariff_id"`
+	Currency         string           `json:"currency"`
+	Prices           map[string]int64 `json:"prices"`
 }
 
 type tariffResponse struct {
@@ -71,21 +76,44 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// The tow truck type is optional for the estimate: the response always
+	// carries prices for ALL active types. When omitted we default to winch so
+	// the legacy single-type fields stay populated.
+	truckType := orderdomain.TowTruckType(req.TowTruckType)
+	if truckType == "" {
+		truckType = orderdomain.TowTruckWinch
+	}
+	if !truckType.IsValid() {
+		http.Error(w, "Invalid tow truck type", http.StatusBadRequest)
+		return
+	}
+
 	// Generate temporary order ID for calculation
 	orderID := "calc-" + strconv.FormatInt(time.Now().Unix(), 36)
 
-	input := pricingdomain.CalculatePriceInput{
-		OrderID:      orderID,
-		PickupLat:    req.PickupLat,
-		PickupLng:    req.PickupLng,
-		DropoffLat:   req.DropoffLat,
-		DropoffLng:   req.DropoffLng,
-		TowTruckType: orderdomain.TowTruckType(req.TowTruckType),
+	input := pricingdomain.CalculateAllPricesInput{
+		OrderID:    orderID,
+		PickupLat:  req.PickupLat,
+		PickupLng:  req.PickupLng,
+		DropoffLat: req.DropoffLat,
+		DropoffLng: req.DropoffLng,
 	}
 
-	calculation, err := h.service.CalculatePrice(r.Context(), input)
+	allCalc, err := h.service.CalculateAllPrices(r.Context(), input)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Build the full {type -> price_kopecks} map in one shot.
+	prices := make(map[string]int64, len(allCalc.Prices))
+	for tt, calc := range allCalc.Prices {
+		prices[string(tt)] = calc.TotalPrice
+	}
+
+	calculation, ok := allCalc.Prices[truckType]
+	if !ok {
+		http.Error(w, pricingdomain.ErrTariffNotFound.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -95,16 +123,17 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 		surchargeReason = &r
 	}
 	response := calculatePriceResponse{
-		OrderID:         calculation.OrderID,
-		DistanceKm:      calculation.DistanceKm,
-		BasePrice:       calculation.BasePrice,
-		DistancePrice:   calculation.DistancePrice,
-		TotalPrice:      calculation.TotalPrice,
+		OrderID:          calculation.OrderID,
+		DistanceKm:       allCalc.DistanceKm,
+		BasePrice:        calculation.BasePrice,
+		DistancePrice:    calculation.DistancePrice,
+		TotalPrice:       calculation.TotalPrice,
 		SurchargeAmount:  calculation.SurchargeAmount,
 		SurchargePercent: calculation.SurchargePercent,
 		SurchargeReason:  surchargeReason,
-		TariffID:        calculation.TariffID,
-		Currency:        "RUB",
+		TariffID:         calculation.TariffID,
+		Currency:         "RUB",
+		Prices:           prices,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

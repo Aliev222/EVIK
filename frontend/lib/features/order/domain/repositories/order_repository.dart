@@ -1,6 +1,5 @@
 ﻿import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 
 class CreateOrderCommand {
   const CreateOrderCommand({
@@ -77,9 +76,6 @@ abstract class OrderRepository {
 
   /// Получить заказы по статусу (для истории водителя)
   Future<List<Order>> getOrdersByStatus(String status);
-
-  /// Получить тарифы для всех типов эвакуаторов (цены в копейках)
-  Future<List<Tariff>> getTariffs();
 
   /// Подтвердить оплату заказа
   Future<Map<String, dynamic>> confirmPayment(String orderId);

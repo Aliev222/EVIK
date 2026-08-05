@@ -129,7 +129,12 @@ class _TowTruckSelectionScreenState
                       ),
                     ),
                     Text(
-                      'Базовая цена: ${orderFlowState.estimatedPrice.round()} ₽',
+                      orderFlowState.isPriceUnavailable
+                          ? 'Цена недоступна — проверьте соединение'
+                          : (orderFlowState.isPriceLoading ||
+                                  orderFlowState.estimatedPrice <= 0)
+                              ? 'Цена рассчитывается…'
+                              : 'Стоимость: ${orderFlowState.estimatedPrice.round()} ₽',
                       style: EvikTypography.bodySmall.copyWith(
                         color: AvroClientColors.accent,
                         fontWeight: FontWeight.bold,
@@ -157,19 +162,19 @@ class _TowTruckSelectionScreenState
                 final isSelected =
                     orderFlowState.selectedTowTruckType == towTruckType;
 
-                final notifier = ref.read(orderFlowProvider.notifier);
-                final localPrice = notifier.localPriceFor(towTruckType);
-                final serverPrice =
-                    (orderFlowState.selectedTowTruckType == towTruckType)
-                        ? orderFlowState.estimatedPrice
-                        : null;
+                final serverPrice = orderFlowState.serverPrices[towTruckType];
+                final priceText = orderFlowState.isPriceUnavailable
+                    ? 'Цена недоступна'
+                    : (orderFlowState.isPriceLoading || serverPrice == null)
+                        ? 'Цена рассчитывается…'
+                        : '${serverPrice.round()} ₽';
 
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: TowTruckCard(
                     towTruckType: towTruckType,
                     isSelected: isSelected,
-                    basePrice: serverPrice ?? localPrice ?? 0,
+                    priceText: priceText,
                     onTap: () {
                       _pageController.animateToPage(
                         index,
@@ -266,19 +271,14 @@ class TowTruckCard extends StatelessWidget {
     super.key,
     required this.towTruckType,
     required this.isSelected,
-    required this.basePrice,
+    required this.priceText,
     required this.onTap,
   });
 
   final TowTruckType towTruckType;
   final bool isSelected;
-  final double basePrice;
+  final String priceText;
   final VoidCallback onTap;
-
-  String get _priceText {
-    final price = basePrice.round();
-    return '$price ₽';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +348,7 @@ class TowTruckCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                _priceText,
+                priceText,
                 style: EvikTypography.bodyMedium.copyWith(
                   color: isSelected
                       ? AvroClientColors.accent

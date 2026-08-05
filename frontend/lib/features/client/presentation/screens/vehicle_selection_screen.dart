@@ -8,7 +8,6 @@ import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/tariff.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class VehicleSelectionScreen extends ConsumerWidget {
@@ -30,13 +29,15 @@ class VehicleSelectionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(orderFlowProvider);
     final paymentMethod = ref.watch(selectedOrderPaymentMethodProvider);
-    final hasPrice = state.estimatedPrice > 0 ||
-        (state.selectedTowTruckType != null &&
-            state.tariffs[state.selectedTowTruckType] != null);
+    final selectedPrice = state.selectedTowTruckType == null
+        ? null
+        : state.serverPrices[state.selectedTowTruckType];
+    final hasServerPrice = selectedPrice != null && selectedPrice > 0;
     final canStart = state.selectedVehicleType != null &&
         state.selectedTowTruckType != null &&
-        hasPrice &&
-        !state.isLoading;
+        hasServerPrice &&
+        !state.isPriceLoading &&
+        !state.isPriceUnavailable;
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
@@ -79,9 +80,9 @@ class VehicleSelectionScreen extends ConsumerWidget {
                         _TowTruckSelector(
                           towTrucks: _towTruckTypes,
                           selected: state.selectedTowTruckType,
-                          estimatedPrice: state.estimatedPrice,
-                          tariffs: state.tariffs,
-                          distanceKm: state.distance,
+                          serverPrices: state.serverPrices,
+                          isPriceLoading: state.isPriceLoading,
+                          isPriceUnavailable: state.isPriceUnavailable,
                           onSelected: (type) => ref
                               .read(orderFlowProvider.notifier)
                               .selectTowTruckType(type),
@@ -529,17 +530,17 @@ class _TowTruckSelector extends StatelessWidget {
   const _TowTruckSelector({
     required this.towTrucks,
     required this.selected,
-    required this.estimatedPrice,
-    required this.tariffs,
-    required this.distanceKm,
+    required this.serverPrices,
+    required this.isPriceLoading,
+    required this.isPriceUnavailable,
     required this.onSelected,
   });
 
   final List<TowTruckType> towTrucks;
   final TowTruckType? selected;
-  final double estimatedPrice;
-  final Map<TowTruckType, Tariff> tariffs;
-  final double distanceKm;
+  final Map<TowTruckType, double> serverPrices;
+  final bool isPriceLoading;
+  final bool isPriceUnavailable;
   final ValueChanged<TowTruckType> onSelected;
 
   @override
@@ -553,19 +554,13 @@ class _TowTruckSelector extends StatelessWidget {
         itemBuilder: (context, index) {
           final type = towTrucks[index];
           final isSelected = selected == type;
-          int? price;
-          if (isSelected && estimatedPrice > 0) {
-            price = estimatedPrice.round();
-          } else {
-            final tariff = tariffs[type];
-            if (tariff != null) {
-              price = tariff.estimateRub(distanceKm).round();
-            }
-          }
+          final price = serverPrices[type];
           return _TowTruckCard(
             towTruck: type,
             selected: isSelected,
             price: price,
+            priceLoading: isPriceLoading,
+            priceUnavailable: isPriceUnavailable,
             onTap: () => onSelected(type),
           );
         },
@@ -579,13 +574,23 @@ class _TowTruckCard extends StatelessWidget {
     required this.towTruck,
     required this.selected,
     required this.price,
+    required this.priceLoading,
+    required this.priceUnavailable,
     required this.onTap,
   });
 
   final TowTruckType towTruck;
   final bool selected;
-  final int? price;
+  final double? price;
+  final bool priceLoading;
+  final bool priceUnavailable;
   final VoidCallback onTap;
+
+  String get _priceText {
+    if (priceUnavailable) return 'Цена недоступна';
+    if (priceLoading || price == null) return 'Цена рассчитывается…';
+    return '${price!.round()} ₽';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -642,9 +647,13 @@ class _TowTruckCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    price == null ? '—' : '$price ₽',
+                    _priceText,
                     style: EvikTypography.bodyLarge.copyWith(
-                      color: AvroClientColors.textPrimary,
+                      color: priceUnavailable
+                          ? AvroClientColors.error
+                          : (price == null
+                              ? AvroClientColors.tabInactive
+                              : AvroClientColors.textPrimary),
                       fontWeight: FontWeight.w900,
                     ),
                   ),

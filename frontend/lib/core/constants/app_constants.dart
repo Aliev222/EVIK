@@ -41,17 +41,6 @@
   static const double maxDriverRating = 5.0;
   static const double minDriverRating = 1.0;
 
-  static const double defaultBaseFare = 500.0;
-  static const double defaultPricePerKm = 25.0;
-  static const double defaultMinimumFare = 800.0;
-
-  static const Map<String, double> defaultVehicleMultipliers = {
-    'light': 1.0,
-    'suv': 1.2,
-    'minibus': 1.5,
-    'truck': 2.0,
-  };
-
   static const double makhachkalaLat = 42.9849;
   static const double makhachkalaLng = 47.5047;
 
