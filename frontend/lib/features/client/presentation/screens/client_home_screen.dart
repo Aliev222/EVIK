@@ -742,8 +742,8 @@ class _LocationMapCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFFF5F5F5),
-            Color(0xFFFFFFFF),
+            AvroClientColors.gradientLight3,
+            AvroClientColors.background,
           ],
         ),
         boxShadow: [
@@ -933,17 +933,17 @@ class _SosSliderState extends State<_SosSlider>
           height: constraints.maxHeight,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFFDC2626),
-                Color(0xFFEF4444),
+                AvroClientColors.sosRed,
+                AvroClientColors.error,
               ],
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFDC2626).withValues(alpha: 0.25),
+                color: AvroClientColors.sosRed.withValues(alpha: 0.25),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),

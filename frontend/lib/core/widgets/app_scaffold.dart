@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
-import 'package:tow_truck_frontend/core/theme/evik_tokens.dart';
+import 'package:tow_truck_frontend/core/theme/evik_tokens.dart' show EvikSpacing, EvikDurations, EvikCurves;
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -23,9 +23,9 @@ class AppScaffold extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: <Color>[
-              Color(0xFFF7F7F7),
+              AvroClientColors.gradientLight1,
               AvroClientColors.background,
-              Color(0xFFF0F0F0),
+              AvroClientColors.gradientLight2,
             ],
           ),
         ),

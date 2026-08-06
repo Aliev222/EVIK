@@ -13,6 +13,7 @@ import 'core/notifications/push_notification_service.dart';
 import 'core/performance/frame_timing_monitor.dart';
 import 'core/performance/rebuild_tracker.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/evik_colors.dart' show AvroClientColors;
 import 'features/auth/domain/entities/user.dart';
 import 'features/auth/presentation/auth_screen.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
@@ -208,7 +209,7 @@ class _SplashScreen extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF0B1220),
+                color: AvroClientColors.brandDark,
               ),
             ),
           ],

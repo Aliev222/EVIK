@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 
 class NavigationService {
   static Future<bool> openRoute({
@@ -251,7 +252,7 @@ class _NavigatorPickerSheetState extends State<_NavigatorPickerSheet> {
               (app) => ListTile(
                 minLeadingWidth: 24,
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(app.icon, color: const Color(0xFFFF6B35)),
+                leading: Icon(app.icon, color: AvroClientColors.accentOrange),
                 title: Text(app.label),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => Navigator.of(context).pop(
