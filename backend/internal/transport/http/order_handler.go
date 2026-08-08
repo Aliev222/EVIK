@@ -619,7 +619,7 @@ type finalizeOrderRequest struct {
 }
 
 // @Summary      Finalize order (driver)
-// @Description  Driver sets the final price and moves the order to awaiting_payment.
+// @Description  Driver completes an in-progress order and moves it to awaiting_payment. The completion total is the server-computed order price; the optional final_price body field is validated against it and never overrides it.
 // @Tags         orders
 // @Accept       json
 // @Produce      json
@@ -627,7 +627,7 @@ type finalizeOrderRequest struct {
 // @Param        orderID  path      string                 true  "Order ID"
 // @Param        body     body      FinalizeOrderRequest   true  "Final price in kopecks"
 // @Success      200      {object}  SingleOrderResponse
-// @Failure      400      {object}  ErrorResponse  "validation failed"
+// @Failure      400      {object}  ErrorResponse  "validation failed or final price mismatch"
 // @Failure      401      {object}  ErrorResponse  "unauthorized"
 // @Failure      403      {object}  ErrorResponse  "forbidden"
 // @Failure      404      {object}  ErrorResponse  "order not found"
@@ -740,6 +740,8 @@ func (h *OrderHandler) writeOrderError(w http.ResponseWriter, err error) {
 	case errors.Is(err, orderdomain.ErrOrderAlreadyTaken):
 		h.writeError(w, http.StatusConflict, err)
 	case errors.Is(err, orderuc.ErrCompletionRequiresFinalize):
+		h.writeError(w, http.StatusBadRequest, err)
+	case errors.Is(err, orderuc.ErrFinalPriceMismatch):
 		h.writeError(w, http.StatusBadRequest, err)
 	default:
 		h.writeError(w, http.StatusInternalServerError, err)
