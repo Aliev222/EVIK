@@ -3725,10 +3725,6 @@ async function pageRefunds(main) {
             ${svgIcon('search')}
             Применить
           </button>
-          <button class="btn btn-secondary" id="rf-new">
-            ${svgIcon('plus')}
-            Создать возврат
-          </button>
         </div>
       </div>
     </div>
@@ -3740,7 +3736,6 @@ async function pageRefunds(main) {
     for (const k of ['status','payment_id','order_id','from','to']) f[k] = main.querySelector(`[name="${k}"]`).value;
     f.offset = 0; load();
   };
-  $('#rf-new', main).onclick = () => createRefundModal(load);
   load();
   async function load() {
     const tbl = $('#rf-table', main);
@@ -3762,23 +3757,6 @@ async function pageRefunds(main) {
         ${Pagination(data.total || items.length, f.limit, f.offset, (off) => { f.offset = off; load(); })}</div>`;
     } catch (e) { tbl.innerHTML = ErrorState(e.message, load); }
   }
-}
-
-function createRefundModal(onDone) {
-  openModal('Создать refund', `
-    <div class="form-group"><label>Payment ID</label><input name="payment_id" /></div>
-    <div class="form-group"><label>Сумма (копейки)</label><input name="amount" type="number" min="1" /></div>
-    <div class="form-group"><label>Причина</label><textarea name="reason"></textarea></div>
-    <p class="muted">Внимание: возврат у провайдера может быть частичным/локальным — зависит от backend.</p>
-  `, [
-    { label: 'Отмена', onClick: ({ close }) => close() },
-    { label: 'Создать', cls: 'btn-primary', onClick: async ({ getInput, close }) => {
-      const body = { payment_id: getInput('payment_id').trim(), amount: Number(getInput('amount')), reason: getInput('reason') };
-      if (!body.payment_id || !body.amount) { toast('Заполните payment_id и сумму', 'warning'); return; }
-      try { await api.post('/api/v1/admin/finance/refunds', body); toast('Refund создан', 'success'); close(); onDone(); }
-      catch (e) { toast(e.message, 'error'); }
-    }},
-  ]);
 }
 
 /* ---------- 7.13 Reports / Export ---------- */

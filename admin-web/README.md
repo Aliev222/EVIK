@@ -43,7 +43,7 @@ go run main.go
 5. **Reviews** (`/api/v1/admin/reviews`) — read-only список отзывов
 6. **Users** (`/api/v1/admin/users`) — список пользователей с фильтрами
 7. **Online Map** (`/api/v1/admin/drivers-online`) — таблица координат (карты нет)
-8. **Refunds** (`/api/v1/admin/finance/refunds` + create) — список возвратов + создание новых
+8. **Refunds** (`/api/v1/admin/finance/refunds`) — read-only список возвратов
 9. **Reports/Export** (`POST /api/v1/admin/finance/export?type=...`) — CSV экспорт
 10. **Payouts** (список через `/admin/finance/payouts` report + approve/reject actions)
 
