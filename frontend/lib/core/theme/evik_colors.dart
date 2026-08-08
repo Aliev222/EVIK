@@ -7,6 +7,7 @@ class AvroClientColors {
   static const Color accentStrong = Color(0xFFC2410C);
   static const Color accentDeep = Color(0xFFB45309);
   static const Color accentOrange = Color(0xFFFF6B35);
+  static const Color accentBrand = Color(0xFFFF6B00);
   static const Color textPrimary = Color(0xFF000000);
   static const Color textSecondary = Color(0xFF212121);
   static const Color navBar = Color(0xFFFFFFFF);

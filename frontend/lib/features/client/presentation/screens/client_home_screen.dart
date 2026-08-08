@@ -8,14 +8,21 @@ import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
-import 'package:tow_truck_frontend/shared/widgets/animated_button.dart';
+import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
-import 'package:tow_truck_frontend/shared/widgets/offline_sos_screen.dart';
+import 'package:tow_truck_frontend/features/client/presentation/widgets/osm_location_picker.dart';
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 
 enum _LocationState { initial, determining, unavailable, available }
+
+String _cityOf(String address) {
+  final parts = address.split(',');
+  if (parts.length < 2) return 'Махачкала';
+  final city = parts.last.trim();
+  return city.isEmpty ? 'Махачкала' : city;
+}
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({
@@ -191,14 +198,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     context.push('/order/pickup');
   }
 
-  void _openSos() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const OfflineSosScreen(isSosOnly: true),
-      ),
-    );
-  }
-
   void _openNotificationsAnnouncement() {
     FeatureAnnouncementSheet.show(
       context,
@@ -235,67 +234,103 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
-      body: Container(
-        color: AvroClientColors.background,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _Header(
-                  onNotificationsPressed: _openNotificationsAnnouncement,
-                ),
-                if (outsideServiceArea) ...[
-                  const SizedBox(height: 8),
-                  _ServiceAreaBanner(),
-                ],
-                if (locationUnavailable) ...[
-                  const SizedBox(height: 8),
-                  _LocationUnavailableBanner(),
-                ],
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 62,
-                  child: _SosSlider(onConfirmed: _openSos),
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  flex: 3,
-                  fit: FlexFit.tight,
-                  child: _LocationMapCard(
-                    lat: lat,
-                    lng: lng,
-                    address: address,
-                    isLoading: isLoading,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  flex: 5,
-                  fit: FlexFit.tight,
-                  child: _QuickServicesGrid(
-                    onServiceTap: (service) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ServiceDetailScreen(
-                            title: service.label,
-                            subtitle: service.subtitle,
-                            description: service.description,
-                            icon: service.icon,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _CallTowTruckButton(
-                  onPressed: canRequest ? _openPickupSelection : null,
-                ),
-              ],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: _LocationMapCard(
+              lat: lat,
+              lng: lng,
+              address: address,
+              isLoading: isLoading,
+              onTap: _openFullScreenMap,
             ),
           ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Header(
+                      onNotificationsPressed: _openNotificationsAnnouncement,
+                    ),
+                    if (outsideServiceArea) ...[
+                      const SizedBox(height: 8),
+                      _ServiceAreaBanner(),
+                    ],
+                    if (locationUnavailable) ...[
+                      const SizedBox(height: 8),
+                      _LocationUnavailableBanner(),
+                    ],
+                    const SizedBox(height: 10),
+                    _AddressBar(
+                      address: address,
+                      city: _cityOf(address),
+                      isLoading: isLoading,
+                      onTap: _openFullScreenMap,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 16,
+            child: SafeArea(
+              top: false,
+              child: _FloatingServicesCard(
+                enabled: canRequest,
+                onEvacTap: _openPickupSelection,
+                onServiceTap: (service) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ServiceDetailScreen(
+                        title: service.label,
+                        subtitle: service.subtitle,
+                        description: service.description,
+                        icon: service.icon,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openFullScreenMap() {
+    final location =
+        ref.read(orderFlowProvider.select((state) => state.pickupLocation));
+    final lat = location?.latitude ?? AppConstants.makhachkalaLat;
+    final lng = location?.longitude ?? AppConstants.makhachkalaLng;
+    final address = location?.displayAddress ?? 'Адрес не определён';
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OsmLocationPicker(
+          title: 'Мое местоположение',
+          addressLabel: 'Адрес',
+          initialLocation: MapLocation(
+            latitude: lat,
+            longitude: lng,
+            address: address,
+          ),
+          initialAddress: address,
+          confirmText: 'Готово',
+          onLocationConfirmed: (picked) {
+            ref.read(orderFlowProvider.notifier).setPickupLocation(picked);
+            Navigator.of(context).pop();
+          },
         ),
       ),
     );
@@ -424,87 +459,15 @@ class _LocationUnavailableBanner extends StatelessWidget {
   }
 }
 
-class _CallTowTruckButton extends StatelessWidget {
-  const _CallTowTruckButton({this.onPressed});
+class _FloatingServicesCard extends StatelessWidget {
+  const _FloatingServicesCard({
+    required this.enabled,
+    required this.onEvacTap,
+    required this.onServiceTap,
+  });
 
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedButton(
-      onPressed: onPressed,
-      child: Container(
-        height: 64,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AvroClientColors.accentDeep,
-              AvroClientColors.accentStrong,
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AvroClientColors.accent.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.local_shipping_rounded,
-                color: AvroClientColors.background,
-                size: 26,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  'Вызвать эвакуатор',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                    color: AvroClientColors.background,
-                  ),
-                ),
-              ),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AvroClientColors.background.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: AvroClientColors.background,
-                  size: 22,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickServicesGrid extends StatelessWidget {
-  const _QuickServicesGrid({required this.onServiceTap});
-
+  final bool enabled;
+  final VoidCallback onEvacTap;
   final ValueChanged<_QuickService> onServiceTap;
 
   static const List<_QuickService> _services = <_QuickService>[
@@ -532,88 +495,218 @@ class _QuickServicesGrid extends StatelessWidget {
       subtitle: 'Быстрая доставка',
       description: 'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
     ),
+    _QuickService(
+      icon: Icons.car_repair_rounded,
+      label: 'Разблокировка',
+      subtitle: 'Авто и сигнализация',
+      description: 'Помощь при срабатывании сигнализации и блокировке руля или КПП.',
+    ),
+    _QuickService(
+      icon: Icons.construction_rounded,
+      label: 'Помощь на дороге',
+      subtitle: 'Техническая помощь',
+      description: 'Выезд мастера для решения любых технических проблем на месте.',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              'Быстрые услуги',
-              style: GoogleFonts.inter(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AvroClientColors.textPrimary,
-              ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      decoration: BoxDecoration(
+        color: AvroClientColors.background,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Услуги',
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AvroClientColors.textSecondary,
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AvroClientColors.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 96,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
               ),
-              child: Text(
-                'скоро',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AvroClientColors.accent,
-                ),
+              itemCount: _services.length + 1,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _EvacPrimaryItem(
+                    enabled: enabled,
+                    onTap: onEvacTap,
+                  );
+                }
+                final service = _services[index - 1];
+                return _FloatingServiceItem(
+                  service: service,
+                  onTap: () => onServiceTap(service),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvacPrimaryItem extends StatelessWidget {
+  const _EvacPrimaryItem({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressScale(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 128,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: enabled
+              ? AvroClientColors.accentBrand
+              : AvroClientColors.surface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.local_shipping_rounded,
+              size: 26,
+              color: enabled
+                  ? AvroClientColors.background
+                  : AvroClientColors.tabInactive,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Вызвать эвакуатор',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                height: 1.15,
+                color: enabled
+                    ? AvroClientColors.background
+                    : AvroClientColors.tabInactive,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: Column(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _QuickServiceCard(
-                        service: _services[0],
-                        onTap: onServiceTap,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickServiceCard(
-                        service: _services[1],
-                        onTap: onServiceTap,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _QuickServiceCard(
-                        service: _services[2],
-                        onTap: onServiceTap,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _QuickServiceCard(
-                        service: _services[3],
-                        onTap: onServiceTap,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+      ),
+    );
+  }
+}
+
+class _FloatingServiceItem extends StatelessWidget {
+  const _FloatingServiceItem({required this.service, required this.onTap});
+
+  final _QuickService service;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _PressScale(
+      onTap: onTap,
+      child: Container(
+        width: 104,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AvroClientColors.surface.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(18),
         ),
-      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(service.icon, size: 24, color: AvroClientColors.accent),
+            const SizedBox(height: 8),
+            Text(
+              service.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.15,
+                color: AvroClientColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Responds on pointer-down with a fast press-scale (≈0.97), restores on
+/// release/cancel. Interruptible: the scale is a simple AnimatedScale whose
+/// state is driven by gesture callbacks, so an interrupted press always
+/// returns to rest cleanly.
+class _PressScale extends StatefulWidget {
+  const _PressScale({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  State<_PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<_PressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = AnimatedScale(
+      scale: _pressed ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 90),
+      curve: Curves.easeOut,
+      child: widget.child,
+    );
+    if (widget.onTap == null) {
+      return Opacity(
+        opacity: 0.6,
+        child: child,
+      );
+    }
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: child,
     );
   }
 }
@@ -632,385 +725,127 @@ class _QuickService {
   final String description;
 }
 
-class _QuickServiceCard extends StatelessWidget {
-  const _QuickServiceCard({required this.service, required this.onTap});
-
-  final _QuickService service;
-  final ValueChanged<_QuickService> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AvroClientColors.background,
-            AvroClientColors.background,
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-          BoxShadow(
-            color: AvroClientColors.accent.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => onTap(service),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  service.icon,
-                  size: 24,
-                  color: AvroClientColors.accent,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  service.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AvroClientColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  service.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                    color: AvroClientColors.tabInactive,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _LocationMapCard extends StatelessWidget {
   const _LocationMapCard({
     required this.lat,
     required this.lng,
     required this.address,
     required this.isLoading,
+    required this.onTap,
   });
-
-  static const double _overlayHeight = 70;
 
   final double lat;
   final double lng;
   final String address;
   final bool isLoading;
-
-  String get _city {
-    final parts = address.split(',');
-    if (parts.length < 2) return 'Москва';
-    return parts.last.trim();
-  }
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AvroClientColors.gradientLight3,
-            AvroClientColors.background,
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+    return ColoredBox(
+      color: AvroClientColors.background,
+      child: EvikOsmMapView(
+        key: const ValueKey('client_home_map'),
+        initialLat: lat,
+        initialLng: lng,
+        initialZoom: 15,
+        onTap: (_, __) => onTap(),
+        showControls: false,
+        showLocationButton: false,
+        showUserLocation: false,
+        fitToMarkers: false,
+        markers: [
+          EvikMapMarker(
+            lat: lat,
+            lng: lng,
+            title: address,
+            color: AvroClientColors.accent,
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            EvikOsmMapView(
-              key: const ValueKey('client_home_map'),
-              initialLat: lat,
-              initialLng: lng,
-              initialZoom: 15,
-              showControls: false,
-              showLocationButton: false,
-              showUserLocation: false,
-              fitToMarkers: false,
-              markers: [
-                EvikMapMarker(
-                  lat: lat,
-                  lng: lng,
-                  title: address,
-                  color: AvroClientColors.accent,
-                ),
-              ],
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-                child: Container(
-                  height: _overlayHeight,
-                  color: AvroClientColors.background,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isLoading ? 'Определяем адрес...' : address,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: AvroClientColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _city,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AvroClientColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: AvroClientColors.textSecondary,
-                        size: 22,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
-class _SosSlider extends StatefulWidget {
-  const _SosSlider({required this.onConfirmed});
+class _AddressBar extends StatelessWidget {
+  const _AddressBar({
+    required this.address,
+    required this.city,
+    required this.isLoading,
+    required this.onTap,
+  });
 
-  final VoidCallback onConfirmed;
-
-  @override
-  State<_SosSlider> createState() => _SosSliderState();
-}
-
-class _SosSliderState extends State<_SosSlider>
-    with SingleTickerProviderStateMixin {
-  static const double _thumbSize = 36;
-  static const double _hitSize = 44;
-  static const double _thumbPadding = 8;
-  static const double _completeThreshold = 0.85;
-
-  late final AnimationController _snapController;
-  double _dragPixels = 0;
-  double _trackWidth = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _snapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 280),
-    );
-  }
-
-  @override
-  void dispose() {
-    _snapController.dispose();
-    super.dispose();
-  }
-
-  double get _maxDrag =>
-      (_trackWidth - _hitSize - _thumbPadding * 2).clamp(0, double.infinity);
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    final maxDrag = _maxDrag;
-    if (maxDrag <= 0) return;
-    setState(() {
-      _dragPixels = (_dragPixels + details.delta.dx).clamp(0, maxDrag);
-    });
-  }
-
-  void _onDragEnd(DragEndDetails details) {
-    final maxDrag = _maxDrag;
-    if (maxDrag <= 0) return;
-    final completed = _dragPixels >= maxDrag * _completeThreshold;
-    if (completed) {
-      _snapTo(maxDrag, onDone: () {
-        widget.onConfirmed();
-        Future.delayed(const Duration(milliseconds: 350), () {
-          if (mounted) _snapTo(0);
-        });
-      });
-    } else {
-      _snapTo(0);
-    }
-  }
-
-  void _snapTo(double target, {VoidCallback? onDone}) {
-    final animation = Tween<double>(begin: _dragPixels, end: target).animate(
-      CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic),
-    );
-    void listener() {
-      setState(() => _dragPixels = animation.value);
-    }
-
-    animation.addListener(listener);
-    _snapController
-      ..reset()
-      ..forward().whenCompleteOrCancel(() {
-        animation.removeListener(listener);
-        onDone?.call();
-      });
-  }
+  final String address;
+  final String city;
+  final bool isLoading;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _trackWidth = constraints.maxWidth;
-        final maxDrag = _maxDrag;
-        final progress = maxDrag > 0 ? (_dragPixels / maxDrag).clamp(0.0, 1.0) : 0.0;
-        return Container(
-          height: constraints.maxHeight,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AvroClientColors.sosRed,
-                AvroClientColors.error,
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AvroClientColors.sosRed.withValues(alpha: 0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.centerLeft,
+    return Material(
+      color: AvroClientColors.background,
+      borderRadius: BorderRadius.circular(18),
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
             children: [
-              Center(
-                child: Opacity(
-                  opacity: 1 - progress,
-                  child: Text(
-                    'Потяните для вызова SOS',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AvroClientColors.background,
-                    ),
-                  ),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AvroClientColors.accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.my_location_rounded,
+                  color: AvroClientColors.accent,
+                  size: 20,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: _thumbPadding,
-                  vertical: 4,
-                ),
-                child: Transform.translate(
-                  offset: Offset(_dragPixels, 0),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onHorizontalDragUpdate: _onDragUpdate,
-                    onHorizontalDragEnd: _onDragEnd,
-                    child: SizedBox(
-                      width: _hitSize,
-                      height: _hitSize,
-                      child: Center(
-                        child: Container(
-                          width: _thumbSize,
-                          height: _thumbSize,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Image.asset(
-                              'assets/img/sos_icon.png',
-                              width: 22,
-                              height: 22,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isLoading ? 'Определяем адрес...' : address,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AvroClientColors.textPrimary,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      city,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AvroClientColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
+              ),
+              const Icon(
+                Icons.expand_more_rounded,
+                color: AvroClientColors.textSecondary,
+                size: 22,
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

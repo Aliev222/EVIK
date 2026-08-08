@@ -8,6 +8,7 @@ import 'package:tow_truck_frontend/core/theme/evik_colors.dart';
 import 'package:tow_truck_frontend/features/client/presentation/widgets/client_bottom_nav.dart';
 import 'package:tow_truck_frontend/features/client/presentation/widgets/services_placeholder_screen.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
+import 'package:tow_truck_frontend/shared/widgets/offline_sos_screen.dart';
 import 'client_history_screen.dart';
 import 'client_home_screen.dart';
 import 'client_profile_screen.dart';
@@ -80,8 +81,17 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
       bottomNavigationBar: ClientBottomNav(
         activeTab: _activeTab,
         onTabChanged: _switchToTab,
+        onSosActivated: _openSos,
       ),
     ),
+    );
+  }
+
+  void _openSos() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const OfflineSosScreen(isSosOnly: true),
+      ),
     );
   }
 
