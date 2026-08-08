@@ -870,10 +870,20 @@ FROM payouts WHERE idempotency_key = $1`, idempotencyKey))
 	if err := tx.QueryRowContext(ctx, `SELECT available_balance FROM driver_wallets WHERE id = $1 FOR UPDATE`, walletID).Scan(&available); err != nil {
 		return nil, err
 	}
+	// Balance is debited only at pay-out time (ApprovePayout/MarkPayoutPaid),
+	// so treat amounts of already open payout requests as committed funds to
+	// prevent concurrent requests from collectively exceeding the balance.
+	var outstandingSum int64
+	if err := tx.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(amount), 0) FROM payouts
+WHERE driver_id = $1 AND status IN ('created', 'processing', 'manual_review')`, payout.DriverID).Scan(&outstandingSum); err != nil {
+		return nil, err
+	}
 	if payout.Amount <= 0 {
 		return nil, paymentdomain.ErrInvalidAmount
 	}
-	if payout.Amount > available {
+	effectiveAvailable := available - outstandingSum
+	if payout.Amount > effectiveAvailable {
 		return nil, paymentdomain.ErrInsufficientFunds
 	}
 	payout.WalletID = walletID
@@ -1000,6 +1010,13 @@ FROM payouts WHERE id = $1 FOR UPDATE`, payoutID))
 	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, payout.WalletID); err != nil {
 		return nil, err
 	}
+	var balance int64
+	if err := tx.QueryRowContext(ctx, `SELECT available_balance FROM driver_wallets WHERE id = $1`, payout.WalletID).Scan(&balance); err != nil {
+		return nil, err
+	}
+	if balance < payout.Amount {
+		return nil, paymentdomain.ErrInsufficientFunds
+	}
 	if _, err := tx.ExecContext(ctx, `UPDATE driver_wallets SET available_balance = available_balance - $1, updated_at = $2 WHERE id = $3`, payout.Amount, now, payout.WalletID); err != nil {
 		return nil, err
 	}
@@ -1122,8 +1139,7 @@ func payoutIsApprovable(status paymentdomain.PayoutStatus) bool {
 	switch status {
 	case paymentdomain.PayoutStatusCreated,
 		paymentdomain.PayoutStatusProcessing,
-		paymentdomain.PayoutStatusManualReview,
-		paymentdomain.PayoutStatusFailed:
+		paymentdomain.PayoutStatusManualReview:
 		return true
 	default:
 		return false
