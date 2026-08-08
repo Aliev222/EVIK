@@ -66,7 +66,6 @@ type Repository interface {
 	GetLatestDriverSubscription(ctx context.Context, driverID string) (*Subscription, error)
 	ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error
 	ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error
-	CreateRefund(ctx context.Context, refund *Refund) (*Refund, error)
 	ExportFinanceReport(ctx context.Context, reportType string) ([][]string, error)
 
 	WithWebhookTx(ctx context.Context, fn func(WebhookTx) error) error

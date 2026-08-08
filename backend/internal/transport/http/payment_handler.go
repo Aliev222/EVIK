@@ -91,12 +91,6 @@ type subscriptionPaymentRequest struct {
 	PlanID string `json:"plan_id"`
 }
 
-type refundRequest struct {
-	PaymentID string `json:"payment_id"`
-	Amount    int64  `json:"amount"`
-	Reason    string `json:"reason"`
-}
-
 type paymentMethodResponse struct {
 	ID                      string  `json:"id"`
 	ProviderPaymentMethodID *string `json:"provider_payment_method_id,omitempty"`
@@ -708,30 +702,6 @@ func (h *PaymentHandler) GetDriverSubscriptionStatus(w http.ResponseWriter, r *h
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
-}
-
-// @Summary      Create refund (admin)
-// @Description  Creates a refund for a completed payment. Admin-only endpoint.
-// @Tags         admin
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        body  body      RefundRequest  true  "Refund payload"
-// @Success      201   {object}  map[string]any  "created refund"
-// @Failure      400   {object}  ErrorResponse  "validation failed"
-// @Router       /admin/finance/refunds [post]
-func (h *PaymentHandler) AdminCreateRefund(w http.ResponseWriter, r *http.Request) {
-	var req refundRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	refund, err := h.financeUC.CreateRefund(r.Context(), req.PaymentID, req.Amount, req.Reason)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"refund": refund})
 }
 
 // @Summary      Export finance report (admin)

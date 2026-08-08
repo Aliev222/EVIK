@@ -624,24 +624,6 @@ func (uc *FinanceUseCase) GetDriverSubscriptionStatus(ctx context.Context, drive
 	}, nil
 }
 
-func (uc *FinanceUseCase) CreateRefund(ctx context.Context, paymentID string, amount int64, reason string) (*paymentdomain.Refund, error) {
-	if amount <= 0 {
-		return nil, paymentdomain.ErrInvalidAmount
-	}
-	now := uc.clock.Now()
-	return uc.repo.CreateRefund(ctx, &paymentdomain.Refund{
-		ID:             uc.idGen.NewID(),
-		PaymentID:      paymentID,
-		Amount:         amount,
-		Currency:       paymentdomain.CurrencyRUB,
-		Reason:         reason,
-		Status:         paymentdomain.RefundStatusCreated,
-		IdempotencyKey: fmt.Sprintf("refund:%s:%d:%s", paymentID, amount, reason),
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	})
-}
-
 // ApprovePayout marks a payout paid by admin decision. If the payout has
 // an associated provider record, the provider is asked to execute the
 // transfer first; otherwise the payout is closed manually (operator did

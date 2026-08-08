@@ -105,9 +105,6 @@ func (noopFinanceRepo) MarkProcessed(context.Context, string) error { return nil
 func (noopFinanceRepo) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
 	return fn(noopFinanceRepo{})
 }
-func (noopFinanceRepo) CreateRefund(_ context.Context, r *paymentdomain.Refund) (*paymentdomain.Refund, error) {
-	return r, nil
-}
 func (noopFinanceRepo) ExportFinanceReport(context.Context, string) ([][]string, error) {
 	return nil, nil
 }

@@ -1281,15 +1281,6 @@ WHERE payment_id = $1`, paymentID)
 	return err
 }
 
-func (r *PaymentRepository) CreateRefund(ctx context.Context, refund *paymentdomain.Refund) (*paymentdomain.Refund, error) {
-	return scanRefund(r.db.QueryRowContext(ctx, `
-INSERT INTO refunds (id, payment_id, provider_refund_id, amount, currency, reason, status, idempotency_key, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-ON CONFLICT (idempotency_key) DO UPDATE SET updated_at = refunds.updated_at
-RETURNING id, payment_id, provider_refund_id, amount, currency, reason, status, idempotency_key, created_at, updated_at`,
-		refund.ID, refund.PaymentID, refund.ProviderRefundID, refund.Amount, refund.Currency, refund.Reason, string(refund.Status), refund.IdempotencyKey, refund.CreatedAt, refund.UpdatedAt))
-}
-
 func (r *PaymentRepository) ExportFinanceReport(ctx context.Context, reportType string) ([][]string, error) {
 	reportType = strings.ReplaceAll(reportType, "-", "_")
 	if reportType == "transactions" {

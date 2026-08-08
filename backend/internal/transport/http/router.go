@@ -148,7 +148,6 @@ func NewRouter(
 				// subscriptions / cash-debts / commissions. See
 				// payment_repository.go:ExportFinanceReport for the supported set.
 				admin.Get("/finance/{reportType}", paymentHandler.AdminFinanceReport)
-				admin.Post("/finance/refunds", paymentHandler.AdminCreateRefund)
 				admin.Post("/finance/payouts/{payoutID}/approve", paymentHandler.AdminApprovePayout)
 				admin.Post("/finance/payouts/{payoutID}/reject", paymentHandler.AdminRejectPayout)
 				admin.Post("/finance/export", paymentHandler.AdminExportFinance)
