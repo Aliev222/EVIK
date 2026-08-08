@@ -16,6 +16,58 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/audit-log": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns moderation audit log entries.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List audit log (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by entity type",
+                        "name": "entity_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by action",
+                        "name": "action",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "audit log entries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/admin/cities": {
             "get": {
                 "security": [
@@ -393,6 +445,271 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/drivers/{driverID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns full driver profile with verification, tax, wallet, orders, and reviews.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get driver detail (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Driver ID",
+                        "name": "driverID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "driver detail",
+                        "schema": {
+                            "$ref": "#/definitions/http.AdminDriverDetail"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/drivers/{driverID}/orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated orders for a specific driver.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List driver orders (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Driver ID",
+                        "name": "driverID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "driver orders",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/finance-v2/payments": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated list of payments with filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List payments (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "payments list",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/finance-v2/subscriptions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated list of driver subscriptions with filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List subscriptions (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "subscriptions list",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/finance-v2/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated list of wallet transactions with filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List transactions (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by transaction type",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by driver ID",
+                        "name": "driver_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "transactions list",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/finance-v2/wallets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns paginated list of driver wallets with filters.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List wallets (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by driver ID",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "wallets list",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/admin/finance/export": {
             "get": {
                 "security": [
@@ -632,50 +949,6 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Creates a refund for a completed payment. Admin-only endpoint.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "Create refund (admin)",
-                "parameters": [
-                    {
-                        "description": "Refund payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/http.RefundRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "created refund",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "validation failed",
-                        "schema": {
-                            "$ref": "#/definitions/http.ErrorResponse"
-                        }
-                    }
-                }
             }
         },
         "/admin/finance/report/{reportType}": {
@@ -714,6 +987,86 @@ const docTemplate = `{
                         "description": "invalid report type",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/moderation/batch/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approves multiple driver verifications at once.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Batch approve verifications (admin)",
+                "parameters": [
+                    {
+                        "description": "IDs and vehicle details",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.batchModerationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "batch results",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/moderation/batch/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Rejects multiple driver verifications at once.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Batch reject verifications (admin)",
+                "parameters": [
+                    {
+                        "description": "IDs and reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.batchModerationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "batch results",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -1113,9 +1466,140 @@ const docTemplate = `{
                     "admin"
                 ],
                 "summary": "List reviews (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Max items (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Pagination offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by star rating (1-5)",
+                        "name": "stars",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by driver ID or name",
+                        "name": "driver_query",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "list of reviews",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reviews/{reviewID}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Permanently deletes a driver review.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Delete review (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Review ID",
+                        "name": "reviewID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "deleted status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reviews/{reviewID}/hide": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hides a driver review from public view.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Hide review (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Review ID",
+                        "name": "reviewID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "hidden status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reviews/{reviewID}/show": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Unhides a previously hidden driver review.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Show review (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Review ID",
+                        "name": "reviewID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "shown status",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1666,51 +2150,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/dev/payments/{id}/complete": {
-            "post": {
-                "description": "Manually completes a stub payment for testing. Only available when YOOKASSA_STUB_MODE is enabled.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "webhooks"
-                ],
-                "summary": "Complete stub payment (dev only)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Provider payment ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "payment details",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "missing payment id",
-                        "schema": {
-                            "$ref": "#/definitions/http.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "payment not found or stub mode disabled",
-                        "schema": {
-                            "$ref": "#/definitions/http.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/devices/fcm-token": {
             "post": {
                 "security": [
@@ -1924,6 +2363,38 @@ const docTemplate = `{
                         "description": "validation failed",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/driver/earnings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the driver's real earnings (sum of driver_amount over completed orders) for today/week/month plus current rating. Amounts in kopecks.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "driver"
+                ],
+                "summary": "Get driver earnings",
+                "responses": {
+                    "200": {
+                        "description": "earnings by period and rating",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "401": {
@@ -3222,6 +3693,206 @@ const docTemplate = `{
                 }
             }
         },
+        "/orders/{orderID}/confirm-payment": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Client confirms payment for a finalized order. Cash completes immediately; card creates YooKassa payment.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Confirm order payment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "orderID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "payment result, possible confirmation_url for 3DS",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "order does not belong to caller",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "invalid order status",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{orderID}/finalize": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Driver completes an in-progress order and moves it to awaiting_payment. The completion total is the server-computed order price; the optional final_price body field is validated against it and never overrides it.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "Finalize order (driver)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "orderID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Final price in kopecks",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.FinalizeOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/http.SingleOrderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "validation failed or final price mismatch",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "order not found",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "invalid status transition",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{orderID}/payment-method": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Changes the payment method on an order in awaiting_payment status. Only cash or card.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Update order payment method",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "orderID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New payment method",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/http.updateOrderPaymentMethodRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "payment method updated",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "invalid payment_method or order not in valid status",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "order does not belong to caller",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/orders/{orderID}/payment-status": {
             "get": {
                 "security": [
@@ -4086,7 +4757,7 @@ const docTemplate = `{
         },
         "/webhooks/yookassa": {
             "post": {
-                "description": "Public webhook receiver. Verified via HMAC-SHA256 signature in the configured header. No bearer auth.",
+                "description": "Public webhook receiver. Verified by IP allowlist; payment status confirmed via YooKassa API re-query. No bearer auth.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4121,8 +4792,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/http.ErrorResponse"
                         }
                     },
-                    "401": {
-                        "description": "invalid signature",
+                    "403": {
+                        "description": "forbidden",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
                         }
@@ -4192,6 +4863,41 @@ const docTemplate = `{
                 }
             }
         },
+        "http.AdminDriverDetail": {
+            "type": "object",
+            "properties": {
+                "driver_id": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "orders_count": {
+                    "type": "integer"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "reviews": {
+                    "$ref": "#/definitions/http.AdminReviewsSummary"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tax_profile": {
+                    "$ref": "#/definitions/http.AdminTaxProfileInfo"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "verification": {
+                    "$ref": "#/definitions/http.AdminVerificationInfo"
+                },
+                "wallet": {
+                    "$ref": "#/definitions/http.AdminWalletInfo"
+                }
+            }
+        },
         "http.AdminLoginRequest": {
             "type": "object",
             "properties": {
@@ -4202,6 +4908,92 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "example": "admin"
+                }
+            }
+        },
+        "http.AdminReviewsSummary": {
+            "type": "object",
+            "properties": {
+                "rating_average": {
+                    "type": "number"
+                },
+                "rating_count": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "http.AdminTaxProfileInfo": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "inn": {
+                    "type": "string"
+                },
+                "taxpayer_type": {
+                    "type": "string"
+                },
+                "verification_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.AdminVerificationInfo": {
+            "type": "object",
+            "properties": {
+                "decision_reason": {
+                    "type": "string"
+                },
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "plate": {
+                    "type": "string"
+                },
+                "risk": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "vehicle": {
+                    "type": "string"
+                },
+                "vehicle_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "http.AdminWalletInfo": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "debt": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -4341,7 +5133,7 @@ const docTemplate = `{
             "properties": {
                 "auto_dispatch": {
                     "type": "boolean",
-                    "example": false
+                    "example": true
                 },
                 "dropoff_address": {
                     "type": "string",
@@ -4453,6 +5245,15 @@ const docTemplate = `{
                 "error": {
                     "type": "string",
                     "example": "invalid request body"
+                }
+            }
+        },
+        "http.FinalizeOrderRequest": {
+            "type": "object",
+            "properties": {
+                "final_price": {
+                    "type": "integer",
+                    "example": 800000
                 }
             }
         },
@@ -4677,23 +5478,6 @@ const docTemplate = `{
                 }
             }
         },
-        "http.RefundRequest": {
-            "type": "object",
-            "properties": {
-                "amount": {
-                    "type": "integer",
-                    "example": 800000
-                },
-                "payment_id": {
-                    "type": "string",
-                    "example": "pay-123"
-                },
-                "reason": {
-                    "type": "string",
-                    "example": "Customer request"
-                }
-            }
-        },
         "http.RegisterRequest": {
             "type": "object",
             "properties": {
@@ -4841,6 +5625,7 @@ const docTemplate = `{
                         "accepted",
                         "arrived",
                         "in_progress",
+                        "awaiting_payment",
                         "completed"
                     ],
                     "example": "arrived"
@@ -4918,6 +5703,29 @@ const docTemplate = `{
                 }
             }
         },
+        "http.batchModerationRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "vehicle_model": {
+                    "type": "string"
+                },
+                "vehicle_plate": {
+                    "type": "string"
+                },
+                "vehicle_type": {
+                    "type": "string"
+                }
+            }
+        },
         "http.driverLocationResponse": {
             "type": "object",
             "properties": {
@@ -4975,6 +5783,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/http.routePoint"
                     }
+                }
+            }
+        },
+        "http.updateOrderPaymentMethodRequest": {
+            "type": "object",
+            "properties": {
+                "payment_method": {
+                    "type": "string"
                 }
             }
         }

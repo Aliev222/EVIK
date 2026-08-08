@@ -43,6 +43,29 @@ definitions:
         example: winch
         type: string
     type: object
+  http.AdminDriverDetail:
+    properties:
+      driver_id:
+        type: string
+      full_name:
+        type: string
+      orders_count:
+        type: integer
+      phone:
+        type: string
+      reviews:
+        $ref: '#/definitions/http.AdminReviewsSummary'
+      status:
+        type: string
+      tax_profile:
+        $ref: '#/definitions/http.AdminTaxProfileInfo'
+      user_id:
+        type: string
+      verification:
+        $ref: '#/definitions/http.AdminVerificationInfo'
+      wallet:
+        $ref: '#/definitions/http.AdminWalletInfo'
+    type: object
   http.AdminLoginRequest:
     properties:
       password:
@@ -50,6 +73,62 @@ definitions:
         type: string
       user_id:
         example: admin
+        type: string
+    type: object
+  http.AdminReviewsSummary:
+    properties:
+      rating_average:
+        type: number
+      rating_count:
+        type: integer
+      total:
+        type: integer
+    type: object
+  http.AdminTaxProfileInfo:
+    properties:
+      created_at:
+        type: string
+      inn:
+        type: string
+      taxpayer_type:
+        type: string
+      verification_status:
+        type: string
+    type: object
+  http.AdminVerificationInfo:
+    properties:
+      decision_reason:
+        type: string
+      documents:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      plate:
+        type: string
+      risk:
+        type: string
+      status:
+        type: string
+      submitted_at:
+        type: string
+      vehicle:
+        type: string
+      vehicle_type:
+        type: string
+    type: object
+  http.AdminWalletInfo:
+    properties:
+      available:
+        type: integer
+      currency:
+        type: string
+      debt:
+        type: integer
+      pending:
+        type: integer
+      updated_at:
         type: string
     type: object
   http.ApplyPromocodeRequest:
@@ -146,7 +225,7 @@ definitions:
   http.CreateOrderRequest:
     properties:
       auto_dispatch:
-        example: false
+        example: true
         type: boolean
       dropoff_address:
         example: ул. Арбат, 10
@@ -228,6 +307,12 @@ definitions:
       error:
         example: invalid request body
         type: string
+    type: object
+  http.FinalizeOrderRequest:
+    properties:
+      final_price:
+        example: 800000
+        type: integer
     type: object
   http.LoginRequest:
     properties:
@@ -381,18 +466,6 @@ definitions:
         example: eyJhbGciOiJIUzI1NiIs...
         type: string
     type: object
-  http.RefundRequest:
-    properties:
-      amount:
-        example: 800000
-        type: integer
-      payment_id:
-        example: pay-123
-        type: string
-      reason:
-        example: Customer request
-        type: string
-    type: object
   http.RegisterRequest:
     properties:
       full_name:
@@ -498,6 +571,7 @@ definitions:
         - accepted
         - arrived
         - in_progress
+        - awaiting_payment
         - completed
         example: arrived
         type: string
@@ -550,6 +624,21 @@ definitions:
       type:
         type: string
     type: object
+  http.batchModerationRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+      reason:
+        type: string
+      vehicle_model:
+        type: string
+      vehicle_plate:
+        type: string
+      vehicle_type:
+        type: string
+    type: object
   http.driverLocationResponse:
     properties:
       avatar_url:
@@ -589,6 +678,11 @@ definitions:
           $ref: '#/definitions/http.routePoint'
         type: array
     type: object
+  http.updateOrderPaymentMethodRequest:
+    properties:
+      payment_method:
+        type: string
+    type: object
 info:
   contact: {}
   description: Tow truck marketplace API — auth, orders, drivers, payments, payouts,
@@ -596,6 +690,39 @@ info:
   title: Tow Truck Backend API
   version: "1.0"
 paths:
+  /admin/audit-log:
+    get:
+      description: Returns moderation audit log entries.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by entity type
+        in: query
+        name: entity_type
+        type: string
+      - description: Filter by action
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: audit log entries
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List audit log (admin)
+      tags:
+      - admin
   /admin/cities:
     get:
       description: Returns all service areas (cities), both active and inactive.
@@ -802,6 +929,58 @@ paths:
       summary: List online drivers (admin)
       tags:
       - admin
+  /admin/drivers/{driverID}:
+    get:
+      description: Returns full driver profile with verification, tax, wallet, orders,
+        and reviews.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: driver detail
+          schema:
+            $ref: '#/definitions/http.AdminDriverDetail'
+      security:
+      - BearerAuth: []
+      summary: Get driver detail (admin)
+      tags:
+      - admin
+  /admin/drivers/{driverID}/orders:
+    get:
+      description: Returns paginated orders for a specific driver.
+      parameters:
+      - description: Driver ID
+        in: path
+        name: driverID
+        required: true
+        type: string
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: driver orders
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List driver orders (admin)
+      tags:
+      - admin
   /admin/drivers/locations:
     get:
       description: Returns live driver locations for the admin map. Can be filtered
@@ -839,6 +1018,122 @@ paths:
       security:
       - BearerAuth: []
       summary: List driver locations (admin)
+      tags:
+      - admin
+  /admin/finance-v2/payments:
+    get:
+      description: Returns paginated list of payments with filters.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payments list
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List payments (admin)
+      tags:
+      - admin
+  /admin/finance-v2/subscriptions:
+    get:
+      description: Returns paginated list of driver subscriptions with filters.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: subscriptions list
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List subscriptions (admin)
+      tags:
+      - admin
+  /admin/finance-v2/transactions:
+    get:
+      description: Returns paginated list of wallet transactions with filters.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by transaction type
+        in: query
+        name: type
+        type: string
+      - description: Filter by driver ID
+        in: query
+        name: driver_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: transactions list
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List transactions (admin)
+      tags:
+      - admin
+  /admin/finance-v2/wallets:
+    get:
+      description: Returns paginated list of driver wallets with filters.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      - description: Search by driver ID
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: wallets list
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List wallets (admin)
       tags:
       - admin
   /admin/finance/export:
@@ -997,34 +1292,6 @@ paths:
       summary: List refunds (admin)
       tags:
       - admin
-    post:
-      consumes:
-      - application/json
-      description: Creates a refund for a completed payment. Admin-only endpoint.
-      parameters:
-      - description: Refund payload
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/http.RefundRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: created refund
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: validation failed
-          schema:
-            $ref: '#/definitions/http.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create refund (admin)
-      tags:
-      - admin
   /admin/finance/report/{reportType}:
     get:
       description: Returns a finance report as JSON. Admin-only endpoint.
@@ -1049,6 +1316,56 @@ paths:
       security:
       - BearerAuth: []
       summary: Finance report (admin)
+      tags:
+      - admin
+  /admin/moderation/batch/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approves multiple driver verifications at once.
+      parameters:
+      - description: IDs and vehicle details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.batchModerationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: batch results
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Batch approve verifications (admin)
+      tags:
+      - admin
+  /admin/moderation/batch/reject:
+    post:
+      consumes:
+      - application/json
+      description: Rejects multiple driver verifications at once.
+      parameters:
+      - description: IDs and reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.batchModerationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: batch results
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Batch reject verifications (admin)
       tags:
       - admin
   /admin/moderation/driver-verifications/{verificationID}/approve:
@@ -1303,6 +1620,23 @@ paths:
   /admin/reviews:
     get:
       description: Returns all driver reviews across the platform.
+      parameters:
+      - description: Max items (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Pagination offset
+        in: query
+        name: offset
+        type: integer
+      - description: Filter by star rating (1-5)
+        in: query
+        name: stars
+        type: integer
+      - description: Search by driver ID or name
+        in: query
+        name: driver_query
+        type: string
       produces:
       - application/json
       responses:
@@ -1314,6 +1648,72 @@ paths:
       security:
       - BearerAuth: []
       summary: List reviews (admin)
+      tags:
+      - admin
+  /admin/reviews/{reviewID}:
+    delete:
+      description: Permanently deletes a driver review.
+      parameters:
+      - description: Review ID
+        in: path
+        name: reviewID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted status
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete review (admin)
+      tags:
+      - admin
+  /admin/reviews/{reviewID}/hide:
+    post:
+      description: Hides a driver review from public view.
+      parameters:
+      - description: Review ID
+        in: path
+        name: reviewID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: hidden status
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Hide review (admin)
+      tags:
+      - admin
+  /admin/reviews/{reviewID}/show:
+    post:
+      description: Unhides a previously hidden driver review.
+      parameters:
+      - description: Review ID
+        in: path
+        name: reviewID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: shown status
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Show review (admin)
       tags:
       - admin
   /admin/tax-profiles:
@@ -1672,37 +2072,6 @@ paths:
       summary: Init payment method
       tags:
       - payments
-  /dev/payments/{id}/complete:
-    post:
-      consumes:
-      - application/json
-      description: Manually completes a stub payment for testing. Only available when
-        YOOKASSA_STUB_MODE is enabled.
-      parameters:
-      - description: Provider payment ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: payment details
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: missing payment id
-          schema:
-            $ref: '#/definitions/http.ErrorResponse'
-        "404":
-          description: payment not found or stub mode disabled
-          schema:
-            $ref: '#/definitions/http.ErrorResponse'
-      summary: Complete stub payment (dev only)
-      tags:
-      - webhooks
   /devices/fcm-token:
     post:
       consumes:
@@ -1849,6 +2218,27 @@ paths:
       summary: Submit driver verification
       tags:
       - drivers
+  /driver/earnings:
+    get:
+      description: Returns the driver's real earnings (sum of driver_amount over completed
+        orders) for today/week/month plus current rating. Amounts in kopecks.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: earnings by period and rating
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get driver earnings
+      tags:
+      - driver
   /driver/payout-methods:
     get:
       description: Returns saved payout methods (bank cards, wallets) for the authenticated
@@ -2669,6 +3059,139 @@ paths:
       summary: Cancel order
       tags:
       - orders
+  /orders/{orderID}/confirm-payment:
+    post:
+      description: Client confirms payment for a finalized order. Cash completes immediately;
+        card creates YooKassa payment.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment result, possible confirmation_url for 3DS
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: validation failed
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: order does not belong to caller
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: invalid order status
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Confirm order payment
+      tags:
+      - payments
+  /orders/{orderID}/finalize:
+    post:
+      consumes:
+      - application/json
+      description: Driver completes an in-progress order and moves it to awaiting_payment.
+        The completion total is the server-computed order price; the optional final_price
+        body field is validated against it and never overrides it.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: Final price in kopecks
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.FinalizeOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SingleOrderResponse'
+        "400":
+          description: validation failed or final price mismatch
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: forbidden
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: order not found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "409":
+          description: invalid status transition
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Finalize order (driver)
+      tags:
+      - orders
+  /orders/{orderID}/payment-method:
+    patch:
+      consumes:
+      - application/json
+      description: Changes the payment method on an order in awaiting_payment status.
+        Only cash or card.
+      parameters:
+      - description: Order ID
+        in: path
+        name: orderID
+        required: true
+        type: string
+      - description: New payment method
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/http.updateOrderPaymentMethodRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: payment method updated
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: invalid payment_method or order not in valid status
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "401":
+          description: unauthorized
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "403":
+          description: order does not belong to caller
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update order payment method
+      tags:
+      - payments
   /orders/{orderID}/payment-status:
     get:
       description: Returns the payment details for a specific order.
@@ -3260,8 +3783,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Public webhook receiver. Verified via HMAC-SHA256 signature in
-        the configured header. No bearer auth.
+      description: Public webhook receiver. Verified by IP allowlist; payment status
+        confirmed via YooKassa API re-query. No bearer auth.
       parameters:
       - description: YooKassa event
         in: body
@@ -3280,8 +3803,8 @@ paths:
           description: malformed payload
           schema:
             $ref: '#/definitions/http.ErrorResponse'
-        "401":
-          description: invalid signature
+        "403":
+          description: forbidden
           schema:
             $ref: '#/definitions/http.ErrorResponse'
       summary: YooKassa webhook
