@@ -484,6 +484,12 @@ func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID stri
 	if amount <= 0 {
 		return nil, paymentdomain.ErrInvalidAmount
 	}
+	// Enforce the configured minimum payout only when one is set (a zero value
+	// disables the guard, keeping deployments that don't configure a minimum
+	// unchanged).
+	if uc.minimumWithdrawal > 0 && amount < uc.minimumWithdrawal {
+		return nil, paymentdomain.ErrBelowMinimum
+	}
 	methods, err := uc.repo.ListPayoutMethods(ctx, driverID)
 	if err != nil {
 		return nil, err

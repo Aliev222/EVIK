@@ -325,17 +325,43 @@ func (r *AdminRepository) DecideDriverVerification(
 	ctx context.Context,
 	decision admindomain.DriverVerificationDecision,
 ) error {
+	// Shared guard so the single- and batch-moderation flows enforce exactly
+	// the same rules no matter how the admin UI is rebuilt.
+	if err := decision.Validate(); err != nil {
+		return err
+	}
+	decision.VehiclePlate = strings.ToUpper(strings.TrimSpace(decision.VehiclePlate))
+	decision.VehicleModel = strings.TrimSpace(decision.VehicleModel)
+	decision.VehicleType = strings.TrimSpace(decision.VehicleType)
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
+	// Approvals are only meaningful from an open verification round. Rejecting
+	// a re-approve of an approved / rejected / blocked record loudly (instead
+	// of silently overwriting a terminal state).
+	if decision.Status == admindomain.VerificationStatusApproved {
+		var currentStatus string
+		err := tx.QueryRowContext(ctx,
+			`SELECT status FROM driver_verifications WHERE id = $1`,
+			decision.ID,
+		).Scan(&currentStatus)
+		if err != nil {
+			return err // sql.ErrNoRows → 404 at the API layer
+		}
+		if !admindomain.ApprovalAllowedFrom(currentStatus) {
+			return admindomain.ErrInvalidDecisionStatus
+		}
+	}
+
 	// When approving, overwrite vehicle columns with the values the admin
 	// entered in the approval form. For other status transitions we leave
 	// them alone — they may have been set by an earlier approval.
 	var result sql.Result
-	if decision.Status == "approved" && decision.VehiclePlate != "" {
+	if decision.Status == admindomain.VerificationStatusApproved && decision.VehiclePlate != "" {
 		result, err = tx.ExecContext(ctx, `
 UPDATE driver_verifications
 SET status = $2,

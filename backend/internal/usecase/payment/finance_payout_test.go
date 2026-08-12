@@ -44,8 +44,12 @@ func (r *payoutRepo) MarkPayoutFailed(_ context.Context, payoutID, reason string
 }
 
 func newPayoutUC(repo paymentdomain.Repository, provider PaymentProvider) *FinanceUseCase {
+	return newPayoutUCWithMin(repo, provider, 10000)
+}
+
+func newPayoutUCWithMin(repo paymentdomain.Repository, provider PaymentProvider, minimumWithdrawal int64) *FinanceUseCase {
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
+	return NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, minimumWithdrawal, nil)
 }
 
 func TestRequestDriverPayoutRejectsNonPositiveAmount(t *testing.T) {
@@ -180,6 +184,73 @@ func TestRequestDriverPayoutAutoIdempotencyKey(t *testing.T) {
 	}
 	if payout.IdempotencyKey == "" {
 		t.Fatal("empty idempotency key should be auto-generated, got empty result")
+	}
+}
+
+// TestRequestDriverPayoutBelowMinimum covers БАГ #7: a payout request below
+// the configured minimum must fail without creating a payout or touching the
+// provider.
+func TestRequestDriverPayoutBelowMinimum(t *testing.T) {
+	repo := &payoutRepo{
+		payoutMethods: []paymentdomain.DriverPayoutMethod{
+			{ID: "m-1", DriverID: "driver-1", IsDefault: true, Status: "active", ProviderRecipientID: "recipient-1"},
+		},
+	}
+	provider := &scriptedProvider{}
+	uc := newPayoutUC(repo, provider)
+
+	_, err := uc.RequestDriverPayout(context.Background(), "driver-1", 9999, "key-below-min")
+	if !errors.Is(err, paymentdomain.ErrBelowMinimum) {
+		t.Fatalf("err = %v, want ErrBelowMinimum", err)
+	}
+	if len(provider.payoutCalls) != 0 {
+		t.Errorf("provider should not be called for below-minimum payout, calls = %d", len(provider.payoutCalls))
+	}
+	if repo.markPayoutFailedArg.called {
+		t.Error("MarkPayoutFailed should not be called when payout was never created")
+	}
+}
+
+// TestRequestDriverPayoutAtMinimumAllowed proves an amount exactly equal to
+// the configured minimum is still payable.
+func TestRequestDriverPayoutAtMinimumAllowed(t *testing.T) {
+	repo := &payoutRepo{
+		payoutMethods: []paymentdomain.DriverPayoutMethod{
+			{ID: "m-1", DriverID: "driver-1", IsDefault: true, Status: "active", ProviderRecipientID: "recipient-1"},
+		},
+	}
+	provider := &scriptedProvider{}
+	uc := newPayoutUC(repo, provider)
+
+	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 10000, "key-at-min")
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if payout == nil || payout.ID == "" {
+		t.Fatal("expected a created payout")
+	}
+	if len(provider.payoutCalls) != 1 {
+		t.Fatalf("expected 1 provider payout call, got %d", len(provider.payoutCalls))
+	}
+}
+
+// TestRequestDriverPayoutMinimumZeroDisablesGuard proves a minimum of 0 (not
+// configured) leaves the payout logic unchanged — any positive amount passes.
+func TestRequestDriverPayoutMinimumZeroDisablesGuard(t *testing.T) {
+	repo := &payoutRepo{
+		payoutMethods: []paymentdomain.DriverPayoutMethod{
+			{ID: "m-1", DriverID: "driver-1", IsDefault: true, Status: "active", ProviderRecipientID: "recipient-1"},
+		},
+	}
+	provider := &scriptedProvider{}
+	uc := newPayoutUCWithMin(repo, provider, 0)
+
+	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 5000, "key-min-zero")
+	if err != nil {
+		t.Fatalf("err = %v, want nil (minimum disabled)", err)
+	}
+	if payout == nil || payout.ID == "" {
+		t.Fatal("expected a created payout")
 	}
 }
 

@@ -259,15 +259,6 @@ type adminDecisionRequest struct {
 	VehicleType  string `json:"vehicle_type,omitempty"`
 }
 
-// allowedVehicleTypes mirrors the tow truck types known to the pricing
-// domain. We validate here so the admin can't save garbage that would
-// later break order pricing or matching.
-var allowedVehicleTypes = map[string]struct{}{
-	"winch":       {},
-	"platform":    {},
-	"manipulator": {},
-}
-
 type submitDriverVerificationRequest struct {
 	UserID       string   `json:"user_id"`
 	FullName     string   `json:"full_name"`
@@ -1322,24 +1313,6 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 	model := strings.TrimSpace(req.VehicleModel)
 	vehicleType := strings.TrimSpace(req.VehicleType)
 
-	if status == "approved" {
-		// When approving, the admin must enter the vehicle data — we don't
-		// trust whatever the driver originally submitted because the
-		// approval is the moment the data becomes authoritative.
-		if plate == "" || model == "" || vehicleType == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "vehicle_plate, vehicle_model and vehicle_type are required when approving",
-			})
-			return
-		}
-		if _, ok := allowedVehicleTypes[vehicleType]; !ok {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "vehicle_type must be one of winch, platform, manipulator",
-			})
-			return
-		}
-	}
-
 	moderatorID, err := userIDFromContext(r.Context())
 	if err != nil {
 		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
@@ -1360,6 +1333,15 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "verification not found"})
+			return
+		}
+		if errors.Is(err, admindomain.ErrVehicleDataRequired) ||
+			errors.Is(err, admindomain.ErrVehicleTypeNotAllowed) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, admindomain.ErrInvalidDecisionStatus) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

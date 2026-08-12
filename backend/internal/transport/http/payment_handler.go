@@ -58,6 +58,7 @@ func writePaymentError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "duplicate operation"})
 	case errors.Is(err, paymentdomain.ErrValidationFailed),
 		errors.Is(err, paymentdomain.ErrInvalidAmount),
+		errors.Is(err, paymentdomain.ErrBelowMinimum),
 		errors.Is(err, paymentdomain.ErrInsufficientFunds),
 		errors.Is(err, paymentdomain.ErrPayoutMethodNotFound),
 		errors.Is(err, orderdomain.ErrInvalidTransition):
