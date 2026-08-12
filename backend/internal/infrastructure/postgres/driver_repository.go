@@ -279,15 +279,37 @@ LIMIT $1`
 	return profiles, nil
 }
 
+// IsAvailable reports whether the driver can take new offers. A driver is
+// available only when online (no active order) AND their current verification
+// status is 'approved'. Blocking a driver (driver_verifications.status =
+// 'blocked') therefore removes them from the candidate pool immediately even
+// when drivers.status is still 'online' — while an in-flight order stays
+// untouched and is completed normally. Non-approved states (pending, rejected,
+// changes_requested) never enter the candidate pool either.
+//
+// driver_verifications carries exactly one row per user (unique user_id), but
+// historical data may key it by either the driver id or the driver's user_id,
+// so the EXISTS matches both.
 func (r *DriverRepository) IsAvailable(ctx context.Context, id string) (bool, error) {
-	drv, err := r.GetByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, driverdomain.ErrDriverNotFound) {
-			return false, nil
-		}
+	const query = `
+SELECT EXISTS(
+	SELECT 1
+	FROM drivers d
+	WHERE d.id = $1
+	  AND d.status = $2
+	  AND d.current_order_id IS NULL
+	  AND EXISTS (
+		SELECT 1
+		FROM driver_verifications dv
+		WHERE dv.user_id IN (d.user_id, d.id)
+		  AND dv.status = 'approved'
+	  )
+)`
+	var ok bool
+	if err := r.db.QueryRowContext(ctx, query, id, string(driverdomain.StatusOnline)).Scan(&ok); err != nil {
 		return false, err
 	}
-	return drv.IsAvailable(), nil
+	return ok, nil
 }
 
 func (r *DriverRepository) AssignOrder(ctx context.Context, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error) {

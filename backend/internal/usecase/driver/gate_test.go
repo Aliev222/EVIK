@@ -66,3 +66,24 @@ func TestGateServiceBypassAllowsScenarioTesting(t *testing.T) {
 		t.Fatalf("expected payout gate bypass to pass, got %v", err)
 	}
 }
+
+// A driver whose verification is not approved (e.g. blocked) must still be
+// able to request a payout of already-earned money. The payout gate must NOT
+// depend on driver_verifications.status.
+func TestGateServiceRequestPayoutAllowsNotApprovedDriver(t *testing.T) {
+	uc := NewGateService(fakeGateRepo{docsApproved: false, taxVerified: true}, fakeClock{now: time.Now()}, true, false, false)
+
+	if err := uc.EnsureCanRequestPayout(context.Background(), "driver-1"); err != nil {
+		t.Fatalf("expected not-approved driver to pass payout gate, got %v", err)
+	}
+}
+
+// Tax verification is the only gate on payout: a driver without a verified
+// tax profile cannot withdraw regardless of moderation status.
+func TestGateServiceRequestPayoutRequiresVerifiedTax(t *testing.T) {
+	uc := NewGateService(fakeGateRepo{docsApproved: false, taxVerified: false}, fakeClock{now: time.Now()}, true, false, false)
+
+	if err := uc.EnsureCanRequestPayout(context.Background(), "driver-1"); err != ErrDriverTaxNotVerified {
+		t.Fatalf("expected tax gate error, got %v", err)
+	}
+}

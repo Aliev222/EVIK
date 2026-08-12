@@ -60,16 +60,15 @@ func (s *GateService) EnsureCanWork(ctx context.Context, driverID string) error 
 	return nil
 }
 
+// EnsureCanRequestPayout checks the money-specific prerequisites for a driver
+// payout request. It intentionally does NOT require an approved driver
+// verification: once money is earned, losing the right to take new orders
+// (e.g. verification status 'blocked') must not revoke access to withdrawing
+// that money. Tax verification remains the only gate — it is a regulatory
+// (self-employed / НПД) requirement that is independent of moderation status.
 func (s *GateService) EnsureCanRequestPayout(ctx context.Context, driverID string) error {
 	if s.bypass || s.debugMode {
 		return nil
-	}
-	docsApproved, err := s.repo.IsDriverDocumentsApproved(ctx, driverID)
-	if err != nil {
-		return err
-	}
-	if !docsApproved {
-		return ErrDriverDocumentsNotApproved
 	}
 	taxVerified, err := s.repo.IsDriverTaxVerified(ctx, driverID)
 	if err != nil {
