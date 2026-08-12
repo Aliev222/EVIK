@@ -124,7 +124,9 @@ func RateLimitByPhone(limiter *RateLimiter, maxPerMin int) func(http.Handler) ht
 						Phone string `json:"phone"`
 					}
 					if json.Unmarshal(body, &payload) == nil && payload.Phone != "" {
-						key = "phone:" + payload.Phone
+						if normalized := normalizePhone(payload.Phone); normalized != "" {
+							key = "phone:" + normalized
+						}
 					}
 				}
 			}

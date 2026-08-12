@@ -209,27 +209,25 @@ func TestAuthOTP_RateLimit_IsPerPhoneNotGlobal(t *testing.T) {
 	}
 }
 
-// TestAuthOTP_RateLimit_PhoneVariantBypass is SKIPPED: it reproduces a concrete
-// rate-limit evasion. RateLimitByPhone buckets by the RAW phone string from the
-// request body, but normalizePhone(...) runs only later in RequestOTP. The same
-// underlying number spelled four different ways ('+79990000001', '89990000001',
-// '9990000001', '+7 (999) 000-00-01') normalizes to the same +7... number yet
-// lands in four separate buckets — the 3/min per-phone cap is trivially
-// bypassable, enabling SMS-fire / real-money abuse. TODO (BUG-OTP-RATEKEY): key
-// the bucket on normalizePhone(phone).
+// TestAuthOTP_RateLimit_PhoneVariantBypass guards against rate-limit evasion by
+// phone-format variants. RateLimitByPhone buckets on normalizePhone(...) so all
+// spellings of the same number ('+79990000001', '89990000001', '9990000001',
+// '+7 (999) 000-00-01') collapse to one +7... key and share the 3/min bucket.
 func TestAuthOTP_RateLimit_PhoneVariantBypass(t *testing.T) {
-	t.Skip("BUG-OTP-RATEKEY: per-phone OTP rate limit keyed on raw phone string, bypassable by phone-format variants — see report")
-
 	router := newFocusedSecurityRouter(newTokens(time.Minute), NewRateLimiter(), probeOK)
 	variants := []string{"+79990000001", "89990000001", "9990000001", "+7 (999) 000-00-01"}
-	for _, phone := range variants {
+	// All four raw spellings of the SAME number must share one bucket: the
+	// 3/min per-phone cap is reached on the 4th request regardless of format.
+	for i, phone := range variants {
+		want := http.StatusOK
+		if i == 3 {
+			want = http.StatusTooManyRequests
+		}
 		rec := doRequestJSON(router, http.MethodPost, "/api/v1/auth/otp/request", `{"phone":"`+phone+`","role":"client"}`)
-		if rec.Code == http.StatusTooManyRequests {
-			t.Fatalf("variant %q hit 429 — limit (incorrectly) reached", phone)
+		if rec.Code != want {
+			t.Fatalf("variant %q (call #%d): status = %d, want %d (body=%s)", phone, i+1, rec.Code, want, rec.Body.String())
 		}
 	}
-	// With the bug, all four variants of the SAME number pass the cap.
-	t.Fatal("BUG reproduced: four raw variants of one phone all bypassed the 3/min limit")
 }
 
 // --- Adversarial inputs: no 500s, no panics — proper 4xx validation ---
