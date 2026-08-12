@@ -33,15 +33,15 @@ import (
 )
 
 type Container struct {
-	Router             http.Handler
-	Scheduler          *Scheduler
-	ExpansionScheduler *SearchExpansionScheduler
-	DispatchScheduler  *DispatchScheduler
+	Router               http.Handler
+	Scheduler            *Scheduler
+	ExpansionScheduler   *SearchExpansionScheduler
+	DispatchScheduler    *DispatchScheduler
 	DriverPresenceReaper *DriverPresenceReaper
 	StuckOrderReaper     *StuckOrderReaper
-	RateLimiter        *httptransport.RateLimiter
-	db                 *sql.DB
-	rdb                *redis.Client
+	RateLimiter          *httptransport.RateLimiter
+	db                   *sql.DB
+	rdb                  *redis.Client
 }
 
 type stdClock struct{}
@@ -243,8 +243,9 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	pricingHandler := httptransport.NewPricingHandler(pricingService)
 	routingHandler := httptransport.NewRoutingHandler(routingService, orderRepo)
 	serviceAreaHandler := httptransport.NewServiceAreaHandler(serviceAreaRepo)
-	cityGeocoder := geocoding.NewNominatim()
+	cityGeocoder := geocoding.NewNominatim(cfg.NominatimBaseURL)
 	cityHandler := httptransport.NewCityHandler(serviceAreaRepo, cityGeocoder, idGen)
+	geocodingHandler := httptransport.NewGeocodingHandler(cityGeocoder)
 	driverLocationsHandler := httptransport.NewDriverLocationsHandler(driverRepo, locationRepo, serviceAreaRepo)
 	offerHandler := httptransport.NewOfferHandler(offerRepo, orderRepo)
 	settingsHandler := httptransport.NewSettingsHandler(settingsRepo)
@@ -326,7 +327,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	)
 
 	limiter := httptransport.NewRateLimiter()
-	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
+	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 

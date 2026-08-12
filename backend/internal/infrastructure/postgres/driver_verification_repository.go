@@ -78,62 +78,11 @@ func (r *DriverVerificationRepository) GetVerificationStatus(ctx context.Context
 	}
 
 	return &http.DriverVerificationStatus{
-		DriverID:         driverID,
-		Status:           status,
+		DriverID:          driverID,
+		Status:            status,
 		DocumentsUploaded: documentsUploaded,
-		SubmittedAt:      submittedAtPtr,
-		UpdatedAt:        updatedAtPtr,
-		AdminComments:    adminComments,
+		SubmittedAt:       submittedAtPtr,
+		UpdatedAt:         updatedAtPtr,
+		AdminComments:     adminComments,
 	}, nil
-}
-
-// CreateVerification creates a new verification record and stores documents
-func (r *DriverVerificationRepository) CreateVerification(ctx context.Context, driverID string, documents map[string]http.DocumentInfo) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Insert or update verification record
-	verificationQuery := `
-		INSERT INTO driver_verifications (user_id, status, submitted_at, updated_at)
-		VALUES ($1, 'pending', NOW(), NOW())
-		ON CONFLICT (user_id)
-		DO UPDATE SET status = 'pending', submitted_at = NOW(), updated_at = NOW(), admin_comments = ''
-		RETURNING id
-	`
-
-	var verificationID string
-	if err := tx.QueryRowContext(ctx, verificationQuery, driverID).Scan(&verificationID); err != nil {
-		return err
-	}
-
-	// Delete old documents for this verification
-	deleteDocsQuery := `DELETE FROM driver_documents WHERE verification_id = $1`
-	if _, err := tx.ExecContext(ctx, deleteDocsQuery, verificationID); err != nil {
-		return err
-	}
-
-	// Insert new documents
-	for docType, docInfo := range documents {
-		insertDocQuery := `
-			INSERT INTO driver_documents (verification_id, document_type, storage_key, public_url, content_type, uploaded_at)
-			VALUES ($1, $2, '', $3, $4, $5)
-		`
-		if _, err := tx.ExecContext(ctx, insertDocQuery, verificationID, docType, docInfo.URL, docInfo.ContentType, docInfo.UploadedAt); err != nil {
-			return err
-		}
-	}
-
-	// Create audit log entry
-	auditQuery := `
-		INSERT INTO moderation_audit_log (verification_id, action, previous_status, new_status, timestamp)
-		VALUES ($1, 'submit', 'not_submitted', 'pending', NOW())
-	`
-	if _, err := tx.ExecContext(ctx, auditQuery, verificationID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
 }

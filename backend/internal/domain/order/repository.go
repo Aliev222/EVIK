@@ -15,6 +15,13 @@ type Repository interface {
 	// order is in 'searching' state with no driver assigned yet. Returns
 	// ErrOrderAlreadyTaken when another driver won the race.
 	AcceptOrder(ctx context.Context, orderID, driverID string) (*Order, error)
+	// CancelOrder atomically transitions a live order to 'cancelled' with a
+	// single conditional UPDATE...RETURNING. Only orders NOT yet in
+	// 'completed'/'cancelled' match; the RETURNING projection carries the
+	// CURRENT driver_id captured at statement time (so a concurrent accept can
+	// never be lost — see BUG-CANCEL-RACE-DRIVER). Returns ErrOrderNotFound
+	// when no live row matched.
+	CancelOrder(ctx context.Context, orderID string, reason string, now time.Time) (*Order, error)
 	ListByStatus(ctx context.Context, status Status, limit int) ([]*Order, error)
 	ListAdminOrders(ctx context.Context, filter AdminOrderFilter) ([]AdminOrderListItem, int64, error)
 	GetAdminOrderDetails(ctx context.Context, orderID string) (*AdminOrderDetails, error)

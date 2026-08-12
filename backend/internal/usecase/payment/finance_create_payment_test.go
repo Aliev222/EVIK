@@ -49,6 +49,9 @@ func (r *createPaymentOrderRepo) GetAdminOrderDetails(context.Context, string) (
 func (r *createPaymentOrderRepo) AcceptOrder(context.Context, string, string) (*orderdomain.Order, error) {
 	return nil, nil
 }
+func (r *createPaymentOrderRepo) CancelOrder(context.Context, string, string, time.Time) (*orderdomain.Order, error) {
+	return nil, nil
+}
 
 func sampleOrder(userID string) *orderdomain.Order {
 	return &orderdomain.Order{

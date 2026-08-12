@@ -1,7 +1,9 @@
 package pricing
 
 import (
+	"math"
 	"time"
+
 	orderdomain "evik/backend/internal/domain/order"
 )
 
@@ -60,8 +62,28 @@ type PriceCalculation struct {
 
 // CalculatePrice calculates price based on tariff and distance
 func (t *Tariff) CalculatePrice(distanceKm float64, now time.Time) *PriceCalculation {
-	distancePrice := int64(distanceKm * float64(t.PricePerKm))
+	// A negative distance is a broken input, never a reason to mint money:
+	// clamp to zero so the per-km product can never go negative.
+	if distanceKm < 0 {
+		distanceKm = 0
+	}
+
+	// Half-up rounding of the per-km product (1.5 km * 1 kop/km = 2 kop).
+	// Saturate at MaxInt64 so a hostile/huge distance cannot wrap the
+	// float→int conversion into negative money that would then silently
+	// collapse to the minimum price.
+	var distancePrice int64
+	if raw := distanceKm * float64(t.PricePerKm); raw >= float64(math.MaxInt64) {
+		distancePrice = math.MaxInt64
+	} else {
+		distancePrice = int64(math.Round(raw))
+	}
+
 	totalPrice := t.BasePrice + distancePrice
+	if totalPrice < t.BasePrice {
+		// int64 addition overflow: base + distance wrapped past MaxInt64.
+		totalPrice = math.MaxInt64
+	}
 
 	// Apply minimum price
 	if totalPrice < t.MinimumPrice {

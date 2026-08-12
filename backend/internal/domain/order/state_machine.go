@@ -56,7 +56,9 @@ var allowedTransitions = map[State]map[State]struct{}{
 	},
 	StateCompleted: {},
 	StateCancelled: {},
-	StateNoDriverFound: {},
+	StateNoDriverFound: {
+		StateCancelled: {},
+	},
 }
 
 type StateMachine struct {

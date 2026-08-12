@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,8 +36,8 @@ func TestAcceptOrderRejectsUnavailableDriver(t *testing.T) {
 	if orderRepo.updated {
 		t.Fatal("order was updated for unavailable driver")
 	}
-	if len(publisher.events) != 0 {
-		t.Fatalf("events = %+v, want none", publisher.events)
+	if len(publisher.Events()) != 0 {
+		t.Fatalf("events = %+v, want none", publisher.Events())
 	}
 }
 
@@ -70,8 +71,8 @@ func TestAcceptOrderAssignsDriverAndPublishesEvent(t *testing.T) {
 	if !driverRepo.assigned {
 		t.Fatal("driver was not assigned")
 	}
-	if len(publisher.events) != 1 || publisher.events[0].Type != orderdomain.EventAccepted {
-		t.Fatalf("events = %+v, want one accepted event", publisher.events)
+	if evs := publisher.Events(); len(evs) != 1 || evs[0].Type != orderdomain.EventAccepted {
+		t.Fatalf("events = %+v, want one accepted event", evs)
 	}
 }
 
@@ -116,8 +117,8 @@ func TestAcceptOrderIsIdempotentForSameDriverActiveOrder(t *testing.T) {
 			if driverRepo.assignCalls != 0 {
 				t.Fatalf("assign calls = %d, want 0", driverRepo.assignCalls)
 			}
-			if len(publisher.events) != 0 {
-				t.Fatalf("events = %+v, want none", publisher.events)
+			if len(publisher.Events()) != 0 {
+				t.Fatalf("events = %+v, want none", publisher.Events())
 			}
 		})
 	}
@@ -377,6 +378,38 @@ func (r *fakeOrderRepository) AcceptOrderTx(_ context.Context, _ *sql.Tx, orderI
 	return ord, err
 }
 
+// CancelOrder atomically simulates the single-statement conditional update of
+// the real repository: only live (non-completed/non-cancelled) orders match,
+// the current driver_id is preserved on the row, and cancelled_at/cancel_reason
+// are stamped. Returns ErrOrderNotFound when the order is already terminal.
+func (r *fakeOrderRepository) CancelOrder(_ context.Context, orderID string, reason string, now time.Time) (*orderdomain.Order, error) {
+	ord, err := r.GetByID(context.Background(), orderID)
+	if err != nil {
+		return nil, err
+	}
+	if !cancellableByFake(ord.Status) {
+		return nil, orderdomain.ErrOrderNotFound
+	}
+	ord.Status = orderdomain.StatusCancelled
+	ord.CancelledAt = &now
+	ord.UpdatedAt = now
+	ord.CancelReason = reason
+	r.updated = true
+	if r.orders != nil {
+		r.orders[orderID] = ord
+	} else {
+		r.order = ord
+	}
+	copied := *ord
+	return &copied, nil
+}
+
+// cancellableByFake mirrors the repository's WHERE clause: any status other
+// than completed/cancelled may be cancelled.
+func cancellableByFake(status orderdomain.Status) bool {
+	return status != orderdomain.StatusCompleted && status != orderdomain.StatusCancelled
+}
+
 func (r *fakeOrderRepository) UpdateTx(_ context.Context, _ *sql.Tx, ord *orderdomain.Order) error {
 	return r.Update(context.Background(), ord)
 }
@@ -495,11 +528,28 @@ type fakeLogger struct{}
 func (fakeLogger) Info(string, ...any)         {}
 func (fakeLogger) Error(string, error, ...any) {}
 
+// fakeEventPublisher is a thread-safe event sink. The create usecase publishes
+// the order_created event from a delayed (500ms) background goroutine while the
+// main flow publishes the searching event synchronously — both write the same
+// sink, so it must synchronize (a plain slice append would be a data race
+// under -race).
 type fakeEventPublisher struct {
+	mu     sync.Mutex
 	events []orderdomain.Event
 }
 
 func (p *fakeEventPublisher) Publish(_ context.Context, event orderdomain.Event) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.events = append(p.events, event)
 	return nil
+}
+
+// Events returns a snapshot of all published events.
+func (p *fakeEventPublisher) Events() []orderdomain.Event {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]orderdomain.Event, len(p.events))
+	copy(out, p.events)
+	return out
 }

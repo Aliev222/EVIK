@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultBaseURL   = "https://nominatim.openstreetmap.org/search"
+	defaultBaseURL   = "https://nominatim.openstreetmap.org"
 	defaultUserAgent = "AvroApp/1.0 (support@avro.app)"
 	// minInterval enforces the Nominatim "max 1 request per second" policy.
 	minInterval = time.Second
@@ -27,6 +27,9 @@ const (
 
 // ErrCityNotFound is returned when Nominatim has no result for the query.
 var ErrCityNotFound = errors.New("geocoding: city not found")
+
+// ErrReverseNotFound is returned when Nominatim has no address for the point.
+var ErrReverseNotFound = errors.New("geocoding: address not found")
 
 // CitySearchResult is the normalized geocoding result for a single city.
 type CitySearchResult struct {
@@ -42,9 +45,9 @@ type CitySearchResult struct {
 	Type        string
 }
 
-// Nominatim is a rate-limited client for the OSM Nominatim search endpoint.
-// It is safe for concurrent use: requests are serialized so the 1 req/s policy
-// holds even under parallel callers.
+// Nominatim is a rate-limited client for the OSM Nominatim search/reverse
+// endpoints. It is safe for concurrent use: requests are serialized so the
+// 1 req/s policy holds even under parallel callers.
 type Nominatim struct {
 	baseURL   string
 	userAgent string
@@ -54,10 +57,20 @@ type Nominatim struct {
 	lastRequest time.Time
 }
 
-// NewNominatim builds a Nominatim client with sane defaults.
-func NewNominatim() *Nominatim {
+// ReverseResult is the normalized reverse-geocoding result for a coordinate.
+type ReverseResult struct {
+	DisplayName string
+}
+
+// NewNominatim builds a Nominatim client. An empty baseURL falls back to the
+// public OSM instance. The caller controls the base URL so deployments can
+// point at a self-hosted Nominatim without hardcoding values.
+func NewNominatim(baseURL string) *Nominatim {
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
 	return &Nominatim{
-		baseURL:   defaultBaseURL,
+		baseURL:   strings.TrimRight(baseURL, "/"),
 		userAgent: defaultUserAgent,
 		client:    &http.Client{Timeout: 15 * time.Second},
 	}
@@ -192,27 +205,85 @@ func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]City
 
 // doSearch performs the rate-limited HTTP GET against Nominatim.
 func (n *Nominatim) doSearch(ctx context.Context, name string, limit int) ([]byte, error) {
-	// Serialize and throttle: hold the lock across the request so concurrent
-	// callers cannot exceed one request per second.
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	if elapsed := time.Since(n.lastRequest); elapsed < minInterval {
-		wait := minInterval - elapsed
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(wait):
-		}
+	release, err := n.throttleAndLock(ctx)
+	if err != nil {
+		return nil, err
 	}
+	defer release()
 
 	q := url.Values{}
 	q.Set("q", name)
 	q.Set("format", "json")
 	q.Set("limit", strconv.Itoa(limit))
 	q.Set("addressdetails", "1")
-	endpoint := n.baseURL + "?" + q.Encode()
+	endpoint := n.baseURL + "/search?" + q.Encode()
 
+	return n.get(ctx, endpoint)
+}
+
+// Reverse resolves a latitude/longitude point into a human-readable address via
+// the Nominatim /reverse endpoint. It blocks as needed to honor the 1
+// request/second policy and sends the same identifying User-Agent as search.
+func (n *Nominatim) Reverse(ctx context.Context, lat, lng float64) (*ReverseResult, error) {
+	if lat < -90 || lat > 90 || lng < -180 || lng > 180 {
+		return nil, errors.New("geocoding: invalid coordinates")
+	}
+
+	release, err := n.throttleAndLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	q := url.Values{}
+	q.Set("lat", strconv.FormatFloat(lat, 'f', -1, 64))
+	q.Set("lon", strconv.FormatFloat(lng, 'f', -1, 64))
+	q.Set("format", "jsonv2")
+	endpoint := n.baseURL + "/reverse?" + q.Encode()
+
+	body, err := n.get(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	var res struct {
+		DisplayName string `json:"display_name"`
+		Error       string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, fmt.Errorf("geocoding: decode response: %w", err)
+	}
+	if strings.TrimSpace(res.Error) != "" {
+		// Nominatim returns {"error": ...} when a point has no address
+		// (e.g. open sea).
+		return nil, fmt.Errorf("geocoding: reverse lookup failed: %s", res.Error)
+	}
+	if strings.TrimSpace(res.DisplayName) == "" {
+		return nil, ErrReverseNotFound
+	}
+	return &ReverseResult{DisplayName: strings.TrimSpace(res.DisplayName)}, nil
+}
+
+// throttleAndLock serializes requests so callers cannot exceed the Nominatim
+// policy of one request per second. The returned func MUST be released (defer)
+// once the HTTP request completes so the timestamp is updated under the lock.
+func (n *Nominatim) throttleAndLock(ctx context.Context) (func(), error) {
+	n.mu.Lock()
+	if elapsed := time.Since(n.lastRequest); elapsed < minInterval {
+		wait := minInterval - elapsed
+		select {
+		case <-ctx.Done():
+			n.mu.Unlock()
+			return nil, ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+	return n.mu.Unlock, nil
+}
+
+// get performs the authenticated-agnostic Nominatim request and returns the
+// raw body. Callers must already hold the throttle lock.
+func (n *Nominatim) get(ctx context.Context, endpoint string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err

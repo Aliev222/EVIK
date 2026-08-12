@@ -1,5 +1,6 @@
 import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
+import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/client_home_screen.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository/driver_verification_repository.dart';
@@ -11,6 +12,7 @@ import 'package:tow_truck_frontend/features/driver/presentation/screens/driver_m
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/map/presentation/providers/map_provider.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +43,7 @@ void main() {
             ),
           ),
           mapProvider.overrideWith((ref) => _TestMapNotifier()),
+          orderFlowProvider.overrideWith((ref) => _StubOrderFlowNotifier(ref)),
         ],
         child: const MaterialApp(home: ClientHomeScreen()),
       ),
@@ -171,4 +174,23 @@ class _FakeDriverVerificationRepository
       submittedAt: DateTime(2026, 4, 24),
     );
   }
+}
+
+class _StubOrderFlowNotifier extends OrderFlowNotifier {
+  // ignore: use_super_parameters
+  _StubOrderFlowNotifier(Ref ref) : super(ref) {
+    state = const OrderFlowState(
+      pickupLocation: MapLocation(
+        latitude: 42.9849,
+        longitude: 47.4947,
+        address: 'ул. Пушкина, 1, Махачкала',
+      ),
+    );
+  }
+
+  @override
+  Future<void> restoreActiveFlow() async {}
+
+  @override
+  Future<void> detectCurrentLocation() async {}
 }

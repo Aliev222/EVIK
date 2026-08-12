@@ -1141,9 +1141,9 @@ func (r *AdminRepository) ListDriverOrders(ctx context.Context, driverID string,
 	const query = `
 SELECT
 	o.id, o.user_id, '', '', o.driver_id, '', '',
-	o.status, o.payment_method, '', '',
+	o.status, o.payment_method, '',
 	o.price_total, o.commission_amount, o.driver_amount,
-	o.created_at, o.completed_at, o.cancelled_at
+	o.created_at, o.financially_completed_at, o.cancelled_at
 FROM orders o
 WHERE o.driver_id = $1
 ORDER BY o.created_at DESC

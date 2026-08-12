@@ -11,59 +11,60 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                   string
-	AppEnv                     string
-	PostgresDSN                string
-	RedisAddr                  string
-	RedisPassword              string
-	RedisURL                   string
-	JWTSecret                  string
-	AccessTTL                  time.Duration
-	RefreshTTL                 time.Duration
-	AllowedOrigins             []string
-	AdminUserID                string
-	AdminPassword              string
-	S3Endpoint                 string
-	S3Region                   string
-	S3Bucket                   string
-	S3AccessKey                string
-	S3SecretKey                string
-	S3PublicBaseURL            string
-	OSRMBaseURL                string
-	YooKassaShopID             string
-	YooKassaSecret             string
-	YooKassaReturnURL          string
-	YooKassaPayoutGatewayID    string
-	YooKassaPayoutSecret       string
-	YooKassaPayoutMode         string
-	FinancePendingHoldSeconds  int
-	MinimumWithdrawalKopecks   int64
-	BalanceReleaseInterval          time.Duration
-	OrderExpansionCheckInterval     time.Duration
-	OrderExpansionDelay             time.Duration
-	OrderExpansionRadiusKM          float64
-	DispatchCheckInterval           time.Duration
-	DispatchOfferTimeout            time.Duration
-	DispatchGeoFreshness            time.Duration
-	DriverLastCityTTL               time.Duration
-	DriverSubscriptionRequired      bool
-	DriverGateBypass           bool
-	DriverPresenceReaperInterval     time.Duration
-	DriverPresenceGracePeriod        time.Duration
-	StuckOrderReaperInterval         time.Duration
-	StuckSearchingTimeout            time.Duration
-	StuckAcceptedTimeout             time.Duration
-	StuckArrivedFlagThreshold        time.Duration
-	StuckInProgressFlagThreshold     time.Duration
+	HTTPAddr                          string
+	AppEnv                            string
+	PostgresDSN                       string
+	RedisAddr                         string
+	RedisPassword                     string
+	RedisURL                          string
+	JWTSecret                         string
+	AccessTTL                         time.Duration
+	RefreshTTL                        time.Duration
+	AllowedOrigins                    []string
+	AdminUserID                       string
+	AdminPassword                     string
+	S3Endpoint                        string
+	S3Region                          string
+	S3Bucket                          string
+	S3AccessKey                       string
+	S3SecretKey                       string
+	S3PublicBaseURL                   string
+	OSRMBaseURL                       string
+	NominatimBaseURL                  string
+	YooKassaShopID                    string
+	YooKassaSecret                    string
+	YooKassaReturnURL                 string
+	YooKassaPayoutGatewayID           string
+	YooKassaPayoutSecret              string
+	YooKassaPayoutMode                string
+	FinancePendingHoldSeconds         int
+	MinimumWithdrawalKopecks          int64
+	BalanceReleaseInterval            time.Duration
+	OrderExpansionCheckInterval       time.Duration
+	OrderExpansionDelay               time.Duration
+	OrderExpansionRadiusKM            float64
+	DispatchCheckInterval             time.Duration
+	DispatchOfferTimeout              time.Duration
+	DispatchGeoFreshness              time.Duration
+	DriverLastCityTTL                 time.Duration
+	DriverSubscriptionRequired        bool
+	DriverGateBypass                  bool
+	DriverPresenceReaperInterval      time.Duration
+	DriverPresenceGracePeriod         time.Duration
+	StuckOrderReaperInterval          time.Duration
+	StuckSearchingTimeout             time.Duration
+	StuckAcceptedTimeout              time.Duration
+	StuckArrivedFlagThreshold         time.Duration
+	StuckInProgressFlagThreshold      time.Duration
 	StuckAwaitingPaymentFlagThreshold time.Duration
-	StuckAcceptedAction              string
-	ExposeSwagger              bool
-	FirebaseCredentialsJSON    string
-	OTPFixedCode               string
-	AllowMockLocation          bool
-	DebugMode                  bool
-	YooKassaStubMode           bool
-	S3StubMode                 bool
+	StuckAcceptedAction               string
+	ExposeSwagger                     bool
+	FirebaseCredentialsJSON           string
+	OTPFixedCode                      string
+	AllowMockLocation                 bool
+	DebugMode                         bool
+	YooKassaStubMode                  bool
+	S3StubMode                        bool
 }
 
 func MustLoad() Config {
@@ -88,59 +89,60 @@ func MustLoad() Config {
 	driverGateBypassDefault := otpFixedCode != "" && !isProduction
 
 	cfg := Config{
-		HTTPAddr:                   httpAddr,
-		AppEnv:                     appEnv,
-		PostgresDSN:                normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
-		RedisAddr:                  getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:              getEnv("REDIS_PASSWORD", ""),
-		RedisURL:                   getEnv("REDIS_URL", ""),
-		JWTSecret:                  getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
-		AccessTTL:                  getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
-		RefreshTTL:                 getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
-		AllowedOrigins:             getAllowedOrigins(),
-		AdminUserID:                getEnv("ADMIN_USER_ID", "admin"),
-		AdminPassword:              getEnv("ADMIN_PASSWORD", ""),
-		S3Endpoint:                 getEnv("S3_ENDPOINT", ""),
-		S3Region:                   getEnv("S3_REGION", "ru-1"),
-		S3Bucket:                   getEnv("S3_BUCKET", ""),
-		S3AccessKey:                getEnv("S3_ACCESS_KEY", ""),
-		S3SecretKey:                getEnv("S3_SECRET_KEY", ""),
-		S3PublicBaseURL:            getEnv("S3_PUBLIC_BASE_URL", ""),
-		OSRMBaseURL:                getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
-		YooKassaShopID:             getEnv("YOOKASSA_SHOP_ID", ""),
-		YooKassaSecret:             getEnv("YOOKASSA_SECRET_KEY", ""),
-		YooKassaReturnURL:          getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
-		YooKassaPayoutGatewayID:    getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
-		YooKassaPayoutSecret:       getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
-		YooKassaPayoutMode:         getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
-		FinancePendingHoldSeconds:  getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
-		MinimumWithdrawalKopecks:   int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
-		BalanceReleaseInterval:          getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
-		OrderExpansionCheckInterval:     getEnvDuration("ORDER_EXPANSION_CHECK_INTERVAL", 10*time.Second),
-		OrderExpansionDelay:             getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
-		OrderExpansionRadiusKM:          getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
-		DispatchCheckInterval:           getEnvDuration("DISPATCH_CHECK_INTERVAL", 2*time.Second),
-		DispatchOfferTimeout:            getEnvDuration("DISPATCH_OFFER_TIMEOUT", 15*time.Second),
-		DispatchGeoFreshness:            getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
-		DriverLastCityTTL:          getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
+		HTTPAddr:                          httpAddr,
+		AppEnv:                            appEnv,
+		PostgresDSN:                       normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
+		RedisAddr:                         getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:                     getEnv("REDIS_PASSWORD", ""),
+		RedisURL:                          getEnv("REDIS_URL", ""),
+		JWTSecret:                         getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
+		AccessTTL:                         getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
+		RefreshTTL:                        getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
+		AllowedOrigins:                    getAllowedOrigins(),
+		AdminUserID:                       getEnv("ADMIN_USER_ID", "admin"),
+		AdminPassword:                     getEnv("ADMIN_PASSWORD", ""),
+		S3Endpoint:                        getEnv("S3_ENDPOINT", ""),
+		S3Region:                          getEnv("S3_REGION", "ru-1"),
+		S3Bucket:                          getEnv("S3_BUCKET", ""),
+		S3AccessKey:                       getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:                       getEnv("S3_SECRET_KEY", ""),
+		S3PublicBaseURL:                   getEnv("S3_PUBLIC_BASE_URL", ""),
+		OSRMBaseURL:                       getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
+		NominatimBaseURL:                  getEnv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org"),
+		YooKassaShopID:                    getEnv("YOOKASSA_SHOP_ID", ""),
+		YooKassaSecret:                    getEnv("YOOKASSA_SECRET_KEY", ""),
+		YooKassaReturnURL:                 getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
+		YooKassaPayoutGatewayID:           getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
+		YooKassaPayoutSecret:              getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
+		YooKassaPayoutMode:                getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
+		FinancePendingHoldSeconds:         getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
+		MinimumWithdrawalKopecks:          int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
+		BalanceReleaseInterval:            getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
+		OrderExpansionCheckInterval:       getEnvDuration("ORDER_EXPANSION_CHECK_INTERVAL", 10*time.Second),
+		OrderExpansionDelay:               getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
+		OrderExpansionRadiusKM:            getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
+		DispatchCheckInterval:             getEnvDuration("DISPATCH_CHECK_INTERVAL", 2*time.Second),
+		DispatchOfferTimeout:              getEnvDuration("DISPATCH_OFFER_TIMEOUT", 15*time.Second),
+		DispatchGeoFreshness:              getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
+		DriverLastCityTTL:                 getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
 		DriverPresenceReaperInterval:      getEnvDuration("DRIVER_PRESENCE_REAPER_INTERVAL", 30*time.Second),
 		DriverPresenceGracePeriod:         getEnvDuration("DRIVER_PRESENCE_GRACE_PERIOD", 90*time.Second),
 		StuckOrderReaperInterval:          getEnvDuration("STUCK_ORDER_REAPER_INTERVAL", 30*time.Second),
 		StuckSearchingTimeout:             getEnvDuration("STUCK_SEARCHING_TIMEOUT", 5*time.Minute),
 		StuckAcceptedTimeout:              getEnvDuration("STUCK_ACCEPTED_TIMEOUT", 15*time.Minute),
 		StuckArrivedFlagThreshold:         getEnvDuration("STUCK_ARRIVED_FLAG_THRESHOLD", 2*time.Hour),
-		StuckInProgressFlagThreshold:       getEnvDuration("STUCK_IN_PROGRESS_FLAG_THRESHOLD", 4*time.Hour),
-		StuckAwaitingPaymentFlagThreshold:  getEnvDuration("STUCK_AWAITING_PAYMENT_FLAG_THRESHOLD", 24*time.Hour),
+		StuckInProgressFlagThreshold:      getEnvDuration("STUCK_IN_PROGRESS_FLAG_THRESHOLD", 4*time.Hour),
+		StuckAwaitingPaymentFlagThreshold: getEnvDuration("STUCK_AWAITING_PAYMENT_FLAG_THRESHOLD", 24*time.Hour),
 		StuckAcceptedAction:               getEnv("STUCK_ACCEPTED_ACTION", "cancel"),
-		DriverSubscriptionRequired: getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
-		DriverGateBypass:           getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
-		ExposeSwagger:              getEnvBool("EXPOSE_SWAGGER", false),
-		FirebaseCredentialsJSON:    getEnv("FIREBASE_CREDENTIALS_JSON", ""),
-		OTPFixedCode:               otpFixedCode,
-		AllowMockLocation:          getEnvBool("ALLOW_MOCK_LOCATION", !isProduction),
-		DebugMode:                  debugMode,
-		YooKassaStubMode:           getEnvBool("YOOKASSA_STUB_MODE", false),
-		S3StubMode:                 getEnvBool("S3_STUB_MODE", false),
+		DriverSubscriptionRequired:        getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
+		DriverGateBypass:                  getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
+		ExposeSwagger:                     getEnvBool("EXPOSE_SWAGGER", false),
+		FirebaseCredentialsJSON:           getEnv("FIREBASE_CREDENTIALS_JSON", ""),
+		OTPFixedCode:                      otpFixedCode,
+		AllowMockLocation:                 getEnvBool("ALLOW_MOCK_LOCATION", !isProduction),
+		DebugMode:                         debugMode,
+		YooKassaStubMode:                  getEnvBool("YOOKASSA_STUB_MODE", false),
+		S3StubMode:                        getEnvBool("S3_STUB_MODE", false),
 	}
 	validateProductionConfig(cfg)
 	return cfg

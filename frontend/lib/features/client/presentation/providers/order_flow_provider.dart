@@ -195,9 +195,9 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
     try {
       final locationService = _ref.read(locationServiceProvider);
-      final locationModel = await locationService.getCurrentLocation();
+      final fix = await locationService.getCurrentLocationFix();
 
-      if (locationModel == null) {
+      if (fix == null) {
         state = state.copyWith(
           isLoading: false,
           errorMessage: 'Не удалось определить местоположение. Укажите точку на карте.',
@@ -205,11 +205,19 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         return;
       }
 
+      if (fix.address == null || fix.address!.trim().isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          errorMessage: 'Не удалось определить адрес. Укажите точку на карте.',
+        );
+        return;
+      }
+
       state = state.copyWith(
         pickupLocation: MapLocation(
-          latitude: locationModel.lat,
-          longitude: locationModel.lng,
-          address: locationModel.address,
+          latitude: fix.lat,
+          longitude: fix.lng,
+          address: fix.address,
           description: 'Определено автоматически',
         ),
         isLoading: false,

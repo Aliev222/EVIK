@@ -47,6 +47,9 @@ func (webhookOrderRepo) Create(context.Context, *orderdomain.Order) error       
 func (webhookOrderRepo) AcceptOrder(context.Context, string, string) (*orderdomain.Order, error) {
 	return nil, nil
 }
+func (webhookOrderRepo) CancelOrder(context.Context, string, string, time.Time) (*orderdomain.Order, error) {
+	return nil, nil
+}
 func (webhookOrderRepo) ListByStatus(context.Context, orderdomain.Status, int) ([]*orderdomain.Order, error) {
 	return nil, nil
 }

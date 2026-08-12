@@ -141,9 +141,11 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Center navbar SOS button. A quick tap never dials — it only hints to
-/// hold. Holding for 3 seconds fills the progress ring and activates the
-/// SOS screen. Releasing early cancels the hold with no activation.
+/// Center navbar SOS button. A quick tap never dials. Holding for 3 seconds
+/// fills the progress ring and activates the SOS screen. Releasing early
+/// cancels the hold with no activation. The hold is driven by raw pointer
+/// events (Listener) so tiny finger movement during the hold does not cancel
+/// the gesture and it never competes in the tap gesture arena.
 class _SosNavButton extends StatefulWidget {
   const _SosNavButton({this.onActivated});
 
@@ -156,10 +158,8 @@ class _SosNavButton extends StatefulWidget {
 class _SosNavButtonState extends State<_SosNavButton>
     with SingleTickerProviderStateMixin {
   static const Duration _holdDuration = Duration(seconds: 3);
-  static const Duration _quickTapWindow = Duration(milliseconds: 1000);
 
   late final AnimationController _holdController;
-  DateTime? _pressedAt;
   bool _activated = false;
 
   @override
@@ -198,43 +198,23 @@ class _SosNavButtonState extends State<_SosNavButton>
   }
 
   void _onHoldStart() {
-    _pressedAt = DateTime.now();
+    if (_activated) return;
     try {
       HapticFeedback.selectionClick();
     } catch (_) {}
-    _holdController.forward(from: 0);
+    if (!_holdController.isAnimating) {
+      _holdController.forward(from: 0);
+    }
   }
 
   void _onHoldEnd() {
-    if (_activated) {
-      _pressedAt = null;
-      return;
-    }
-    final heldLongEnough = _pressedAt != null &&
-        DateTime.now().difference(_pressedAt!) >= _quickTapWindow;
+    if (_activated) return;
     if (_holdController.isAnimating) {
       _holdController.stop();
     }
     if (!_holdController.isDismissed) {
       _holdController.reset();
     }
-    if (!heldLongEnough) {
-      _showHoldHint();
-    }
-    _pressedAt = null;
-  }
-
-  void _showHoldHint() {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger
-      ..removeCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Удерживайте 3 секунды для активации SOS'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
   }
 
   @override
@@ -249,11 +229,11 @@ class _SosNavButtonState extends State<_SosNavButton>
           SizedBox(
             width: 58,
             height: 58,
-            child: GestureDetector(
+            child: Listener(
               behavior: HitTestBehavior.opaque,
-              onTapDown: hasHandler ? (_) => _onHoldStart() : null,
-              onTapUp: hasHandler ? (_) => _onHoldEnd() : null,
-              onTapCancel: hasHandler ? _onHoldEnd : null,
+              onPointerDown: hasHandler ? (_) => _onHoldStart() : null,
+              onPointerUp: hasHandler ? (_) => _onHoldEnd() : null,
+              onPointerCancel: hasHandler ? (_) => _onHoldEnd() : null,
               child: AnimatedBuilder(
                 animation: _holdController,
                 builder: (context, _) {

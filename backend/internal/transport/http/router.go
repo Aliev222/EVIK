@@ -23,6 +23,7 @@ func NewRouter(
 	settingsHandler *SettingsHandler,
 	serviceAreaHandler *ServiceAreaHandler,
 	cityHandler *CityHandler,
+	geocodingHandler *GeocodingHandler,
 	driverLocationsHandler *DriverLocationsHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
@@ -114,6 +115,9 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver/subscription/payment", paymentHandler.CreateDriverSubscriptionPayment)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/subscription/status", paymentHandler.GetDriverSubscriptionStatus)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/reviews", adminHandler.CreateReview)
+
+			// Geocoding endpoints for authenticated clients.
+			secured.Get("/geocode/reverse", geocodingHandler.Reverse)
 
 			// Pricing endpoints
 			secured.Post("/pricing/calculate", pricingHandler.CalculatePrice)

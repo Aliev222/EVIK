@@ -3,12 +3,15 @@
 import 'package:geolocator/geolocator.dart';
 
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'geocoding_api.dart';
 import 'openstreetmap_service.dart';
 
 class LocationService {
   static LocationService? _instance;
 
-  LocationService._();
+  LocationService._() : _geocodingApi = GeocodingApi();
+
+  final GeocodingApi _geocodingApi;
 
   static LocationService get instance {
     _instance ??= LocationService._();
@@ -18,25 +21,45 @@ class LocationService {
   factory LocationService() => instance;
 
   Future<LocationModel?> getCurrentLocation() async {
+    final fix = await getCurrentLocationFix();
+    if (fix == null) return null;
+    return LocationModel(
+      lat: fix.lat,
+      lng: fix.lng,
+      address: fix.address ?? _coordinatesAddress(fix.lat, fix.lng),
+      isMocked: fix.isMocked,
+    );
+  }
+
+  /// Resolves the current position and its reverse-geocoded address.
+  ///
+  /// Returns `null` when location access is not permitted. When a real address
+  /// could not be reverse-geocoded [GeoFix.address] is `null` (and the caller
+  /// should surface an honest "could not determine the address" state instead
+  /// of presenting technical coordinates as a real address).
+  Future<GeoFix?> getCurrentLocationFix() async {
     final permission = await _ensureLocationPermission();
     if (!permission) {
       throw const LocationException('Доступ к геолокации не разрешен');
     }
 
     final position = await getCurrentPositionWithFallback();
-    final isMocked = position.isMocked;
 
-    final address = await _getAddressByCoordinates(
-      position.latitude,
-      position.longitude,
-    );
+    String? address;
+    try {
+      address = await _geocodingApi.reverseGeocode(
+        lat: position.latitude,
+        lng: position.longitude,
+      );
+    } catch (_) {
+      address = null;
+    }
 
-    return LocationModel(
+    return GeoFix(
       lat: position.latitude,
       lng: position.longitude,
-      address: address ??
-          _coordinatesAddress(position.latitude, position.longitude),
-      isMocked: isMocked,
+      address: address,
+      isMocked: position.isMocked,
     );
   }
 
@@ -184,18 +207,26 @@ class LocationService {
     return result == PermissionResult.granted;
   }
 
-  Future<String?> _getAddressByCoordinates(double lat, double lng) async {
-    try {
-      return await OpenStreetMapService.reverseGeocode(lat: lat, lng: lng) ??
-          _coordinatesAddress(lat, lng);
-    } catch (e) {
-      return _coordinatesAddress(lat, lng);
-    }
-  }
-
   String _coordinatesAddress(double lat, double lng) {
     return '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}';
   }
+}
+
+/// A resolved geographic fix. [address] is `null` when reverse geocoding
+/// could not produce a real address, so callers can show an honest
+/// "address unknown" state instead of faking one.
+class GeoFix {
+  const GeoFix({
+    required this.lat,
+    required this.lng,
+    required this.address,
+    required this.isMocked,
+  });
+
+  final double lat;
+  final double lng;
+  final String? address;
+  final bool isMocked;
 }
 
 enum PermissionResult {

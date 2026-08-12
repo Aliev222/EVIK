@@ -40,6 +40,7 @@ class _ClientAppShellState extends ConsumerState<ClientAppShell> {
     return Theme(
       data: AppTheme.client(),
       child: Scaffold(
+      extendBody: true,
       body: Column(
         children: [
           if (showBanner)

@@ -279,6 +279,9 @@ func (r *fakePaymentOrderRepo) GetAdminOrderDetails(context.Context, string) (*o
 func (r *fakePaymentOrderRepo) AcceptOrder(context.Context, string, string) (*orderdomain.Order, error) {
 	return nil, nil
 }
+func (r *fakePaymentOrderRepo) CancelOrder(context.Context, string, string, time.Time) (*orderdomain.Order, error) {
+	return nil, nil
+}
 
 type fakePricingService struct{}
 

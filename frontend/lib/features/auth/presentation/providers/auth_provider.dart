@@ -34,6 +34,7 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   AuthRetryCoordinator.configure(
     refresh: notifier.refreshAccessToken,
     logout: notifier.signOut,
+    accessToken: () => notifier.currentAccessToken,
   );
   return notifier;
 });
@@ -138,6 +139,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final KeyValueStorage _storage;
   final Ref _ref;
   StreamSubscription<String>? _fcmTokenRefreshSubscription;
+
+  /// Current access token exposed outside the Riverpod tree (used by
+  /// [AuthRetryCoordinator] for authenticated calls from non-provider code).
+  String? get currentAccessToken => state.accessToken;
 
   Future<void> signInWithPhone(
     String rawPhoneNumber,

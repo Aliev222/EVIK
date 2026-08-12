@@ -243,6 +243,93 @@ RETURNING id, user_id, driver_id,
 	return &ord, nil
 }
 
+// CancelOrder atomically cancels a live order in a single conditional
+// UPDATE...RETURNING — no read-modify-write, so a concurrent accept can never
+// be overwritten by a stale snapshot. Only rows whose status is neither
+// 'completed' nor 'cancelled' match; the RETURNING projection exposes the
+// CURRENT driver_id (captured at statement time), which the caller uses to
+// release the driver. sql.ErrNoRows is mapped to ErrOrderNotFound when the
+// order is already terminal.
+func (r *OrderRepository) CancelOrder(ctx context.Context, orderID string, reason string, now time.Time) (*orderdomain.Order, error) {
+	const query = `
+UPDATE orders
+SET status        = 'cancelled',
+    cancelled_at  = $3,
+    cancel_reason = $4,
+    updated_at    = $2
+WHERE id = $1
+  AND status NOT IN ('completed','cancelled')
+RETURNING id, user_id, driver_id,
+          pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
+          pickup_address, dropoff_address,
+          tow_truck_type, status, price_total,
+          driver_amount, commission_amount,
+          is_cross_city, surcharge_amount, surcharge_percent,
+          created_at, updated_at, cancelled_at,
+          city_id, is_expanded, expanded_at,
+          cancel_reason, payment_method, notes`
+
+	var (
+		ord            orderdomain.Order
+		pickupAddress  sql.NullString
+		dropoffAddress sql.NullString
+		cityID         sql.NullString
+		towTruckType   string
+		status         string
+		expandedAt     sql.NullTime
+		cancelReason   sql.NullString
+		paymentMethod  sql.NullString
+	)
+	err := r.db.QueryRowContext(ctx, query, orderID, now, now, reason).Scan(
+		&ord.ID,
+		&ord.UserID,
+		&ord.DriverID,
+		&ord.Pickup.Lat,
+		&ord.Pickup.Lng,
+		&ord.Dropoff.Lat,
+		&ord.Dropoff.Lng,
+		&pickupAddress,
+		&dropoffAddress,
+		&towTruckType,
+		&status,
+		&ord.PriceTotal,
+		&ord.DriverAmount,
+		&ord.CommissionAmount,
+		&ord.IsCrossCity,
+		&ord.SurchargeAmount,
+		&ord.SurchargePercent,
+		&ord.CreatedAt,
+		&ord.UpdatedAt,
+		&ord.CancelledAt,
+		&cityID,
+		&ord.IsExpanded,
+		&expandedAt,
+		&cancelReason,
+		&paymentMethod,
+		&ord.Notes,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, orderdomain.ErrOrderNotFound
+		}
+		return nil, err
+	}
+	ord.TowTruckType = orderdomain.TowTruckType(towTruckType)
+	ord.Status = orderdomain.Status(status)
+	ord.PickupAddress = scanNullableString(pickupAddress)
+	ord.DropoffAddress = scanNullableString(dropoffAddress)
+	ord.PaymentMethod = scanNullableString(paymentMethod)
+	ord.CancelReason = scanNullableString(cancelReason)
+	if cityID.Valid {
+		ord.CityID = &cityID.String
+	}
+	if expandedAt.Valid {
+		t := expandedAt.Time
+		ord.ExpandedAt = &t
+	}
+	return &ord, nil
+}
+
 // UpdateTx is the tx variant of Update.
 func (r *OrderRepository) UpdateTx(ctx context.Context, tx *sql.Tx, ord *orderdomain.Order) error {
 	const query = `

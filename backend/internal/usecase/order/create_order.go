@@ -90,44 +90,15 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 	ord.PickupAddress = input.PickupAddress
 	ord.DropoffAddress = input.DropoffAddress
 	ord.PaymentMethod = input.PaymentMethod
-	ord.PriceTotal = 0
 	ord.Notes = input.Notes
 	ord.IdempotencyKey = input.IdempotencyKey
 	if input.CityID != "" {
 		ord.CityID = &input.CityID
 	}
 
-	if err := uc.orderRepo.Create(ctx, ord); err != nil {
-		uc.logger.Error("failed to persist created order", err, "order_id", ord.ID)
-		return nil, err
-	}
-
-	cityID := ""
-	if ord.CityID != nil {
-		cityID = *ord.CityID
-	}
-
-	// Publish order created event first
-	// Best-effort: order is already in Postgres (source of truth),
-	// drivers will find it via polling even without the push event.
-	// Delayed 500ms in a goroutine so WebSocket clients have time to
-	// connect before the first event is published.
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		if err := uc.eventPublisher.Publish(context.Background(), orderdomain.Event{
-			Type:    orderdomain.EventOrderCreated,
-			OrderID: ord.ID,
-			Payload: map[string]any{
-				"status":  ord.Status,
-				"user_id": input.UserID,
-				"city_id": cityID,
-			},
-		}); err != nil {
-			uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", ord.ID)
-		}
-	}()
-
-	// Calculate price for the order
+	// Calculate the price BEFORE the first persist: a failed or non-positive
+	// price computation must never leave a live zero-priced 'created' row,
+	// and an order with price <= 0 must never reach searching/dispatch.
 	priceInput := pricingdomain.CalculatePriceInput{
 		OrderID:      ord.ID,
 		PickupLat:    input.PickupLat,
@@ -139,11 +110,57 @@ func (uc *CreateOrderUseCase) Execute(ctx context.Context, input CreateOrderInpu
 
 	calculation, err := uc.pricingService.CalculatePrice(ctx, priceInput)
 	if err != nil {
-		uc.logger.Error("failed to calculate order price", err, "order_id", ord.ID)
+		uc.logger.Error("failed to calculate order price", err, "user_id", input.UserID)
 		return nil, fmt.Errorf("price calculation failed: %w", err)
 	}
 
+	if calculation.TotalPrice <= 0 {
+		uc.logger.Error("refusing to create order with non-positive price", orderdomain.ErrNonPositivePrice,
+			"user_id", input.UserID,
+			"total_price", calculation.TotalPrice)
+		return nil, orderdomain.WrapValidation(orderdomain.ErrNonPositivePrice)
+	}
+
 	ord.PriceTotal = calculation.TotalPrice
+
+	if err := uc.orderRepo.Create(ctx, ord); err != nil {
+		uc.logger.Error("failed to persist created order", err, "order_id", ord.ID)
+		return nil, err
+	}
+
+	cityID := ""
+	if ord.CityID != nil {
+		cityID = *ord.CityID
+	}
+
+	// Snapshot the values the background goroutine needs BEFORE it starts:
+	// the main flow keeps mutating ord (TransitionTo(searching) below writes
+	// ord.Status/UpdatedAt), so reading ord inside the goroutine would be a
+	// data race. See bug id CREATE-RACE.
+	createdOrderID := ord.ID
+	createdStatus := ord.Status
+	createdUserID := input.UserID
+	createdCityID := cityID
+
+	// Publish order created event first
+	// Best-effort: order is already in Postgres (source of truth),
+	// drivers will find it via polling even without the push event.
+	// Delayed 500ms in a goroutine so WebSocket clients have time to
+	// connect before the first event is published.
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		if err := uc.eventPublisher.Publish(context.Background(), orderdomain.Event{
+			Type:    orderdomain.EventOrderCreated,
+			OrderID: createdOrderID,
+			Payload: map[string]any{
+				"status":  createdStatus,
+				"user_id": createdUserID,
+				"city_id": createdCityID,
+			},
+		}); err != nil {
+			uc.logger.Error("failed to publish order created event (non-fatal)", err, "order_id", createdOrderID)
+		}
+	}()
 
 	uc.logger.Info("order pricing calculated",
 		"order_id", ord.ID,

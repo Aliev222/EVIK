@@ -31,6 +31,7 @@ class EvikOsmMapView extends StatefulWidget {
     this.showRecenterButton = false,
     this.onLocationButtonPressed,
     this.controlsBottomOffset = 42,
+    this.attributionBottomOffset = 16,
     this.controlsBackgroundColor,
     this.controlsIconColor,
   });
@@ -53,6 +54,7 @@ class EvikOsmMapView extends StatefulWidget {
   final void Function(double lat, double lng, String address)?
       onLocationButtonPressed;
   final double controlsBottomOffset;
+  final double attributionBottomOffset;
   final Color? controlsBackgroundColor;
   final Color? controlsIconColor;
 
@@ -228,10 +230,10 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                 ),
               ),
             ),
-          const Positioned(
+          Positioned(
             right: 16,
-            bottom: 16,
-            child: Text(
+            bottom: widget.attributionBottomOffset,
+            child: const Text(
               AppConstants.openStreetMapAttribution,
               style: TextStyle(color: AvroClientColors.textSecondary, fontSize: 10),
             ),

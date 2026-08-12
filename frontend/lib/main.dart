@@ -242,10 +242,15 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
 
   @override
   Widget build(BuildContext context) {
-    // Dev bypass: skip onboarding/auth and land directly on the client main
+    // Dev bypass: skip phone/SMS verification, but keep the onboarding role
+    // picker so the tester can land directly on the client OR driver main
     // screen. Enabled via --dart-define=EVIK_SKIP_AUTH=true.
     if (_skipAuthForDevelopment) {
-      return _homeFor(UserRole.client);
+      final selectedRole = ref.watch(selectedOnboardingRoleProvider);
+      if (selectedRole == null) {
+        return const RoleSelectionScreen();
+      }
+      return _homeFor(selectedRole);
     }
 
     // UI preview mode: land directly on home without persisting state,

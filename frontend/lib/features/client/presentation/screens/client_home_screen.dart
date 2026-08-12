@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -38,6 +40,9 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   _LocationState _locationState = _LocationState.initial;
+  bool _detectionAttempted = false;
+  double? _lastPositionLat;
+  double? _lastPositionLng;
 
   @override
   void initState() {
@@ -76,15 +81,36 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       final pos = await LocationService.getCurrentPositionWithFallback();
       if (mounted) {
         _locationState = _LocationState.available;
-        ref
-            .read(serviceAreaProvider.notifier)
-            .checkServiceArea(pos.latitude, pos.longitude);
+        _lastPositionLat = pos.latitude;
+        _lastPositionLng = pos.longitude;
+        _runAddressDetection(pos.latitude, pos.longitude);
       }
     } catch (_) {
       if (mounted) {
         _locationState = _LocationState.unavailable;
       }
     }
+    if (mounted) setState(() {});
+  }
+
+  /// Kicks off the service-area check and the reverse-geocoded address
+  /// resolution for the current position. The address resolution runs through
+  /// the Авро backend (via [OrderFlowNotifier.detectCurrentLocation]) and
+  /// drives the "Определяем адрес…" / address / error states.
+  void _runAddressDetection(double lat, double lng) {
+    _detectionAttempted = true;
+    ref.read(serviceAreaProvider.notifier).checkServiceArea(lat, lng);
+    unawaited(ref.read(orderFlowProvider.notifier).detectCurrentLocation());
+  }
+
+  void _retryAddressDetection() {
+    final lat = _lastPositionLat;
+    final lng = _lastPositionLng;
+    if (lat == null || lng == null) {
+      _initLocation();
+      return;
+    }
+    _runAddressDetection(lat, lng);
     if (mounted) setState(() {});
   }
 
@@ -175,9 +201,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         final pos = await LocationService.getCurrentPositionWithFallback();
         if (mounted) {
           _locationState = _LocationState.available;
-          ref
-              .read(serviceAreaProvider.notifier)
-              .checkServiceArea(pos.latitude, pos.longitude);
+          _lastPositionLat = pos.latitude;
+          _lastPositionLng = pos.longitude;
+          _runAddressDetection(pos.latitude, pos.longitude);
         }
       } catch (_) {
         if (mounted) {
@@ -220,14 +246,41 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   Widget build(BuildContext context) {
     final location =
         ref.watch(orderFlowProvider.select((state) => state.pickupLocation));
-    final isLoading =
+    final orderLoading =
         ref.watch(orderFlowProvider.select((state) => state.isLoading));
     final serviceArea = ref.watch(serviceAreaProvider);
-    final address = location?.displayAddress ?? 'Адрес не определён';
-    final lat = location?.latitude ?? AppConstants.makhachkalaLat;
-    final lng = location?.longitude ?? AppConstants.makhachkalaLng;
 
     final locationUnavailable = _locationState == _LocationState.unavailable;
+    final addressMissing = location == null && !locationUnavailable;
+    final addressFailed =
+        addressMissing && _detectionAttempted && !orderLoading;
+    final showAddressLoading = addressMissing && !addressFailed;
+
+    String address;
+    String city;
+    VoidCallback? onRetryAddress;
+    if (location != null) {
+      address = location.displayAddress;
+      city = _cityOf(address);
+    } else if (locationUnavailable) {
+      address = 'Местоположение недоступно';
+      city = 'Укажите точку на карте';
+    } else if (addressFailed) {
+      address = 'Не удалось определить адрес';
+      city = 'Проверьте подключение и повторите';
+      onRetryAddress = _retryAddressDetection;
+    } else {
+      address = 'Определяем адрес…';
+      city = '';
+    }
+
+    final lat = location?.latitude ??
+        _lastPositionLat ??
+        AppConstants.makhachkalaLat;
+    final lng = location?.longitude ??
+        _lastPositionLng ??
+        AppConstants.makhachkalaLng;
+
     final outsideServiceArea =
         serviceArea.isChecked && !serviceArea.isAllowed;
     final canRequest = !locationUnavailable && !outsideServiceArea;
@@ -240,9 +293,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             child: _LocationMapCard(
               lat: lat,
               lng: lng,
-              address: address,
-              isLoading: isLoading,
-              onTap: _openFullScreenMap,
+              address: location?.displayAddress ?? address,
+              showUserLocation: _locationState == _LocationState.available,
+              attributionBottomOffset: 300,
             ),
           ),
           Positioned(
@@ -270,9 +323,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                     const SizedBox(height: 10),
                     _AddressBar(
                       address: address,
-                      city: _cityOf(address),
-                      isLoading: isLoading,
-                      onTap: _openFullScreenMap,
+                      city: city,
+                      isLoading: showAddressLoading,
+                      onRetry: onRetryAddress,
+                      onTap: _openFullAddressMap,
                     ),
                   ],
                 ),
@@ -282,7 +336,11 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           Positioned(
             left: 20,
             right: 20,
-            bottom: 16,
+            // Bottom of the floating card sits 20px above the top of the
+            // bottom nav pill: nav pill is 72px + its 8px bottom margin, and
+            // both this card and the nav share the home-indicator safe inset,
+            // so the visible gap equals `bottom - 72`.
+            bottom: 92,
             child: SafeArea(
               top: false,
               child: _FloatingServicesCard(
@@ -308,12 +366,19 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     );
   }
 
-  void _openFullScreenMap() {
+  void _openFullAddressMap() {
     final location =
         ref.read(orderFlowProvider.select((state) => state.pickupLocation));
-    final lat = location?.latitude ?? AppConstants.makhachkalaLat;
-    final lng = location?.longitude ?? AppConstants.makhachkalaLng;
-    final address = location?.displayAddress ?? 'Адрес не определён';
+    final lat = location?.latitude ??
+        _lastPositionLat ??
+        AppConstants.makhachkalaLat;
+    final lng = location?.longitude ??
+        _lastPositionLng ??
+        AppConstants.makhachkalaLng;
+    final address = location?.displayAddress ??
+        (_locationState == _LocationState.unavailable
+            ? 'Местоположение недоступно'
+            : 'Определяем адрес…');
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -730,15 +795,15 @@ class _LocationMapCard extends StatelessWidget {
     required this.lat,
     required this.lng,
     required this.address,
-    required this.isLoading,
-    required this.onTap,
+    required this.showUserLocation,
+    this.attributionBottomOffset = 16,
   });
 
   final double lat;
   final double lng;
   final String address;
-  final bool isLoading;
-  final VoidCallback onTap;
+  final bool showUserLocation;
+  final double attributionBottomOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -749,11 +814,11 @@ class _LocationMapCard extends StatelessWidget {
         initialLat: lat,
         initialLng: lng,
         initialZoom: 15,
-        onTap: (_, __) => onTap(),
         showControls: false,
         showLocationButton: false,
-        showUserLocation: false,
+        showUserLocation: showUserLocation,
         fitToMarkers: false,
+        attributionBottomOffset: attributionBottomOffset,
         markers: [
           EvikMapMarker(
             lat: lat,
@@ -773,12 +838,14 @@ class _AddressBar extends StatelessWidget {
     required this.city,
     required this.isLoading,
     required this.onTap,
+    this.onRetry,
   });
 
   final String address;
   final String city;
   final bool isLoading;
   final VoidCallback onTap;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -801,11 +868,19 @@ class _AddressBar extends StatelessWidget {
                   color: AvroClientColors.accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.my_location_rounded,
-                  color: AvroClientColors.accent,
-                  size: 20,
-                ),
+                child: isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: AvroClientColors.accent,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.my_location_rounded,
+                        color: AvroClientColors.accent,
+                        size: 20,
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -814,7 +889,7 @@ class _AddressBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isLoading ? 'Определяем адрес...' : address,
+                      address,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -837,11 +912,31 @@ class _AddressBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.expand_more_rounded,
-                color: AvroClientColors.textSecondary,
-                size: 22,
-              ),
+              const SizedBox(width: 8),
+              if (onRetry != null)
+                Material(
+                  color: AvroClientColors.accent.withValues(alpha: 0.12),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: onRetry,
+                    child: const SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Icon(
+                        Icons.refresh_rounded,
+                        color: AvroClientColors.accent,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const Icon(
+                  Icons.expand_more_rounded,
+                  color: AvroClientColors.textSecondary,
+                  size: 22,
+                ),
             ],
           ),
         ),
