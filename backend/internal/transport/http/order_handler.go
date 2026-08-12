@@ -724,6 +724,13 @@ func (h *OrderHandler) writeJSON(w http.ResponseWriter, status int, payload any)
 }
 
 func (h *OrderHandler) writeError(w http.ResponseWriter, status int, err error) {
+	// 5xx implies an internal/infrastructure failure: log the detail and tell
+	// the client only that something broke. Domain errors (4xx) stay readable.
+	if status >= http.StatusInternalServerError {
+		log.Printf("ERROR: %v", err)
+		h.writeJSON(w, status, map[string]string{"error": "internal error"})
+		return
+	}
 	h.writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 

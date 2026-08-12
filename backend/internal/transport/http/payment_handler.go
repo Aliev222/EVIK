@@ -131,12 +131,12 @@ func (h *PaymentHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 
 	methods, err := h.repo.ListMethods(r.Context(), userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	transactions, err := h.repo.ListClientPayments(r.Context(), userID, 20, 0)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -178,7 +178,7 @@ func (h *PaymentHandler) CreateOrderPayment(w http.ResponseWriter, r *http.Reque
 	}
 	var req createOrderPaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	payment, err := h.financeUC.CreateOrderPayment(r.Context(), userID, chi.URLParam(r, "orderID"), paymentdomain.PaymentMethodType(req.PaymentMethod))
@@ -254,7 +254,7 @@ func (h *PaymentHandler) UpdateOrderPaymentMethod(w http.ResponseWriter, r *http
 	}
 	var req updateOrderPaymentMethodRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	if req.PaymentMethod != "cash" && req.PaymentMethod != "card" {
@@ -323,11 +323,11 @@ func (h *PaymentHandler) GetOrderPaymentStatus(w http.ResponseWriter, r *http.Re
 	}
 	payment, err := h.repo.GetPaymentByOrderID(r.Context(), chi.URLParam(r, "orderID"))
 	if err != nil {
-		status := http.StatusInternalServerError
 		if errors.Is(err, paymentdomain.ErrPaymentNotFound) {
-			status = http.StatusNotFound
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "payment not found"})
+			return
 		}
-		writeJSON(w, status, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payment": newFinancePaymentResponse(payment)})
@@ -352,12 +352,20 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 	}
 	payment, err := h.repo.GetPaymentByOrderID(r.Context(), orderID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		if errors.Is(err, paymentdomain.ErrPaymentNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "payment not found"})
+			return
+		}
+		writeInternalError(w, err)
 		return
 	}
 	details, err := h.orderRepo.GetAdminOrderDetails(r.Context(), orderID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		if errors.Is(err, orderdomain.ErrOrderNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
+			return
+		}
+		writeInternalError(w, err)
 		return
 	}
 	completedAt := any(nil)
@@ -408,7 +416,7 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeSafeError(w, http.StatusBadRequest, "invalid webhook payload", err)
 		return
 	}
 	if err := h.verifier.Verify(r, body); err != nil {
@@ -416,7 +424,7 @@ func (h *PaymentHandler) HandleYooKassaWebhook(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.financeUC.HandleProviderWebhook(r.Context(), h.verifier, body); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeSafeError(w, http.StatusBadRequest, "invalid webhook payload", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"processed": true})
@@ -438,7 +446,7 @@ func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request)
 	}
 	wallet, err := h.repo.GetDriverWallet(r.Context(), driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	txs, err := h.repo.ListWalletTransactions(r.Context(), driverID, 10)
@@ -524,7 +532,7 @@ func (h *PaymentHandler) ListDriverWalletTransactions(w http.ResponseWriter, r *
 	}
 	txs, err := h.repo.ListWalletTransactions(r.Context(), driverID, 50)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transactions": txs})
@@ -546,7 +554,7 @@ func (h *PaymentHandler) ListDriverPayouts(w http.ResponseWriter, r *http.Reques
 	}
 	payouts, err := h.repo.ListPayouts(r.Context(), driverID, 50)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payouts": payouts})
@@ -572,7 +580,7 @@ func (h *PaymentHandler) RequestDriverPayout(w http.ResponseWriter, r *http.Requ
 	}
 	var req requestPayoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	if h.gates != nil {
@@ -609,7 +617,7 @@ func (h *PaymentHandler) ListDriverPayoutMethods(w http.ResponseWriter, r *http.
 	}
 	methods, err := h.repo.ListPayoutMethods(r.Context(), driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payout_methods": methods})
@@ -634,7 +642,7 @@ func (h *PaymentHandler) AddDriverPayoutMethod(w http.ResponseWriter, r *http.Re
 	}
 	var req addPayoutMethodRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	method := paymentdomain.DriverPayoutMethod{
@@ -647,7 +655,7 @@ func (h *PaymentHandler) AddDriverPayoutMethod(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.repo.AddPayoutMethod(r.Context(), method); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"payout_method": method})
@@ -672,7 +680,7 @@ func (h *PaymentHandler) CreateDriverSubscriptionPayment(w http.ResponseWriter, 
 	}
 	var req subscriptionPaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	payment, err := h.financeUC.CreateDriverSubscriptionPayment(r.Context(), driverID, req.PlanID)
@@ -699,7 +707,7 @@ func (h *PaymentHandler) GetDriverSubscriptionStatus(w http.ResponseWriter, r *h
 	}
 	status, err := h.financeUC.GetDriverSubscriptionStatus(r.Context(), driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
@@ -718,7 +726,7 @@ func (h *PaymentHandler) AdminExportFinance(w http.ResponseWriter, r *http.Reque
 	reportType := r.URL.Query().Get("type")
 	records, err := h.repo.ExportFinanceReport(r.Context(), reportType)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeReportError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -742,7 +750,7 @@ func (h *PaymentHandler) AdminFinanceReport(w http.ResponseWriter, r *http.Reque
 	reportType := chi.URLParam(r, "reportType")
 	records, err := h.repo.ExportFinanceReport(r.Context(), reportType)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeReportError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"rows": records})
@@ -785,7 +793,7 @@ func (h *PaymentHandler) AdminListRefunds(w http.ResponseWriter, r *http.Request
 
 	refunds, total, err := h.financeUC.ListAdminRefunds(r.Context(), filter)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -831,7 +839,7 @@ func (h *PaymentHandler) AdminApprovePayout(w http.ResponseWriter, r *http.Reque
 		case errors.Is(err, paymentdomain.ErrPayoutNotApprovable):
 			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, err)
 		}
 		return
 	}
@@ -882,11 +890,21 @@ func (h *PaymentHandler) AdminRejectPayout(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, paymentdomain.ErrPayoutNotRejectable):
 			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, err)
 		}
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payout": adminPayoutJSON(payout)})
+}
+
+// writeReportError sanitizes finance-report errors: an unknown report type is
+// a call validation error (readable 400); anything else is internal detail.
+func writeReportError(w http.ResponseWriter, err error) {
+	if strings.HasPrefix(err.Error(), "unknown report type") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report type"})
+		return
+	}
+	writeSafeError(w, http.StatusBadRequest, "failed to build report", err)
 }
 
 func adminRefundItemJSON(refund paymentdomain.Refund) map[string]any {
@@ -974,7 +992,7 @@ func (h *PaymentHandler) writeDriverGateError(w http.ResponseWriter, err error) 
 		errors.Is(err, driveruc.ErrDriverSubscriptionInactive):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	default:
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 	}
 }
 
@@ -1001,7 +1019,7 @@ func (h *PaymentHandler) SetDefaultCard(w http.ResponseWriter, r *http.Request) 
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"card": newPaymentMethodResponse(*method)})
@@ -1029,7 +1047,7 @@ func (h *PaymentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
@@ -1048,7 +1066,7 @@ func (h *PaymentHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 func (h *PaymentHandler) ApplyPromocode(w http.ResponseWriter, r *http.Request) {
 	var req applyPromocodeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 	code := strings.ToUpper(strings.TrimSpace(req.Code))

@@ -306,7 +306,7 @@ type adminDriverLocationResponse struct {
 func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 	overview, err := h.repo.Overview(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -359,7 +359,7 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) ListDriverVerifications(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.ListDriverVerifications(r.Context(), parseAdminLimit(r, 50, 100))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -396,7 +396,7 @@ func (h *AdminHandler) ListDriverVerifications(w http.ResponseWriter, r *http.Re
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.ListUsers(r.Context(), parseAdminLimit(r, 100, 200))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -437,7 +437,7 @@ func (h *AdminHandler) ListReviews(w http.ResponseWriter, r *http.Request) {
 
 	items, total, err := h.repo.ListReviews(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), stars, driverQuery)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -479,7 +479,7 @@ func (h *AdminHandler) HideReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.HideReview(r.Context(), reviewID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "hidden"})
@@ -500,7 +500,7 @@ func (h *AdminHandler) ShowReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.ShowReview(r.Context(), reviewID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "shown"})
@@ -521,7 +521,7 @@ func (h *AdminHandler) DeleteReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.DeleteReview(r.Context(), reviewID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "deleted"})
@@ -591,7 +591,7 @@ func (h *AdminHandler) SubmitDriverVerification(w http.ResponseWriter, r *http.R
 		Signals:     sanitizeStringList(req.Signals, 20),
 	}
 	if err := h.repo.UpsertDriverVerification(r.Context(), item); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -690,7 +690,7 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "you have already reviewed this order"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -734,7 +734,7 @@ func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) 
 	if role != auth.RoleAdmin {
 		stats, err := h.repo.GetDriverRating(r.Context(), driverID)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -749,7 +749,7 @@ func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) 
 	limit := parseAdminLimit(r, 50, 100)
 	reviews, stats, err := h.repo.GetDriverReviews(r.Context(), driverID, limit)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -793,7 +793,7 @@ func (h *AdminHandler) GetOrderReview(w http.ResponseWriter, r *http.Request) {
 
 	review, err := h.repo.GetOrderReview(r.Context(), orderID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	if review == nil {
@@ -950,7 +950,7 @@ func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Reque
 func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request) {
 	drivers, err := h.driverRepo.ListActive(r.Context(), parseAdminLimit(r, 100, 200))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -960,7 +960,7 @@ func (h *AdminHandler) ListOnlineDrivers(w http.ResponseWriter, r *http.Request)
 	}
 	locations, err := h.locationRepo.GetLocations(r.Context(), driverIDs)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1002,7 +1002,7 @@ func (h *AdminHandler) GetDriverDetail(w http.ResponseWriter, r *http.Request) {
 
 	detail, err := h.repo.GetDriverDetail(r.Context(), driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	if detail == nil {
@@ -1031,7 +1031,7 @@ func (h *AdminHandler) ListDriverOrders(w http.ResponseWriter, r *http.Request) 
 
 	items, total, err := h.repo.ListDriverOrders(r.Context(), driverID, parseAdminLimit(r, 50, 200), parseAdminOffset(r))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1059,7 +1059,7 @@ func (h *AdminHandler) ListDriverOrders(w http.ResponseWriter, r *http.Request) 
 func (h *AdminHandler) ListAdminPayments(w http.ResponseWriter, r *http.Request) {
 	items, total, err := h.repo.ListAdminPayments(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1084,7 +1084,7 @@ func (h *AdminHandler) ListAdminWallets(w http.ResponseWriter, r *http.Request) 
 	search := strings.TrimSpace(r.URL.Query().Get("search"))
 	items, total, err := h.repo.ListAdminWallets(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), search)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1111,7 +1111,7 @@ func (h *AdminHandler) ListAdminTransactions(w http.ResponseWriter, r *http.Requ
 	driverID := strings.TrimSpace(r.URL.Query().Get("driver_id"))
 	items, total, err := h.repo.ListAdminTransactions(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), txType, driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1136,7 +1136,7 @@ func (h *AdminHandler) ListAdminSubscriptions(w http.ResponseWriter, r *http.Req
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	items, total, err := h.repo.ListAdminSubscriptions(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), status)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1164,7 +1164,7 @@ func (h *AdminHandler) ListAuditLog(w http.ResponseWriter, r *http.Request) {
 	action := strings.TrimSpace(q.Get("action"))
 	items, total, err := h.repo.ListAuditLog(r.Context(), parseAdminLimit(r, 50, 200), parseAdminOffset(r), entityType, action)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1218,7 +1218,8 @@ func (h *AdminHandler) BatchApproveVerifications(w http.ResponseWriter, r *http.
 			VehicleType:  req.VehicleType,
 		})
 		if err != nil {
-			results = append(results, map[string]any{"id": id, "status": "error", "error": err.Error()})
+			log.Printf("ERROR: batch moderation %s %s: %v", "approved", id, err)
+			results = append(results, map[string]any{"id": id, "status": "error", "error": "approval failed"})
 		} else {
 			results = append(results, map[string]any{"id": id, "status": "approved"})
 		}
@@ -1262,7 +1263,8 @@ func (h *AdminHandler) BatchRejectVerifications(w http.ResponseWriter, r *http.R
 			Now:         now,
 		})
 		if err != nil {
-			results = append(results, map[string]any{"id": id, "status": "error", "error": err.Error()})
+			log.Printf("ERROR: batch moderation %s %s: %v", "rejected", id, err)
+			results = append(results, map[string]any{"id": id, "status": "error", "error": "rejection failed"})
 		} else {
 			results = append(results, map[string]any{"id": id, "status": "rejected"})
 		}
@@ -1388,7 +1390,7 @@ func (h *AdminHandler) decideDriverVerification(w http.ResponseWriter, r *http.R
 			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1443,7 +1445,7 @@ func (h *AdminHandler) ListAdminOrders(w http.ResponseWriter, r *http.Request) {
 
 	items, total, err := h.orderRepo.ListAdminOrders(r.Context(), filter)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1481,7 +1483,7 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "order not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1574,7 +1576,7 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 func (h *AdminHandler) ListTaxProfiles(w http.ResponseWriter, r *http.Request) {
 	profiles, err := h.repo.ListTaxProfiles(r.Context(), parseAdminLimit(r, 50, 100))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -1657,7 +1659,7 @@ func (h *AdminHandler) updateTaxProfileStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.repo.UpdateTaxProfileStatus(r.Context(), driverID, status, comments); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 

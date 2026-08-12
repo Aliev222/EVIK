@@ -70,7 +70,7 @@ func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "Order not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 
@@ -83,7 +83,7 @@ func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) 
 
 	route, err := h.routingService.CalculateRoute(r.Context(), routeReq)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (h *RoutingHandler) GetDirections(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Order not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *RoutingHandler) GetDirections(w http.ResponseWriter, r *http.Request) {
 
 	directions, err := h.routingService.GetDirections(r.Context(), routeReq)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 
@@ -183,7 +183,7 @@ func (h *RoutingHandler) Preview(w http.ResponseWriter, r *http.Request) {
 		OrderID:        "preview",
 	})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		writeUpstreamError(w, http.StatusBadGateway, err)
 		return
 	}
 

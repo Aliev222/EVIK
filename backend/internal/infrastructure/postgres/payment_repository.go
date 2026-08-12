@@ -322,6 +322,46 @@ RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payme
 	return created, nil
 }
 
+func (r *PaymentRepository) AttachProviderPayment(ctx context.Context, paymentID, providerPaymentID, status string, confirmationURL *string, paidAt *time.Time) (*paymentdomain.Payment, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	updated, err := scanPayment(tx.QueryRowContext(ctx, `
+UPDATE payments
+SET provider_payment_id = $2, status = $3, confirmation_url = $4, paid_at = COALESCE($5, paid_at), updated_at = NOW()
+WHERE id = $1
+RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payment_method, purpose,
+	amount, currency, status, confirmation_url, idempotency_key, paid_at, created_at, updated_at`,
+		paymentID, providerPaymentID, status, confirmationURL, paidAt))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, paymentdomain.ErrPaymentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func (r *PaymentRepository) AttachPaymentMethodProvider(ctx context.Context, methodID, providerPaymentID string) error {
+	res, err := r.db.ExecContext(ctx, `UPDATE payment_methods SET provider_payment_id = $2 WHERE id = $1`, methodID, providerPaymentID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return paymentdomain.ErrPaymentMethodNotFound
+	}
+	return nil
+}
+
 func (r *PaymentRepository) CreateSubscriptionPayment(ctx context.Context, p *paymentdomain.Payment, s *paymentdomain.Subscription) (*paymentdomain.Payment, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

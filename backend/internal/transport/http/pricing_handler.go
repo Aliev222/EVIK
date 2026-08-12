@@ -2,6 +2,8 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -101,7 +103,19 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 
 	allCalc, err := h.service.CalculateAllPrices(r.Context(), input)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// Validation/domain failures carry readable messages; distance and
+		// repository failures are internal details and must stay hidden.
+		switch {
+		case errors.Is(err, pricingdomain.ErrInvalidPickupCoordinate),
+			errors.Is(err, pricingdomain.ErrInvalidDropoffCoordinate),
+			errors.Is(err, pricingdomain.ErrInvalidOrderID),
+			errors.Is(err, pricingdomain.ErrTariffNotFound),
+			errors.Is(err, pricingdomain.ErrInactiveTariff):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			log.Printf("ERROR: calculate price: %v", err)
+			http.Error(w, "internal error", http.StatusBadRequest)
+		}
 		return
 	}
 
@@ -150,7 +164,7 @@ func (h *PricingHandler) CalculatePrice(w http.ResponseWriter, r *http.Request) 
 func (h *PricingHandler) GetTariffs(w http.ResponseWriter, r *http.Request) {
 	tariffs, err := h.service.GetAllTariffs(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 
@@ -195,11 +209,11 @@ func (h *PricingHandler) GetTariffByType(w http.ResponseWriter, r *http.Request)
 
 	tariff, err := h.service.GetActiveTariff(r.Context(), truckType)
 	if err != nil {
-		if err == pricingdomain.ErrTariffNotFound {
+		if errors.Is(err, pricingdomain.ErrTariffNotFound) {
 			http.Error(w, "Tariff not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeInternalError(w, err)
 		return
 	}
 

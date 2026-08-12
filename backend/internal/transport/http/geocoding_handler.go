@@ -60,7 +60,7 @@ func (h *GeocodingHandler) Reverse(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "address not found"})
 			return
 		}
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "geocoding failed: " + err.Error()})
+		writeUpstreamError(w, http.StatusBadGateway, err)
 		return
 	}
 

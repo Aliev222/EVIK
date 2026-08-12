@@ -37,7 +37,7 @@ func (h *OfferHandler) DeclineOffer(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "no active offer for this order"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 
@@ -53,7 +53,7 @@ func (h *OfferHandler) GetCurrentOffer(w http.ResponseWriter, r *http.Request) {
 
 	offer, err := h.offerRepo.GetActiveForDriver(r.Context(), driverID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	if offer == nil {

@@ -79,7 +79,7 @@ func (h *DriverLocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
 				return
 			}
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, err)
 			return
 		}
 		bounds = area
@@ -87,7 +87,7 @@ func (h *DriverLocationsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	drivers, err := h.drivers.ListAllWithProfile(r.Context(), 500)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 

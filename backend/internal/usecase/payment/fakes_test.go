@@ -38,6 +38,10 @@ func (noopFinanceRepo) ListClientPayments(context.Context, string, int, int) ([]
 func (noopFinanceRepo) CreateOrderPayment(_ context.Context, p *paymentdomain.Payment) (*paymentdomain.Payment, error) {
 	return p, nil
 }
+func (noopFinanceRepo) AttachProviderPayment(context.Context, string, string, string, *string, *time.Time) (*paymentdomain.Payment, error) {
+	return nil, nil
+}
+func (noopFinanceRepo) AttachPaymentMethodProvider(context.Context, string, string) error { return nil }
 func (noopFinanceRepo) CreateSubscriptionPayment(_ context.Context, p *paymentdomain.Payment, _ *paymentdomain.Subscription) (*paymentdomain.Payment, error) {
 	return p, nil
 }

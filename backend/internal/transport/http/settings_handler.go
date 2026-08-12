@@ -22,7 +22,7 @@ func NewSettingsHandler(repo settings.Repository) *SettingsHandler {
 func (h *SettingsHandler) List(w http.ResponseWriter, r *http.Request) {
 	items, err := h.repo.List(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
@@ -144,7 +144,7 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.repo.Upsert(r.Context(), req.Key, req.Value); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})

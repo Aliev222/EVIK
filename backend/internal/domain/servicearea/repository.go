@@ -12,6 +12,12 @@ var ErrNotFound = errors.New("service area not found")
 // non-terminal orders whose pickup or dropoff falls within its bounds.
 var ErrAreaHasActiveOrders = errors.New("service area has active orders")
 
+// ErrAreaInUse is returned by Delete when the service area cannot be removed
+// because other rows (e.g. orders) still reference it via a foreign key, even
+// when no active order falls inside its bounds (historical/completed orders
+// also hold the reference).
+var ErrAreaInUse = errors.New("service area is in use and cannot be deleted")
+
 // ErrOutsideServiceArea is returned when a coordinate falls outside any active service area.
 var ErrOutsideServiceArea = errors.New("координаты вне зоны обслуживания")
 
@@ -29,7 +35,8 @@ type Repository interface {
 	// SetActive toggles is_active for an area.
 	SetActive(ctx context.Context, id string, active bool) error
 	// Delete hard-deletes an area, returning ErrAreaHasActiveOrders if any
-	// non-terminal order falls within its bounds, or ErrNotFound if absent.
+	// non-terminal order falls within its bounds, ErrAreaInUse if any row still
+	// references the area through a foreign key, or ErrNotFound if absent.
 	Delete(ctx context.Context, id string) error
 	// ExistsBySlug reports whether an area with the given slug already exists.
 	ExistsBySlug(ctx context.Context, slug string) (bool, error)

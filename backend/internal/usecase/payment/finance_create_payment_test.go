@@ -27,10 +27,14 @@ type createPaymentOrderRepo struct {
 	err   error
 }
 
-func (r *createPaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, nil }
+func (r *createPaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) {
+	return nil, nil
+}
 func (r *createPaymentOrderRepo) Create(context.Context, *orderdomain.Order) error { return nil }
 func (r *createPaymentOrderRepo) Update(context.Context, *orderdomain.Order) error { return nil }
-func (r *createPaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error { return nil }
+func (r *createPaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error {
+	return nil
+}
 func (r *createPaymentOrderRepo) GetByID(context.Context, string) (*orderdomain.Order, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -221,8 +225,14 @@ func TestCreateOrderPaymentCardProviderError(t *testing.T) {
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("err = %v, want %v", err, wantErr)
 	}
-	if repo.createOrderPaymentCalls != 0 {
-		t.Errorf("repo should not be called when provider fails, calls = %d", repo.createOrderPaymentCalls)
+	// Insert-first: the local pending record is persisted BEFORE the provider
+	// call, so a provider failure leaves a benign pending row (no money moved)
+	// and never an in-flight provider payment without a local anchor.
+	if repo.createOrderPaymentCalls != 1 {
+		t.Errorf("repo should be called once to pre-insert the pending record, calls = %d", repo.createOrderPaymentCalls)
+	}
+	if len(provider.paymentCalls) != 1 {
+		t.Errorf("provider calls = %d, want 1", len(provider.paymentCalls))
 	}
 }
 

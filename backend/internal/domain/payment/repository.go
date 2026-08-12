@@ -44,6 +44,16 @@ type Repository interface {
 	DeleteMethod(ctx context.Context, userID string, methodID string) error
 	ListClientPayments(ctx context.Context, userID string, limit int, offset int) ([]PaymentTransaction, error)
 	CreateOrderPayment(ctx context.Context, payment *Payment) (*Payment, error)
+	// AttachProviderPayment stamps a locally pre-inserted payment (pending,
+	// no provider id yet) with the provider's payment id, status, confirmation
+	// URL and paid timestamp. It exists so the provider call can happen AFTER
+	// the local row is persisted, guaranteeing there is never money at the
+	// provider without a matching local record.
+	AttachProviderPayment(ctx context.Context, paymentID, providerPaymentID, status string, confirmationURL *string, paidAt *time.Time) (*Payment, error)
+	// AttachPaymentMethodProvider stamps a pending card-binding payment_method
+	// row with the provider payment id so the post-confirmation webhook can
+	// later activate it.
+	AttachPaymentMethodProvider(ctx context.Context, methodID, providerPaymentID string) error
 	CreateSubscriptionPayment(ctx context.Context, payment *Payment, subscription *Subscription) (*Payment, error)
 	GetPayment(ctx context.Context, paymentID string) (*Payment, error)
 	GetPaymentByOrderID(ctx context.Context, orderID string) (*Payment, error)

@@ -91,7 +91,11 @@ func TestReverseGeocodeProviderError(t *testing.T) {
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "boom") {
-		t.Fatalf("body = %q, want provider error surfaced", rec.Body.String())
+	// The raw provider error must not leak; the client gets a generic message.
+	if strings.Contains(rec.Body.String(), "boom") {
+		t.Fatalf("body = %q, raw provider error leaked to client", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "upstream service error") {
+		t.Fatalf("body = %q, want safe upstream service error", rec.Body.String())
 	}
 }

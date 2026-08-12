@@ -37,7 +37,7 @@ func (h *ServiceAreaHandler) Check(w http.ResponseWriter, r *http.Request) {
 	}
 	area, ok, err := h.repo.CheckPoint(r.Context(), lat, lng)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	payload := map[string]any{"allowed": ok}

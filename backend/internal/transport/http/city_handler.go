@@ -161,7 +161,7 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	exists, err := h.repo.ExistsBySlug(r.Context(), res.Slug)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	if exists {
@@ -180,7 +180,7 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	area.ComputeBBox()
 	if err := h.repo.Create(r.Context(), area); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"city": cityResponse(area)})
@@ -196,7 +196,7 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *CityHandler) List(w http.ResponseWriter, r *http.Request) {
 	areas, err := h.repo.List(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	cities := make([]map[string]any, 0, len(areas))
@@ -241,19 +241,19 @@ func (h *CityHandler) Patch(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	updated, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"city": cityResponse(*updated)})
 }
 
 // @Summary      Delete city (admin)
-// @Description  Hard-deletes a service area. Fails if there are active orders in this city.
+// @Description  Hard-deletes a service area. Fails if there are active orders in this city or any order references the city.
 // @Tags         cities
 // @Produce      json
 // @Security     BearerAuth
@@ -261,7 +261,7 @@ func (h *CityHandler) Patch(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  map[string]any  "deleted confirmation"
 // @Failure      400  {object}  ErrorResponse  "invalid request"
 // @Failure      404  {object}  ErrorResponse  "city not found"
-// @Failure      409  {object}  ErrorResponse  "city has active orders"
+// @Failure      409  {object}  ErrorResponse  "city is in use or has active orders"
 // @Router       /admin/cities/{id} [delete]
 func (h *CityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
@@ -273,10 +273,12 @@ func (h *CityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, servicearea.ErrAreaHasActiveOrders):
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "Cannot delete: city has active orders"})
+		case errors.Is(err, servicearea.ErrAreaInUse):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Cannot delete: city is in use and cannot be deleted"})
 		case errors.Is(err, servicearea.ErrNotFound):
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, err)
 		}
 		return
 	}
@@ -304,7 +306,7 @@ func (h *CityHandler) writeGeocodeError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found by geocoder"})
 		return
 	}
-	writeJSON(w, http.StatusBadGateway, map[string]string{"error": "geocoding failed: " + err.Error()})
+	writeUpstreamError(w, http.StatusBadGateway, err)
 }
 
 // cityResponse renders a service area as the public city JSON shape.

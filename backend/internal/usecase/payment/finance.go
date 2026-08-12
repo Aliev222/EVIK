@@ -181,6 +181,21 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 		p.PaidAt = &now
 		return uc.repo.CreateOrderPayment(ctx, p)
 	}
+	// Insert the local payment record FIRST and only then talk to the
+	// provider. If the insert fails no provider payment is created, so the
+	// classic orphan (money at the provider without a local record) is
+	// structurally impossible. A retry with the same idempotency key resumes
+	// the same pending row (ON CONFLICT ... idempotency_key) and the provider
+	// returns the same payment for the same idempotency key, so charging
+	// happens at most once.
+	created, err := uc.repo.CreateOrderPayment(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if created.ProviderPaymentID != nil {
+		// Already fully attached by a previous successful attempt.
+		return created, nil
+	}
 	providerPayment, err := uc.provider.CreatePayment(ctx, ProviderPaymentRequest{
 		Amount:         amount,
 		Currency:       paymentdomain.CurrencyRUB,
@@ -196,20 +211,57 @@ func (uc *FinanceUseCase) CreateOrderPayment(ctx context.Context, userID, orderI
 	if err != nil {
 		return nil, err
 	}
-	p.ProviderPaymentID = &providerPayment.ID
-	p.Status = paymentdomain.PaymentStatus(providerPayment.Status)
-	p.ConfirmationURL = &providerPayment.ConfirmationURL
+	attachedStatus := paymentdomain.PaymentStatus(providerPayment.Status)
+	confirmationURL := &providerPayment.ConfirmationURL
+	var paidAt *time.Time
 	if providerPayment.Paid {
-		p.Status = paymentdomain.PaymentStatusSucceeded
-		p.PaidAt = &now
+		attachedStatus = paymentdomain.PaymentStatusSucceeded
+		paidAt = &now
 	}
-	return uc.repo.CreateOrderPayment(ctx, p)
+	if _, err := uc.repo.AttachProviderPayment(ctx, created.ID, providerPayment.ID, string(attachedStatus), confirmationURL, paidAt); err != nil {
+		return nil, err
+	}
+	created.ProviderPaymentID = &providerPayment.ID
+	created.Status = attachedStatus
+	created.ConfirmationURL = confirmationURL
+	created.PaidAt = paidAt
+	return created, nil
 }
 
 func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID string) (*paymentdomain.AddCardInit, error) {
 	now := uc.clock.Now()
 	methodID := uc.idGen.NewID()
 	idempotencyKey := "client_payment_method:" + methodID
+	payment := &paymentdomain.Payment{
+		ID:              uc.idGen.NewID(),
+		UserID:          clientID,
+		Provider:        paymentdomain.ProviderYooKassa,
+		PaymentMethod:   paymentdomain.PaymentMethodCard,
+		Purpose:         paymentdomain.PaymentPurposeCardBinding,
+		Amount:          100,
+		Currency:        paymentdomain.CurrencyRUB,
+		Status:          paymentdomain.PaymentStatusPending,
+		ConfirmationURL: nil,
+		IdempotencyKey:  idempotencyKey,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	method := paymentdomain.PaymentMethod{
+		ID:        methodID,
+		UserID:    clientID,
+		Provider:  paymentdomain.ProviderYooKassa,
+		Brand:     paymentdomain.CardBrandUnknown,
+		Last4:     "0000",
+		Status:    "pending",
+		CreatedAt: now,
+	}
+	// Pre-insert the local payment + payment_method rows BEFORE the provider
+	// call (same orphan-prevention as CreateOrderPayment). The binding payment
+	// is a small capture-free hold; a provider failure after the insert leaves
+	// benign pending rows that a later init (new idempotency key) supersedes.
+	if _, err := uc.repo.CreatePendingPaymentMethod(ctx, payment, method); err != nil {
+		return nil, err
+	}
 	providerPayment, err := uc.provider.CreatePayment(ctx, ProviderPaymentRequest{
 		Amount:         100,
 		Currency:       paymentdomain.CurrencyRUB,
@@ -226,32 +278,16 @@ func (uc *FinanceUseCase) SaveClientPaymentMethod(ctx context.Context, clientID 
 	if err != nil {
 		return nil, err
 	}
-	payment := &paymentdomain.Payment{
-		ID:                uc.idGen.NewID(),
-		UserID:            clientID,
-		Provider:          paymentdomain.ProviderYooKassa,
-		ProviderPaymentID: &providerPayment.ID,
-		PaymentMethod:     paymentdomain.PaymentMethodCard,
-		Purpose:           paymentdomain.PaymentPurposeCardBinding,
-		Amount:            100,
-		Currency:          paymentdomain.CurrencyRUB,
-		Status:            paymentdomain.PaymentStatus(providerPayment.Status),
-		ConfirmationURL:   &providerPayment.ConfirmationURL,
-		IdempotencyKey:    idempotencyKey,
-		CreatedAt:         now,
-		UpdatedAt:         now,
+	if _, err := uc.repo.AttachProviderPayment(ctx, payment.ID, providerPayment.ID, string(paymentdomain.PaymentStatus(providerPayment.Status)), &providerPayment.ConfirmationURL, nil); err != nil {
+		return nil, err
 	}
-	method := paymentdomain.PaymentMethod{
-		ID:                methodID,
-		UserID:            clientID,
-		Provider:          paymentdomain.ProviderYooKassa,
-		ProviderPaymentID: &providerPayment.ID,
-		Brand:             paymentdomain.CardBrandUnknown,
-		Last4:             "0000",
-		Status:            "pending",
-		CreatedAt:         now,
+	if err := uc.repo.AttachPaymentMethodProvider(ctx, methodID, providerPayment.ID); err != nil {
+		return nil, err
 	}
-	return uc.repo.CreatePendingPaymentMethod(ctx, payment, method)
+	return &paymentdomain.AddCardInit{
+		PaymentMethodID: methodID,
+		ConfirmationURL: providerPayment.ConfirmationURL,
+	}, nil
 }
 
 func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier WebhookVerifier, rawBody []byte) error {

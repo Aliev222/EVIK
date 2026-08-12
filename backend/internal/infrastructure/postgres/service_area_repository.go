@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	servicearea "evik/backend/internal/domain/servicearea"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type ServiceAreaRepository struct {
@@ -187,7 +188,10 @@ func (r *ServiceAreaRepository) Delete(ctx context.Context, id string) error {
 
 	res, err := tx.ExecContext(ctx, `DELETE FROM service_areas WHERE id = $1`, id)
 	if err != nil {
-		return err
+		// FK violation 23503: rows still reference the area (e.g. orders with
+		// city_id pointing at it). Surface a domain error so the caller can
+		// respond 409 instead of exposing a raw database error as 500.
+		return mapFKViolation(err, servicearea.ErrAreaInUse)
 	}
 	if err := ensureAffected(res); err != nil {
 		return err
@@ -214,4 +218,14 @@ func ensureAffected(res sql.Result) error {
 		return servicearea.ErrNotFound
 	}
 	return nil
+}
+
+// mapFKViolation translates a Postgres foreign-key violation (SQLSTATE 23503)
+// into the provided domain error, leaving every other error untouched.
+func mapFKViolation(err error, domainErr error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		return domainErr
+	}
+	return err
 }
