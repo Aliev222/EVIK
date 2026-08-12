@@ -59,4 +59,4 @@ node_modules/
 *service-account*.json
 *service_account*.json
 firebase-adminsdk-*.json
-gcp-key*.json
+gcp-key*.jsongraphify-out/cache/
