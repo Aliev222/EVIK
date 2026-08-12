@@ -692,6 +692,31 @@ func (r *AdminRepository) GetDriverReviews(ctx context.Context, driverID string,
 	return items, stats, rows.Err()
 }
 
+// GetDriverRating returns the aggregate rating for a driver computed over
+// non-hidden reviews only. It backs the public (non-admin) view of
+// GET /drivers/{driverID}/reviews: clients get the average + count without
+// any review texts and without moderated-away (hidden) reviews.
+func (r *AdminRepository) GetDriverRating(ctx context.Context, driverID string) (httptransport.DriverReviewsStats, error) {
+	const query = `
+		SELECT
+			COUNT(*) as total,
+			COALESCE(AVG(stars), 0) as rating_average,
+			COUNT(*) as rating_count
+		FROM driver_reviews
+		WHERE driver_id = $1 AND is_hidden = false`
+
+	var stats httptransport.DriverReviewsStats
+	err := r.db.QueryRowContext(ctx, query, driverID).Scan(
+		&stats.Total,
+		&stats.RatingAverage,
+		&stats.RatingCount,
+	)
+	if err != nil {
+		return httptransport.DriverReviewsStats{}, err
+	}
+	return stats, nil
+}
+
 func (r *AdminRepository) GetOrderReview(ctx context.Context, orderID string) (*admindomain.Review, error) {
 	const query = `
 		SELECT

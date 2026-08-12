@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"evik/backend/internal/auth"
 	admindomain "evik/backend/internal/domain/admin"
 	driverdomain "evik/backend/internal/domain/driver"
-	"evik/backend/internal/infrastructure/storage"
 	locationdomain "evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
+	"evik/backend/internal/infrastructure/storage"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -89,6 +90,7 @@ type AdminRepository interface {
 	ListReviews(ctx context.Context, limit int, offset int, stars int, driverQuery string) ([]admindomain.Review, int64, error)
 	CreateReview(ctx context.Context, item admindomain.Review) error
 	GetDriverReviews(ctx context.Context, driverID string, limit int) ([]admindomain.Review, DriverReviewsStats, error)
+	GetDriverRating(ctx context.Context, driverID string) (DriverReviewsStats, error)
 	GetOrderReview(ctx context.Context, orderID string) (*admindomain.Review, error)
 	HideReview(ctx context.Context, id string) error
 	ShowReview(ctx context.Context, id string) error
@@ -721,6 +723,29 @@ func (h *AdminHandler) GetDriverReviews(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Review texts are private. Only admins may read them. Everyone else gets
+	// the aggregated rating computed over non-hidden reviews — no texts, no
+	// moderated-away (hidden) entries.
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if role != auth.RoleAdmin {
+		stats, err := h.repo.GetDriverRating(r.Context(), driverID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"items":          []any{},
+			"total":          0,
+			"rating_average": stats.RatingAverage,
+			"rating_count":   stats.RatingCount,
+		})
+		return
+	}
+
 	limit := parseAdminLimit(r, 50, 100)
 	reviews, stats, err := h.repo.GetDriverReviews(r.Context(), driverID, limit)
 	if err != nil {
@@ -771,9 +796,28 @@ func (h *AdminHandler) GetOrderReview(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-
 	if review == nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "review not found"})
+		return
+	}
+
+	userID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	role, err := roleFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	// The written review text is private: it is visible to admins and to the
+	// participants of the order it belongs to (the authoring client and the
+	// order's driver). Any other authenticated user gets 403 Forbidden; a
+	// genuinely missing review keeps returning 404.
+	if role != auth.RoleAdmin && review.ClientID != userID && review.DriverID != userID {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 		return
 	}
 
