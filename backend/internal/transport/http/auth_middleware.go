@@ -8,9 +8,28 @@ import (
 )
 
 func AuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
+	return authMiddleware(tokens, false)
+}
+
+// WSAuthMiddleware authenticates a WebSocket handshake. Browsers cannot set
+// custom headers on a WS handshake, so the access token is also accepted from
+// the query string (?access_token= / ?token=). Apply it ONLY to the /ws route;
+// regular HTTP must use AuthMiddleware so a JWT never leaks into logs via the
+// query string.
+func WSAuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
+	return authMiddleware(tokens, true)
+}
+
+func authMiddleware(tokens *auth.TokenManager, allowQueryToken bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rawToken := extractAccessToken(r)
+			if rawToken == "" && allowQueryToken {
+				rawToken = strings.TrimSpace(r.URL.Query().Get("access_token"))
+				if rawToken == "" {
+					rawToken = strings.TrimSpace(r.URL.Query().Get("token"))
+				}
+			}
 			if rawToken == "" {
 				writeAuthError(w, http.StatusUnauthorized, "missing bearer token")
 				return
@@ -26,12 +45,16 @@ func AuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
 	}
 }
 
+// extractAccessToken reads the access token from the Authorization header only.
+// Query-string tokens are deliberately NOT accepted on regular HTTP routes so
+// a JWT cannot leak into access logs; the WebSocket route uses
+// WSAuthMiddleware, which opts into query tokens explicitly.
 func extractAccessToken(r *http.Request) string {
 	header := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return strings.TrimSpace(header[len("Bearer "):])
 	}
-	return strings.TrimSpace(r.URL.Query().Get("access_token"))
+	return ""
 }
 
 func RequireRoles(allowed ...auth.Role) func(http.Handler) http.Handler {

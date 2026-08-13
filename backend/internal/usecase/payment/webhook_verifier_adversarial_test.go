@@ -121,16 +121,13 @@ func TestYooKassaVerifier_ParseEvent_MissingObjectID(t *testing.T) {
 	}
 }
 
-// TestVerify_NilRequestPanics documents the crash hazard when Verify receives
-// a nil *http.Request: clientIPFromRequest dereferences r.Header. In the real
-// router a valid request is always passed (so this is defensive), but a nil
-// request crashes instead of returning a clean error.
-func TestVerify_NilRequestPanics(t *testing.T) {
+// TestVerify_NilRequestReturnsError verifies Verify does not panic on a nil
+// *http.Request (a defensive path that should never fire in production) and
+// instead returns a clean error.
+func TestVerify_NilRequestReturnsError(t *testing.T) {
 	verifier := NewYooKassaVerifier()
-	defer func() {
-		if r := recover(); r == nil {
-			t.Log("Verify(nil) returned without panic")
-		}
-	}()
-	_ = verifier.Verify(nil, nil)
+	err := verifier.Verify(nil, nil)
+	if err == nil {
+		t.Fatal("Verify(nil) returned nil error, want rejection (must not panic)")
+	}
 }

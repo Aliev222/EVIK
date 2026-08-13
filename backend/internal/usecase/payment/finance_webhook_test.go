@@ -16,6 +16,7 @@ type webhookRepo struct {
 	activateSubCalls       int
 	activatePaymentMethods int
 	markProcessedCalls     int
+	txOpenCalls            int
 
 	purposeOnUpdate paymentdomain.PaymentPurpose
 	statusOnUpdate  paymentdomain.PaymentStatus
@@ -26,6 +27,7 @@ func newWebhookRepo() *webhookRepo {
 }
 
 func (r *webhookRepo) WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error {
+	r.txOpenCalls++
 	return fn(r)
 }
 
@@ -96,6 +98,42 @@ func TestHandleWebhookRejectsMalformedJSON(t *testing.T) {
 	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
 	if err == nil {
 		t.Fatal("expected JSON parse error, got nil")
+	}
+}
+
+// TestHandleWebhookRejectsEmptyPaymentID proves a payload without object.id is
+// rejected BEFORE CheckProcessed / provider GetPayment / money-path writes:
+// no tx is opened, nothing is recorded as processed, and no payment is updated.
+func TestHandleWebhookRejectsEmptyPaymentID(t *testing.T) {
+	repo := newWebhookRepo()
+	provider := &scriptedProvider{
+		getPaymentFn: func(context.Context, string) (*ProviderPaymentResponse, error) {
+			return nil, errors.New("GetPayment must NOT be called for an empty payment id")
+		},
+	}
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
+
+	payload := []byte(`{"event":"payment.succeeded"}`)
+
+	err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload)
+	if err == nil {
+		t.Fatal("expected error for webhook with empty payment id, got nil")
+	}
+	if repo.txOpenCalls != 0 {
+		t.Errorf("WithWebhookTx calls = %d, want 0 (must be rejected before the money path)", repo.txOpenCalls)
+	}
+	if repo.updatePaymentCalls != 0 {
+		t.Errorf("UpdatePaymentFromProvider calls = %d, want 0", repo.updatePaymentCalls)
+	}
+	if repo.markProcessedCalls != 0 {
+		t.Errorf("MarkProcessed calls = %d, want 0", repo.markProcessedCalls)
+	}
+	if len(provider.getPaymentIDs) != 0 {
+		t.Errorf("GetPayment calls = %d, want 0", len(provider.getPaymentIDs))
+	}
+	if len(repo.processed) != 0 {
+		t.Errorf("processed events = %d, want 0", len(repo.processed))
 	}
 }
 

@@ -30,6 +30,9 @@ func NewYooKassaVerifier() *YooKassaVerifier {
 }
 
 func (YooKassaVerifier) Verify(r *http.Request, _ []byte) error {
+	if r == nil {
+		return errors.New("nil request")
+	}
 	clientIP := clientIPFromRequest(r)
 	ip := net.ParseIP(clientIP)
 	if ip == nil {

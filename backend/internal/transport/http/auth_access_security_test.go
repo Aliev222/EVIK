@@ -197,8 +197,10 @@ func TestJWTAccess_GarbageBearerRejected(t *testing.T) {
 	}
 }
 
-func TestJWTAccess_QueryParamTokenAccepted(t *testing.T) {
-	// extractAccessToken falls back to ?access_token= — documents this behavior.
+func TestJWTAccess_QueryParamTokenRejectedOnHTTP(t *testing.T) {
+	// Regular HTTP must NOT accept ?access_token=: the token would leak into
+	// access logs. Only the WebSocket route (WSAuthMiddleware) opts into
+	// query-string tokens.
 	tokens := newTokens(time.Minute)
 	router := newRealRouter(tokens, seededUsers(), fixedHTTPClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)})
 	tok := issueRoleToken(t, tokens, "client-1", auth.RoleClient)
@@ -206,8 +208,64 @@ func TestJWTAccess_QueryParamTokenAccepted(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me?access_token="+tok, nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401: query token must not authorize regular HTTP (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// newWSFocusedRouter wires the production WSAuthMiddleware factory (exactly as
+// router.go wires /ws/orders) to a probe terminal handler.
+func newWSFocusedRouter(tokens *auth.TokenManager) http.Handler {
+	r := chi.NewRouter()
+	r.Use(middleware.Recoverer)
+	r.With(WSAuthMiddleware(tokens)).Get("/ws/orders", probeOK)
+	return r
+}
+
+func TestWSAuth_QueryTokenAccepted(t *testing.T) {
+	tokens := newTokens(time.Minute)
+	router := newWSFocusedRouter(tokens)
+	tok := issueRoleToken(t, tokens, "driver-1", auth.RoleDriver)
+
+	// Query-string token must keep authorizing the WS route.
+	for _, qs := range []struct{ name, param string }{
+		{"access_token", "/ws/orders?access_token=" + tok},
+		{"token", "/ws/orders?token=" + tok},
+	} {
+		t.Run(qs.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, qs.param, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200: WS query token must authenticate (body=%s)", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestWSAuth_HeaderTokenAccepted(t *testing.T) {
+	tokens := newTokens(time.Minute)
+	router := newWSFocusedRouter(tokens)
+	tok := issueRoleToken(t, tokens, "driver-1", auth.RoleDriver)
+
+	req := httptest.NewRequest(http.MethodGet, "/ws/orders", nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		t.Fatalf("status = %d, want 200: WS header token must authenticate (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestWSAuth_MissingTokenRejected(t *testing.T) {
+	tokens := newTokens(time.Minute)
+	router := newWSFocusedRouter(tokens)
+
+	req := httptest.NewRequest(http.MethodGet, "/ws/orders", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (body=%s)", rec.Code, rec.Body.String())
 	}
 }
 

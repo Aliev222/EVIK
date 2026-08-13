@@ -53,6 +53,9 @@ func NewRouter(
 	}))
 
 	authMW := AuthMiddleware(tokens)
+	// WebSocket handshakes cannot carry custom headers from browsers, so the
+	// WS route is the ONLY place a query-string token is accepted.
+	wsAuthMW := WSAuthMiddleware(tokens)
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/auth/register", authHandler.Register)
@@ -191,9 +194,9 @@ func NewRouter(
 		w.WriteHeader(nethttp.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	r.With(authMW).MethodFunc(nethttp.MethodHead, "/ws/orders", func(w nethttp.ResponseWriter, r *nethttp.Request) {
+	r.With(wsAuthMW).MethodFunc(nethttp.MethodHead, "/ws/orders", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		w.WriteHeader(nethttp.StatusUpgradeRequired)
 	})
-	r.With(authMW).Get("/ws/orders", wsHandler.Handle)
+	r.With(wsAuthMW).Get("/ws/orders", wsHandler.Handle)
 	return r
 }

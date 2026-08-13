@@ -295,6 +295,13 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 	if err != nil {
 		return fmt.Errorf("parse webhook event: %w", err)
 	}
+	// A webhook without a payment id (e.g. a payload lacking object.id) is
+	// garbage from the provider's perspective. Reject it BEFORE CheckProcessed,
+	// provider GetPayment or any money-path side effect, so an empty id can
+	// never be recorded as processed or queried/mutated downstream.
+	if event.PaymentID == "" {
+		return fmt.Errorf("webhook event %q has empty payment id", event.EventID)
+	}
 
 	return uc.repo.WithWebhookTx(ctx, func(txOps paymentdomain.WebhookTx) error {
 		processed, err := txOps.CheckProcessed(ctx, event.EventID, event.Provider, event.EventType, rawBody)
