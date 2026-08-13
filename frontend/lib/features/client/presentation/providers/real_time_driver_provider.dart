@@ -119,8 +119,17 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
     }
   }
 
-  /// Start tracking driver for specific order
-  Future<void> startTracking(String orderId, LocationModel destination) async {
+  /// Start tracking driver for specific order.
+  ///
+  /// [userId] and [accessToken] identify the authenticated client so the
+  /// server can address events of this order to this client (the backend
+  /// delivers EventDriverLocationUpdated to the order's user_id from the JWT).
+  Future<void> startTracking(
+    String orderId,
+    LocationModel destination, {
+    String? userId,
+    String? accessToken,
+  }) async {
     _activeOrderId = orderId;
     _destination = destination;
     _lastRouteDriverLocation = null;
@@ -130,10 +139,12 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
       error: null,
     );
 
-    // Подключаемся к WebSocket серверу как клиент
+    // Подключаемся к WebSocket серверу как авторизованный клиент.
+    final hasUserId = userId != null && userId.isNotEmpty;
     final connected = await _realTimeService.connect(
-      userId: orderId, // Используем orderId как уникальный идентификатор
+      userId: hasUserId ? userId : orderId,
       userType: 'client',
+      accessToken: accessToken ?? '',
     );
 
     if (!connected) {

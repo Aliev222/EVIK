@@ -230,7 +230,9 @@ func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte
 
 	if locData.OrderID != "" && h.orderRepo != nil && h.eventPublisher != nil {
 		ord, ordErr := h.orderRepo.GetByID(context.Background(), locData.OrderID)
-		if ordErr == nil && ord != nil && ord.UserID != "" {
+		// Only notify the client of an order this driver is actually assigned
+		// to. This keeps a driver from pushing their location to bystanders.
+		if ordErr == nil && ord != nil && ord.UserID != "" && ord.DriverID != nil && *ord.DriverID == c.UserID {
 			payload := map[string]any{
 				"driver_id": c.UserID,
 				"user_id":   ord.UserID,

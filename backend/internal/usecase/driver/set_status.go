@@ -172,6 +172,11 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 		}
 		uc.cacheDriverCity(ctx, input.DriverID, *input.Lat, *input.Lng)
 		uc.publishAdminDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
+		// Publish the driver position to the client of the driver's current
+		// order whenever a location is saved. publishDriverLocation is a no-op
+		// when the driver has no active order, so going online never leaks a
+		// location to anyone.
+		uc.publishDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
 	}
 	return drv, nil
 }

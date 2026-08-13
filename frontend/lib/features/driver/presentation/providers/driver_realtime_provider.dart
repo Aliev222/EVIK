@@ -61,7 +61,6 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
   }
 
   final RealTimeLocationService _realTimeService;
-  final LocationService _locationService = LocationService.instance;
 
   Timer? _locationTimer;
   StreamSubscription<String>? _connectionSubscription;
@@ -124,19 +123,20 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       return;
     }
 
-    // Получаем текущее местоположение
-    final location = await _locationService.getCurrentLocation();
-    if (location == null) {
+    // Получаем текущее местоположение (сырые GPS-координаты без reverse-geocode)
+    try {
+      final position = await LocationService.getCurrentPositionWithFallback();
+      final location = _locationFromPosition(position);
+      state = state.copyWith(
+        isOnline: true,
+        currentLocation: location,
+        status: DriverMarkerStatus.waiting,
+        error: null,
+      );
+    } catch (_) {
       state = state.copyWith(error: 'Не удалось определить местоположение');
       return;
     }
-
-    state = state.copyWith(
-      isOnline: true,
-      currentLocation: location,
-      status: DriverMarkerStatus.waiting,
-      error: null,
-    );
 
     // Отправляем начальную позицию
     await _sendLocationUpdate();
@@ -235,9 +235,11 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     }
 
     try {
-      // Получаем обновленное местоположение
-      final location = await _locationService.getCurrentLocation();
-      if (location == null) return;
+      // Получаем обновленное местоположение. Используем сырые GPS-координаты
+      // (getCurrentPositionWithFallback) вместо getCurrentLocation, чтобы не
+      // ходить на backend за reverse-geocode на каждом 5-секундном тике.
+      final position = await LocationService.getCurrentPositionWithFallback();
+      final location = _locationFromPosition(position);
 
       // Вычисляем скорость и направление
       double speed = 0.0;
@@ -288,6 +290,17 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     } catch (e) {
       state = state.copyWith(error: 'Ошибка отправки местоположения: $e');
     }
+  }
+
+  /// Строит LocationModel из сырой GPS-позиции без обращения к геокодеру.
+  LocationModel _locationFromPosition(Position position) {
+    return LocationModel(
+      lat: position.latitude,
+      lng: position.longitude,
+      address:
+          '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}',
+      isMocked: position.isMocked,
+    );
   }
 
   /// Проверка разрешений геолокации

@@ -11,6 +11,7 @@ import 'package:tow_truck_frontend/core/services/realtime_location_service.dart'
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
@@ -139,7 +140,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
       final pickup = pickupLoc != null
           ? LocationModel(lat: pickupLoc.latitude, lng: pickupLoc.longitude, address: pickupLoc.displayAddress)
           : order.pickupLocation;
-      ref.read(realTimeDriverProvider.notifier).startTracking(order.id, pickup);
+      ref.read(realTimeDriverProvider.notifier).startTracking(
+            order.id,
+            pickup,
+            userId: ref.read(authProvider).user?.id,
+            accessToken: ref.read(authProvider).accessToken,
+          );
     });
   }
 

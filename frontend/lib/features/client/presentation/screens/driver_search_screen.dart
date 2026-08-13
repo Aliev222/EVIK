@@ -12,6 +12,7 @@ import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 
 class DriverSearchScreen extends ConsumerStatefulWidget {
@@ -36,11 +37,19 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     final realTimeService = ref.read(realTimeLocationServiceProvider);
     final orderFlowState = ref.read(orderFlowProvider);
 
-    // Connect as client when searching for driver
-    const clientId = 'client_app_user'; // Use a simple ID for now
+    // Connect as client when searching for driver. The real user id and
+    // access token let the server address real-time events to this client.
+    final authState = ref.read(authProvider);
+    const fallbackClientId = 'client_app_user';
+    final hasUserId =
+        authState.user?.id != null && authState.user!.id.isNotEmpty;
+    final clientId = hasUserId ? authState.user!.id : fallbackClientId;
 
-    final connected =
-        await realTimeService.connect(userId: clientId, userType: 'client');
+    final connected = await realTimeService.connect(
+      userId: clientId,
+      userType: 'client',
+      accessToken: authState.accessToken ?? '',
+    );
 
     if (connected) {
       // Listen for order updates

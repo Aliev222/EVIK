@@ -94,6 +94,102 @@ func TestSetStatusOfflineCancelsActiveOrderAndRemovesLocation(t *testing.T) {
 	}
 }
 
+// TestSetStatusWithCurrentOrderPublishesDriverLocation verifies the HTTP
+// location bridge: whenever a driver with an active order submits a location,
+// an EventDriverLocationUpdated scoped to that order's client is published.
+func TestSetStatusBusyPublishesDriverLocationToOrderClient(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	orderID := "order-1"
+	driverRepo := newFakeDriverRepository()
+	driverRepo.drivers["driver-1"] = &driverdomain.Driver{
+		ID:             "driver-1",
+		UserID:         "user-1",
+		Status:         driverdomain.StatusBusy,
+		CurrentOrderID: &orderID,
+		LastSeenAt:     now,
+		UpdatedAt:      now,
+	}
+	orderRepo := newFakeOrderRepository()
+	orderRepo.orders[orderID] = &orderdomain.Order{
+		ID:        orderID,
+		UserID:    "client-1",
+		DriverID:  strPtr("driver-1"),
+		Pickup:    orderdomain.Coordinate{Lat: 55.75, Lng: 37.62},
+		Dropoff:   orderdomain.Coordinate{Lat: 55.76, Lng: 37.63},
+		Status:    orderdomain.StatusAccepted,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	locationRepo := &fakeLocationRepository{}
+	publisher := &fakeEventPublisher{}
+	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, nil, nil, fakeClock{now: now}, fakeLogger{})
+
+	lat := 55.755
+	lng := 37.617
+	if _, err := uc.Execute(context.Background(), SetStatusInput{
+		DriverID: "driver-1",
+		UserID:   "user-1",
+		Status:   driverdomain.StatusOnline,
+		Lat:      &lat,
+		Lng:      &lng,
+	}); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	var locEvent *orderdomain.Event
+	for i := range publisher.events {
+		if publisher.events[i].Type == orderdomain.EventDriverLocationUpdated {
+			locEvent = &publisher.events[i]
+			break
+		}
+	}
+	if locEvent == nil {
+		t.Fatalf("expected EventDriverLocationUpdated, got events: %+v", publisher.events)
+	}
+	if locEvent.OrderID != orderID {
+		t.Fatalf("event order_id = %q, want %q", locEvent.OrderID, orderID)
+	}
+	payload, ok := locEvent.Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("payload is %T, want map[string]any", locEvent.Payload)
+	}
+	if payload["user_id"] != "client-1" {
+		t.Fatalf("payload user_id = %v, want client-1", payload["user_id"])
+	}
+	if payload["driver_id"] != "driver-1" {
+		t.Fatalf("payload driver_id = %v, want driver-1", payload["driver_id"])
+	}
+}
+
+// TestSetStatusNoCurrentOrderDoesNotPublishDriverLocation guards privacy: a
+// driver that simply goes online must never emit a client location event.
+func TestSetStatusNoCurrentOrderDoesNotPublishDriverLocation(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	driverRepo := newFakeDriverRepository()
+	orderRepo := newFakeOrderRepository()
+	locationRepo := &fakeLocationRepository{}
+	publisher := &fakeEventPublisher{}
+	uc := NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, publisher, nil, nil, fakeClock{now: now}, fakeLogger{})
+
+	lat := 55.75
+	lng := 37.62
+	if _, err := uc.Execute(context.Background(), SetStatusInput{
+		DriverID: "driver-1",
+		UserID:   "user-1",
+		Status:   driverdomain.StatusOnline,
+		Lat:      &lat,
+		Lng:      &lng,
+	}); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	for _, event := range publisher.events {
+		if event.Type == orderdomain.EventDriverLocationUpdated {
+			t.Fatalf("unexpected EventDriverLocationUpdated for freelancer driver: %+v", event)
+		}
+	}
+}
+
 type fakeClock struct {
 	now time.Time
 }
