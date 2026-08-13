@@ -10,6 +10,11 @@ type Repository interface {
 	GetByPhoneAndRole(ctx context.Context, phone string, role string) (*User, error)
 	Create(ctx context.Context, user *User) error
 	UpdatePasswordHash(ctx context.Context, userID string, passwordHash string) error
+	// IsUserActive reports whether the user row exists and is not deleted or
+	// blocked. Unknown ids (e.g. a removed row) are treated as not active so
+	// stale JWTs stop working; this is used by the auth middleware to reject
+	// deleted accounts immediately.
+	IsUserActive(ctx context.Context, userID string) (bool, error)
 	CreateRefreshSession(ctx context.Context, session *RefreshSession) error
 	GetActiveRefreshSessionByHash(ctx context.Context, tokenHash string) (*RefreshSession, error)
 	RevokeRefreshSession(ctx context.Context, sessionID string, revokedAt time.Time) error

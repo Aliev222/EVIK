@@ -56,6 +56,16 @@
     'completed',
     'cancelled',
   ];
+
+  static const String privacyPolicyUrl = String.fromEnvironment(
+    'PRIVACY_POLICY_URL',
+    defaultValue: 'https://avro.app/privacy',
+  );
+
+  static const String termsOfServiceUrl = String.fromEnvironment(
+    'TERMS_OF_SERVICE_URL',
+    defaultValue: 'https://avro.app/terms',
+  );
 }
 
 class EvikAssetPaths {

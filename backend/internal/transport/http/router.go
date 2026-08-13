@@ -13,6 +13,7 @@ import (
 
 func NewRouter(
 	authHandler *AuthHandler,
+	accountHandler *AccountHandler,
 	orderHandler *OrderHandler,
 	offerHandler *OfferHandler,
 	driverHandler *DriverHandler,
@@ -27,6 +28,7 @@ func NewRouter(
 	driverLocationsHandler *DriverLocationsHandler,
 	wsHandler *ws.OrderWSHandler,
 	tokens *auth.TokenManager,
+	userStatusChecker UserStatusChecker,
 	allowedOrigins []string,
 	exposeSwagger bool,
 	limiter Limiter,
@@ -52,10 +54,10 @@ func NewRouter(
 		MaxAge:           300,
 	}))
 
-	authMW := AuthMiddleware(tokens)
+	authMW := AuthMiddleware(tokens, userStatusChecker)
 	// WebSocket handshakes cannot carry custom headers from browsers, so the
 	// WS route is the ONLY place a query-string token is accepted.
-	wsAuthMW := WSAuthMiddleware(tokens)
+	wsAuthMW := WSAuthMiddleware(tokens, userStatusChecker)
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/auth/register", authHandler.Register)
@@ -72,6 +74,7 @@ func NewRouter(
 			secured.Get("/auth/me", authHandler.Me)
 			secured.Post("/devices/fcm-token", authHandler.UpsertDeviceToken)
 			secured.Post("/devices/fcm-token/revoke", authHandler.RevokeDeviceToken)
+			secured.Delete("/account", accountHandler.Delete)
 
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders", orderHandler.CreateOrder)
 			secured.Get("/orders", orderHandler.ListOrders)

@@ -38,10 +38,11 @@ func newRealRouter(tokens *auth.TokenManager, users userdomain.Repository, clock
 	limiter := NewRateLimiter()
 	return NewRouter(
 		authHandler,
+		&AccountHandler{},
 		&OrderHandler{}, &OfferHandler{}, &DriverHandler{}, &PaymentHandler{},
 		&PricingHandler{}, &RoutingHandler{}, &AdminHandler{}, &SettingsHandler{},
 		&ServiceAreaHandler{}, &CityHandler{}, &GeocodingHandler{}, &DriverLocationsHandler{},
-		nil, tokens, nil, false, limiter, false,
+		nil, tokens, users, nil, false, limiter, false,
 	)
 }
 

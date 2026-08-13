@@ -1,14 +1,22 @@
 package http
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"evik/backend/internal/auth"
 )
 
-func AuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
-	return authMiddleware(tokens, false)
+// UserStatusChecker reports whether the account behind an access token is
+// still usable. When wired into the middleware, deleted/blocked accounts are
+// rejected immediately even while their (already issued) JWT is valid.
+type UserStatusChecker interface {
+	IsUserActive(ctx context.Context, userID string) (bool, error)
+}
+
+func AuthMiddleware(tokens *auth.TokenManager, checkers ...UserStatusChecker) func(http.Handler) http.Handler {
+	return authMiddleware(tokens, false, checkers...)
 }
 
 // WSAuthMiddleware authenticates a WebSocket handshake. Browsers cannot set
@@ -16,11 +24,15 @@ func AuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
 // the query string (?access_token= / ?token=). Apply it ONLY to the /ws route;
 // regular HTTP must use AuthMiddleware so a JWT never leaks into logs via the
 // query string.
-func WSAuthMiddleware(tokens *auth.TokenManager) func(http.Handler) http.Handler {
-	return authMiddleware(tokens, true)
+func WSAuthMiddleware(tokens *auth.TokenManager, checkers ...UserStatusChecker) func(http.Handler) http.Handler {
+	return authMiddleware(tokens, true, checkers...)
 }
 
-func authMiddleware(tokens *auth.TokenManager, allowQueryToken bool) func(http.Handler) http.Handler {
+func authMiddleware(tokens *auth.TokenManager, allowQueryToken bool, checkers ...UserStatusChecker) func(http.Handler) http.Handler {
+	var checker UserStatusChecker
+	if len(checkers) > 0 {
+		checker = checkers[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rawToken := extractAccessToken(r)
@@ -38,6 +50,17 @@ func authMiddleware(tokens *auth.TokenManager, allowQueryToken bool) func(http.H
 			if err != nil {
 				writeAuthError(w, http.StatusUnauthorized, "invalid access token")
 				return
+			}
+			if checker != nil {
+				active, err := checker.IsUserActive(r.Context(), claims.UserID)
+				if err != nil {
+					writeAuthError(w, http.StatusInternalServerError, "internal server error")
+					return
+				}
+				if !active {
+					writeAuthError(w, http.StatusUnauthorized, "account is deleted or blocked")
+					return
+				}
 			}
 
 			next.ServeHTTP(w, r.WithContext(withAuth(r.Context(), claims.UserID, claims.Role)))

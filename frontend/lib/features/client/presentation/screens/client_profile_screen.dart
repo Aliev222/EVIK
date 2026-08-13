@@ -7,6 +7,7 @@ import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/client_wallet_screen.dart';
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 import 'package:tow_truck_frontend/shared/widgets/offline_sos_screen.dart';
+import 'package:tow_truck_frontend/shared/widgets/account_settings_tiles.dart';
 
 class ClientProfileScreen extends ConsumerWidget {
   const ClientProfileScreen({super.key});
@@ -166,6 +167,20 @@ class ClientProfileScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w500,
                           )),
                     ),
+                  ),
+                  const SizedBox(height: 24),
+                  const LegalLinksTile(
+                    backgroundColor: AvroClientColors.background,
+                    textPrimaryColor: AvroClientColors.textPrimary,
+                    textSecondaryColor: AvroClientColors.textSecondary,
+                    iconColor: AvroClientColors.accent,
+                  ),
+                  const SizedBox(height: 16),
+                  DeleteAccountEntry(
+                    backgroundColor: AvroClientColors.background,
+                    destructiveColor: AvroClientColors.error,
+                    warningMessage: 'Аккаунт будет удалён без возможности '
+                        'восстановления. Это действие необратимо.',
                   ),
                 ],
               ),

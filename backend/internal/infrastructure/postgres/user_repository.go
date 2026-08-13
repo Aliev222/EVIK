@@ -32,7 +32,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*userdomain.User, error) {
 	const query = `
-SELECT id, phone, full_name, role, password_hash, status, created_at, updated_at
+SELECT id, phone, full_name, role, password_hash, status, deleted_at, created_at, updated_at
 FROM users
 WHERE id = $1`
 	return r.scanUser(r.db.QueryRowContext(ctx, query, id))
@@ -40,10 +40,24 @@ WHERE id = $1`
 
 func (r *UserRepository) GetByPhoneAndRole(ctx context.Context, phone string, role string) (*userdomain.User, error) {
 	const query = `
-SELECT id, phone, full_name, role, password_hash, status, created_at, updated_at
+SELECT id, phone, full_name, role, password_hash, status, deleted_at, created_at, updated_at
 FROM users
 WHERE phone = $1 AND role = $2`
 	return r.scanUser(r.db.QueryRowContext(ctx, query, phone, role))
+}
+
+func (r *UserRepository) IsUserActive(ctx context.Context, userID string) (bool, error) {
+	var status string
+	var deletedAt *time.Time
+	err := r.db.QueryRowContext(ctx, `SELECT status, deleted_at FROM users WHERE id = $1`, userID).Scan(&status, &deletedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Unknown user: a stale JWT must not grant access.
+			return false, nil
+		}
+		return false, err
+	}
+	return status == string(userdomain.StatusActive) && deletedAt == nil, nil
 }
 
 func (r *UserRepository) UpdatePasswordHash(ctx context.Context, userID string, passwordHash string) error {
@@ -381,7 +395,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*userdomain.User, error) {
 	var user userdomain.User
 	var role string
 	var status string
-	err := row.Scan(&user.ID, &user.Phone, &user.Name, &role, &user.PasswordHash, &status, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Phone, &user.Name, &role, &user.PasswordHash, &status, &user.DeletedAt, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, userdomain.ErrUserNotFound

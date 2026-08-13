@@ -31,6 +31,7 @@ import (
 	driveruc "evik/backend/internal/usecase/driver"
 	orderuc "evik/backend/internal/usecase/order"
 	paymentuc "evik/backend/internal/usecase/payment"
+	accountuc "evik/backend/internal/usecase/account"
 )
 
 type Container struct {
@@ -268,6 +269,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction(), cfg.OTPFixedCode, cfg.IsProduction(), cfg.DebugMode)
+	deleteAccountUC := accountuc.NewUseCase(postgres.NewAccountRepository(db))
+	accountHandler := httptransport.NewAccountHandler(deleteAccountUC)
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager, locationRepo, orderRepo, eventPublisher, clock.Now)
@@ -344,7 +347,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("INFO: rate limiter backend: memory")
 	}
 
-	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
+	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 

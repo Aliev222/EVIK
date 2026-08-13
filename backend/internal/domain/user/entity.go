@@ -11,6 +11,10 @@ type Status string
 const (
 	StatusActive  Status = "active"
 	StatusBlocked Status = "blocked"
+	// StatusDeleted marks an account that the owner deleted. Its PII has been
+	// anonymized and login is rejected, but financial/order records that
+	// reference the row are retained for tax/legal compliance.
+	StatusDeleted Status = "deleted"
 )
 
 type User struct {
@@ -20,6 +24,7 @@ type User struct {
 	Role         auth.Role
 	PasswordHash *string
 	Status       Status
+	DeletedAt    *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }

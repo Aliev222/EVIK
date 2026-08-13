@@ -217,6 +217,14 @@ func (r *fakeUserRepository) GetByPhoneAndRole(_ context.Context, phone string, 
 	return nil, userdomain.ErrUserNotFound
 }
 
+func (r *fakeUserRepository) IsUserActive(_ context.Context, userID string) (bool, error) {
+	user := r.users[userID]
+	if user == nil {
+		return false, nil
+	}
+	return user.Status == userdomain.StatusActive && user.DeletedAt == nil, nil
+}
+
 func (r *fakeUserRepository) Create(_ context.Context, user *userdomain.User) error {
 	for _, existing := range r.users {
 		if existing.Phone == user.Phone && existing.Role == user.Role {

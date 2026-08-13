@@ -10,6 +10,7 @@ import 'package:tow_truck_frontend/features/review/presentation/providers/review
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
+import 'package:tow_truck_frontend/shared/widgets/account_settings_tiles.dart';
 
 // Provider for driver profile data
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
@@ -422,7 +423,7 @@ class DriverProfileScreen extends ConsumerWidget {
                       ),
                     );
                   },
-                  borderRadius: BorderRadius.circular(16),
+borderRadius: BorderRadius.circular(16),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Center(
@@ -439,7 +440,23 @@ class DriverProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          ],
+
+            const SizedBox(height: 24),
+            LegalLinksTile(
+                backgroundColor: AvroDriverColors.background,
+                textPrimaryColor: AvroDriverColors.textPrimary,
+                textSecondaryColor: AvroDriverColors.textSecondary,
+                iconColor: AvroDriverColors.accent,
+              ),
+              const SizedBox(height: 16),
+              DeleteAccountEntry(
+                backgroundColor: AvroDriverColors.background,
+                destructiveColor: AvroDriverColors.error,
+                warningMessage: 'Аккаунт будет удалён без возможности '
+                    'восстановления. Если есть активный заказ или '
+                    'невыплаченный баланс, удаление будет недоступно.',
+              ),
+            ],
         ),
       ),
     );
