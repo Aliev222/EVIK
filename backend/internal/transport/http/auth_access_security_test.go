@@ -47,7 +47,7 @@ func newRealRouter(tokens *auth.TokenManager, users userdomain.Repository, clock
 
 // newFocusedSecurityRouter mirrors the role groups in router.go using the real
 // production middleware factories. probe returns wantStatus when reached.
-func newFocusedSecurityRouter(tokens *auth.TokenManager, limiter *RateLimiter, probe func(w http.ResponseWriter, r *http.Request)) http.Handler {
+func newFocusedSecurityRouter(tokens *auth.TokenManager, limiter Limiter, probe func(w http.ResponseWriter, r *http.Request)) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	authMW := AuthMiddleware(tokens)

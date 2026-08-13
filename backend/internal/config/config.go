@@ -65,6 +65,7 @@ type Config struct {
 	DebugMode                         bool
 	YooKassaStubMode                  bool
 	S3StubMode                        bool
+	RateLimiterBackend                string
 }
 
 func MustLoad() Config {
@@ -143,6 +144,7 @@ func MustLoad() Config {
 		DebugMode:                         debugMode,
 		YooKassaStubMode:                  getEnvBool("YOOKASSA_STUB_MODE", false),
 		S3StubMode:                        getEnvBool("S3_STUB_MODE", false),
+		RateLimiterBackend:                getEnv("RATE_LIMITER_BACKEND", "memory"),
 	}
 	validateProductionConfig(cfg)
 	return cfg

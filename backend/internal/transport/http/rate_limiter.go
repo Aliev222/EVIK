@@ -17,17 +17,43 @@ type rateBucket struct {
 	resetAt time.Time
 }
 
-type RateLimiter struct {
+// Limiter is the rate-limiter abstraction consumed by the HTTP middleware. It
+// allows swapping the in-memory implementation for a distributed one (e.g.
+// Redis) without touching the middleware or router.
+type Limiter interface {
+	// Allow increments the counter for key and reports whether the request is
+	// within the limit. Returns (true, 0) when allowed; (false, retryAfter)
+	// when the bucket is exhausted. ctx is honored by implementations that do
+	// network I/O (e.g. Redis) and ignored by the in-memory one.
+	Allow(ctx context.Context, key string, maxPerMin int) (bool, time.Duration)
+}
+
+// CleanupLimiter is implemented by limiters that need periodic background
+// eviction of stale state (currently only InMemoryLimiter). The Redis limiter
+// relies on key expiry and needs no cleanup.
+type CleanupLimiter interface {
+	StartCleanup(context.Context)
+}
+
+type InMemoryLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*rateBucket
 }
 
-func NewRateLimiter() *RateLimiter {
-	return &RateLimiter{buckets: make(map[string]*rateBucket)}
+func NewInMemoryLimiter() *InMemoryLimiter {
+	return &InMemoryLimiter{buckets: make(map[string]*rateBucket)}
+}
+
+// Deprecated: use InMemoryLimiter.
+type RateLimiter = InMemoryLimiter
+
+// Deprecated: use NewInMemoryLimiter.
+func NewRateLimiter() *InMemoryLimiter {
+	return NewInMemoryLimiter()
 }
 
 // StartCleanup removes expired buckets every 5 minutes until ctx is done.
-func (rl *RateLimiter) StartCleanup(ctx context.Context) {
+func (rl *InMemoryLimiter) StartCleanup(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
@@ -42,7 +68,7 @@ func (rl *RateLimiter) StartCleanup(ctx context.Context) {
 	}()
 }
 
-func (rl *RateLimiter) evictExpired() {
+func (rl *InMemoryLimiter) evictExpired() {
 	now := time.Now()
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -53,10 +79,9 @@ func (rl *RateLimiter) evictExpired() {
 	}
 }
 
-// allow increments the counter for key and reports whether the request is
-// within the limit. Returns (true, 0) when allowed; (false, retryAfter) when
-// the bucket is exhausted.
-func (rl *RateLimiter) allow(key string, maxPerMin int) (bool, time.Duration) {
+// Allow implements Limiter. ctx is ignored — the window state lives entirely
+// in memory.
+func (rl *InMemoryLimiter) Allow(ctx context.Context, key string, maxPerMin int) (bool, time.Duration) {
 	now := time.Now()
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -96,11 +121,11 @@ func writeRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
 }
 
 // RateLimitByIP limits requests per unique client IP address.
-func RateLimitByIP(limiter *RateLimiter, maxPerMin int) func(http.Handler) http.Handler {
+func RateLimitByIP(limiter Limiter, maxPerMin int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := "ip:" + extractClientIP(r)
-			if ok, retryAfter := limiter.allow(key, maxPerMin); !ok {
+			if ok, retryAfter := limiter.Allow(r.Context(), key, maxPerMin); !ok {
 				writeRateLimitError(w, retryAfter)
 				return
 			}
@@ -111,7 +136,7 @@ func RateLimitByIP(limiter *RateLimiter, maxPerMin int) func(http.Handler) http.
 
 // RateLimitByPhone limits requests per phone number extracted from the JSON
 // request body. Falls back to client IP when no phone is present.
-func RateLimitByPhone(limiter *RateLimiter, maxPerMin int) func(http.Handler) http.Handler {
+func RateLimitByPhone(limiter Limiter, maxPerMin int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := "ip:" + extractClientIP(r)
@@ -130,7 +155,7 @@ func RateLimitByPhone(limiter *RateLimiter, maxPerMin int) func(http.Handler) ht
 					}
 				}
 			}
-			if ok, retryAfter := limiter.allow(key, maxPerMin); !ok {
+			if ok, retryAfter := limiter.Allow(r.Context(), key, maxPerMin); !ok {
 				writeRateLimitError(w, retryAfter)
 				return
 			}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +40,7 @@ type Container struct {
 	DispatchScheduler    *DispatchScheduler
 	DriverPresenceReaper *DriverPresenceReaper
 	StuckOrderReaper     *StuckOrderReaper
-	RateLimiter          *httptransport.RateLimiter
+	RateLimiter          httptransport.Limiter
 	db                   *sql.DB
 	rdb                  *redis.Client
 }
@@ -326,7 +327,23 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.StuckAcceptedAction,
 	)
 
-	limiter := httptransport.NewRateLimiter()
+	// Rate limiter backend. Defaults to in-memory so the currently deployed
+	// behaviour is unchanged; RATE_LIMITER_BACKEND=redis opts into the
+	// distributed Redis counters shared across replicas.
+	var limiter httptransport.Limiter
+	switch strings.ToLower(strings.TrimSpace(cfg.RateLimiterBackend)) {
+	case "redis":
+		limiter = httptransport.NewRedisRateLimiter(rdb, logger)
+		logger.Printf("INFO: rate limiter backend: redis")
+	default:
+		if strings.TrimSpace(cfg.RateLimiterBackend) != "" &&
+			strings.ToLower(strings.TrimSpace(cfg.RateLimiterBackend)) != "memory" {
+			logger.Printf("WARN: unknown RATE_LIMITER_BACKEND %q, falling back to memory", cfg.RateLimiterBackend)
+		}
+		limiter = httptransport.NewInMemoryLimiter()
+		logger.Printf("INFO: rate limiter backend: memory")
+	}
+
 	router := httptransport.NewRouter(authHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }

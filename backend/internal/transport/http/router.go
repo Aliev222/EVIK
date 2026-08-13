@@ -29,7 +29,7 @@ func NewRouter(
 	tokens *auth.TokenManager,
 	allowedOrigins []string,
 	exposeSwagger bool,
-	limiter *RateLimiter,
+	limiter Limiter,
 	debugMode bool,
 ) nethttp.Handler {
 	r := chi.NewRouter()

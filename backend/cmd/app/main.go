@@ -13,6 +13,7 @@ import (
 	evik "evik/backend"
 	"evik/backend/internal/app"
 	"evik/backend/internal/config"
+	httptransport "evik/backend/internal/transport/http"
 
 	_ "evik/backend/docs"
 
@@ -58,7 +59,12 @@ func main() {
 	go container.DispatchScheduler.Run(ctx)
 	go container.DriverPresenceReaper.Run(ctx)
 	go container.StuckOrderReaper.Run(ctx)
-	container.RateLimiter.StartCleanup(ctx)
+	// Only the in-memory limiter needs background eviction; the Redis backend
+	// relies on key expiry. Guard on the optional interface so non-memory
+	// backends (or future ones) don't require a cleanup goroutine.
+	if cleanup, ok := container.RateLimiter.(httptransport.CleanupLimiter); ok {
+		cleanup.StartCleanup(ctx)
+	}
 
 	go func() {
 		logger.Printf("http server started on %s", cfg.HTTPAddr)
