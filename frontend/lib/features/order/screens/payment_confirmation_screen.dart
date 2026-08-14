@@ -29,6 +29,22 @@ class _PaymentConfirmationScreenState
   bool _isChangingMethod = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Cash orders are auto-completed by the server at driver finalize, so the
+    // client never needs to confirm payment. If this screen is shown with an
+    // already-completed order (stale state / race), skip straight to the review
+    // step instead of asking to pay again.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final order = ref.read(orderFlowProvider).activeOrder;
+      if (order != null && order.status == OrderStatus.completed) {
+        ref.read(orderFlowProvider.notifier).goToCompletion();
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final flowState = ref.watch(orderFlowProvider);
     final order = flowState.activeOrder;
@@ -119,6 +135,10 @@ class _PaymentConfirmationScreenState
     try {
       final order = ref.read(orderFlowProvider).activeOrder;
       if (order == null) return;
+      if (order.status == OrderStatus.completed) {
+        ref.read(orderFlowProvider.notifier).goToCompletion();
+        return;
+      }
 
       final repo = ref.read(orderRepositoryProvider);
       if (repo is! HttpOrderRepository) {

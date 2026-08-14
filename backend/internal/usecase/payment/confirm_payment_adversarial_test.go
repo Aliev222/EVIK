@@ -91,7 +91,9 @@ func sharedConfirmOrder(status orderdomain.Status, userID, method string) *order
 // TestConfirmOrderPaymentCash_DoubleConfirmNoDoubleSettlement proves that
 // confirming the same cash order twice settles finances exactly once: the
 // first call moves the order to completed (inside the tx), so the second call
-// is rejected by the status guard before any money is touched.
+// is short-circuited by the completed guard before any money is touched. A
+// stale client retry on an already-completed order must NOT error — it returns
+// success idempotently without re-settling.
 func TestConfirmOrderPaymentCash_DoubleConfirmNoDoubleSettlement(t *testing.T) {
 	state := &sharedConfirmState{status: orderdomain.StatusAwaitingPayment}
 	money := &sharedMoneyRepo{sharedConfirmState: state}
@@ -114,8 +116,8 @@ func TestConfirmOrderPaymentCash_DoubleConfirmNoDoubleSettlement(t *testing.T) {
 		t.Fatalf("order status after first confirm = %q, want %q", state.status, orderdomain.StatusCompleted)
 	}
 
-	if _, err := uc.ConfirmOrderPayment(context.Background(), "client-1", "order-1"); !errors.Is(err, orderdomain.ErrInvalidTransition) {
-		t.Fatalf("second confirm err = %v, want ErrInvalidTransition (order already completed)", err)
+	if _, err := uc.ConfirmOrderPayment(context.Background(), "client-1", "order-1"); err != nil {
+		t.Fatalf("second confirm err = %v, want nil (idempotent for completed order)", err)
 	}
 	if state.settlementCalls != 1 {
 		t.Fatalf("settlement calls after duplicate confirm = %d, want 1 (no double settlement)", state.settlementCalls)
@@ -125,14 +127,14 @@ func TestConfirmOrderPaymentCash_DoubleConfirmNoDoubleSettlement(t *testing.T) {
 	}
 }
 
-// TestConfirmOrderPayment_RejectsWrongStatus verifies a confirm in any status
-// other than awaiting_payment is rejected without opening a transaction.
+// TestConfirmOrderPayment_RejectsWrongStatus verifies a confirm in any
+// non-terminal status other than awaiting_payment is rejected without opening
+// a transaction. Completed is the exception: it is idempotent (already done).
 func TestConfirmOrderPayment_RejectsWrongStatus(t *testing.T) {
 	statuses := []orderdomain.Status{
 		orderdomain.StatusCreated,
 		orderdomain.StatusAccepted,
 		orderdomain.StatusInProgress,
-		orderdomain.StatusCompleted,
 		orderdomain.StatusCancelled,
 	}
 	for _, status := range statuses {
@@ -156,6 +158,33 @@ func TestConfirmOrderPayment_RejectsWrongStatus(t *testing.T) {
 				t.Fatalf("settlement calls = %d, want 0 for wrong status", state.settlementCalls)
 			}
 		})
+	}
+}
+
+// TestConfirmOrderPayment_CompletedIsIdempotent locks the new contract: a
+// confirm on an already-completed order (e.g. cash auto-completed at driver
+// finalize) succeeds without opening a transaction or touching settlement.
+func TestConfirmOrderPayment_CompletedIsIdempotent(t *testing.T) {
+	state := &sharedConfirmState{status: orderdomain.StatusCompleted}
+	money := &sharedMoneyRepo{sharedConfirmState: state}
+	order := &sharedOrderRepo{
+		sharedConfirmState: state,
+		template:           sharedConfirmOrder(orderdomain.StatusCompleted, "client-1", "cash"),
+	}
+	uc := newSharedConfirmUC(money, order)
+
+	payment, err := uc.ConfirmOrderPayment(context.Background(), "client-1", "order-1")
+	if err != nil {
+		t.Fatalf("ConfirmOrderPayment on completed order err = %v, want nil", err)
+	}
+	if payment != nil {
+		t.Fatalf("payment = %v, want nil for completed order", payment)
+	}
+	if state.txOpened != 0 {
+		t.Fatalf("tx opened = %d, want 0 (no completion tx for completed order)", state.txOpened)
+	}
+	if state.settlementCalls != 0 {
+		t.Fatalf("settlement calls = %d, want 0 (no double settlement)", state.settlementCalls)
 	}
 }
 

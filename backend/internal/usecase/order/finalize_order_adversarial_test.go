@@ -15,11 +15,12 @@ import (
 
 func finalizeOrderInProgress(driverID string) *orderdomain.Order {
 	return &orderdomain.Order{
-		ID:         "order-1",
-		UserID:     "client-1",
-		DriverID:   &driverID,
-		Status:     orderdomain.StatusInProgress,
-		PriceTotal: 500000,
+		ID:            "order-1",
+		UserID:        "client-1",
+		DriverID:      &driverID,
+		Status:        orderdomain.StatusInProgress,
+		PriceTotal:    500000,
+		PaymentMethod: "card",
 	}
 }
 

@@ -411,6 +411,14 @@ func (uc *FinanceUseCase) CompleteOrderFinancially(ctx context.Context, orderID 
 	return uc.repo.CompleteOrderFinancially(ctx, orderID, "complete_order:"+orderID, uc.holdSeconds, pct)
 }
 
+// CommissionPercent returns the configured platform commission percentage
+// (default 15), falling back to the default on invalid settings. Exported so
+// other use cases (e.g. cash auto-completion at driver finalize) reuse the
+// exact same fee source instead of duplicating the settings logic.
+func (uc *FinanceUseCase) CommissionPercent(ctx context.Context) int {
+	return uc.commissionPercent(ctx)
+}
+
 // ConfirmOrderPayment processes the client's payment confirmation for an order
 // in awaiting_payment status. For cash orders it immediately completes finances
 // and transitions to completed. For card orders it creates a YooKassa payment
@@ -423,6 +431,12 @@ func (uc *FinanceUseCase) ConfirmOrderPayment(ctx context.Context, userID, order
 	}
 	if ord.UserID != userID {
 		return nil, ErrOrderNotOwned
+	}
+	if ord.Status == orderdomain.StatusCompleted {
+		// The order is already completed — a cash order auto-completed at
+		// driver finalize, or the card webhook already landed. Idempotent:
+		// return success without touching settlement or re-publishing events.
+		return nil, nil
 	}
 	if ord.Status != orderdomain.StatusAwaitingPayment {
 		return nil, orderdomain.ErrInvalidTransition

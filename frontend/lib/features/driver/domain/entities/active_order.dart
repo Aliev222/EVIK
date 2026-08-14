@@ -1,3 +1,5 @@
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+
 class ActiveOrder {
   final String id;
   final String clientName;
@@ -17,6 +19,7 @@ class ActiveOrder {
   final int estimatedMinutes;
   final DateTime acceptedAt;
   final ActiveOrderStatus status;
+  final PaymentMethod paymentMethod;
 
   const ActiveOrder({
     required this.id,
@@ -37,6 +40,7 @@ class ActiveOrder {
     required this.estimatedMinutes,
     required this.acceptedAt,
     required this.status,
+    required this.paymentMethod,
   });
 
   String get clientInitial {
@@ -82,6 +86,7 @@ class ActiveOrder {
     int? estimatedMinutes,
     DateTime? acceptedAt,
     ActiveOrderStatus? status,
+    PaymentMethod? paymentMethod,
   }) {
     return ActiveOrder(
       id: id ?? this.id,
@@ -102,6 +107,7 @@ class ActiveOrder {
       estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
       acceptedAt: acceptedAt ?? this.acceptedAt,
       status: status ?? this.status,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
     );
   }
 }

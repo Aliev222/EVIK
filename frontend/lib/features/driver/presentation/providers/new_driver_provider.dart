@@ -383,12 +383,27 @@ class DriverNotifier extends StateNotifier<DriverState> {
       final priceKopecks = (activeOrder.price * 100).round();
       await orderRepository.finalizeOrder(activeOrder.id, priceKopecks);
       if (!mounted) return;
-      state = state.copyWith(
-        workState: DriverWorkState.waitingForPayment,
-        isLoading: false,
-      );
+
       _ref.read(driverRealTimeProvider.notifier).completeOrder();
-      _startPaymentPolling(activeOrder.id);
+
+      // Cash orders are auto-completed by the server at finalize (the money
+      // split + completed land in one transaction), so the driver goes straight
+      // back online after a brief "Оплата наличными: N₽ получено" confirmation.
+      // Card orders wait in awaiting_payment until the client pays.
+      final isCash = activeOrder.paymentMethod == PaymentMethod.cash;
+      if (isCash) {
+        state = state.copyWith(
+          workState: DriverWorkState.paymentReceived,
+          isLoading: false,
+        );
+        _finishCashOrder(activeOrder.id);
+      } else {
+        state = state.copyWith(
+          workState: DriverWorkState.waitingForPayment,
+          isLoading: false,
+        );
+        _startPaymentPolling(activeOrder.id);
+      }
     } catch (error) {
       if (!mounted) return;
       state = state.copyWith(
@@ -396,6 +411,25 @@ class DriverNotifier extends StateNotifier<DriverState> {
         error: _cleanError(error, fallback: 'Не удалось завершить заказ'),
       );
     }
+  }
+
+  /// Показывает краткое подтверждение «Оплата наличными получена» для наличных
+  /// заказов и затем переводит водителя в онлайн. Наличный заказ уже завершён
+  /// сервером в /finalize, поэтому поллинг до completed не нужен.
+  void _finishCashOrder(String orderId) {
+    _paymentPollTimer?.cancel();
+    _paymentPollTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (!mounted) {
+        _paymentPollTimer?.cancel();
+        return;
+      }
+      _paymentPollTimer?.cancel();
+      state = state.copyWith(
+        workState: DriverWorkState.online,
+        clearActiveOrder: true,
+      );
+      unawaited(_loadCurrentOffer());
+    });
   }
 
   void _startPaymentPolling(String orderId) {

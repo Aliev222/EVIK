@@ -48,7 +48,11 @@ var allowedTransitions = map[State]map[State]struct{}{
 	},
 	StateInProgress: {
 		StateAwaitingPayment: {},
-		StateCancelled:       {},
+		// Cash orders are auto-completed at driver finalize: the money split
+		// (commission debt) and the terminal status land in a single
+		// transaction, so in_progress may jump straight to completed.
+		StateCompleted: {},
+		StateCancelled: {},
 	},
 	StateAwaitingPayment: {
 		StateCompleted: {},

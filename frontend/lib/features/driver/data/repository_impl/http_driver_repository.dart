@@ -334,6 +334,9 @@ ActiveOrder activeOrderFromBackend(Map<String, dynamic> map) {
       'completed' => ActiveOrderStatus.completed,
       _ => ActiveOrderStatus.drivingToClient,
     },
+    paymentMethod: map['payment_method']?.toString() == 'card'
+        ? PaymentMethod.card
+        : PaymentMethod.cash,
   );
 }
 

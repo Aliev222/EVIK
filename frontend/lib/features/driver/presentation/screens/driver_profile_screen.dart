@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -374,7 +375,7 @@ class DriverProfileScreen extends ConsumerWidget {
                   'Поддержка водителей',
                   'Приоритетная линия для водителей: чат с диспетчером, '
                       'вопросы по заказам и выплатам.',
-                  const ['Чат с диспетчером', 'support@avro.app'],
+                  const ['Чат с диспетчером', AppConstants.supportEmail],
                 ),
               ),
             ],

@@ -34,7 +34,9 @@ var validatedTransitions = map[State]map[State]struct{}{
 	},
 	StateInProgress: {
 		StateAwaitingPayment: {},
-		StateCancelled:       {},
+		// Cash orders auto-complete at driver finalize.
+		StateCompleted: {},
+		StateCancelled: {},
 	},
 	StateAwaitingPayment: {
 		StateCompleted: {},

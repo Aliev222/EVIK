@@ -229,7 +229,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	acceptUC := orderuc.NewAcceptOrderUseCase(db, orderRepo, driverRepo, offerRepo, locationRepo, locationRepo, serviceAreaRepo, eventPublisher, pushSender, clock, appLogger)
 	updateUC := orderuc.NewUpdateStatusUseCase(orderRepo, driverRepo, eventPublisher, pushSender, clock, appLogger)
 	cancelUC := orderuc.NewCancelOrderUseCase(orderRepo, driverRepo, eventPublisher, clock, appLogger)
-	finalizeUC := orderuc.NewFinalizeOrderUseCase(orderRepo, eventPublisher, pushSender, clock, appLogger)
+	finalizeUC := orderuc.NewFinalizeOrderUseCase(orderRepo, paymentRepo, financeUC, cfg.FinancePendingHoldSeconds, eventPublisher, pushSender, clock, appLogger)
 	setDriverStatusUC := driveruc.NewSetStatusUseCase(driverRepo, orderRepo, locationRepo, eventPublisher, cityDetectorAdapter{serviceAreaRepo}, locationRepo, clock, appLogger)
 
 	allowMockLocation := cfg.AllowMockLocation

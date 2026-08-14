@@ -3,7 +3,8 @@ enum DriverWorkState {
   online,               // В сети, ожидает заказы
   hasActiveOrder,       // Принял заказ, едет к клиенту
   navigatingToDropoff,  // Едет к точке назначения
-  waitingForPayment,    // Ожидает оплаты клиентом
+  waitingForPayment,    // Ожидает оплаты клиентом (карта)
+  paymentReceived,      // Наличные получены — краткое подтверждение перед выходом в онлайн
 }
 
 extension DriverWorkStateExtension on DriverWorkState {
@@ -19,6 +20,8 @@ extension DriverWorkStateExtension on DriverWorkState {
         return 'К месту назначения';
       case DriverWorkState.waitingForPayment:
         return 'Ожидание оплаты';
+      case DriverWorkState.paymentReceived:
+        return 'Оплата получена';
     }
   }
 
@@ -33,6 +36,7 @@ extension DriverWorkStateExtension on DriverWorkState {
   bool get hasActiveOrder {
     return this == DriverWorkState.hasActiveOrder ||
            this == DriverWorkState.navigatingToDropoff ||
-           this == DriverWorkState.waitingForPayment;
+           this == DriverWorkState.waitingForPayment ||
+           this == DriverWorkState.paymentReceived;
   }
 }

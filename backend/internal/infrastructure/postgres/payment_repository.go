@@ -525,14 +525,6 @@ func (r *PaymentRepository) CompleteOrderFinancially(ctx context.Context, orderI
 }
 
 func (r *PaymentRepository) completeOrderFinanciallyTx(ctx context.Context, tx *sql.Tx, orderID, idempotencyKey string, holdSeconds, commissionPercent int) error {
-	var exists bool
-	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM wallet_transactions WHERE idempotency_key = $1)`, idempotencyKey).Scan(&exists); err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-
 	var driverID sql.NullString
 	var paymentMethod string
 	var orderAmount sql.NullInt64
@@ -551,6 +543,33 @@ FOR UPDATE`, orderID).Scan(&driverID, &paymentMethod, &orderAmount, &surchargeAm
 	if err != nil {
 		return err
 	}
+
+	// Idempotency guard. It is deliberately evaluated only AFTER the order row
+	// has been locked FOR UPDATE above: two concurrent duplicates of the same
+	// completion both take the lock, so whichever commits first here, the
+	// second one re-checks the key on the just-committed snapshot, observes the
+	// wallet_transaction and short-circuits. Checking the key before the lock
+	// would let both callers see "not settled yet" and double-apply the debt
+	// (or double-credit a card order) despite the ON CONFLICT insert guard.
+	//
+	// The check matches the base key OR any derived key (base + ":<suffix>"):
+	// the cash branch records "<base>:cash_debt" and the card branch records
+	// "<base>:debt_repayment"/"<base>:order_income", so a retry of the same
+	// settlement must be recognised regardless of which wallet_transaction was
+	// actually written.
+	var exists bool
+	err = tx.QueryRowContext(ctx, `
+SELECT EXISTS(
+	SELECT 1 FROM wallet_transactions
+	WHERE idempotency_key = $1 OR idempotency_key LIKE $1 || ':%'
+)`, idempotencyKey).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
 	if !driverID.Valid || driverID.String == "" {
 		return errors.New("order has no driver")
 	}

@@ -9,6 +9,7 @@ enum DriverModerationStatus {
   pending,
   approved,
   rejected,
+  changesRequested,
 }
 
 class DriverVerificationDocument {
@@ -66,6 +67,8 @@ class DriverVerificationDocument {
       case 'rejected':
       case 'blocked':
         return DriverModerationStatus.rejected;
+      case 'changes_requested':
+        return DriverModerationStatus.changesRequested;
       default:
         return DriverModerationStatus.pending;
     }

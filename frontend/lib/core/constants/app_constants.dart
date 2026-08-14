@@ -66,6 +66,12 @@
     'TERMS_OF_SERVICE_URL',
     defaultValue: 'https://avro.app/terms',
   );
+
+  /// Единый контакт поддержки для всех фич (модерация, профиль и пр.).
+  static const String supportEmail = String.fromEnvironment(
+    'EVIK_SUPPORT_EMAIL',
+    defaultValue: 'support@avro.app',
+  );
 }
 
 class EvikAssetPaths {

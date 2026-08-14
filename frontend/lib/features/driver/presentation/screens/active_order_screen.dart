@@ -359,7 +359,9 @@ class _ActiveOrderBottomSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (workState == DriverWorkState.waitingForPayment)
-              _WaitingForPaymentIndicator()
+              _WaitingForPaymentIndicator(order: order)
+            else if (workState == DriverWorkState.paymentReceived)
+              _CashReceivedIndicator(amount: order.price)
             else ...[
               Row(
                 children: [
@@ -524,6 +526,10 @@ class _RoutePoint extends StatelessWidget {
 }
 
 class _WaitingForPaymentIndicator extends StatelessWidget {
+  const _WaitingForPaymentIndicator({required this.order});
+
+  final ActiveOrder order;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -542,7 +548,7 @@ class _WaitingForPaymentIndicator extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Ожидание оплаты клиентом',
+            'Ожидание оплаты картой',
             style: EvikTypography.bodyLarge.copyWith(
               color: AvroDriverColors.textPrimary,
               fontWeight: FontWeight.w800,
@@ -550,7 +556,56 @@ class _WaitingForPaymentIndicator extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'После подтверждения оплаты заказ будет завершён',
+            'Оплата картой: ${order.price.toInt()} ₽ — клиент подтвердит в приложении',
+            textAlign: TextAlign.center,
+            style: EvikTypography.bodySmall.copyWith(
+              color: AvroDriverColors.grayHint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CashReceivedIndicator extends StatelessWidget {
+  const _CashReceivedIndicator({required this.amount});
+
+  final double amount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AvroDriverColors.success,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              color: AvroDriverColors.surface,
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Оплата наличными: ${amount.toInt()} ₽ получено',
+            textAlign: TextAlign.center,
+            style: EvikTypography.bodyLarge.copyWith(
+              color: AvroDriverColors.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Заказ завершён. Выходим в онлайн...',
             textAlign: TextAlign.center,
             style: EvikTypography.bodySmall.copyWith(
               color: AvroDriverColors.grayHint,

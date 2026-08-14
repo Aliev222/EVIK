@@ -150,6 +150,7 @@ type orderResponse struct {
 	DropoffAddress  string             `json:"dropoff_address"`
 	TowTruckType    string             `json:"tow_truck_type"`
 	Status          string             `json:"status"`
+	PaymentMethod   string             `json:"payment_method"`
 	IsExpanded      bool               `json:"is_expanded"`
 	IsCrossCity     bool               `json:"is_cross_city"`
 	PriceTotal      int64              `json:"price_total"`
@@ -867,6 +868,7 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 		DropoffAddress:  ord.DropoffAddress,
 		TowTruckType:    string(ord.TowTruckType),
 		Status:          string(ord.Status),
+		PaymentMethod:   ord.PaymentMethod,
 		IsExpanded:      ord.IsExpanded,
 		IsCrossCity:     ord.IsCrossCity,
 		PriceTotal:      ord.PriceTotal,

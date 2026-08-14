@@ -7,6 +7,7 @@ import (
 	"time"
 
 	orderdomain "evik/backend/internal/domain/order"
+	paymentdomain "evik/backend/internal/domain/payment"
 )
 
 // finalPriceToleranceKopecks is the maximum allowed deviation between the
@@ -21,12 +22,30 @@ const finalPriceToleranceKopecks int64 = 100
 // deviates from the server-computed order price by more than the tolerance.
 var ErrFinalPriceMismatch = errors.New("final_price does not match the server-computed order price")
 
+// PaymentTxRunner runs a callback inside a single database transaction. The
+// callback's WebhookTx operations (financial settlement + order status write)
+// commit together or roll back together, making the cash auto-completion
+// atomic.
+type PaymentTxRunner interface {
+	WithWebhookTx(ctx context.Context, fn func(paymentdomain.WebhookTx) error) error
+}
+
+// CommissionPercentProvider returns the platform commission percentage
+// (default 15) used to compute the cash-order debt. Implemented by the finance
+// use case so the fee logic stays in one place.
+type CommissionPercentProvider interface {
+	CommissionPercent(ctx context.Context) int
+}
+
 type FinalizeOrderUseCase struct {
-	orderRepo      orderdomain.Repository
-	eventPublisher EventPublisher
-	pushSender     PushSender
-	clock          Clock
-	logger         Logger
+	orderRepo          orderdomain.Repository
+	paymentTx          PaymentTxRunner
+	commissionProvider CommissionPercentProvider
+	holdSeconds        int
+	eventPublisher     EventPublisher
+	pushSender         PushSender
+	clock              Clock
+	logger             Logger
 }
 
 type FinalizeOrderInput struct {
@@ -37,17 +56,23 @@ type FinalizeOrderInput struct {
 
 func NewFinalizeOrderUseCase(
 	orderRepo orderdomain.Repository,
+	paymentTx PaymentTxRunner,
+	commissionProvider CommissionPercentProvider,
+	holdSeconds int,
 	eventPublisher EventPublisher,
 	pushSender PushSender,
 	clock Clock,
 	logger Logger,
 ) *FinalizeOrderUseCase {
 	return &FinalizeOrderUseCase{
-		orderRepo:      orderRepo,
-		eventPublisher: eventPublisher,
-		pushSender:     pushSender,
-		clock:          clock,
-		logger:         logger,
+		orderRepo:          orderRepo,
+		paymentTx:          paymentTx,
+		commissionProvider: commissionProvider,
+		holdSeconds:        holdSeconds,
+		eventPublisher:     eventPublisher,
+		pushSender:         pushSender,
+		clock:              clock,
+		logger:             logger,
 	}
 }
 
@@ -92,6 +117,21 @@ func (uc *FinalizeOrderUseCase) Execute(ctx context.Context, input FinalizeOrder
 
 	now := uc.clock.Now()
 	ord.PriceTotal = serverPrice
+
+	// Cash orders settle immediately at finalize: the commission debt is
+	// recorded and the order advances straight to completed in one
+	// transaction, so the client does not need to confirm anything. Card
+	// orders keep the awaiting_payment step: the client pays and the order
+	// completes either via the payment webhook or ConfirmOrderPayment.
+	paymentMethod := ord.PaymentMethod
+	if paymentMethod == "" {
+		paymentMethod = "cash"
+	}
+
+	if paymentMethod == "cash" {
+		return uc.finalizeCash(ctx, ord, now)
+	}
+
 	if err := ord.TransitionTo(orderdomain.StatusAwaitingPayment, now); err != nil {
 		return nil, err
 	}
@@ -121,6 +161,77 @@ func (uc *FinalizeOrderUseCase) Execute(ctx context.Context, input FinalizeOrder
 		"final_price", input.FinalPrice,
 		"server_price", serverPrice)
 	return ord, nil
+}
+
+// finalizeCash settles a cash order at driver finalize. Money settlement
+// (commission debt, driver release, financial close) and the completed-status
+// write run inside a single WithWebhookTx transaction: a failure rolls both
+// back and the order stays in_progress. The settlement itself is idempotent
+// (wallet_transactions.idempotency_key), so a retry can never double the debt.
+func (uc *FinalizeOrderUseCase) finalizeCash(ctx context.Context, ord *orderdomain.Order, now time.Time) (*orderdomain.Order, error) {
+	if err := ord.TransitionTo(orderdomain.StatusCompleted, now); err != nil {
+		return nil, err
+	}
+
+	pct := uc.commissionProvider.CommissionPercent(ctx)
+	if err := uc.paymentTx.WithWebhookTx(ctx, func(txOps paymentdomain.WebhookTx) error {
+		if err := txOps.CompleteOrderFinancially(ctx, ord.ID, "complete_order:"+ord.ID, uc.holdSeconds, pct); err != nil {
+			return err
+		}
+		return txOps.UpdateOrderStatus(ctx, ord.ID, string(ord.Status), now)
+	}); err != nil {
+		uc.logger.Error("cash order auto-completion failed",
+			err, "order_id", ord.ID, "driver_id", ord.DriverID)
+		return nil, err
+	}
+
+	uc.publishCashCompleted(ctx, ord)
+
+	uc.logger.Info("cash order finalized and auto-completed by driver",
+		"order_id", ord.ID,
+		"driver_id", ord.DriverID,
+		"price_total", ord.PriceTotal,
+		"commission_percent", pct)
+	return ord, nil
+}
+
+// publishCashCompleted notifies the client (WebSocket event + push) that the
+// cash order is done. Push errors are logged and never roll back the already
+// committed completion.
+func (uc *FinalizeOrderUseCase) publishCashCompleted(parent context.Context, ord *orderdomain.Order) {
+	evPayload := map[string]any{
+		"status":      ord.Status,
+		"user_id":     ord.UserID,
+		"price_total": ord.PriceTotal,
+	}
+	if ord.DriverID != nil {
+		evPayload["driver_id"] = *ord.DriverID
+	}
+	if err := uc.eventPublisher.Publish(parent, orderdomain.Event{
+		Type:    orderdomain.EventCompleted,
+		OrderID: ord.ID,
+		Payload: evPayload,
+	}); err != nil {
+		uc.logger.Error("failed to publish completed event for cash order", err, "order_id", ord.ID)
+	}
+
+	if uc.pushSender == nil {
+		return
+	}
+	go func() {
+		pushCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), 5*time.Second)
+		defer cancel()
+		title := "Заказ завершён"
+		body := fmt.Sprintf("Спасибо, что воспользовались Авро. Оплата наличными: %.2f ₽", float64(ord.PriceTotal)/100)
+		data := map[string]string{
+			"type":     "order_status",
+			"order_id": ord.ID,
+			"status":   string(ord.Status),
+		}
+		if err := uc.pushSender.SendToUser(pushCtx, ord.UserID, "client", title, body, data); err != nil {
+			uc.logger.Error("failed to send completed push for cash order", err, "order_id", ord.ID, "user_id", ord.UserID)
+		}
+	}()
 }
 
 // kopecksDiff returns the absolute difference between two kopeck amounts.

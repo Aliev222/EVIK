@@ -2,9 +2,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_moderation_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_verification_provider.dart';
+import 'driver_documents_screen.dart';
 
 class DriverModerationScreen extends ConsumerWidget {
   const DriverModerationScreen({
@@ -52,7 +55,7 @@ class DriverModerationScreen extends ConsumerWidget {
     }
 
     if (document != null) {
-      return _buildFromDocument(context, document!);
+      return _buildFromDocument(context, ref, document!);
     }
 
     return moderationAsync.when(
@@ -71,7 +74,7 @@ class DriverModerationScreen extends ConsumerWidget {
           );
         }
 
-        return _buildFromDocument(context, liveDocument);
+        return _buildFromDocument(context, ref, liveDocument);
       },
       loading: () => const _ModerationScaffold(
         child: _StatusCard(
@@ -97,6 +100,7 @@ class DriverModerationScreen extends ConsumerWidget {
 
   Widget _buildFromDocument(
     BuildContext context,
+    WidgetRef ref,
     DriverVerificationDocument document,
   ) {
     return switch (document.status) {
@@ -126,23 +130,25 @@ class DriverModerationScreen extends ConsumerWidget {
                 : 'Модератор отклонил заявку. Уточните причину и подготовьте новые документы.',
             child: Padding(
               padding: const EdgeInsets.only(top: 18),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: () => _contactSupport(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AvroDriverColors.darkBlue,
-                    side: const BorderSide(color: AvroDriverColors.documentBorder),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Обратиться в поддержку',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
+              child: _ResubmitActions(
+                onResubmit: () => _openResubmit(context, ref),
+                onContactSupport: () => _contactSupport(context),
+              ),
+            ),
+          ),
+        ),
+      DriverModerationStatus.changesRequested => _ModerationScaffold(
+          child: _StatusCard(
+            icon: Icons.edit_note_rounded,
+            title: 'Нужны изменения в документах',
+            description: document.rejectionReason?.trim().isNotEmpty == true
+                ? document.rejectionReason!
+                : 'Модератор запросил правки. Загрузите исправленные документы, чтобы продолжить проверку.',
+            child: Padding(
+              padding: const EdgeInsets.only(top: 18),
+              child: _ResubmitActions(
+                onResubmit: () => _openResubmit(context, ref),
+                onContactSupport: () => _contactSupport(context),
               ),
             ),
           ),
@@ -158,10 +164,34 @@ class DriverModerationScreen extends ConsumerWidget {
     };
   }
 
+  Future<void> _openResubmit(BuildContext context, WidgetRef ref) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const DriverDocumentsScreen()),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    // После подачи документов сразу обновляем статус до 'pending'.
+    final userId = ref.read(currentUserProvider)?.id;
+    if (userId != null) {
+      ref.invalidate(autoRefreshingVerificationStatusProvider(userId));
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Документы отправлены на повторную проверку.'),
+        ),
+      );
+  }
+
   Future<void> _contactSupport(BuildContext context) async {
     final uri = Uri(
       scheme: 'mailto',
-      path: 'support@evik.app',
+      path: AppConstants.supportEmail,
       queryParameters: {
         'subject': 'Проблема с модерацией водителя',
       },
@@ -180,6 +210,64 @@ class DriverModerationScreen extends ConsumerWidget {
       const SnackBar(
         content: Text('Не удалось открыть поддержку на этом устройстве.'),
       ),
+    );
+  }
+}
+
+const String _resubmitButtonLabel = 'Исправить и переотправить документы';
+
+class _ResubmitActions extends StatelessWidget {
+  const _ResubmitActions({
+    required this.onResubmit,
+    required this.onContactSupport,
+  });
+
+  final VoidCallback onResubmit;
+  final VoidCallback onContactSupport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: onResubmit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AvroDriverColors.accent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              _resubmitButtonLabel,
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton(
+            onPressed: onContactSupport,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AvroDriverColors.darkBlue,
+              side: const BorderSide(color: AvroDriverColors.documentBorder),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              'Обратиться в поддержку',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
