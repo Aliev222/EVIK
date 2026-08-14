@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_onboarding.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_onboarding_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_verification_provider.dart';
 import 'document_camera_screen.dart';
 import 'driver_profile_setup_screen.dart';
 
@@ -17,6 +19,8 @@ class DriverDocumentsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onboardingState = ref.watch(driverOnboardingProvider);
+
+    final resubmitContext = _resubmitReasonFromStatus(ref);
 
     return Scaffold(
       backgroundColor: AvroDriverColors.surface,
@@ -66,6 +70,15 @@ class DriverDocumentsScreen extends ConsumerWidget {
                   color: AvroDriverColors.textSecondary,
                 ),
               ),
+              if (resubmitContext != null) ...[
+                const SizedBox(height: 16),
+                _ResubmitReasonBanner(
+                  title: resubmitContext.isRejected
+                      ? 'Заявка отклонена'
+                      : 'Требуются изменения',
+                  reason: resubmitContext.reason,
+                ),
+              ],
               if (onboardingState.errorMessage != null) ...[
                 const SizedBox(height: 16),
                 _ErrorBanner(message: onboardingState.errorMessage!),
@@ -143,6 +156,31 @@ class DriverDocumentsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Возвращает причину модератора, если этот заход на экран является
+  /// переподачей после rejected/changes_requested. Для свежей подачи и для
+  /// пока не загруженного статуса возвращает null.
+  _ResubmitContext? _resubmitReasonFromStatus(WidgetRef ref) {
+    final userId = ref.watch(currentUserProvider)?.id;
+    if (userId == null) {
+      return null;
+    }
+    final status = ref
+        .watch(autoRefreshingVerificationStatusProvider(userId))
+        .valueOrNull;
+    if (status == null || status.adminComments.trim().isEmpty) {
+      return null;
+    }
+    return switch (status.status) {
+      'rejected' =>
+        _ResubmitContext(isRejected: true, reason: status.adminComments.trim()),
+      'changes_requested' => _ResubmitContext(
+          isRejected: false,
+          reason: status.adminComments.trim(),
+        ),
+      _ => null,
+    };
   }
 
   Future<void> _openDocumentPicker(
@@ -338,6 +376,55 @@ class _ErrorBanner extends StatelessWidget {
           height: 1.4,
           color: AvroDriverColors.textPrimary,
         ),
+      ),
+    );
+  }
+}
+
+class _ResubmitContext {
+  const _ResubmitContext({required this.isRejected, required this.reason});
+
+  final bool isRejected;
+  final String reason;
+}
+
+class _ResubmitReasonBanner extends StatelessWidget {
+  const _ResubmitReasonBanner({required this.title, required this.reason});
+
+  final String title;
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AvroDriverColors.warning.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AvroDriverColors.warning),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AvroDriverColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$reason Загрузите исправленные документы и отправьте повторно.',
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.4,
+              color: AvroDriverColors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -60,7 +60,7 @@ final driverStartupProvider = FutureProvider<DriverStartupInfo>((ref) async {
       driverTaxProfileProvider(user.id).future
     );
 
-    return _determineStartupState(verificationStatus, taxProfile);
+    return determineStartupState(verificationStatus, taxProfile);
   } catch (e) {
     return DriverStartupInfo(
       state: DriverStartupState.error,
@@ -69,7 +69,10 @@ final driverStartupProvider = FutureProvider<DriverStartupInfo>((ref) async {
   }
 });
 
-DriverStartupInfo _determineStartupState(
+/// Pure status→route mapping. Public so it can be unit-tested directly without
+/// a ProviderContainer: verification status (and optional tax profile) in,
+/// the routing decision out.
+DriverStartupInfo determineStartupState(
   DriverVerificationStatus verificationStatus,
   DriverTaxProfile? taxProfile,
 ) {
@@ -90,17 +93,37 @@ DriverStartupInfo _determineStartupState(
       );
 
     case 'changes_requested':
-      return const DriverStartupInfo(
+      return DriverStartupInfo(
         state: DriverStartupState.needsDocuments,
-        message: 'Требуются изменения в документах. Пожалуйста, загрузите исправленные документы.',
+        message: _statusMessageWithReason(
+          prefix: 'Модератор запросил изменения',
+          fallback: 'Требуются изменения в документах. Загрузите исправленные документы, чтобы продолжить проверку.',
+          reason: verificationStatus.adminComments,
+          hint: 'Загрузите исправленные документы, чтобы продолжить проверку.',
+        ),
         nextRoute: '/driver/documents',
       );
 
     case 'rejected':
+      // Отказ — это не блокировка: водитель может исправить документы и
+      // переподать (маршрут переподачи, как у changes_requested).
+      return DriverStartupInfo(
+        state: DriverStartupState.needsDocuments,
+        message: _statusMessageWithReason(
+          prefix: 'Заявка отклонена',
+          fallback: 'Заявка отклонена. Исправьте документы и отправьте повторно.',
+          reason: verificationStatus.adminComments,
+          hint: 'Исправьте документы и отправьте повторно.',
+        ),
+        nextRoute: '/driver/documents',
+      );
+
     case 'blocked':
+      // Блокировка «липкая»: переподача запрещена backend-гардом, водителю
+      // доступен только контакт поддержки.
       return const DriverStartupInfo(
         state: DriverStartupState.blocked,
-        message: 'Верификация отклонена. Обратитесь в поддержку.',
+        message: 'Аккаунт заблокирован. Переподача документов недоступна — обратитесь в поддержку.',
         nextRoute: '/driver/blocked',
       );
 
@@ -161,6 +184,19 @@ DriverStartupInfo _determineStartupState(
         nextRoute: '/driver/tax-profile',
       );
   }
+}
+
+String _statusMessageWithReason({
+  required String prefix,
+  required String fallback,
+  required String reason,
+  required String hint,
+}) {
+  final trimmed = reason.trim();
+  if (trimmed.isEmpty) {
+    return fallback;
+  }
+  return '$prefix: $trimmed. $hint';
 }
 
 // Provider to get user-friendly status message

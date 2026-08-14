@@ -591,6 +591,15 @@ func (h *AdminHandler) SubmitDriverVerification(w http.ResponseWriter, r *http.R
 		Signals:     sanitizeStringList(req.Signals, 20),
 	}
 	if err := h.repo.UpsertDriverVerification(r.Context(), item); err != nil {
+		if errors.Is(err, admindomain.ErrDriverVerificationBlocked) {
+			// A blocked verification cannot be overwritten by a driver (or an
+			// admin submitting on their behalf) — the block is sticky and only
+			// an explicit admin decision can lift it.
+			writeJSON(w, http.StatusForbidden, map[string]string{
+				"error": "аккаунт заблокирован, обратитесь в поддержку",
+			})
+			return
+		}
 		writeInternalError(w, err)
 		return
 	}

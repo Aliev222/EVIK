@@ -1,3 +1,4 @@
+-- +goose Up
 -- Clients do not have a name: the phone number is their identifier.
 -- Backfill legacy placeholder/empty client display names to the client phone so
 -- drivers and admins see the phone everywhere instead of 'User Name' or a stale
@@ -8,3 +9,7 @@ WHERE role = 'client'
   AND deleted_at IS NULL
   AND full_name IS DISTINCT FROM phone
   AND full_name <> 'Удалённый пользователь';
+
+-- +goose Down
+-- Data backfill is intentionally not reversible.
+SELECT 1;

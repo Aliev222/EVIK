@@ -299,9 +299,10 @@ ON CONFLICT (id) DO UPDATE SET
 	decision_reason = NULL,
 	reviewed_by = NULL,
 	reviewed_at = NULL,
-	updated_at = EXCLUDED.updated_at`
+	updated_at = EXCLUDED.updated_at
+WHERE driver_verifications.status <> 'blocked'`
 
-	_, err = r.db.ExecContext(
+	res, err := r.db.ExecContext(
 		ctx,
 		query,
 		item.ID,
@@ -318,7 +319,20 @@ ON CONFLICT (id) DO UPDATE SET
 		string(signalsJSON),
 		item.SubmittedAt,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	// RowsAffected == 0 only when the conflict row already exists with status
+	// 'blocked' and the guarded UPDATE was skipped — the block must not be
+	// silently lifted by a resubmission.
+	if rowsAffected == 0 {
+		return admindomain.ErrDriverVerificationBlocked
+	}
+	return nil
 }
 
 func (r *AdminRepository) DecideDriverVerification(

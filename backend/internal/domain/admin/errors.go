@@ -19,4 +19,10 @@ var (
 	// ErrVehicleTypeNotAllowed: vehicle_type is not a tow truck type the
 	// platform supports for matching and pricing.
 	ErrVehicleTypeNotAllowed = errors.New("vehicle_type must be one of winch, platform, manipulator")
+
+	// ErrDriverVerificationBlocked: a driver whose verification is in the
+	// 'blocked' state tries to resubmit documents. The block is sticky — it
+	// can only be lifted through an explicit admin decision, never by a
+	// driver resubmitting the verification form.
+	ErrDriverVerificationBlocked = errors.New("driver verification is blocked")
 )
