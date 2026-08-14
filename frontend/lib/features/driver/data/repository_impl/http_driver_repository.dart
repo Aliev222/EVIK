@@ -245,9 +245,19 @@ AvailableOrder availableOrderFromBackend(Map<String, dynamic> map) {
     blockedWheelsCount: _blockedWheelsFromNotes(order.notes),
     severity: _severityFromNotes(order.notes), // Calculate severity from notes instead of hardcoded medium
     createdAt: order.createdAt,
-    clientName: 'Клиент',
-    clientPhone: '', // No phone available from order data
+    // The backend attaches client_name/client_phone only for orders the driver
+    // is assigned to (see enrichWithClient). The searching pool never carries
+    // client identity, so we fall back to a neutral label.
+    clientName: _clientDisplayName(map['client_name']?.toString()),
+    clientPhone: map['client_phone']?.toString() ?? '',
   );
+}
+
+/// Renders the backend client label; for clients that is the phone or the
+/// neutral marker for a deleted account. Falls back to 'Клиент'.
+String _clientDisplayName(String? raw) {
+  final value = raw?.trim() ?? '';
+  return value.isEmpty ? 'Клиент' : value;
 }
 
 AvailableOrder availableOrderFromOffer(Map<String, dynamic> map, String orderId) {

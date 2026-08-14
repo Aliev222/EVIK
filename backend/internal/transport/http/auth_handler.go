@@ -181,9 +181,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	role := auth.Role(req.Role)
 	phone := normalizePhone(req.Phone)
 	name := strings.TrimSpace(req.FullName)
-	if phone == "" || len(req.Password) < 8 || name == "" || (role != auth.RoleClient && role != auth.RoleDriver) {
-		writeAuthError(w, http.StatusBadRequest, "phone, full_name, role and password(>=8) are required")
+	if phone == "" || len(req.Password) < 8 || (role != auth.RoleClient && role != auth.RoleDriver) {
+		writeAuthError(w, http.StatusBadRequest, "phone, role and password(>=8) are required")
 		return
+	}
+	// A client does not have a name — the phone is their identifier. When no
+	// name is supplied we store the normalized phone so every consumer (driver
+	// order view, admin panel) sees the phone instead of a fake placeholder.
+	if name == "" {
+		name = phone
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {

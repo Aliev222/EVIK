@@ -52,7 +52,6 @@ class AuthState {
     this.hadPersistedSession = false,
     this.errorMessage,
     this.phoneNumber,
-    this.pendingFullName,
     this.pendingRole,
     this.verificationId,
     this.forceResendingToken,
@@ -69,7 +68,6 @@ class AuthState {
   final bool hadPersistedSession;
   final String? errorMessage;
   final String? phoneNumber;
-  final String? pendingFullName;
   final UserRole? pendingRole;
   final String? verificationId;
   final int? forceResendingToken;
@@ -88,7 +86,6 @@ class AuthState {
     String? errorMessage,
     bool clearError = false,
     String? phoneNumber,
-    String? pendingFullName,
     UserRole? pendingRole,
     String? verificationId,
     bool clearVerificationId = false,
@@ -106,8 +103,6 @@ class AuthState {
       hadPersistedSession: hadPersistedSession ?? this.hadPersistedSession,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
       phoneNumber: clearPendingAuth ? null : phoneNumber ?? this.phoneNumber,
-      pendingFullName:
-          clearPendingAuth ? null : pendingFullName ?? this.pendingFullName,
       pendingRole: clearPendingAuth ? null : pendingRole ?? this.pendingRole,
       verificationId: clearPendingAuth || clearVerificationId
           ? null
@@ -144,9 +139,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// [AuthRetryCoordinator] for authenticated calls from non-provider code).
   String? get currentAccessToken => state.accessToken;
 
+  /// Initiates phone-based sign-in. A client does not have a name — the phone
+  /// number is the identifier, so no name is collected or transmitted.
   Future<void> signInWithPhone(
-    String rawPhoneNumber,
-    String fullName, {
+    String rawPhoneNumber, {
     UserRole role = UserRole.client,
   }) async {
     final normalizedPhone = _normalizePhone(rawPhoneNumber);
@@ -159,21 +155,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
 
-    final trimmedName = fullName.trim();
-    if (trimmedName.length < 2) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage:
-            'Введите имя не короче 2 символов.',
-      );
-      return;
-    }
-
     state = state.copyWith(
       isLoading: true,
       clearError: true,
       phoneNumber: normalizedPhone,
-      pendingFullName: trimmedName,
       pendingRole: role,
       verificationId: 'backend-otp-pending',
       clearForceResendingToken: true,
@@ -201,9 +186,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     final phoneNumber = state.phoneNumber;
-    final fullName = state.pendingFullName;
     final role = state.pendingRole;
-    if (phoneNumber == null || fullName == null || role == null) {
+    if (phoneNumber == null || role == null) {
       state = state.copyWith(
         errorMessage:
             'Сессия подтверждения истекла. Запросите код заново.',
@@ -226,15 +210,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final authResult = await _api.verifyOtp(
         phone: phoneNumber,
         code: sanitizedCode,
-        fullName: fullName,
         role: role,
       );
       final tokens = authResult.tokens;
       final now = DateTime.now();
+      // The phone doubles as the display identity until a driver later sets a
+      // real name during onboarding. Clients stay phone-only, permanently.
+      final displayName = authResult.identity.fullName.isNotEmpty
+          ? authResult.identity.fullName
+          : phoneNumber;
       final user = User(
         id: authResult.identity.userID,
         phone: phoneNumber,
-        fullName: fullName,
+        fullName: displayName,
         role: role,
         avatar: null,
         isActive: true,
@@ -269,10 +257,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> resendSmsCode() async {
     final phoneNumber = state.phoneNumber;
-    final fullName = state.pendingFullName;
     final role = state.pendingRole;
 
-    if (phoneNumber == null || fullName == null || role == null) {
+    if (phoneNumber == null || role == null) {
       state = state.copyWith(
         errorMessage:
             'Сессия подтверждения истекла. Запросите код заново.',
@@ -578,10 +565,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }) {
     final now = DateTime.now();
     if (fallback == null) {
+      // A client has no name — fall back to the phone as the display identity.
+      final displayName = identity.fullName.isNotEmpty
+          ? identity.fullName
+          : identity.phone;
       return User(
         id: identity.userID,
-        phone: '',
-        fullName: 'Пользователь Авро',
+        phone: identity.phone,
+        fullName: displayName,
         role: identity.role,
         avatar: null,
         isActive: true,
@@ -589,9 +580,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
         lastSeen: now,
       );
     }
+    // Backend is the source of truth for identity: prefer server phone/name
+    // over anything persisted locally so stale placeholders never resurface.
     return fallback.copyWith(
       id: identity.userID,
       role: identity.role,
+      phone: identity.phone.isNotEmpty ? identity.phone : fallback.phone,
+      fullName:
+          identity.fullName.isNotEmpty ? identity.fullName : fallback.fullName,
       lastSeen: now,
     );
   }
@@ -645,7 +641,7 @@ class BackendAuthApi {
 
   Future<AuthResult> registerOrLogin({
     required String phone,
-    required String fullName,
+    String fullName = '',
     required UserRole role,
     required String password,
   }) async {
@@ -684,13 +680,13 @@ class BackendAuthApi {
   Future<AuthResult> verifyOtp({
     required String phone,
     required String code,
-    required String fullName,
     required UserRole role,
   }) async {
+    // A client has no name; the backend stores the phone as the display name
+    // when full_name is absent, so nothing is sent here.
     final json = await _apiClient.post('/api/v1/auth/otp/verify', {
       'phone': phone,
       'code': code,
-      'full_name': fullName,
       'role': role.name,
     });
     return AuthResult.fromJson(json);
@@ -810,15 +806,21 @@ class Identity {
   const Identity({
     required this.userID,
     required this.role,
+    this.phone = '',
+    this.fullName = '',
   });
 
   final String userID;
   final UserRole role;
+  final String phone;
+  final String fullName;
 
   factory Identity.fromJson(Map<String, dynamic> json) {
     return Identity(
       userID: json['id']?.toString() ?? '',
       role: _parseRole(json['role']?.toString()),
+      phone: json['phone']?.toString() ?? '',
+      fullName: json['full_name']?.toString() ?? '',
     );
   }
 

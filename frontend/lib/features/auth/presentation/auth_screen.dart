@@ -179,7 +179,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
     ref.read(authProvider.notifier).signInWithPhone(
           _phoneController.text.trim(),
-          'User Name',
           role: role,
         );
   }
@@ -275,6 +274,7 @@ class _PhoneInput extends StatelessWidget {
               controller: controller,
               keyboardType: TextInputType.phone,
               onChanged: onChanged,
+              autofillHints: const [AutofillHints.telephoneNumber],
               inputFormatters: [_PhoneFormatter()],
               decoration: InputDecoration(
                 border: InputBorder.none,

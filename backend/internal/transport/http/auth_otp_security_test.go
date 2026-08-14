@@ -49,6 +49,16 @@ func sendOTPVerify(handler *AuthHandler, phone, role, code string) *httptest.Res
 	return rec
 }
 
+// sendOTPVerifyNoName verifies an OTP WITHOUT any full_name: the client has no
+// name, so the backend must store the phone as the display identity.
+func sendOTPVerifyNoName(handler *AuthHandler, phone, role, code string) *httptest.ResponseRecorder {
+	body := `{"phone":"` + phone + `","role":"` + role + `","code":"` + code + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/otp/verify", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	handler.VerifyOTP(rec, req)
+	return rec
+}
+
 func tokensFromBody(t *testing.T, body []byte) (string, string) {
 	t.Helper()
 	var payload map[string]any
@@ -315,3 +325,51 @@ func TestAuthAdversarial_OTPRejectsMaliciousInput(t *testing.T) {
 // compile-time guard: fakeUserRepository must satisfy the user Repository
 // contract used by every auth handler.
 var _ userdomain.Repository = (*fakeUserRepository)(nil)
+
+// A client has no name: OTP verification without full_name must auto-create the
+// account with the phone as the stored display name.
+func TestAuthOTP_VerifyWithoutNameStoresPhoneAsName(t *testing.T) {
+	clock := &mutableClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
+	handler, repo := newOTPHandler(t, clock)
+
+	if rec := sendOTPRequest(handler, "+79990000025", "client"); rec.Code != http.StatusAccepted {
+		t.Fatalf("request status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	rec := sendOTPVerifyNoName(handler, "+79990000025", "client", testFixedOTP)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("verify status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	for _, u := range repo.users {
+		if u.Phone == "+79990000025" && u.Role == auth.RoleClient {
+			if u.Name != "+79990000025" {
+				t.Fatalf("client full_name = %q, want the phone", u.Name)
+			}
+			return
+		}
+	}
+	t.Fatal("OTP verification did not auto-create the client")
+}
+
+// Password register without full_name must also default the display name to the
+// phone so drivers/admins see the phone, never a placeholder.
+func TestAuthRegister_WithoutNameDefaultsToPhone(t *testing.T) {
+	clock := &mutableClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
+	repo := newFakeUserRepository()
+	handler := NewAuthHandler(newTokens(time.Minute), repo, "admin", "admin-password", &seqID{}, clock, false, testFixedOTP, false, false)
+
+	body := `{"phone":"+79990000026","role":"client","password":"password1"}`
+	rec := doRequestJSON(http.HandlerFunc(handler.Register), http.MethodPost, "/api/v1/auth/register", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	for _, u := range repo.users {
+		if u.Phone == "+79990000026" && u.Role == auth.RoleClient {
+			if u.Name != "+79990000026" {
+				t.Fatalf("client full_name = %q, want the phone", u.Name)
+			}
+			return
+		}
+	}
+	t.Fatal("register did not create the client")
+}

@@ -24,6 +24,7 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
   late final List<FocusNode> _focusNodes;
   int _timerKey = 0;
   bool _hasCodeError = false;
+  bool _distributingCode = false;
 
   String get _smsCode =>
       _controllers.map((controller) => controller.text).join();
@@ -37,6 +38,18 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
 
     for (int i = 0; i < _codeLength; i++) {
       _controllers[i].addListener(() => _onCodeChanged(i));
+      // Pressing backspace on an empty digit box returns focus to the previous
+      // box (standard OTP UX).
+      _focusNodes[i].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            i > 0 &&
+            _controllers[i].text.isEmpty) {
+          _focusNodes[i - 1].requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -153,8 +166,24 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     if (_hasCodeError) {
       setState(() => _hasCodeError = false);
     }
+    if (_distributingCode) return;
+
     final text = _controllers[index].text;
-    if (text.isNotEmpty && index < _codeLength - 1) {
+
+    // A pasted / autofilled code arrives as several digits in a single box.
+    // Fan it out across the digit boxes (count capped at the boxes left).
+    if (text.length > 1) {
+      _distributingCode = true;
+      final count = text.length <= _codeLength - index
+          ? text.length
+          : _codeLength - index;
+      for (int i = 0; i < count; i++) {
+        _controllers[index + i].text = text[i];
+      }
+      _distributingCode = false;
+      final lastIndex = index + count - 1;
+      _focusNodes[lastIndex].requestFocus();
+    } else if (text.isNotEmpty && index < _codeLength - 1) {
       _focusNodes[index + 1].requestFocus();
     }
 
@@ -256,9 +285,10 @@ class _CodeInputState extends State<_CodeInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(6, (index) {
+    return AutofillGroup(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(6, (index) {
         final filled = _filledStates[index];
         final focused = _focusedIndex == index;
         final borderColor = widget.hasError
@@ -297,9 +327,14 @@ class _CodeInputState extends State<_CodeInput> {
             focusNode: widget.focusNodes[index],
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            textInputAction: index == 5
+                ? TextInputAction.done
+                : TextInputAction.next,
+            // No length limit here: a pasted/autofilled full code arrives in a
+            // single box and is fanned out by the parent.
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(1),
             ],
             onChanged: (value) {
               if (value.isNotEmpty) widget.onChanged(index);
@@ -316,6 +351,7 @@ class _CodeInputState extends State<_CodeInput> {
           ),
         );
       }),
+      ),
     );
   }
 }

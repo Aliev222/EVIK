@@ -57,6 +57,11 @@ type orderAccessRepository interface {
 	ListByDriverID(ctx context.Context, driverID string, status orderdomain.Status, limit int) ([]*orderdomain.Order, error)
 	ListByStatusAndCity(ctx context.Context, status orderdomain.Status, cityID string, limit int) ([]*orderdomain.Order, error)
 	ListExpandedSearching(ctx context.Context, limit int) ([]*orderdomain.Order, error)
+	// GetClientBrief resolves the client's display identity (users row). It is
+	// only ever attached to an order response when the caller is the order
+	// owner client, the assigned driver, or an admin — never for the searching
+	// pool or strangers.
+	GetClientBrief(ctx context.Context, userID string) (orderdomain.ClientBrief, error)
 }
 
 func NewOrderHandler(
@@ -157,6 +162,11 @@ type orderResponse struct {
 	Notes           string             `json:"notes"`
 	CancelledAt     *string            `json:"cancelled_at"`
 	CancelReason    string             `json:"cancel_reason,omitempty"`
+	// ClientName/ClientPhone are attached only when the caller may see the
+	// client's identity (order owner, assigned driver, or admin). Omitted for
+	// the searching pool and for strangers, preserving client privacy.
+	ClientName  string `json:"client_name,omitempty"`
+	ClientPhone string `json:"client_phone,omitempty"`
 }
 
 // CreateOrder creates a new tow truck order on behalf of the authenticated client.
@@ -365,6 +375,17 @@ func (h *OrderHandler) ListOrders(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusInternalServerError, err)
 			return
 		}
+		payload := make([]orderResponse, 0, len(orders))
+		for _, ord := range orders {
+			resp := newOrderResponse(ord)
+			if err := h.enrichWithClient(r.Context(), &resp, ord); err != nil {
+				h.writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			payload = append(payload, resp)
+		}
+		h.writeJSON(w, http.StatusOK, map[string]any{"orders": payload})
+		return
 	default:
 		writeAuthError(w, http.StatusForbidden, "forbidden")
 		return
@@ -401,7 +422,12 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
+	resp := newOrderResponse(ord)
+	if err := h.enrichWithClient(r.Context(), &resp, ord); err != nil {
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"order": resp})
 }
 
 // GetActiveOrder returns the caller's currently active (non-terminal) order, if any.
@@ -466,7 +492,12 @@ func (h *OrderHandler) GetActiveOrder(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(orders) > 0 {
-			h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(orders[0])})
+			resp := newOrderResponse(orders[0])
+			if err := h.enrichWithClient(r.Context(), &resp, orders[0]); err != nil {
+				h.writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			h.writeJSON(w, http.StatusOK, map[string]any{"order": resp})
 			return
 		}
 	}
@@ -527,7 +558,12 @@ func (h *OrderHandler) AcceptOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, map[string]any{"order": newOrderResponse(ord)})
+	resp := newOrderResponse(ord)
+	if err := h.enrichWithClient(r.Context(), &resp, ord); err != nil {
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]any{"order": resp})
 }
 
 // @Summary      Update order status
@@ -680,6 +716,44 @@ func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, p
 		return nil, fmt.Errorf("%w: dropoff is outside active service areas", servicearea.ErrOutsideServiceArea)
 	}
 	return area, nil
+}
+
+// enrichWithClient attaches the client's identity (in practice their phone) to
+// an order response, but only when the caller is allowed to see it: the order
+// owner client, the assigned driver, or an admin. Strangers and the searching
+// pool never receive it.
+func (h *OrderHandler) enrichWithClient(ctx context.Context, resp *orderResponse, ord *orderdomain.Order) error {
+	role, err := roleFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	userID, err := userIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	switch role {
+	case auth.RoleAdmin:
+		// admin sees everything
+	case auth.RoleClient:
+		if ord.UserID != userID {
+			return nil
+		}
+	case auth.RoleDriver:
+		// Only the assigned driver, and never while the order is still in the
+		// searching pool (i.e. not yet accepted).
+		if ord.DriverID == nil || *ord.DriverID != userID || ord.Status == orderdomain.StatusSearching {
+			return nil
+		}
+	default:
+		return nil
+	}
+	brief, err := h.orderRepo.GetClientBrief(ctx, ord.UserID)
+	if err != nil {
+		return err
+	}
+	resp.ClientName = brief.Name
+	resp.ClientPhone = brief.Phone
+	return nil
 }
 
 func (h *OrderHandler) canAccessOrder(ctx context.Context, ord *orderdomain.Order, allowDriverSearching bool) bool {

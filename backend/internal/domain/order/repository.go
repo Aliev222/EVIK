@@ -27,6 +27,14 @@ type Repository interface {
 	GetAdminOrderDetails(ctx context.Context, orderID string) (*AdminOrderDetails, error)
 }
 
+// ClientBrief is the minimal identity shown for a client: a display name
+// (for clients this is the phone number, or the neutral marker for a deleted
+// account) and the phone itself.
+type ClientBrief struct {
+	Name  string
+	Phone string
+}
+
 // AdminOrderFilter captures all supported filters of GET /admin/orders.
 // Empty fields mean "do not filter on this column". From/To filter by
 // orders.created_at. Limit defaults to 50, capped at 200. Offset defaults to 0.

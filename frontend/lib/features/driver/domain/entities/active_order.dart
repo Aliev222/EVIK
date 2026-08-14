@@ -40,7 +40,14 @@ class ActiveOrder {
   });
 
   String get clientInitial {
-    return clientName.isNotEmpty ? clientName[0].toUpperCase() : 'К';
+    final name = clientName.trim();
+    if (name.isEmpty) return 'К';
+    final first = name[0];
+    // The client display is their phone ('+7...'), which has no letter to
+    // derive an avatar initial from — fall back to the generic 'К'.
+    return RegExp(r'[A-Za-zА-Яа-яЁё]').hasMatch(first)
+        ? first.toUpperCase()
+        : 'К';
   }
 
   String get statusDisplayName {

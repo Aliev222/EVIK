@@ -18,6 +18,32 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 	return &OrderRepository{db: db}
 }
 
+// GetClientBrief resolves the client's display identity from the users table.
+// Unknown users yield an empty brief rather than an error so callers can
+// safely render an order for a client that vanished from the catalog.
+func (r *OrderRepository) GetClientBrief(ctx context.Context, userID string) (orderdomain.ClientBrief, error) {
+	var brief orderdomain.ClientBrief
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(full_name, ''), COALESCE(phone, '') FROM users WHERE id = $1`,
+		userID,
+	).Scan(&brief.Name, &brief.Phone)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return brief, nil
+		}
+		return brief, err
+	}
+	// A deleted account holds an anonymized phone (deleted:...) that must
+	// never surface as-is. Show the neutral marker instead.
+	if strings.HasPrefix(brief.Phone, "deleted:") {
+		brief.Phone = ""
+		if strings.TrimSpace(brief.Name) == "" {
+			brief.Name = "Удалённый пользователь"
+		}
+	}
+	return brief, nil
+}
+
 func (r *OrderRepository) Create(ctx context.Context, ord *orderdomain.Order) error {
 	const query = `
 INSERT INTO orders (id, user_id, driver_id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, tow_truck_type, status, price_total, is_cross_city, surcharge_amount, surcharge_percent, created_at, updated_at, cancelled_at, city_id, is_expanded, expanded_at, payment_method, idempotency_key, notes)
@@ -801,8 +827,8 @@ SELECT
 	o.id,
 	o.user_id,
 	o.driver_id,
-	COALESCE(cv.full_name, '') AS client_name,
-	COALESCE(cv.phone, '') AS client_phone,
+	COALESCE(cu.full_name, '') AS client_name,
+	CASE WHEN cu.phone LIKE 'deleted:%' THEN '' ELSE COALESCE(cu.phone, '') END AS client_phone,
 	COALESCE(dv.full_name, '') AS driver_name,
 	COALESCE(dv.phone, '') AS driver_phone,
 	o.status,
@@ -824,7 +850,7 @@ SELECT
 	o.financially_completed_at AS completed_at,
 	o.cancelled_at
 FROM orders o
-LEFT JOIN driver_verifications cv ON cv.user_id = o.user_id
+LEFT JOIN users cu ON cu.id = o.user_id
 LEFT JOIN drivers d ON d.id = o.driver_id
 LEFT JOIN driver_verifications dv ON dv.user_id = d.user_id OR dv.user_id = o.driver_id
 LEFT JOIN LATERAL (
@@ -896,8 +922,8 @@ SELECT
 	o.id,
 	o.user_id,
 	o.driver_id,
-	COALESCE(cv.full_name, '') AS client_name,
-	COALESCE(cv.phone, '') AS client_phone,
+	COALESCE(cu.full_name, '') AS client_name,
+	CASE WHEN cu.phone LIKE 'deleted:%' THEN '' ELSE COALESCE(cu.phone, '') END AS client_phone,
 	COALESCE(dv.full_name, '') AS driver_name,
 	COALESCE(dv.phone, '') AS driver_phone,
 	o.status,
@@ -926,7 +952,7 @@ SELECT
 	o.cancelled_at,
 	o.pickup_lat, o.pickup_lng, o.dropoff_lat, o.dropoff_lng, o.tow_truck_type
 FROM orders o
-LEFT JOIN driver_verifications cv ON cv.user_id = o.user_id
+LEFT JOIN users cu ON cu.id = o.user_id
 LEFT JOIN drivers d ON d.id = o.driver_id
 LEFT JOIN driver_verifications dv ON dv.user_id = d.user_id OR dv.user_id = o.driver_id
 LEFT JOIN LATERAL (
