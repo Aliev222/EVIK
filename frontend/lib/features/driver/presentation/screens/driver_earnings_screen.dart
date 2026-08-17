@@ -10,6 +10,7 @@ import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/shared/widgets/skeleton_card.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_wallet.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_wallet_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/widgets/driver_debt_banner.dart';
 
 class DriverEarningsScreen extends ConsumerWidget {
   const DriverEarningsScreen({super.key});
@@ -90,6 +91,7 @@ class _WalletBody extends ConsumerWidget {
           _InlineError(message: state.errorMessage!),
           const SizedBox(height: 12),
         ],
+        if (wallet.debtBalance > 0) DriverDebtBanner(wallet: wallet),
         _AvailableBalanceCard(wallet: wallet, state: state),
         const SizedBox(height: 12),
         SizedBox(

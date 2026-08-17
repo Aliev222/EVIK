@@ -44,7 +44,8 @@ INSERT INTO platform_settings (key, value, description) VALUES
     ('min_withdrawal_kopecks', '100000', 'Мин. сумма вывода, копейки'),
     ('driver_subscription_daily_price', '50000', 'Подписка: сутки (ввод в ₽, хранение в копейках)'),
     ('driver_subscription_weekly_price', '250000', 'Подписка: неделя (ввод в ₽, хранение в копейках)'),
-    ('driver_subscription_monthly_price', '900000', 'Подписка: месяц (ввод в ₽, хранение в копейках)')
+    ('driver_subscription_monthly_price', '900000', 'Подписка: месяц (ввод в ₽, хранение в копейках)'),
+    ('max_cash_debt_kopecks', '100000', 'Макс. долг водителя за наличные, копейки (0 = отключено)')
 ON CONFLICT (key) DO NOTHING;
 
 -- +goose StatementEnd

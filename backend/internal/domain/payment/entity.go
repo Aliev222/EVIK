@@ -180,6 +180,24 @@ type WalletTransaction struct {
 	CreatedAt      time.Time
 }
 
+// DriverDebtTransaction is a wallet transaction that either built up the
+// driver's cash-commission debt (cash_commission_debt) or reduced it
+// (debt_repayment), enriched with the total of the linked order so the «Погасить
+// долг» screen can show what the debt came from. Amounts in kopecks. OrderAmount
+// is 0 when the linked order is missing.
+type DriverDebtTransaction struct {
+	ID          string
+	OrderID     *string
+	Type        WalletTransactionType
+	Direction   WalletDirection
+	Amount      int64
+	Currency    string
+	Status      WalletTransactionStatus
+	Description string
+	OrderAmount int64
+	CreatedAt   time.Time
+}
+
 type Payout struct {
 	ID               string
 	DriverID         string

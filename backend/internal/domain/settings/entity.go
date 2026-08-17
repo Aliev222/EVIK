@@ -14,6 +14,16 @@ type Setting struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+const (
+	// MaxCashDebtKopecksKey is the platform_settings key holding the maximum
+	// allowed driver cash debt (in kopecks) before the driver is blocked from
+	// working. A value of 0 disables the debt gate entirely.
+	MaxCashDebtKopecksKey = "max_cash_debt_kopecks"
+	// DefaultMaxCashDebtKopecks is the fallback used when the setting is
+	// missing or unreadable (100000 kopecks = 1000 RUB).
+	DefaultMaxCashDebtKopecks = 100000
+)
+
 type Repository interface {
 	List(ctx context.Context) ([]Setting, error)
 	Upsert(ctx context.Context, key string, value any) error

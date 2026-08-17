@@ -77,6 +77,9 @@ func (noopFinanceRepo) GetDriverEarnings(context.Context, string, time.Time, tim
 func (noopFinanceRepo) ListWalletTransactions(context.Context, string, int) ([]paymentdomain.WalletTransaction, error) {
 	return nil, nil
 }
+func (noopFinanceRepo) ListDebtTransactions(context.Context, string, int) ([]paymentdomain.DriverDebtTransaction, error) {
+	return nil, nil
+}
 func (noopFinanceRepo) ListPayouts(context.Context, string, int) ([]paymentdomain.Payout, error) {
 	return nil, nil
 }

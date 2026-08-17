@@ -17,6 +17,8 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/available_ord
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_wallet_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/widgets/driver_debt_banner.dart';
 
 // Provider for driver profile data (reused from profile screen)
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
@@ -126,6 +128,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     final stats = ref.watch(newDriverProvider.select((state) => state.stats));
     final driverProfile = ref.watch(driverProfileProvider);
     final serviceArea = ref.watch(serviceAreaProvider);
+    final walletState = ref.watch(driverWalletProvider);
 
     ref.listen<DriverState>(newDriverProvider, (previous, next) {
       final message = next.error;
@@ -151,7 +154,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     return Scaffold(
       backgroundColor: AvroDriverColors.surface,
       body: workState == DriverWorkState.offline
-          ? SafeArea(child: _buildOfflineView(driverState, driverProfile, serviceArea))
+          ? SafeArea(
+              child: _buildOfflineView(
+                  driverState, driverProfile, serviceArea, walletState))
           : _BackgroundOptimizer(
               isDriverWaiting: workState == DriverWorkState.online,
               isAppInForeground: _isAppInForeground,
@@ -240,10 +245,12 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
   }
 
-  Widget _buildOfflineView(
-      DriverState driverState, AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
+  Widget _buildOfflineView(DriverState driverState,
+      AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea,
+      DriverWalletState walletState) {
     final outsideServiceArea = serviceArea.isChecked && !serviceArea.isAllowed;
     final canGoOnline = !_locationUnavailable && !outsideServiceArea;
+    final wallet = walletState.wallet;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: SingleChildScrollView(
@@ -252,6 +259,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
           children: [
             if (outsideServiceArea) _DriverServiceAreaBanner(),
             if (_locationUnavailable) _LocationUnavailableBanner(),
+            if (wallet != null && wallet.debtBalance > 0)
+              DriverDebtBanner(wallet: wallet),
             // Приветствие
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,11 +10,10 @@ import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
 import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
-import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
+import 'package:tow_truck_frontend/features/map/presentation/widgets/pulsing_location_dot.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
-import 'package:tow_truck_frontend/features/client/presentation/widgets/osm_location_picker.dart';
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 
 enum _LocationState { initial, determining, unavailable, available }
@@ -38,16 +37,48 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<ClientHomeScreen> createState() => _ClientHomeScreenState();
 }
 
-class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
+class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen>
+    with WidgetsBindingObserver {
   _LocationState _locationState = _LocationState.initial;
   bool _detectionAttempted = false;
+  bool _addressDetectionInFlight = false;
   double? _lastPositionLat;
   double? _lastPositionLng;
+
+  /// Visible gap between the services card's bottom edge and the top edge of
+  /// the bottom nav pill. Measured empirically in the real composition
+  /// (ClientAppShell Scaffold + extendBody + ClientBottomNav): the body is
+  /// laid out behind the navbar with its own bottom padding removed, and
+  /// `Positioned.bottom` in this home Stack is measured from that extended
+  /// body bottom, so the gap equals this constant exactly (verified on
+  /// padding.bottom = 0 and = 34). The card and the nav pill share no
+  /// coordinate math — the constant IS the visible gap.
+  static const double _servicesCardBottomGap = 15;
+  static const double _servicesCardHeight = 160;
+  static const double _myLocationButtonGap = 12;
+  static const double _myLocationButtonSize = 48;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initLocation());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Soft refresh on app resume: reverse-geocodes the last known position
+  /// again (no new GPS request), so the address card stays fresh without a
+  /// continuous high-accuracy stream.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshAddress();
+    }
   }
 
   Future<void> _initLocation() async {
@@ -77,30 +108,78 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         break;
     }
 
-    try {
-      final pos = await LocationService.getCurrentPositionWithFallback();
-      if (mounted) {
-        _locationState = _LocationState.available;
-        _lastPositionLat = pos.latitude;
-        _lastPositionLng = pos.longitude;
-        _runAddressDetection(pos.latitude, pos.longitude);
-      }
-    } catch (_) {
-      if (mounted) {
-        _locationState = _LocationState.unavailable;
-      }
+    // Instant paint: a cached fix renders the map marker right away; the
+    // address bar shows "Определяем адрес…" until reverse geocoding finishes.
+    final lastKnown = await LocationService.getLastKnownPosition();
+    if (mounted && lastKnown != null) {
+      _locationState = _LocationState.available;
+      _lastPositionLat = lastKnown.latitude;
+      _lastPositionLng = lastKnown.longitude;
+      setState(() {});
     }
+
+    await _resolveAndDetect();
+  }
+
+  /// Single fast GPS fix (cached first, then medium/high) followed by a single
+  /// reverse-geocode pass. Never waits 10s on high accuracy to block first
+  /// paint — the cached position is already on screen.
+  Future<void> _resolveAndDetect() async {
+    double lat;
+    double lng;
+    try {
+      final pos = await LocationService.getCurrentPositionQuick();
+      if (!mounted) return;
+      _locationState = _LocationState.available;
+      lat = pos.latitude;
+      lng = pos.longitude;
+    } catch (_) {
+      if (!mounted) return;
+      final cachedLat = _lastPositionLat;
+      final cachedLng = _lastPositionLng;
+      if (cachedLat == null || cachedLng == null) {
+        _locationState = _LocationState.unavailable;
+        setState(() {});
+        return;
+      }
+      lat = cachedLat;
+      lng = cachedLng;
+    }
+    _lastPositionLat = lat;
+    _lastPositionLng = lng;
+    _runAddressDetection(lat, lng);
     if (mounted) setState(() {});
   }
 
-  /// Kicks off the service-area check and the reverse-geocoded address
-  /// resolution for the current position. The address resolution runs through
-  /// the Авро backend (via [OrderFlowNotifier.detectCurrentLocation]) and
-  /// drives the "Определяем адрес…" / address / error states.
-  void _runAddressDetection(double lat, double lng) {
+  /// Kicks off the service-area check and the reverse-geocoded address for the
+  /// current position. Coordinates come from the caller's single GPS fix and
+  /// are passed straight to [OrderFlowNotifier.detectCurrentLocation] so the
+  /// backend reverse-geocodes them without a second GPS request.
+  Future<void> _runAddressDetection(double lat, double lng) async {
+    if (!mounted) return;
     _detectionAttempted = true;
     ref.read(serviceAreaProvider.notifier).checkServiceArea(lat, lng);
-    unawaited(ref.read(orderFlowProvider.notifier).detectCurrentLocation());
+    if (_addressDetectionInFlight) return;
+    _addressDetectionInFlight = true;
+    try {
+      await ref
+          .read(orderFlowProvider.notifier)
+          .detectCurrentLocation(lat: lat, lng: lng);
+    } finally {
+      _addressDetectionInFlight = false;
+    }
+  }
+
+  /// Soft address refresh: re-resolves the last known position without a new
+  /// GPS request. Used on address-bar tap and on app resume.
+  void _refreshAddress() {
+    final lat = _lastPositionLat;
+    final lng = _lastPositionLng;
+    if (lat == null || lng == null) {
+      _initLocation();
+      return;
+    }
+    _runAddressDetection(lat, lng);
   }
 
   void _retryAddressDetection() {
@@ -197,19 +276,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     if (!mounted) return;
     if (permission == PermissionResult.granted) {
       _locationState = _LocationState.determining;
-      try {
-        final pos = await LocationService.getCurrentPositionWithFallback();
-        if (mounted) {
-          _locationState = _LocationState.available;
-          _lastPositionLat = pos.latitude;
-          _lastPositionLng = pos.longitude;
-          _runAddressDetection(pos.latitude, pos.longitude);
-        }
-      } catch (_) {
-        if (mounted) {
-          _locationState = _LocationState.unavailable;
-        }
-      }
+      setState(() {});
+      await _resolveAndDetect();
     } else if (permission == PermissionResult.deniedForever) {
       _locationState = _LocationState.unavailable;
       _showDeniedForeverDialog();
@@ -285,6 +353,14 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         serviceArea.isChecked && !serviceArea.isAllowed;
     final canRequest = !locationUnavailable && !outsideServiceArea;
 
+    final bottomInset = math.max(MediaQuery.of(context).padding.bottom, 8.0);
+    // Floating services card + "my location" button anchors, measured from
+    // the screen bottom, sharing the single safe-inset accounting above.
+    final servicesTop = bottomInset + _servicesCardBottomGap + _servicesCardHeight;
+    final locationButtonBottom = servicesTop + _myLocationButtonGap;
+    final attributionBottom =
+        locationButtonBottom + _myLocationButtonSize + 8;
+
     return Scaffold(
       backgroundColor: AvroClientColors.background,
       body: Stack(
@@ -293,9 +369,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             child: _LocationMapCard(
               lat: lat,
               lng: lng,
-              address: location?.displayAddress ?? address,
-              showUserLocation: _locationState == _LocationState.available,
-              attributionBottomOffset: 300,
+              locationButtonBottomOffset: locationButtonBottom,
+              attributionBottomOffset: attributionBottom,
             ),
           ),
           Positioned(
@@ -311,6 +386,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   children: [
                     _Header(
                       onNotificationsPressed: _openNotificationsAnnouncement,
+                      onProfilePressed: widget.onProfilePressed,
                     ),
                     if (outsideServiceArea) ...[
                       const SizedBox(height: 8),
@@ -326,7 +402,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                       city: city,
                       isLoading: showAddressLoading,
                       onRetry: onRetryAddress,
-                      onTap: _openFullAddressMap,
+                      onTap: _refreshAddress,
+                      latitude: location?.latitude ?? _lastPositionLat,
+                      longitude: location?.longitude ?? _lastPositionLng,
                     ),
                   ],
                 ),
@@ -336,67 +414,26 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           Positioned(
             left: 20,
             right: 20,
-            // Bottom of the floating card sits 20px above the top of the
-            // bottom nav pill: nav pill is 72px + its 8px bottom margin, and
-            // both this card and the nav share the home-indicator safe inset,
-            // so the visible gap equals `bottom - 72`.
-            bottom: 92,
-            child: SafeArea(
-              top: false,
-              child: _FloatingServicesCard(
-                enabled: canRequest,
-                onEvacTap: _openPickupSelection,
-                onServiceTap: (service) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ServiceDetailScreen(
-                        title: service.label,
-                        subtitle: service.subtitle,
-                        description: service.description,
-                        icon: service.icon,
-                      ),
+            bottom: servicesTop - _servicesCardHeight,
+            child: _FloatingServicesCard(
+              key: const ValueKey('client_services_card'),
+              enabled: canRequest,
+              onEvacTap: _openPickupSelection,
+              onServiceTap: (service) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ServiceDetailScreen(
+                      title: service.label,
+                      subtitle: service.subtitle,
+                      description: service.description,
+                      icon: service.icon,
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _openFullAddressMap() {
-    final location =
-        ref.read(orderFlowProvider.select((state) => state.pickupLocation));
-    final lat = location?.latitude ??
-        _lastPositionLat ??
-        AppConstants.makhachkalaLat;
-    final lng = location?.longitude ??
-        _lastPositionLng ??
-        AppConstants.makhachkalaLng;
-    final address = location?.displayAddress ??
-        (_locationState == _LocationState.unavailable
-            ? 'Местоположение недоступно'
-            : 'Определяем адрес…');
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OsmLocationPicker(
-          title: 'Мое местоположение',
-          addressLabel: 'Адрес',
-          initialLocation: MapLocation(
-            latitude: lat,
-            longitude: lng,
-            address: address,
-          ),
-          initialAddress: address,
-          confirmText: 'Готово',
-          onLocationConfirmed: (picked) {
-            ref.read(orderFlowProvider.notifier).setPickupLocation(picked);
-            Navigator.of(context).pop();
-          },
-        ),
       ),
     );
   }
@@ -405,21 +442,33 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onNotificationsPressed});
+  const _Header({
+    required this.onNotificationsPressed,
+    this.onProfilePressed,
+  });
 
   final VoidCallback onNotificationsPressed;
+  final VoidCallback? onProfilePressed;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            'assets/img/app_icon_load_fg.png',
-            width: 28,
-            height: 28,
-            fit: BoxFit.contain,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            key: const ValueKey('client_home_logo'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: onProfilePressed,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/img/app_icon_load_fg.png',
+                width: 28,
+                height: 28,
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 10),
@@ -526,6 +575,7 @@ class _LocationUnavailableBanner extends StatelessWidget {
 
 class _FloatingServicesCard extends StatelessWidget {
   const _FloatingServicesCard({
+    super.key,
     required this.enabled,
     required this.onEvacTap,
     required this.onServiceTap,
@@ -794,15 +844,13 @@ class _LocationMapCard extends StatelessWidget {
   const _LocationMapCard({
     required this.lat,
     required this.lng,
-    required this.address,
-    required this.showUserLocation,
+    this.locationButtonBottomOffset = 16,
     this.attributionBottomOffset = 16,
   });
 
   final double lat;
   final double lng;
-  final String address;
-  final bool showUserLocation;
+  final double locationButtonBottomOffset;
   final double attributionBottomOffset;
 
   @override
@@ -816,15 +864,17 @@ class _LocationMapCard extends StatelessWidget {
         initialZoom: 15,
         showControls: false,
         showLocationButton: false,
-        showUserLocation: showUserLocation,
+        showUserLocation: false,
+        showStandaloneLocationButton: true,
+        locationButtonBottomOffset: locationButtonBottomOffset,
         fitToMarkers: false,
         attributionBottomOffset: attributionBottomOffset,
         markers: [
+          // Own position: green radar-pulse dot (no orange pin).
           EvikMapMarker(
             lat: lat,
             lng: lng,
-            title: address,
-            color: AvroClientColors.accent,
+            child: const PulsingLocationDot(),
           ),
         ],
       ),
@@ -839,6 +889,8 @@ class _AddressBar extends StatelessWidget {
     required this.isLoading,
     required this.onTap,
     this.onRetry,
+    this.latitude,
+    this.longitude,
   });
 
   final String address;
@@ -846,9 +898,16 @@ class _AddressBar extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onTap;
   final VoidCallback? onRetry;
+  final double? latitude;
+  final double? longitude;
 
   @override
   Widget build(BuildContext context) {
+    final hasCoordinates = latitude != null && longitude != null;
+    final secondaryLine = hasCoordinates
+        ? '${latitude!.toStringAsFixed(5)}, ${longitude!.toStringAsFixed(5)}'
+        : city;
+
     return Material(
       color: AvroClientColors.background,
       borderRadius: BorderRadius.circular(18),
@@ -900,7 +959,7 @@ class _AddressBar extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      city,
+                      secondaryLine,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(

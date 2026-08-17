@@ -1,5 +1,6 @@
 ﻿import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_wallet.dart';
+import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
 
 class DriverWalletRepository {
   const DriverWalletRepository({
@@ -35,6 +36,25 @@ class DriverWalletRepository {
         .whereType<Map>()
         .map((item) => WalletTransaction.fromJson(item.cast<String, dynamic>()))
         .toList();
+  }
+
+  /// Cash-commission debt history: what built the debt and what reduced it.
+  Future<DriverDebtBreakdown> getDebtBreakdown() async {
+    final json = await _apiClient.get(
+      '/api/v1/driver/wallet/debt',
+      headers: _authHeaders,
+    );
+    return DriverDebtBreakdown.fromJson(json);
+  }
+
+  /// Receipt for a single order (works for cash orders assembled from order
+  /// data too). Only the requesting driver's own orders are visible.
+  Future<OrderReceipt> getOrderReceipt(String orderId) async {
+    final json = await _apiClient.get(
+      '/api/v1/orders/$orderId/receipt',
+      headers: _authHeaders,
+    );
+    return OrderReceipt.fromJson(json);
   }
 
   Future<List<DriverPayout>> getPayouts() async {

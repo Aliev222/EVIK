@@ -838,6 +838,56 @@ LIMIT $2`, driverID, limit)
 	return txs, rows.Err()
 }
 
+// ListDebtTransactions returns the driver's cash-commission debt history —
+// everything that built the debt (cash_commission_debt) and everything that
+// reduced it (debt_repayment) — newest first, joined to the linked order total.
+func (r *PaymentRepository) ListDebtTransactions(ctx context.Context, driverID string, limit int) ([]paymentdomain.DriverDebtTransaction, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	rows, err := r.db.QueryContext(ctx, `
+SELECT wt.id, wt.order_id, wt.type, wt.direction, wt.amount, wt.currency, wt.status, wt.description, COALESCE(o.price_total, 0), wt.created_at
+FROM wallet_transactions wt
+LEFT JOIN orders o ON o.id = wt.order_id
+WHERE wt.driver_id = $1
+AND wt.type IN ('cash_commission_debt', 'debt_repayment')
+ORDER BY wt.created_at DESC
+LIMIT $2`, driverID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []paymentdomain.DriverDebtTransaction
+	for rows.Next() {
+		var item paymentdomain.DriverDebtTransaction
+		var typ, direction, status string
+		var orderID sql.NullString
+		if err := rows.Scan(
+			&item.ID,
+			&orderID,
+			&typ,
+			&direction,
+			&item.Amount,
+			&item.Currency,
+			&status,
+			&item.Description,
+			&item.OrderAmount,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.OrderID = nullableString(orderID)
+		item.Type = paymentdomain.WalletTransactionType(typ)
+		item.Direction = paymentdomain.WalletDirection(direction)
+		item.Status = paymentdomain.WalletTransactionStatus(status)
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r *PaymentRepository) ListPayouts(ctx context.Context, driverID string, limit int) ([]paymentdomain.Payout, error) {
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at

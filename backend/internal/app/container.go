@@ -206,7 +206,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	// Create payment use cases
 	yooClient := httpinfra.NewYooKassaClient(cfg.YooKassaShopID, cfg.YooKassaSecret, cfg.YooKassaReturnURL, cfg.YooKassaPayoutGatewayID, cfg.YooKassaPayoutSecret, cfg.YooKassaPayoutMode)
 	financeUC := paymentuc.NewFinanceUseCase(paymentRepo, orderRepo, driverRepo, pricingService, yookassaProvider{client: yooClient}, settingsRepo, clock, idGen, cfg.FinancePendingHoldSeconds, cfg.MinimumWithdrawalKopecks, eventPublisher)
-	driverGates := driveruc.NewGateService(userRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
+	driverGates := driveruc.NewGateService(userRepo, settingsRepo, clock, cfg.DriverSubscriptionRequired, cfg.DriverGateBypass, cfg.DebugMode)
 
 	// FCM push sender. Falls back to a silent no-op when FIREBASE_CREDENTIALS_JSON
 	// is empty so local/dev without Firebase credentials still boot cleanly.

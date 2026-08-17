@@ -43,6 +43,12 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
   static const _activeOrderIdKey = 'client_active_order_id';
 
+  /// Hard cap for the address-card reverse-geocode request (the HTTP client
+  /// itself allows 30s + retries, which is too long for the home screen's
+  /// "Определяем адрес…" spinner). On timeout the flow falls into the
+  /// regular "не удалось определить адрес" state with an active retry.
+  static const Duration _reverseGeocodeTimeout = Duration(seconds: 12);
+
   void startOrderFlow() {
     state = state.copyWith(
       currentStep: OrderFlowStep.pickupSelection,
@@ -190,12 +196,31 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     state = state.copyWith(idempotencyKey: null);
   }
 
-  Future<void> detectCurrentLocation() async {
+  /// Resolves the current pickup address.
+  ///
+  /// When [lat]/[lng] are provided the coordinates were already fetched by the
+  /// caller (single GPS fix), so this only reverse-geocodes them — no second
+  /// GPS request. Without them a full fix is acquired.
+  Future<void> detectCurrentLocation({double? lat, double? lng}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
       final locationService = _ref.read(locationServiceProvider);
-      final fix = await locationService.getCurrentLocationFix();
+
+      final GeoFix? fix;
+      if (lat != null && lng != null) {
+        final address = await locationService
+            .reverseGeocode(lat: lat, lng: lng)
+            .timeout(_reverseGeocodeTimeout, onTimeout: () => null);
+        fix = GeoFix(
+          lat: lat,
+          lng: lng,
+          address: address,
+          isMocked: false,
+        );
+      } else {
+        fix = await locationService.getCurrentLocationFix();
+      }
 
       if (fix == null) {
         state = state.copyWith(

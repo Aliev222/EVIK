@@ -6,6 +6,7 @@ import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
+import 'package:tow_truck_frontend/core/format/money.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
@@ -264,9 +265,30 @@ class DriverNotifier extends StateNotifier<DriverState> {
       if (error.statusCode == 0) {
         return '$fallback — проверьте соединение';
       }
+      if (error.statusCode == 403 && _isDebtBlock(error)) {
+        return _debtBlockMessage(error);
+      }
       return error.message;
     }
     return '$fallback: $error';
+  }
+
+  bool _isDebtBlock(ApiClientException error) {
+    return error.message.contains('outstanding debt') ||
+        error.message.contains('долг');
+  }
+
+  /// «Погасите долг N ₽» — понятное сообщение, когда сервер отклонил выход на
+  /// линию или принятие заказа из-за накопившегося долга.
+  String _debtBlockMessage(ApiClientException error) {
+    final match = RegExp(r'cash debt (\d+) kopecks').firstMatch(error.message);
+    if (match != null) {
+      final amount = int.tryParse(match.group(1) ?? '') ?? 0;
+      if (amount > 0) {
+        return 'Погасите долг ${formatKopecks(amount)}, чтобы принимать заказы';
+      }
+    }
+    return 'Погасите долг, чтобы принимать заказы';
   }
 
   Future<void> acceptOrder(String orderId) async {
@@ -283,7 +305,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     } catch (error) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Не удалось принять заказ: $error',
+        error: _cleanError(error, fallback: 'Не удалось принять заказ'),
       );
     }
   }

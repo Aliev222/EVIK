@@ -49,7 +49,10 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    // The map's pulsing location dot animates indefinitely, so pumpAndSettle
+    // would never settle — bounded pumps only.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
 
     expect(find.byType(ClientHomeScreen), findsOneWidget);
     expect(find.text('Вызвать эвакуатор'), findsOneWidget);
@@ -192,5 +195,5 @@ class _StubOrderFlowNotifier extends OrderFlowNotifier {
   Future<void> restoreActiveFlow() async {}
 
   @override
-  Future<void> detectCurrentLocation() async {}
+  Future<void> detectCurrentLocation({double? lat, double? lng}) async {}
 }

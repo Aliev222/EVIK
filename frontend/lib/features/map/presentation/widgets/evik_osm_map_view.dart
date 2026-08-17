@@ -34,6 +34,9 @@ class EvikOsmMapView extends StatefulWidget {
     this.attributionBottomOffset = 16,
     this.controlsBackgroundColor,
     this.controlsIconColor,
+    this.mapController,
+    this.showStandaloneLocationButton = false,
+    this.locationButtonBottomOffset = 16,
   });
 
   final double? initialLat;
@@ -58,12 +61,24 @@ class EvikOsmMapView extends StatefulWidget {
   final Color? controlsBackgroundColor;
   final Color? controlsIconColor;
 
+  /// Optional externally-owned map controller. When omitted the view creates
+  /// its own internal controller (ownership stays with the caller of this
+  /// parameter).
+  final MapController? mapController;
+
+  /// Standalone round "my location" button at the right edge, independent of
+  /// the zoom/control cluster (which needs [showControls]).
+  final bool showStandaloneLocationButton;
+
+  /// Bottom offset (from the view's bottom edge) of the standalone button.
+  final double locationButtonBottomOffset;
+
   @override
   State<EvikOsmMapView> createState() => _EvikOsmMapViewState();
 }
 
 class _EvikOsmMapViewState extends State<EvikOsmMapView> {
-  final MapController _mapController = MapController();
+  late final MapController _mapController;
   bool _isLocating = false;
   bool _userInteracted = false;
   StreamSubscription<Position>? _userLocationSubscription;
@@ -78,6 +93,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   @override
   void initState() {
     super.initState();
+    _mapController = widget.mapController ?? MapController();
     if (widget.showUserLocation) _subscribeToUserLocation();
   }
 
@@ -182,8 +198,8 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                     markers: [
                       Marker(
                         point: _userLocation!,
-                        width: PulsingLocationDot.haloSize,
-                        height: PulsingLocationDot.haloSize,
+                        width: PulsingLocationDot.size,
+                        height: PulsingLocationDot.size,
                         alignment: Alignment.center,
                         child: const PulsingLocationDot(),
                       ),
@@ -228,6 +244,14 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                   _mapController.camera.center,
                   (_mapController.camera.zoom - 1).clamp(3, 19),
                 ),
+              ),
+            ),
+          if (widget.showStandaloneLocationButton)
+            Positioned(
+              right: 16,
+              bottom: widget.locationButtonBottomOffset,
+              child: _StandaloneLocationButton(
+                onPressed: _centerOnMyPosition,
               ),
             ),
           Positioned(
@@ -309,6 +333,14 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
     widget.onRecenter?.call();
   }
 
+  /// Centers the camera on the position currently represented by the map
+  /// (initialLat/initialLng — i.e. the client's known position) without
+  /// issuing a new GPS request.
+  void _centerOnMyPosition() {
+    _mapController.move(_initialCenter, 17);
+    widget.onRecenter?.call();
+  }
+
   void _fitCamera() {
     if (!mounted || _userInteracted) return;
     final points = <LatLng>[
@@ -332,8 +364,36 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   }
 }
 
-class _AnimatedMapMarker extends StatelessWidget {
-  const _AnimatedMapMarker({required this.marker});
+/// Standalone round "my location" button used on screens that do not show the
+/// zoom/control cluster (e.g. the client home screen).
+class _StandaloneLocationButton extends StatelessWidget {
+  const _StandaloneLocationButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Material(
+        color: AvroClientColors.background.withValues(alpha: 0.96),
+        shape: const CircleBorder(),
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.12),
+        child: IconButton(
+          tooltip: 'Моё местоположение',
+          onPressed: onPressed,
+          icon: const Icon(Icons.my_location_rounded),
+          color: AvroClientColors.accent,
+          iconSize: 22,
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedMapMarker extends StatelessWidget {  const _AnimatedMapMarker({required this.marker});
 
   final EvikMapMarker marker;
 

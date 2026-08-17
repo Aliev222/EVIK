@@ -419,6 +419,23 @@ func (uc *FinanceUseCase) CommissionPercent(ctx context.Context) int {
 	return uc.commissionPercent(ctx)
 }
 
+// MaxCashDebtKopecks returns the configured maximum allowed driver cash debt in
+// kopecks (platform_settings.max_cash_debt_kopecks, default 100000 = 1000 ₽). A
+// value of 0 disables the debt gate. Exported so HTTP handlers can surface the
+// threshold to drivers in the wallet payload for the "погасить долг" banner.
+func (uc *FinanceUseCase) MaxCashDebtKopecks(ctx context.Context) int {
+	list, err := uc.settingsRepo.List(ctx)
+	if err != nil {
+		log.Printf("WARN: settings unavailable for debt threshold, fallback %d: %v", settings.DefaultMaxCashDebtKopecks, err)
+		return settings.DefaultMaxCashDebtKopecks
+	}
+	v := settings.GetInt(list, settings.MaxCashDebtKopecksKey, settings.DefaultMaxCashDebtKopecks)
+	if v < 0 {
+		return settings.DefaultMaxCashDebtKopecks
+	}
+	return v
+}
+
 // ConfirmOrderPayment processes the client's payment confirmation for an order
 // in awaiting_payment status. For cash orders it immediately completes finances
 // and transitions to completed. For card orders it creates a YooKassa payment

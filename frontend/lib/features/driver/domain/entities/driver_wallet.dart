@@ -6,6 +6,7 @@ class DriverWallet {
     required this.currency,
     required this.recentTransactions,
     required this.recentPayouts,
+    this.maxCashDebtKopecks = 0,
   });
 
   final int availableBalance;
@@ -15,12 +16,23 @@ class DriverWallet {
   final List<WalletTransaction> recentTransactions;
   final List<DriverPayout> recentPayouts;
 
+  /// Platform-configured maximum allowed cash debt in kopecks.
+  /// A value of 0 means the debt gate is disabled.
+  final int maxCashDebtKopecks;
+
+  /// True when enforcement is enabled and the driver's debt exceeds (or has
+  /// reached) the configured threshold, blocking new orders.
+  bool get debtBlocked =>
+      maxCashDebtKopecks > 0 && debtBalance >= maxCashDebtKopecks;
+
   factory DriverWallet.fromJson(Map<String, dynamic> json) {
     return DriverWallet(
       availableBalance:
           _readMoney(json, 'available_balance', 'AvailableBalance'),
       pendingBalance: _readMoney(json, 'pending_balance', 'PendingBalance'),
       debtBalance: _readMoney(json, 'debt_balance', 'DebtBalance'),
+      maxCashDebtKopecks:
+          _readMoney(json, 'max_cash_debt_kopecks', 'MaxCashDebtKopecks'),
       currency: (json['currency'] ?? json['Currency'] ?? 'RUB').toString(),
       recentTransactions:
           _readList(json, 'recent_transactions', 'RecentTransactions')
@@ -63,6 +75,87 @@ class WalletTransaction {
       createdAt: _readDate(json, 'created_at', 'CreatedAt'),
     );
   }
+}
+
+/// A single entry in the driver's cash-commission debt history: either an
+/// accrual (cash_commission_debt — commission withheld for a cash order) or a
+/// repayment (debt_repayment — commission retained from a card order).
+class DriverDebtTransaction {
+  const DriverDebtTransaction({
+    required this.id,
+    required this.type,
+    required this.direction,
+    required this.amount,
+    required this.currency,
+    required this.status,
+    required this.description,
+    this.orderId,
+    this.orderAmount = 0,
+    this.createdAt,
+  });
+
+  final String id;
+  final String type;
+  final String direction;
+  final int amount;
+  final String currency;
+  final String status;
+  final String description;
+  final String? orderId;
+
+  /// Total of the linked order (price_total), used to show what the order was.
+  final int orderAmount;
+  final DateTime? createdAt;
+
+  bool get isAccrual => type == 'cash_commission_debt';
+
+  factory DriverDebtTransaction.fromJson(Map<String, dynamic> json) {
+    return DriverDebtTransaction(
+      id: _readString(json, 'id', 'ID'),
+      type: _readString(json, 'type', 'Type'),
+      direction: _readString(json, 'direction', 'Direction'),
+      amount: _readMoney(json, 'amount', 'Amount'),
+      currency: _readString(json, 'currency', 'Currency', fallback: 'RUB'),
+      status: _readString(json, 'status', 'Status', fallback: 'succeeded'),
+      description: _readString(json, 'description', 'Description'),
+      orderId: json['order_id']?.toString(),
+      orderAmount: _readMoney(json, 'order_amount', 'OrderAmount'),
+      createdAt: _readDate(json, 'created_at', 'CreatedAt'),
+    );
+  }
+}
+
+/// Aggregated debt history from GET /driver/wallet/debt.
+class DriverDebtBreakdown {
+  const DriverDebtBreakdown({
+    required this.transactions,
+    required this.accrued,
+    required this.repaid,
+  });
+
+  final List<DriverDebtTransaction> transactions;
+  final int accrued;
+  final int repaid;
+
+  int get outstanding => accrued - repaid;
+
+  factory DriverDebtBreakdown.fromJson(Map<String, dynamic> json) {
+    final items = _readList(json, 'transactions', 'Transactions');
+    return DriverDebtBreakdown(
+      transactions: items
+          .map(DriverDebtTransaction.fromJson)
+          .where((item) => item.orderId != null && item.orderId!.isNotEmpty)
+          .toList(),
+      accrued: _readMoney(json, 'accrued', 'Accrued'),
+      repaid: _readMoney(json, 'repaid', 'Repaid'),
+    );
+  }
+
+  List<DriverDebtTransaction> get accruals =>
+      transactions.where((item) => item.isAccrual).toList();
+
+  List<DriverDebtTransaction> get repayments =>
+      transactions.where((item) => !item.isAccrual).toList();
 }
 
 class DriverPayout {

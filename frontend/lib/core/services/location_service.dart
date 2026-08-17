@@ -44,16 +44,10 @@ class LocationService {
     }
 
     final position = await getCurrentPositionWithFallback();
-
-    String? address;
-    try {
-      address = await _geocodingApi.reverseGeocode(
-        lat: position.latitude,
-        lng: position.longitude,
-      );
-    } catch (_) {
-      address = null;
-    }
+    final address = await reverseGeocode(
+      lat: position.latitude,
+      lng: position.longitude,
+    );
 
     return GeoFix(
       lat: position.latitude,
@@ -63,12 +57,54 @@ class LocationService {
     );
   }
 
+  /// Cached fix for instant first paint. Returns `null` (without throwing or
+  /// waiting) when the device has no cached position.
+  static Future<Position?> getLastKnownPosition() async {
+    try {
+      return await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fast single fix for the client home screen: prefers the cached position,
+  /// then a medium-accuracy GPS fix. Never blocks long on high accuracy, so
+  /// the address card resolves almost instantly.
+  static Future<Position> getCurrentPositionQuick() async {
+    final lastKnown = await getLastKnownPosition();
+    if (lastKnown != null) {
+      return lastKnown;
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+    } catch (_) {
+      // fallback to high accuracy
+    }
+
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+    } catch (_) {
+      throw const LocationException('Не удалось определить местоположение');
+    }
+  }
+
   static Future<Position> getCurrentPositionWithFallback() async {
     try {
       return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: Duration(seconds: 5),
         ),
       );
     } catch (_) {
@@ -92,6 +128,19 @@ class LocationService {
     }
 
     throw const LocationException('Не удалось определить местоположение');
+  }
+
+  /// Reverse geocodes coordinates through the Авро backend. Returns `null`
+  /// when no real address could be resolved.
+  Future<String?> reverseGeocode({
+    required double lat,
+    required double lng,
+  }) async {
+    try {
+      return await _geocodingApi.reverseGeocode(lat: lat, lng: lng);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<LocationModel?> getLocationByAddress(String address) async {

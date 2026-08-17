@@ -950,7 +950,8 @@ SELECT
 	o.updated_at,
 	o.financially_completed_at,
 	o.cancelled_at,
-	o.pickup_lat, o.pickup_lng, o.dropoff_lat, o.dropoff_lng, o.tow_truck_type
+	o.pickup_lat, o.pickup_lng, o.dropoff_lat, o.dropoff_lng, o.tow_truck_type,
+	o.pickup_address, o.dropoff_address
 FROM orders o
 LEFT JOIN users cu ON cu.id = o.user_id
 LEFT JOIN drivers d ON d.id = o.driver_id
@@ -992,6 +993,7 @@ WHERE o.id = $1`
 		&details.Pickup.Lat, &details.Pickup.Lng,
 		&details.Dropoff.Lat, &details.Dropoff.Lng,
 		&details.TowTruckType,
+		&item.PickupAddress, &item.DropoffAddress,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

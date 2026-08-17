@@ -37,6 +37,7 @@ const (
 	settingTypePercent
 	settingTypeNonNegativeInt
 	settingTypePayoutMode
+	settingTypeNonNegativeMoney
 )
 
 // knownSettings is the fixed, allowlisted set of platform settings. Every key
@@ -52,6 +53,7 @@ var knownSettings = map[string]settingKeyType{
 	"offer_timeout_seconds":             settingTypeNonNegativeInt,
 	"dispatch_round_limit":              settingTypeNonNegativeInt,
 	"payout_mode":                       settingTypePayoutMode,
+	"max_cash_debt_kopecks":             settingTypeNonNegativeMoney,
 }
 
 // validateSettingKeyValue checks a decoded settings update against the fixed
@@ -70,6 +72,14 @@ func validateSettingKeyValue(key string, value any) error {
 		}
 		if n <= 0 {
 			return fmt.Errorf("%s: value must be greater than 0, got %d", key, n)
+		}
+	case settingTypeNonNegativeMoney:
+		n, ok := parseIntSettingValue(value)
+		if !ok {
+			return fmt.Errorf("%s: value must be a whole number of kopecks, got %T", key, value)
+		}
+		if n < 0 {
+			return fmt.Errorf("%s: value must not be negative, got %d", key, n)
 		}
 	case settingTypePercent:
 		n, ok := parseIntSettingValue(value)

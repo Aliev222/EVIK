@@ -350,15 +350,6 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 		writeAuthError(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	payment, err := h.repo.GetPaymentByOrderID(r.Context(), orderID)
-	if err != nil {
-		if errors.Is(err, paymentdomain.ErrPaymentNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "payment not found"})
-			return
-		}
-		writeInternalError(w, err)
-		return
-	}
 	details, err := h.orderRepo.GetAdminOrderDetails(r.Context(), orderID)
 	if err != nil {
 		if errors.Is(err, orderdomain.ErrOrderNotFound) {
@@ -368,23 +359,38 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 		writeInternalError(w, err)
 		return
 	}
+	// Cash orders never create a payments row, so a missing payment is not an
+	// error: the receipt is assembled from the order itself plus the wallet
+	// transaction that recorded the debt. No synthetic payment row is written.
+	payment, paymentErr := h.repo.GetPaymentByOrderID(r.Context(), orderID)
+	if paymentErr != nil && !errors.Is(paymentErr, paymentdomain.ErrPaymentNotFound) {
+		writeInternalError(w, paymentErr)
+		return
+	}
 	completedAt := any(nil)
 	if details.Order.CompletedAt != nil {
 		completedAt = details.Order.CompletedAt.Format(time.RFC3339)
 	}
-	paidAt := any(nil)
-	if payment.PaidAt != nil {
-		paidAt = payment.PaidAt.Format(time.RFC3339)
+	paymentMethod := details.Order.PaymentMethod
+	if paymentMethod == "" {
+		paymentMethod = string(paymentdomain.PaymentMethodCash)
+	}
+	paidAt := any(completedAt)
+	if payment != nil {
+		paidAt = any(nil)
+		if payment.PaidAt != nil {
+			paidAt = payment.PaidAt.Format(time.RFC3339)
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"order_id":          orderID,
-		"payment_id":        payment.ID,
-		"price_total":       payment.Amount,
-		"amount":            payment.Amount,
-		"currency":          payment.Currency,
-		"payment_method":    payment.PaymentMethod,
-		"payment_status":    payment.Status,
-		"status":            payment.Status,
+		"payment_id":        paymentIDOrEmpty(payment),
+		"price_total":       details.Order.PriceTotal,
+		"amount":            paymentAmountOrOrderTotal(payment, details.Order.PriceTotal),
+		"currency":          paymentCurrencyOrRUB(payment),
+		"payment_method":    paymentMethodOrOrder(payment, paymentMethod),
+		"payment_status":    paymentStatusOrSucceeded(payment),
+		"status":            paymentStatusOrSucceeded(payment),
 		"commission_amount": details.Order.CommissionAmount,
 		"commission":        details.Order.CommissionAmount,
 		"driver_amount":     details.Order.DriverAmount,
@@ -394,6 +400,8 @@ func (h *PaymentHandler) GetOrderReceipt(w http.ResponseWriter, r *http.Request)
 		"driver_id":         details.Order.DriverID,
 		"driver_name":       details.Order.DriverName,
 		"driver_phone":      details.Order.DriverPhone,
+		"pickup_address":    details.Order.PickupAddress,
+		"dropoff_address":   details.Order.DropoffAddress,
 	})
 }
 
@@ -462,12 +470,13 @@ func (h *PaymentHandler) GetDriverWallet(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"available_balance":   wallet.AvailableBalance,
-		"pending_balance":     wallet.PendingBalance,
-		"debt_balance":        wallet.DebtBalance,
-		"currency":            wallet.Currency,
-		"recent_transactions": txs,
-		"recent_payouts":      payouts,
+		"available_balance":     wallet.AvailableBalance,
+		"pending_balance":       wallet.PendingBalance,
+		"debt_balance":          wallet.DebtBalance,
+		"max_cash_debt_kopecks": h.financeUC.MaxCashDebtKopecks(r.Context()),
+		"currency":              wallet.Currency,
+		"recent_transactions":   txs,
+		"recent_payouts":        payouts,
 	})
 }
 
@@ -536,6 +545,70 @@ func (h *PaymentHandler) ListDriverWalletTransactions(w http.ResponseWriter, r *
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"transactions": txs})
+}
+
+type driverDebtTransactionResponse struct {
+	ID          string `json:"id"`
+	OrderID     string `json:"order_id"`
+	Type        string `json:"type"`
+	Direction   string `json:"direction"`
+	Amount      int64  `json:"amount"`
+	Currency    string `json:"currency"`
+	Status      string `json:"status"`
+	Description string `json:"description"`
+	OrderAmount int64  `json:"order_amount"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// @Summary      List driver cash-commission debt history
+// @Description  Returns the transactions that built the driver's cash-commission debt (cash_commission_debt)
+// @Tags         driver
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "debt transactions, accrued and repaid totals"
+// @Failure      401  {object}  ErrorResponse  "unauthorized"
+// @Router       /driver/wallet/debt [get]
+func (h *PaymentHandler) ListDriverDebt(w http.ResponseWriter, r *http.Request) {
+	driverID, err := userIDFromContext(r.Context())
+	if err != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	items, err := h.repo.ListDebtTransactions(r.Context(), driverID, 50)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	resp := make([]driverDebtTransactionResponse, 0, len(items))
+	var accrued int64
+	var repaid int64
+	for _, item := range items {
+		if item.OrderID != nil {
+			orderID := *item.OrderID
+			if item.Type == paymentdomain.WalletTypeCashCommissionDebt {
+				accrued += item.Amount
+			} else {
+				repaid += item.Amount
+			}
+			resp = append(resp, driverDebtTransactionResponse{
+				ID:          item.ID,
+				OrderID:     orderID,
+				Type:        string(item.Type),
+				Direction:   string(item.Direction),
+				Amount:      item.Amount,
+				Currency:    item.Currency,
+				Status:      string(item.Status),
+				Description: item.Description,
+				OrderAmount: item.OrderAmount,
+				CreatedAt:   item.CreatedAt.Format(time.RFC3339),
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"transactions": resp,
+		"accrued":      accrued,
+		"repaid":       repaid,
+	})
 }
 
 // @Summary      List driver payouts
@@ -989,7 +1062,8 @@ func (h *PaymentHandler) writeDriverGateError(w http.ResponseWriter, err error) 
 	switch {
 	case errors.Is(err, driveruc.ErrDriverDocumentsNotApproved),
 		errors.Is(err, driveruc.ErrDriverTaxNotVerified),
-		errors.Is(err, driveruc.ErrDriverSubscriptionInactive):
+		errors.Is(err, driveruc.ErrDriverSubscriptionInactive),
+		errors.Is(err, driveruc.ErrOutstandingDebtBlocksWork):
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	default:
 		writeInternalError(w, err)
@@ -1107,6 +1181,46 @@ func newPaymentTransactionResponse(transaction paymentdomain.PaymentTransaction)
 		Status:    transaction.Status,
 		CreatedAt: transaction.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+// The helpers below back the cash-receipt fallback in GetOrderReceipt: cash
+// orders have no payments row, so the receipt is assembled from the order plus
+// wallet_transactions. They mirror the payments-derived values when a payment
+// does exist and fall back to order data otherwise.
+
+func paymentIDOrEmpty(payment *paymentdomain.Payment) string {
+	if payment == nil {
+		return ""
+	}
+	return payment.ID
+}
+
+func paymentAmountOrOrderTotal(payment *paymentdomain.Payment, orderTotal int64) int64 {
+	if payment == nil {
+		return orderTotal
+	}
+	return payment.Amount
+}
+
+func paymentCurrencyOrRUB(payment *paymentdomain.Payment) string {
+	if payment == nil {
+		return paymentdomain.CurrencyRUB
+	}
+	return payment.Currency
+}
+
+func paymentMethodOrOrder(payment *paymentdomain.Payment, orderMethod string) string {
+	if payment != nil {
+		return string(payment.PaymentMethod)
+	}
+	return orderMethod
+}
+
+func paymentStatusOrSucceeded(payment *paymentdomain.Payment) string {
+	if payment == nil {
+		return string(paymentdomain.PaymentStatusSucceeded)
+	}
+	return string(payment.Status)
 }
 
 func newFinancePaymentResponse(payment *paymentdomain.Payment) map[string]any {

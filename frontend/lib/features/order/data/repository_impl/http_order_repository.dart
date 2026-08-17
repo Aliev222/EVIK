@@ -423,6 +423,8 @@ class OrderReceipt {
     this.driverId,
     this.driverName,
     this.driverPhone,
+    this.pickupAddress,
+    this.dropoffAddress,
   });
 
   final String orderId;
@@ -438,6 +440,8 @@ class OrderReceipt {
   final String? driverId;
   final String? driverName;
   final String? driverPhone;
+  final String? pickupAddress;
+  final String? dropoffAddress;
 
   factory OrderReceipt.fromJson(Map<String, dynamic> json) {
     return OrderReceipt(
@@ -461,6 +465,8 @@ class OrderReceipt {
       driverId: json['driver_id']?.toString(),
       driverName: json['driver_name']?.toString(),
       driverPhone: json['driver_phone']?.toString(),
+      pickupAddress: json['pickup_address']?.toString(),
+      dropoffAddress: json['dropoff_address']?.toString(),
     );
   }
 }

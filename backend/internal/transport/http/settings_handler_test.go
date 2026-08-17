@@ -58,6 +58,8 @@ func TestSettingsUpdate_ValidValuesArePersisted(t *testing.T) {
 		{"weekly subscription price", "driver_subscription_weekly_price", `{"key":"driver_subscription_weekly_price","value":250000}`, float64(250000)},
 		{"monthly subscription price", "driver_subscription_monthly_price", `{"key":"driver_subscription_monthly_price","value":"900000"}`, "900000"},
 		{"min withdrawal", "min_withdrawal_kopecks", `{"key":"min_withdrawal_kopecks","value":100000}`, float64(100000)},
+		{"max cash debt", "max_cash_debt_kopecks", `{"key":"max_cash_debt_kopecks","value":100000}`, float64(100000)},
+		{"max cash debt zero disables gate", "max_cash_debt_kopecks", `{"key":"max_cash_debt_kopecks","value":0}`, float64(0)},
 		{"offer timeout", "offer_timeout_seconds", `{"key":"offer_timeout_seconds","value":30}`, float64(30)},
 		{"dispatch round limit", "dispatch_round_limit", `{"key":"dispatch_round_limit","value":"3"}`, "3"},
 		{"payout mode", "payout_mode", `{"key":"payout_mode","value":"manual"}`, "manual"},
@@ -125,6 +127,10 @@ func TestSettingsUpdate_MoneyKeys(t *testing.T) {
 		{"null price rejects", `{"key":"driver_subscription_daily_price","value":null}`},
 		{"bool price rejects", `{"key":"driver_subscription_daily_price","value":true}`},
 		{"string negative min withdrawal rejects", `{"key":"min_withdrawal_kopecks","value":"-10"}`},
+		{"negative max cash debt rejects", `{"key":"max_cash_debt_kopecks","value":-100}`},
+		{"fractional max cash debt rejects", `{"key":"max_cash_debt_kopecks","value":1000.5}`},
+		{"non-numeric max cash debt rejects", `{"key":"max_cash_debt_kopecks","value":"abc"}`},
+		{"null max cash debt rejects", `{"key":"max_cash_debt_kopecks","value":null}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

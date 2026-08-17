@@ -66,6 +66,11 @@ type Repository interface {
 	GetDriverWallet(ctx context.Context, driverID string) (*DriverWallet, error)
 	GetDriverEarnings(ctx context.Context, driverID string, todayStart, weekStart, monthStart time.Time) (DriverEarnings, error)
 	ListWalletTransactions(ctx context.Context, driverID string, limit int) ([]WalletTransaction, error)
+	// ListDebtTransactions returns the driver's cash-commission debt
+	// transactions (cash_commission_debt + debt_repayment) newest first, each
+	// enriched with the total of the linked order. Only the requesting driver's
+	// own transactions are ever returned.
+	ListDebtTransactions(ctx context.Context, driverID string, limit int) ([]DriverDebtTransaction, error)
 	ListPayouts(ctx context.Context, driverID string, limit int) ([]Payout, error)
 	ListPayoutMethods(ctx context.Context, driverID string) ([]DriverPayoutMethod, error)
 	AddPayoutMethod(ctx context.Context, method DriverPayoutMethod) error

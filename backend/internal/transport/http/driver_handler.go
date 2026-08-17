@@ -522,7 +522,8 @@ func (h *DriverHandler) writeDriverGateError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, driveruc.ErrDriverDocumentsNotApproved),
 		errors.Is(err, driveruc.ErrDriverTaxNotVerified),
-		errors.Is(err, driveruc.ErrDriverSubscriptionInactive):
+		errors.Is(err, driveruc.ErrDriverSubscriptionInactive),
+		errors.Is(err, driveruc.ErrOutstandingDebtBlocksWork):
 		h.writeError(w, http.StatusForbidden, err)
 	default:
 		h.writeError(w, http.StatusInternalServerError, err)

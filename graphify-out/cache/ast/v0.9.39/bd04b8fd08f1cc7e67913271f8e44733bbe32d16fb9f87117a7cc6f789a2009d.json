@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_evik_admin_web", "label": "evik/admin-web", "file_type": "code", "type": "package", "ecosystem": "go", "source_file": "admin-web/go.mod", "source_location": "L1"}], "edges": []}

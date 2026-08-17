@@ -67,6 +67,8 @@ type AdminOrderListItem struct {
 	PriceTotal       int64
 	CommissionAmount int64
 	DriverAmount     int64
+	PickupAddress    string
+	DropoffAddress   string
 	CreatedAt        time.Time
 	CompletedAt      *time.Time
 	CancelledAt      *time.Time

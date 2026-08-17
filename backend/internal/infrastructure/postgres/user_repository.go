@@ -391,6 +391,17 @@ SELECT EXISTS(
 	return ok, err
 }
 
+// DriverDebtBalance returns the driver's outstanding cash-commission debt in
+// kopecks. A missing wallet row (never created) means no debt.
+func (r *UserRepository) DriverDebtBalance(ctx context.Context, driverID string) (int64, error) {
+	var debt int64
+	err := r.db.QueryRowContext(ctx, `SELECT COALESCE(debt_balance, 0) FROM driver_wallets WHERE driver_id = $1`, driverID).Scan(&debt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return debt, err
+}
+
 func (r *UserRepository) scanUser(row *sql.Row) (*userdomain.User, error) {
 	var user userdomain.User
 	var role string
