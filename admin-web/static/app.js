@@ -2670,12 +2670,14 @@ async function renderDocuments(main) {
       </div>
       <table class="glass-table">
       <thead><tr>
+        <th><input type="checkbox" id="doc-sel-all" class="doc-sel" title="Выбрать все"></th>
         <th>ID</th><th>Имя</th><th>Телефон</th><th>Город</th>
         <th>Гос. номер</th><th>Машина</th><th>Тип</th>
         <th>Статус</th><th>Подана</th>
       </tr></thead>
       <tbody>
         ${pageItems.map(v => `<tr data-id="${escapeHtml(v.id)}">
+          <td><input type="checkbox" class="doc-sel" value="${escapeHtml(v.id)}"></td>
           <td class="mono">${shortId(v.id)}</td>
           <td>${escapeHtml(v.driver_name || '—')}</td>
           <td class="mono">${escapeHtml(v.phone || '')}</td>
@@ -2688,7 +2690,45 @@ async function renderDocuments(main) {
         </tr>`).join('')}
       </tbody>
     </table></div>
+    <div id="doc-batch-bar" class="doc-batch-bar" hidden>
+      <button class="btn btn-success" id="doc-batch-approve">Одобрить выбранных</button>
+      <button class="btn btn-danger" id="doc-batch-reject">Отклонить выбранных</button>
+      <span class="doc-batch-count" id="doc-batch-count"></span>
+    </div>
     <div class="pagination-bar">${Pagination(total, documentsState.limit, documentsState.offset, (off) => { documentsState.offset = off; renderDocuments(main); })}</div>`;
+    const batchBar = $('#doc-batch-bar', container);
+    const batchCount = $('#doc-batch-count', container);
+    const selectedDocIds = () => $$('input.doc-sel', container).filter(c => c.checked && c.value && c.id !== 'doc-sel-all').map(c => c.value);
+    const updateBatchBar = () => {
+      const n = selectedDocIds().length;
+      if (batchBar) batchBar.hidden = n === 0;
+      if (batchCount) batchCount.textContent = n ? `Выбрано: ${n}` : '';
+    };
+    $$('input.doc-sel', container).forEach(chk => {
+      chk.onchange = () => {
+        if (chk.id === 'doc-sel-all') $$('input.doc-sel', container).forEach(c => { c.checked = chk.checked; });
+        updateBatchBar();
+      };
+      chk.onclick = (e) => e.stopPropagation();
+    });
+    const approveBtn = $('#doc-batch-approve', container);
+    if (approveBtn) approveBtn.onclick = () => {
+      const ids = selectedDocIds();
+      if (!ids.length) return;
+      confirmDialog(`Одобрить ${ids.length} заявок?`, async () => {
+        try {
+          await api.post('/api/v1/admin/moderation/batch/approve', { ids });
+          toast('Одобрено: ' + ids.length, 'success');
+          renderDocuments(main);
+        } catch (e) { toast('Ошибка: ' + e.message, 'error'); }
+      });
+    };
+    const rejectBtn = $('#doc-batch-reject', container);
+    if (rejectBtn) rejectBtn.onclick = () => {
+      const ids = selectedDocIds();
+      if (!ids.length) return;
+      batchRejectModal(ids, () => renderDocuments(main));
+    };
     $$('tbody tr', container).forEach(tr => tr.onclick = () => openVerificationDrawer(items.find(v => v.id === tr.dataset.id)));
   } catch (e) {
     container.innerHTML = ErrorState(e.message, () => renderDocuments(main));
@@ -2770,6 +2810,22 @@ function moderationReasonModal(id, action, title) {
         await api.post(`/api/v1/admin/moderation/driver-verifications/${encodeURIComponent(id)}/${action}`, { reason });
         toast('Готово', 'success');
         close(); closeDrawer(); pageDocuments($('.main'));
+      } catch (e) { toast(e.message, 'error'); }
+    }},
+  ]);
+}
+
+function batchRejectModal(ids, onDone) {
+  openModal('Отклонить заявки', `<p class="muted">Будет отклонено заявок: <b>${ids.length}</b>. Причина будет видна водителю и сохранена в аудит-логе.</p>
+    <div class="form-group"><label>Причина (мин. 8 символов)</label><textarea name="reason"></textarea></div>`, [
+    { label: 'Отмена', onClick: ({ close }) => close() },
+    { label: 'Отклонить', cls: 'btn-danger', onClick: async ({ getInput, close }) => {
+      const reason = (getInput('reason') || '').trim();
+      if (reason.length < 8) { toast('Причина должна быть не короче 8 символов', 'warning'); return; }
+      try {
+        await api.post('/api/v1/admin/moderation/batch/reject', { ids, reason });
+        toast('Отклонено: ' + ids.length, 'success');
+        close(); onDone && onDone();
       } catch (e) { toast(e.message, 'error'); }
     }},
   ]);
