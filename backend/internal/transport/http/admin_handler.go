@@ -1559,6 +1559,8 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 		"order":          adminOrderItemJSON(details.Order),
 		"pickup":         map[string]any{"lat": details.Pickup.Lat, "lng": details.Pickup.Lng},
 		"dropoff":        map[string]any{"lat": details.Dropoff.Lat, "lng": details.Dropoff.Lng},
+		"pickup_address": details.Order.PickupAddress,
+		"dropoff_address": details.Order.DropoffAddress,
 		"tow_truck_type": details.TowTruckType,
 		"timeline":       timeline,
 		"payment":        payment,
@@ -1698,6 +1700,8 @@ func adminOrderItemJSON(item orderdomain.AdminOrderListItem) map[string]any {
 		"created_at":        item.CreatedAt.Format(time.RFC3339),
 		"completed_at":      formatNullableTime(item.CompletedAt),
 		"cancelled_at":      formatNullableTime(item.CancelledAt),
+		"pickup_address":    item.PickupAddress,
+		"dropoff_address":   item.DropoffAddress,
 	}
 }
 

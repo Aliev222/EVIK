@@ -848,7 +848,8 @@ SELECT
 	), 0) AS driver_amount,
 	o.created_at,
 	o.financially_completed_at AS completed_at,
-	o.cancelled_at
+	o.cancelled_at,
+	o.pickup_address, o.dropoff_address
 FROM orders o
 LEFT JOIN users cu ON cu.id = o.user_id
 LEFT JOIN drivers d ON d.id = o.driver_id
@@ -893,6 +894,8 @@ LIMIT ` + argRef(len(args)+1) + ` OFFSET ` + argRef(len(args)+2)
 			&item.CreatedAt,
 			&completedAt,
 			&cancelledAt,
+			&item.PickupAddress,
+			&item.DropoffAddress,
 		); err != nil {
 			return nil, 0, err
 		}

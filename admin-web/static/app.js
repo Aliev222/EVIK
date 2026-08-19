@@ -1123,6 +1123,8 @@ async function pageOrders(main) {
     const rowsHtml = items.map(o => {
       const cliMain = o.client_name || o.client_phone || '—';
       const cliPhone = o.client_phone || '';
+      const routeParts = [o.pickup_address, o.dropoff_address].filter(Boolean);
+      const routeLine = routeParts.length ? routeParts.join(' → ') : '';
       const drvMain = o.driver_name || (o.driver_id ? '—' : 'Не назначен');
       const drvPhone = o.driver_phone || '';
       return `
@@ -1136,6 +1138,7 @@ async function pageOrders(main) {
           <td>
             <div class="ord-cell-primary">${escapeHtml(cliMain)}</div>
             ${cliPhone ? `<div class="ord-cell-mono">${escapeHtml(cliPhone)}</div>` : ''}
+            ${routeLine ? `<div class="ord-cell-mono" title="${escapeHtml(routeLine)}">${escapeHtml(routeLine)}</div>` : ''}
           </td>
           <td class="ord-cell-mono">${escapeHtml(cliPhone || '—')}</td>
           <td>
@@ -1289,10 +1292,13 @@ async function openOrderDrawer(orderId) {
 
   const fmtCoord = (p) => (p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? (p.lat.toFixed(5) + ', ' + p.lng.toFixed(5)) : '—';
 
+  const pickupAddress = (d.pickup_address || '').trim();
+  const dropoffAddress = (d.dropoff_address || '').trim();
+
   const routeBlock = `
     <div class="ord-kv">
-      <div class="ord-kv-row"><div class="ord-kv-k">Pickup адрес</div><div class="ord-kv-v">—</div></div>
-      <div class="ord-kv-row"><div class="ord-kv-k">Dropoff адрес</div><div class="ord-kv-v">—</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Pickup адрес</div><div class="ord-kv-v">${pickupAddress ? escapeHtml(pickupAddress) : '—'}</div></div>
+      <div class="ord-kv-row"><div class="ord-kv-k">Dropoff адрес</div><div class="ord-kv-v">${dropoffAddress ? escapeHtml(dropoffAddress) : '—'}</div></div>
       <div class="ord-kv-row"><div class="ord-kv-k">Pickup координаты</div><div class="ord-kv-v mono">${escapeHtml(fmtCoord(pickup))}</div></div>
       <div class="ord-kv-row"><div class="ord-kv-k">Dropoff координаты</div><div class="ord-kv-v mono">${escapeHtml(fmtCoord(dropoff))}</div></div>
     </div>`;
