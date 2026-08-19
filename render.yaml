@@ -46,6 +46,19 @@ services:
         source: /*
         destination: /index.html
 
+  # Admin Web — Go reverse proxy + SPA (static app.js)
+  - type: web
+    name: evik-admin
+    env: go
+    region: frankfurt
+    plan: starter
+    rootDir: admin-web
+    buildCommand: go build -tags netgo -ldflags "-s -w" -o admin .
+    startCommand: ./admin
+    envVars:
+      - key: ADMIN_API_BASE_URL
+        value: https://tow-truck.onrender.com
+
 databases:
   - name: evik-postgres
     region: frankfurt

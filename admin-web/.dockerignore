@@ -1,0 +1,7 @@
+backend/
+frontend/
+graphify-out/
+.git/
+Dockerfile
+*.md
+*.bat

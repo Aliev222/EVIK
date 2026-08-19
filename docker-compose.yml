@@ -23,6 +23,16 @@ services:
     volumes:
       - redis_data:/data
 
+  admin-web:
+    build: ./admin-web
+    container_name: evik-admin-web
+    restart: unless-stopped
+    ports:
+      - "5174:5174"
+    environment:
+      ADMIN_WEB_ADDR: ":5174"
+      ADMIN_API_BASE_URL: ${ADMIN_API_BASE_URL:-http://host.docker.internal:8080}
+
 volumes:
   postgres_data:
   redis_data:

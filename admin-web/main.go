@@ -18,7 +18,9 @@ const defaultAddr = ":5174"
 const defaultBackend = "http://localhost:8080"
 
 func main() {
-	addr := envOr("ADMIN_WEB_ADDR", defaultAddr)
+	// PORT is the conventional pass-through used by PaaS (e.g. Render); it
+	// takes precedence over the explicit ADMIN_WEB_ADDR override.
+	addr := envOr("PORT", envOr("ADMIN_WEB_ADDR", defaultAddr))
 	backendRaw := envOr("ADMIN_API_BASE_URL", defaultBackend)
 
 	target, err := url.Parse(backendRaw)
