@@ -1400,7 +1400,10 @@ async function openOrderDrawer(orderId) {
   loadOrderReview(orderId);
 }
 
+let _orderReviewReqSeq = 0;
+
 async function loadOrderReview(orderId) {
+  const seq = ++_orderReviewReqSeq;
   let reviewSlot = document.getElementById('ord-review-slot');
   if (!reviewSlot) return;
   let review = null;
@@ -1410,6 +1413,7 @@ async function loadOrderReview(orderId) {
   } catch (_) {
     review = null;
   }
+  if (seq !== _orderReviewReqSeq) return;
   reviewSlot = document.getElementById('ord-review-slot');
   if (!reviewSlot) return;
   reviewSlot.innerHTML = review && review.stars > 0
