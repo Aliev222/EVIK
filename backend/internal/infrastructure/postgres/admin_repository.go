@@ -534,13 +534,14 @@ SELECT
 	r.driver_id,
 	COALESCE(v.full_name, r.driver_id) AS driver_name,
 	r.client_id,
-	r.client_id AS client_name,
+	COALESCE(c.full_name, r.client_id) AS client_name,
 	r.stars,
 	r.comment,
 	r.is_hidden,
 	r.created_at
 FROM driver_reviews r
 LEFT JOIN driver_verifications v ON v.user_id = r.driver_id
+LEFT JOIN users c ON c.id = r.client_id
 %s
 ORDER BY r.created_at DESC
 LIMIT $%d OFFSET $%d`, whereClause, argIdx, argIdx+1)

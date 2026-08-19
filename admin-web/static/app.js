@@ -1365,7 +1365,7 @@ async function openOrderDrawer(orderId) {
         }).join('')}
       </div>`;
 
-  const reviewBlock = `<div class="ord-empty-section">Отзыв отсутствует</div>`;
+  const reviewBlock = `<div id="ord-review-slot"><div class="ord-empty-section">Загрузка отзыва...</div></div>`;
 
   const section = (id, title, iconName, body) => `
     <section class="ord-section">
@@ -1390,6 +1390,42 @@ async function openOrderDrawer(orderId) {
   document.querySelectorAll('#drawer-root [data-drawer-copy]').forEach(el => {
     el.onclick = () => copyToClipboard(el.dataset.drawerCopy);
   });
+
+  loadOrderReview(orderId);
+}
+
+async function loadOrderReview(orderId) {
+  let reviewSlot = document.getElementById('ord-review-slot');
+  if (!reviewSlot) return;
+  let review = null;
+  try {
+    const rd = await api.get('/api/v1/orders/' + encodeURIComponent(orderId) + '/review');
+    review = (rd && rd.review) || null;
+  } catch (_) {
+    review = null;
+  }
+  reviewSlot = document.getElementById('ord-review-slot');
+  if (!reviewSlot) return;
+  reviewSlot.innerHTML = review && review.stars > 0
+    ? `<div class="ord-kv">
+        <div class="ord-kv-row">
+          <div class="ord-kv-k">Оценка</div>
+          <div class="ord-kv-v">${'★'.repeat(Math.max(0, Math.min(5, review.stars || 0)))}${'☆'.repeat(Math.max(0, 5 - (review.stars || 0)))}</div>
+        </div>
+        <div class="ord-kv-row">
+          <div class="ord-kv-k">Клиент</div>
+          <div class="ord-kv-v">${escapeHtml(review.client_name || review.client_id || '—')}</div>
+        </div>
+        <div class="ord-kv-row">
+          <div class="ord-kv-k">Дата</div>
+          <div class="ord-kv-v">${formatDate(review.created_at)}</div>
+        </div>
+        <div class="ord-kv-row">
+          <div class="ord-kv-k">Текст отзыва</div>
+          <div class="ord-kv-v">${escapeHtml(review.text || '—')}</div>
+        </div>
+      </div>`
+    : `<div class="ord-empty-section">Отзыв отсутствует</div>`;
 }
 
 /* ---------- 7.3 Drivers ---------- */
@@ -2352,7 +2388,14 @@ function openDriverDrawer(rec) {
     <div class="ord-kv-row"><div class="ord-kv-k">Причина модерации</div><div class="ord-kv-v">${escapeHtml((v.decision_reason || '') || '—')}</div></div>
   </div>` : `<div class="ord-empty-section">Заявка на верификацию не подана</div>`;
 
-  const tax = `<div class="ord-empty-section">Источник данных недоступен · endpoint <code>/admin/tax-profiles</code> отсутствует</div>`;
+  const t = rec.tax || null;
+  const tax = t ? `<div class="ord-kv">
+    <div class="ord-kv-row"><div class="ord-kv-k">ИНН</div><div class="ord-kv-v mono">${escapeHtml(t.inn || '—')}</div></div>
+    <div class="ord-kv-row"><div class="ord-kv-k">Тип налогоплательщика</div><div class="ord-kv-v">${escapeHtml(t.taxpayer_type || '—')}</div></div>
+    <div class="ord-kv-row"><div class="ord-kv-k">Статус</div><div class="ord-kv-v">${taxBadge(t.verification_status)}</div></div>
+    <div class="ord-kv-row"><div class="ord-kv-k">Создан</div><div class="ord-kv-v">${formatDate(t.created_at)}</div></div>
+    <div class="ord-kv-row"><div class="ord-kv-k">Обновлён</div><div class="ord-kv-v">${formatDate(t.updated_at)}</div></div>
+  </div>` : `<div class="ord-empty-section">Налоговый профиль не заполнен</div>`;
 
   const wallet = w ? `<div class="ord-kv">
     <div class="ord-kv-row"><div class="ord-kv-k">Available balance</div><div class="ord-kv-v num">${formatMoneyMinor(w.available)}</div></div>
@@ -4256,6 +4299,7 @@ async function pageSettings(main) {
 
     const groups = {
       'Финансы': ['commission_percent', 'payout_mode', 'min_withdrawal_kopecks',
+        'max_cash_debt_kopecks',
         'driver_subscription_daily_price', 'driver_subscription_weekly_price', 'driver_subscription_monthly_price'],
       'Диспетчеризация': ['offer_timeout_seconds', 'dispatch_round_limit'],
     };
@@ -4270,8 +4314,8 @@ async function pageSettings(main) {
           ${keys.map(key => {
             const s = settingsMap[key];
             if (!s) return '';
-            const isSub = SUBSCRIPTION_PRICE_KEYS.includes(key);
-            const displayVal = isSub ? rubDisplay(s.value) : formatSettingValue(s.value);
+            const isMoney = MONEY_KEYS.includes(key);
+            const displayVal = isMoney ? rubDisplay(s.value) : formatSettingValue(s.value);
             return `<div class="form-group" data-key="${escapeHtml(key)}">
               <label>${escapeHtml(s.description || key)}</label>
               <div class="settings-row">
@@ -4299,9 +4343,9 @@ async function pageSettings(main) {
         const input = group.querySelector('.setting-input');
         const msg = group.querySelector('.setting-msg');
         const rawValue = input.value.trim();
-        const isSub = SUBSCRIPTION_PRICE_KEYS.includes(key);
+        const isMoney = MONEY_KEYS.includes(key);
         msg.style.display = 'none';
-        if (isSub) {
+        if (isMoney) {
           const err = validateRubles(rawValue);
           if (err) {
             msg.textContent = err;
@@ -4310,7 +4354,7 @@ async function pageSettings(main) {
             return;
           }
         }
-        const parsed = isSub ? rubToKopecks(rawValue) : parseSettingValue(rawValue);
+        const parsed = isMoney ? rubToKopecks(rawValue) : parseSettingValue(rawValue);
         btn.disabled = true;
         btn.textContent = 'Сохранение...';
         try {
@@ -4334,7 +4378,8 @@ async function pageSettings(main) {
   }
 }
 
-const SUBSCRIPTION_PRICE_KEYS = ['driver_subscription_daily_price', 'driver_subscription_weekly_price', 'driver_subscription_monthly_price'];
+const MONEY_KEYS = ['driver_subscription_daily_price', 'driver_subscription_weekly_price',
+  'driver_subscription_monthly_price', 'min_withdrawal_kopecks', 'max_cash_debt_kopecks'];
 
 function rubDisplay(v) {
   const n = Number(v);
