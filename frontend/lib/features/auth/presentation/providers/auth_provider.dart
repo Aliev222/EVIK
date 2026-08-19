@@ -177,6 +177,77 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Test-mode password sign-in: registers on first use (or logs in) with the
+  /// phone + password pair, bypassing SMS OTP. Compiled in only when
+  /// --dart-define=EVIK_TEST_LOGIN=true is set.
+  Future<void> signInWithPassword(
+    String rawPhoneNumber,
+    String password, {
+    UserRole role = UserRole.client,
+  }) async {
+    final normalizedPhone = _normalizePhone(rawPhoneNumber);
+    if (normalizedPhone == null || password.trim().isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Введите номер телефона и пароль.',
+      );
+      return;
+    }
+    state = state.copyWith(
+      isLoading: true,
+      clearError: true,
+      phoneNumber: normalizedPhone,
+      pendingRole: role,
+      clearForceResendingToken: true,
+    );
+    try {
+      final authResult = await _api.registerOrLogin(
+        phone: normalizedPhone,
+        fullName: '',
+        role: role,
+        password: password.trim(),
+      );
+      final tokens = authResult.tokens;
+      final now = DateTime.now();
+      final displayName = authResult.identity.fullName.isNotEmpty
+          ? authResult.identity.fullName
+          : normalizedPhone;
+      final user = User(
+        id: authResult.identity.userID,
+        phone: normalizedPhone,
+        fullName: displayName,
+        role: role,
+        avatar: null,
+        isActive: true,
+        createdAt: now,
+        lastSeen: now,
+      );
+      if (role == UserRole.driver) {
+        try {
+          await _api.initializeDriverProfile(
+            userID: user.id,
+            accessToken: tokens.accessToken,
+          );
+        } catch (error) {
+          debugPrint('Warning: Could not initialize driver profile: $error');
+        }
+      }
+      await _saveSession(user, tokens);
+      unawaited(_syncFcmTokenForSession(user, tokens.accessToken));
+      state = state.copyWith(
+        user: user,
+        isLoading: false,
+        clearError: true,
+        clearPendingAuth: true,
+      );
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: _loginErrorMessage(error),
+      );
+    }
+  }
+
   Future<void> verifySmsCode(String code) async {
     final sanitizedCode = code.replaceAll(RegExp(r'[^\d]'), '');
     if (sanitizedCode.length != 6) {

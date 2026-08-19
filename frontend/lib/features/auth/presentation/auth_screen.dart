@@ -21,9 +21,13 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
+const bool _kTestLogin = bool.fromEnvironment('EVIK_TEST_LOGIN');
+
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
   UserRole? _role;
+  bool _testPasswordMode = false;
 
   @override
   void initState() {
@@ -34,6 +38,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   void dispose() {
     _phoneController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -87,17 +92,56 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 onChanged: (_) => setState(() {}),
                 isValid: _isPhoneValid(),
               ),
+              if (_kTestLogin && _testPasswordMode) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Пароль',
+                    hintText: 'Минимум 6 символов',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+              if (_kTestLogin) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => setState(
+                      () => _testPasswordMode = !_testPasswordMode,
+                    ),
+                    child: Text(
+                      _testPasswordMode
+                          ? '← Вернуться к входу по SMS'
+                          : 'Тестовый вход по паролю',
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               _buildPhoneValidationHint(_phoneController.text),
               const SizedBox(height: 14),
               Expanded(
-                child: Text(
-                  'Мы отправим SMS с кодом подтверждения на этот номер',
-                  style: EvikTypography.bodyLarge.copyWith(
-                    color: AvroClientColors.textSecondary,
-                    height: 1.35,
-                  ),
-                ),
+                child: _testPasswordMode
+                    ? Text(
+                        'Режим теста: аккаунт создаётся автоматически при первом входе (регистрация по телефону + паролю, без SMS).',
+                        style: EvikTypography.bodyLarge.copyWith(
+                          color: AvroClientColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      )
+                    : Text(
+                        'Мы отправим SMS с кодом подтверждения на этот номер',
+                        style: EvikTypography.bodyLarge.copyWith(
+                          color: AvroClientColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
               ),
               if (authState.errorMessage != null) ...[
                 Container(
@@ -119,10 +163,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
               ],
               EvikButton(
-                text: 'Получить код',
-                onPressed: _isPhoneValid() && !authState.isLoading
-                    ? _sendSmsCode
-                    : null,
+                text: _testPasswordMode ? 'Войти по паролю' : 'Получить код',
+                onPressed:
+                    _isPhoneValid() && !authState.isLoading && _actionEnabled()
+                        ? (_testPasswordMode
+                            ? _signInWithPassword
+                            : _sendSmsCode)
+                        : null,
                 isLoading: authState.isLoading,
                 width: double.infinity,
               ),
@@ -179,6 +226,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
     ref.read(authProvider.notifier).signInWithPhone(
           _phoneController.text.trim(),
+          role: role,
+        );
+  }
+
+  bool _actionEnabled() {
+    if (!_testPasswordMode) return true;
+    return _passwordController.text.trim().length >= 6;
+  }
+
+  void _signInWithPassword() {
+    final role =
+        _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
+    ref.read(authProvider.notifier).signInWithPassword(
+          _phoneController.text.trim(),
+          _passwordController.text,
           role: role,
         );
   }

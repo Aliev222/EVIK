@@ -1,5 +1,5 @@
 /* ============================================================
- * Tow Truck Admin — app.js
+ * Авро Admin — app.js
  * Sections:
  *   1. State
  *   2. Utils
@@ -630,7 +630,7 @@ async function pageDashboard(main) {
       <header class="dash-header">
         <div>
           <h1 class="dash-title">Дашборд</h1>
-          <p class="dash-subtitle">Ключевые показатели платформы Tow Truck</p>
+          <p class="dash-subtitle">Ключевые показатели платформы Авро</p>
         </div>
         <div class="dash-header-meta">
           <span class="dash-pill dash-pill-${state.backendOk === false ? 'err' : 'ok'}">
@@ -660,7 +660,7 @@ async function pageDashboard(main) {
           <div class="dash-card-head">
             <div>
               <div class="dash-card-title">Комиссия за период</div>
-              <div class="dash-card-sub">Заработок Tow Truck, ${hasCommission ? o.commission_by_day.length : 0} точек</div>
+              <div class="dash-card-sub">Заработок Авро, ${hasCommission ? o.commission_by_day.length : 0} точек</div>
             </div>
             <div class="dash-card-figure">${formatMoneyMinor(o.commission_month)}</div>
           </div>
@@ -757,7 +757,7 @@ async function pageDashboard(main) {
               <div class="dash-audience-value">${formatBigInt(o.reviews_today ?? 0)}</div>
             </div>
             <div class="dash-audience-item">
-              <div class="dash-audience-label">Расчёты с Tow Truck</div>
+              <div class="dash-audience-label">Расчёты с Авро</div>
               <div class="dash-audience-value">${formatMoneyMinor(o.cash_debt_total ?? 0)}</div>
             </div>
           </div>
@@ -2427,7 +2427,7 @@ function openDriverDrawer(rec) {
   const wallet = w ? `<div class="ord-kv">
     <div class="ord-kv-row"><div class="ord-kv-k">Available balance</div><div class="ord-kv-v num">${formatMoneyMinor(w.available)}</div></div>
     <div class="ord-kv-row"><div class="ord-kv-k">Pending balance</div><div class="ord-kv-v num">${formatMoneyMinor(w.pending)}</div></div>
-    <div class="ord-kv-row"><div class="ord-kv-k">Расчёты с Tow Truck</div><div class="ord-kv-v num">${formatMoneyMinor(w.debt)}</div></div>
+    <div class="ord-kv-row"><div class="ord-kv-k">Расчёты с Авро</div><div class="ord-kv-v num">${formatMoneyMinor(w.debt)}</div></div>
     <div class="ord-kv-row"><div class="ord-kv-k">Валюта</div><div class="ord-kv-v">${escapeHtml(w.currency || 'RUB')}</div></div>
     <div class="ord-kv-row"><div class="ord-kv-k">Обновлён</div><div class="ord-kv-v">${formatDate(w.updated_at)}</div></div>
   </div>` : `<div class="ord-empty-section">Кошелёк не найден</div>`;
@@ -4414,7 +4414,7 @@ async function pageSettings(main) {
     main.innerHTML = `
       <div class="settings-page">
         <div class="dash-header" style="margin-bottom:20px;">
-          <div><h1 class="dash-title">Настройки платформы</h1><p class="dash-subtitle">Управление конфигурацией Tow Truck</p></div>
+          <div><h1 class="dash-title">Настройки платформы</h1><p class="dash-subtitle">Управление конфигурацией Авро</p></div>
         </div>
         ${groupHtml}
       </div>`;
@@ -4538,7 +4538,7 @@ function renderLogin() {
   $('#app').innerHTML = `
     <div class="login-screen">
       <form class="login-card" id="login-form">
-        <h1>Tow Truck Admin</h1>
+        <h1>Авро Admin</h1>
         <div class="sub">Войдите для управления платформой</div>
         <div class="form-group"><label>Логин</label><input name="username" autocomplete="username" required /></div>
         <div class="form-group"><label>Пароль</label><input name="password" type="password" autocomplete="current-password" required /></div>
@@ -4641,7 +4641,7 @@ function renderShell() {
         <div class="brand">
           <div class="brand-logo">T</div>
           <div class="brand-text">
-            <div class="brand-title">Tow Truck</div>
+            <div class="brand-title">Авро</div>
             <div class="brand-subtitle">Admin Panel</div>
           </div>
         </div>

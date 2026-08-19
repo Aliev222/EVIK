@@ -1,4 +1,4 @@
-# Tow Truck Admin Panel
+# Авро Admin Panel
 
 Чистая пересборка admin-web панели с нуля. Vanilla HTML/CSS/JS + Go proxy server.
 

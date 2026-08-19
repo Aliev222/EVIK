@@ -1,6 +1,6 @@
 {
-    "name": "tow_truck_frontend",
-    "short_name": "tow_truck_frontend",
+    "name": "Авро",
+    "short_name": "Авро",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
