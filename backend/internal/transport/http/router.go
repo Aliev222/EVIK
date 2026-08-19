@@ -179,6 +179,7 @@ func NewRouter(
 				admin.Get("/drivers/locations", driverLocationsHandler.List)
 				admin.Get("/drivers/{driverID}", adminHandler.GetDriverDetail)
 				admin.Get("/drivers/{driverID}/orders", adminHandler.ListDriverOrders)
+				admin.Get("/drivers/{driverID}/reviews", adminHandler.GetDriverReviews)
 				admin.Get("/finance-v2/payments", adminHandler.ListAdminPayments)
 				admin.Get("/finance-v2/wallets", adminHandler.ListAdminWallets)
 				admin.Get("/finance-v2/transactions", adminHandler.ListAdminTransactions)

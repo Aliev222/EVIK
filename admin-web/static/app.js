@@ -1564,22 +1564,20 @@ function mergeDriversData(sources) {
   }
 
   // Ensure all records that don't have driver_id are still indexed somewhere.
-  // 4) Wallets — sources.wallets is an array of rows [id, driver_id, available,
-  //    pending, debt, currency, updated_at]. Link by driver_id.
-  for (const row of (sources.wallets || [])) {
-    if (!Array.isArray(row) || row.length < 6) continue;
-    const drvId = row[1];
+  // 4) Wallets — sources.wallets is an array of objects from finance-v2.
+  //    All monetary fields are in kopecks (int64), matching formatMoneyMinor.
+  for (const item of (sources.wallets || [])) {
+    const drvId = item.driver_id;
     if (!drvId) continue;
     const rec = byDriverId.get(drvId);
-    if (!rec) continue; // wallet without known driver in this batch — skip
+    if (!rec) continue;
     rec.wallet = {
-      id: row[0],
       driver_id: drvId,
-      available: Number(row[2]) || 0,
-      pending: Number(row[3]) || 0,
-      debt: Number(row[4]) || 0,
-      currency: row[5] || 'RUB',
-      updated_at: row[6] || '',
+      available: Number(item.available_balance) || 0,
+      pending: Number(item.pending_balance) || 0,
+      debt: Number(item.debt_balance) || 0,
+      currency: item.currency || 'RUB',
+      updated_at: item.updated_at || '',
     };
   }
 
@@ -1959,7 +1957,7 @@ async function pageDrivers(main) {
       safeGet('users', '/api/v1/admin/users', { limit: 200 }),
       safeGet('online', '/api/v1/admin/drivers-online', { limit: 200 }),
       safeGet('verifications', '/api/v1/admin/driver-verifications', { limit: 200 }),
-      safeGet('wallets', '/api/v1/admin/finance/wallets'),
+      safeGet('wallets', '/api/v1/admin/finance-v2/wallets', { limit: 200 }),
       safeGet('orders', '/api/v1/admin/orders', { limit: 200 }),
       safeGet('taxProfiles', '/api/v1/admin/tax-profiles', { limit: 200 }),
     ]);
@@ -1967,7 +1965,7 @@ async function pageDrivers(main) {
     sources.users = (u && u.items) || [];
     sources.online = (o && o.items) || [];
     sources.verifications = (v && v.items) || [];
-    sources.wallets = (w && Array.isArray(w.rows)) ? w.rows : [];
+    sources.wallets = (w && w.items) || [];
     sources.orders = (ords && ords.items) || [];
     sources.taxProfiles = (taxProfiles && taxProfiles.items) || [];
 
@@ -3848,13 +3846,23 @@ async function renderReviews(main) {
         <td>${formatDate(r.created_at)}</td>
         <td class="ord-cell-actions">
           ${r.is_hidden
-            ? `<button class="btn btn-ghost btn-xs" onclick="(async()=>{await actionReview('${escapeHtml(r.id)}','show','Отзыв показан')})()">Показать</button>`
-            : `<button class="btn btn-ghost btn-xs" onclick="(async()=>{await actionReview('${escapeHtml(r.id)}','hide','Отзыв скрыт')})()">Скрыть</button>`}
-          <button class="btn btn-danger btn-xs" onclick="if(confirm('Удалить отзыв?')){deleteReview('${escapeHtml(r.id)}')}">Удалить</button>
+            ? `<button class="btn btn-ghost btn-xs" data-action="review-show" data-review-id="${escapeHtml(r.id)}">Показать</button>`
+            : `<button class="btn btn-ghost btn-xs" data-action="review-hide" data-review-id="${escapeHtml(r.id)}">Скрыть</button>`}
+          <button class="btn btn-danger btn-xs" data-action="review-del" data-review-id="${escapeHtml(r.id)}">Удалить</button>
         </td>
       </tr>`).join('')}</tbody>
     </table></div>
     <div class="pagination-bar">${Pagination(total, reviewsState.limit, reviewsState.offset, (off) => { reviewsState.offset = off; renderReviews(main); })}</div>`;
+
+    container.querySelectorAll('[data-action^="review-"]').forEach(btn => {
+      const id = btn.dataset.reviewId;
+      btn.onclick = () => {
+        const action = btn.dataset.action;
+        if (action === 'review-show') actionReview(id, 'show', 'Отзыв показан');
+        else if (action === 'review-hide') actionReview(id, 'hide', 'Отзыв скрыт');
+        else if (action === 'review-del') confirmDialog('Удалить отзыв?', () => deleteReview(id));
+      };
+    });
   } catch (e) { container.innerHTML = ErrorState(e.message, () => renderReviews(main)); }
 }
 
