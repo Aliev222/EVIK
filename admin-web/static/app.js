@@ -806,6 +806,23 @@ async function pageDashboard(main) {
       </div>`;
     }
   })();
+
+  // Lazy-load pending refunds count from the backend.
+  (async () => {
+    const refundsItem = document.querySelector('.dash-pending-item[data-route="refunds"]');
+    if (!refundsItem) return;
+    try {
+      const data = await api.get('/api/v1/admin/finance/refunds', { query: { status: 'pending', limit: 1 } });
+      const n = Number(data && data.total) || 0;
+      const countEl = refundsItem.querySelector('.dash-pending-count');
+      if (countEl) countEl.textContent = formatBigInt(n);
+      refundsItem.classList.toggle('is-zero', n === 0);
+      refundsItem.classList.toggle('is-danger', n > 0);
+    } catch (_) {
+      const countEl = refundsItem.querySelector('.dash-pending-count');
+      if (countEl) countEl.textContent = '—';
+    }
+  })();
 }
 
 /* ---------- 7.2 Orders ---------- */
