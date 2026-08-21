@@ -4992,6 +4992,7 @@ var THEMES = [
 function applyTheme(name) {
   if (!THEMES.some(t => t.id === name)) name = 'aurora';
   document.documentElement.setAttribute('data-theme', name);
+  document.body.setAttribute('data-theme', name);
   try { localStorage.setItem('admin_theme', name); } catch (_) {}
   const btn = document.getElementById('theme-btn');
   if (btn) {
