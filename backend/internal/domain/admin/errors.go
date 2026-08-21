@@ -25,4 +25,8 @@ var (
 	// can only be lifted through an explicit admin decision, never by a
 	// driver resubmitting the verification form.
 	ErrDriverVerificationBlocked = errors.New("driver verification is blocked")
+
+	// ErrTaxProfileNotFound: an admin tax-profile status update targeted a
+	// driver that has no tax profile row.
+	ErrTaxProfileNotFound = errors.New("tax profile not found")
 )

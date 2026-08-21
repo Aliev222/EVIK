@@ -1396,14 +1396,14 @@ func (r *PaymentRepository) ExportFinanceReport(ctx context.Context, reportType 
 		reportType = "wallet_transactions"
 	}
 	queries := map[string]string{
-		"orders":              `SELECT id, user_id, COALESCE(driver_id,''), status, (price_total::NUMERIC / 100)::TEXT, payment_method, created_at::TEXT FROM orders ORDER BY created_at DESC`,
-		"payments":            `SELECT id, COALESCE(order_id,''), user_id, provider, COALESCE(provider_payment_id,''), payment_method, purpose, (amount::NUMERIC / 100)::TEXT, currency, status, created_at::TEXT FROM payments ORDER BY created_at DESC`,
-		"payouts":             `SELECT id, driver_id, (amount::NUMERIC / 100)::TEXT, currency, status, COALESCE(provider_payout_id,''), created_at::TEXT FROM payouts ORDER BY created_at DESC`,
-		"wallets":             `SELECT id, driver_id, (available_balance::NUMERIC / 100)::TEXT, (pending_balance::NUMERIC / 100)::TEXT, (debt_balance::NUMERIC / 100)::TEXT, currency, updated_at::TEXT FROM driver_wallets ORDER BY updated_at DESC`,
-		"commissions":         `SELECT id, driver_id, COALESCE(order_id,''), type, (amount::NUMERIC / 100)::TEXT, currency, created_at::TEXT FROM wallet_transactions WHERE type IN ('commission','cash_commission_debt','debt_repayment') ORDER BY created_at DESC`,
-		"subscriptions":       `SELECT id, driver_id, plan_id, payment_id, (amount::NUMERIC / 100)::TEXT, currency, status, created_at::TEXT FROM subscriptions ORDER BY created_at DESC`,
-		"cash_debts":          `SELECT id, driver_id, COALESCE(order_id,''), (amount::NUMERIC / 100)::TEXT, status, created_at::TEXT FROM wallet_transactions WHERE type = 'cash_commission_debt' ORDER BY created_at DESC`,
-		"wallet_transactions": `SELECT id, wallet_id, driver_id, COALESCE(order_id,''), COALESCE(payment_id,''), COALESCE(payout_id,''), type, direction, (amount::NUMERIC / 100)::TEXT, currency, status, description, created_at::TEXT FROM wallet_transactions ORDER BY created_at DESC`,
+		"orders":              `SELECT id, user_id, COALESCE(driver_id,'') AS driver_id, status, (price_total::NUMERIC / 100)::TEXT AS price_total_rub, payment_method, created_at::TEXT AS created_at FROM orders ORDER BY created_at DESC`,
+		"payments":            `SELECT id, COALESCE(order_id,'') AS order_id, user_id, provider, COALESCE(provider_payment_id,'') AS provider_payment_id, payment_method, purpose, (amount::NUMERIC / 100)::TEXT AS amount_rub, currency, status, created_at::TEXT AS created_at FROM payments ORDER BY created_at DESC`,
+		"payouts":             `SELECT id, driver_id, (amount::NUMERIC / 100)::TEXT AS amount_rub, currency, status, COALESCE(provider_payout_id,'') AS provider_payout_id, created_at::TEXT AS created_at FROM payouts ORDER BY created_at DESC`,
+		"wallets":             `SELECT id, driver_id, (available_balance::NUMERIC / 100)::TEXT AS available_balance_rub, (pending_balance::NUMERIC / 100)::TEXT AS pending_balance_rub, (debt_balance::NUMERIC / 100)::TEXT AS debt_balance_rub, currency, updated_at::TEXT AS updated_at FROM driver_wallets ORDER BY updated_at DESC`,
+		"commissions":         `SELECT id, driver_id, COALESCE(order_id,'') AS order_id, type, (amount::NUMERIC / 100)::TEXT AS amount_rub, currency, created_at::TEXT AS created_at FROM wallet_transactions WHERE type IN ('commission','cash_commission_debt','debt_repayment') ORDER BY created_at DESC`,
+		"subscriptions":       `SELECT id, driver_id, plan_id, payment_id, (amount::NUMERIC / 100)::TEXT AS amount_rub, currency, status, created_at::TEXT AS created_at FROM subscriptions ORDER BY created_at DESC`,
+		"cash_debts":          `SELECT id, driver_id, COALESCE(order_id,'') AS order_id, (amount::NUMERIC / 100)::TEXT AS amount_rub, status, created_at::TEXT AS created_at FROM wallet_transactions WHERE type = 'cash_commission_debt' ORDER BY created_at DESC`,
+		"wallet_transactions": `SELECT id, wallet_id, driver_id, COALESCE(order_id,'') AS order_id, COALESCE(payment_id,'') AS payment_id, COALESCE(payout_id,'') AS payout_id, type, direction, (amount::NUMERIC / 100)::TEXT AS amount_rub, currency, status, description, created_at::TEXT AS created_at FROM wallet_transactions ORDER BY created_at DESC`,
 	}
 	query, ok := queries[reportType]
 	if !ok {

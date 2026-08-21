@@ -48,6 +48,9 @@ reviews_today AS (
 active_orders AS (
 	SELECT COUNT(*) AS count FROM orders WHERE status IN ('searching', 'accepted', 'arrived', 'in_progress')
 ),
+orders_today AS (
+	SELECT COUNT(*) AS count FROM orders WHERE created_at >= DATE_TRUNC('day', NOW())
+),
 -- Finance KPI. All money in kopecks (BIGINT).
 gmv_today AS (
 	SELECT COALESCE(SUM(price_total), 0) AS amount
@@ -97,6 +100,20 @@ subs_month AS (
 ),
 cash_debt_total AS (
 	SELECT COALESCE(SUM(debt_balance), 0) AS amount FROM driver_wallets
+),
+-- Response time metrics: average time from offer to acceptance (seconds).
+avg_acceptance AS (
+	SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (resolved_at - offered_at))), 0) AS seconds
+	FROM order_offers
+	WHERE outcome = 'accepted' AND resolved_at IS NOT NULL
+	AND offered_at >= NOW() - INTERVAL '30 days'
+),
+-- Average time from order creation to completion (seconds).
+avg_completion AS (
+	SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (updated_at - created_at))), 0) AS seconds
+	FROM orders
+	WHERE status = 'completed'
+	AND created_at >= NOW() - INTERVAL '30 days'
 )
 SELECT
 	(SELECT count FROM clients) + (SELECT count FROM drivers_count) AS total_users,
@@ -120,7 +137,10 @@ SELECT
 	(SELECT amount FROM subs_month)             AS subs_month,
 	(SELECT amount FROM cash_debt_total)        AS cash_debt_total,
 	(SELECT count FROM active_drivers)          AS active_drivers,
-	(SELECT count FROM pending_moderations)     AS pending_verifications`
+	(SELECT count FROM pending_moderations)     AS pending_verifications,
+	(SELECT seconds FROM avg_acceptance)        AS avg_acceptance_time_sec,
+	(SELECT seconds FROM avg_completion)        AS avg_completion_time_sec,
+	(SELECT count FROM orders_today)            AS orders_today`
 
 	var out admindomain.Overview
 	err := r.db.QueryRowContext(ctx, query).Scan(
@@ -146,6 +166,9 @@ SELECT
 		&out.CashDebtTotal,
 		&out.ActiveDrivers,
 		&out.PendingVerifications,
+		&out.AvgAcceptanceTimeSec,
+		&out.AvgCompletionTimeSec,
+		&out.OrdersToday,
 	)
 	if err != nil {
 		return out, err
@@ -339,6 +362,42 @@ func (r *AdminRepository) DecideDriverVerification(
 	ctx context.Context,
 	decision admindomain.DriverVerificationDecision,
 ) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// For approvals we need a terminal-state guard and (for batch approvals,
+	// which cannot collect per-driver vehicle details) a fallback to the
+	// values already stored on the verification record. Both require reading
+	// the existing row, so we do it before validation.
+	if decision.Status == admindomain.VerificationStatusApproved {
+		var currentStatus string
+		var existingPlate, existingModel, existingType string
+		err := tx.QueryRowContext(ctx,
+			`SELECT status, COALESCE(vehicle_plate, ''), COALESCE(vehicle_model, ''), COALESCE(vehicle_type, '') FROM driver_verifications WHERE id = $1`,
+			decision.ID,
+		).Scan(&currentStatus, &existingPlate, &existingModel, &existingType)
+		if err != nil {
+			return err // sql.ErrNoRows → 404 at the API layer
+		}
+		if !admindomain.ApprovalAllowedFrom(currentStatus) {
+			return admindomain.ErrInvalidDecisionStatus
+		}
+		// Batch approval cannot collect per-driver vehicle details, so fall
+		// back to the values already stored on the verification record.
+		if strings.TrimSpace(decision.VehiclePlate) == "" {
+			decision.VehiclePlate = existingPlate
+		}
+		if strings.TrimSpace(decision.VehicleModel) == "" {
+			decision.VehicleModel = existingModel
+		}
+		if strings.TrimSpace(decision.VehicleType) == "" {
+			decision.VehicleType = existingType
+		}
+	}
+
 	// Shared guard so the single- and batch-moderation flows enforce exactly
 	// the same rules no matter how the admin UI is rebuilt.
 	if err := decision.Validate(); err != nil {
@@ -347,29 +406,6 @@ func (r *AdminRepository) DecideDriverVerification(
 	decision.VehiclePlate = strings.ToUpper(strings.TrimSpace(decision.VehiclePlate))
 	decision.VehicleModel = strings.TrimSpace(decision.VehicleModel)
 	decision.VehicleType = strings.TrimSpace(decision.VehicleType)
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Approvals are only meaningful from an open verification round. Rejecting
-	// a re-approve of an approved / rejected / blocked record loudly (instead
-	// of silently overwriting a terminal state).
-	if decision.Status == admindomain.VerificationStatusApproved {
-		var currentStatus string
-		err := tx.QueryRowContext(ctx,
-			`SELECT status FROM driver_verifications WHERE id = $1`,
-			decision.ID,
-		).Scan(&currentStatus)
-		if err != nil {
-			return err // sql.ErrNoRows → 404 at the API layer
-		}
-		if !admindomain.ApprovalAllowedFrom(currentStatus) {
-			return admindomain.ErrInvalidDecisionStatus
-		}
-	}
 
 	// When approving, overwrite vehicle columns with the values the admin
 	// entered in the approval form. For other status transitions we leave
@@ -835,7 +871,7 @@ func (r *AdminRepository) UpdateTaxProfileStatus(ctx context.Context, driverID, 
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("tax profile not found")
+		return admindomain.ErrTaxProfileNotFound
 	}
 
 	return nil
@@ -853,7 +889,7 @@ func (r *AdminRepository) ListAdminPayments(ctx context.Context, limit, offset i
 		return nil, 0, err
 	}
 	rows, err := r.db.QueryContext(ctx, `
-SELECT id, order_id, user_id, provider, COALESCE(provider_payment_id,''), payment_method, amount, currency, status, created_at
+SELECT id, COALESCE(order_id, '') AS order_id, COALESCE(user_id, '') AS user_id, provider, COALESCE(provider_payment_id,''), payment_method, amount, currency, status, created_at
 FROM payments ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, 0, err

@@ -344,6 +344,12 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 		"cash_debt_total":              overview.CashDebtTotal,
 		"active_drivers":               overview.ActiveDrivers,
 		"pending_verifications":        overview.PendingVerifications,
+
+		// Response time metrics.
+		"avg_acceptance_time_sec": overview.AvgAcceptanceTimeSec,
+		"avg_completion_time_sec": overview.AvgCompletionTimeSec,
+		"orders_today":            overview.OrdersToday,
+
 		"gmv_by_day":                   gmvByDay,
 		"commission_by_day":            commissionByDay,
 	})
@@ -1670,6 +1676,10 @@ func (h *AdminHandler) updateTaxProfileStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.repo.UpdateTaxProfileStatus(r.Context(), driverID, status, comments); err != nil {
+		if errors.Is(err, admindomain.ErrTaxProfileNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "tax profile not found"})
+			return
+		}
 		writeInternalError(w, err)
 		return
 	}
