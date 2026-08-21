@@ -322,8 +322,6 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"total_users":          overview.TotalUsers,
 		"clients":              overview.Clients,
-		"new_clients_today":    overview.NewClientsToday,
-		"online_clients":       overview.OnlineClients,
 		"drivers":              overview.Drivers,
 		"online_drivers":       overview.OnlineDrivers,
 		"pending_moderations":  overview.PendingModerations,
