@@ -848,6 +848,9 @@ async function pageDashboard(main) {
         ${dashKpiHero('Активные заказы', formatBigInt(o.active_orders), 'идут прямо сейчас', 'inbox')}
         ${dashKpiHero('Время отклика', formatResponseTime(avgAccept), 'среднее за 30 дн', 'clock', acceptTone)}
         ${dashKpiHero('Онлайн водители', formatBigInt(o.online_drivers), `всего ${formatBigInt(o.active_drivers ?? 0)} активных`, 'users')}
+        ${dashKpiHero('Клиенты в сети', formatBigInt(o.online_clients ?? 0), 'с активным заказом', 'user-check', 'info')}
+        ${dashKpiHero('Всего клиентов', formatBigInt(o.clients ?? 0), 'зарегистрировано', 'users')}
+        ${dashKpiHero('Новые сегодня', formatBigInt(o.new_clients_today ?? 0), 'зарегалось за день', 'user-plus', 'success')}
       </section>
 
       <section class="dash-charts">

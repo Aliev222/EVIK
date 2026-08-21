@@ -5,6 +5,8 @@ import "time"
 type Overview struct {
 	TotalUsers         int64
 	Clients            int64
+	NewClientsToday    int64
+	OnlineClients      int64
 	Drivers            int64
 	OnlineDrivers      int64
 	PendingModerations int64
@@ -27,6 +29,11 @@ type Overview struct {
 	CashDebtTotal             int64
 	ActiveDrivers             int64
 	PendingVerifications      int64
+
+	// Response time metrics (seconds).
+	AvgAcceptanceTimeSec float64
+	AvgCompletionTimeSec float64
+	OrdersToday          int64
 
 	GMVByDay        []KPIDailyPoint
 	CommissionByDay []KPIDailyPoint

@@ -25,7 +25,15 @@ func NewAdminRepository(db *sql.DB) *AdminRepository {
 func (r *AdminRepository) Overview(ctx context.Context) (admindomain.Overview, error) {
 	const query = `
 WITH clients AS (
+	SELECT COUNT(*) AS count FROM users WHERE role = 'client'
+),
+new_clients_today AS (
+	SELECT COUNT(*) AS count FROM users
+	WHERE role = 'client' AND created_at >= DATE_TRUNC('day', NOW())
+),
+online_clients AS (
 	SELECT COUNT(DISTINCT user_id) AS count FROM orders
+	WHERE status IN ('searching', 'accepted', 'arrived', 'in_progress')
 ),
 drivers_count AS (
 	SELECT COUNT(*) AS count FROM drivers
@@ -118,6 +126,8 @@ avg_completion AS (
 SELECT
 	(SELECT count FROM clients) + (SELECT count FROM drivers_count) AS total_users,
 	(SELECT count FROM clients) AS clients,
+	(SELECT count FROM new_clients_today) AS new_clients_today,
+	(SELECT count FROM online_clients) AS online_clients,
 	(SELECT count FROM drivers_count) AS drivers,
 	(SELECT count FROM online_drivers) AS online_drivers,
 	(SELECT count FROM pending_moderations) AS pending_moderations,
@@ -146,6 +156,8 @@ SELECT
 	err := r.db.QueryRowContext(ctx, query).Scan(
 		&out.TotalUsers,
 		&out.Clients,
+		&out.NewClientsToday,
+		&out.OnlineClients,
 		&out.Drivers,
 		&out.OnlineDrivers,
 		&out.PendingModerations,
