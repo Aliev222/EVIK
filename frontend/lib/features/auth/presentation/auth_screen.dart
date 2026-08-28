@@ -100,7 +100,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     labelText: 'Пароль',
-                    hintText: 'Минимум 6 символов',
+                    hintText: 'Минимум 8 символов',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -232,7 +232,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   bool _actionEnabled() {
     if (!_testPasswordMode) return true;
-    return _passwordController.text.trim().length >= 6;
+    return _passwordController.text.trim().length >= 8;
   }
 
   void _signInWithPassword() {

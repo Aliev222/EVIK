@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors, AvroDriverColors;
@@ -77,8 +78,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AvroClientColors.background,
-      body: SafeArea(
-        child: PageView.builder(
+      body: PageView.builder(
           controller: _pageController,
           onPageChanged: (index) => setState(() => _currentIndex = index),
           itemCount: _roles.length,
@@ -99,7 +99,6 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
             );
           },
         ),
-      ),
     );
   }
 
@@ -128,11 +127,40 @@ class _RolePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDarkCard = index == 1;
+    final gradient = isDarkCard
+        ? const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AvroDriverColors.darkBlue,
+              AvroDriverColors.background,
+              AvroDriverColors.surface,
+            ],
+            stops: [0, 0.58, 1],
+          )
+        : const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AvroClientColors.background,
+              AvroClientColors.background,
+              AvroClientColors.surface,
+            ],
+          );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final height = constraints.maxHeight;
-        final width = constraints.maxWidth;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDarkCard
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(gradient: gradient),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final height = constraints.maxHeight;
+              final width = constraints.maxWidth;
         final compact = height < 760;
         final veryCompact = height < 660;
 
@@ -154,28 +182,7 @@ class _RolePage extends StatelessWidget {
         final switchFont = veryCompact ? 13.0 : (compact ? 14.0 : 16.0);
         final bottomGap = veryCompact ? 8.0 : (compact ? 12.0 : 24.0);
 
-        return Container(
-          decoration: BoxDecoration(
-              gradient: isDarkCard
-                  ? LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        AvroDriverColors.darkBlue,
-                        AvroDriverColors.background,
-                        AvroDriverColors.surface,
-                      ],
-                      stops: [0, 0.58, 1],
-                    )
-                  : LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        AvroClientColors.background,
-                        AvroClientColors.background,
-                        AvroClientColors.surface,
-                      ],
-                    )),
+        return Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,6 +291,9 @@ class _RolePage extends StatelessWidget {
           ),
         );
       },
+    ),
+      ),
+      ),
     );
   }
 }
