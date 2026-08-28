@@ -25,21 +25,6 @@ const state = {
   // per-page slices
   data: {},
   filters: {},
-  // reference to the current page's <main> element (for auto-refresh)
-  mainEl: null,
-  // global auto-refresh of the current page
-  autoRefreshId: null,
-  autoRefreshInterval: 20000,
-  // infra health badge polling
-  healthTimer: null,
-  // set to true while a modal/form is open so auto-refresh pauses
-  editing: false,
-  // dashboard chart period (days)
-  dashPeriod: 30,
-  // WebSocket
-  ws: null,
-  wsReconnectTimer: null,
-  wsConnected: false,
 };
 
 const ROUTES = [
@@ -126,10 +111,6 @@ function debounce(fn, wait = 300) {
   };
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -153,60 +134,40 @@ const api = {
     if (state.token) h['Authorization'] = 'Bearer ' + state.token;
     return h;
   },
-  async request(method, path, { body, query, raw, retries, timeout } = {}) {
+  async request(method, path, { body, query, raw } = {}) {
     const url = path + (query ? buildQuery(query) : '');
-    const maxAttempts = retries === undefined ? 2 : retries;
-    const reqTimeout = timeout === undefined ? 30000 : timeout;
-    let lastErr;
-    for (let attempt = 0; attempt <= maxAttempts; attempt++) {
-      let res;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), reqTimeout);
-      try {
-        res = await fetch(url, {
-          method,
-          headers: this.baseHeaders(),
-          body: body !== undefined ? JSON.stringify(body) : undefined,
-          signal: ctrl.signal,
-        });
-      } catch (e) {
-        clearTimeout(timer);
-        state.backendOk = false;
-        renderBackendStatus();
-        const aborted = e && e.name === 'AbortError';
-        lastErr = new Error(aborted ? ('Превышен таймаут запроса (' + reqTimeout + ' мс)') : ('Ошибка сети: ' + e.message));
-        if (attempt < maxAttempts) { await sleep(300 * (attempt + 1)); continue; }
-        throw lastErr;
-      }
-      clearTimeout(timer);
-      state.backendOk = true;
+    let res;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: this.baseHeaders(),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      state.backendOk = false;
       renderBackendStatus();
-      // Retry only on transient server errors (not on 4xx/auth issues).
-      if (res.status >= 500 && attempt < maxAttempts) {
-        lastErr = new Error('Сервер временно недоступен (HTTP ' + res.status + ')');
-        await sleep(300 * (attempt + 1));
-        continue;
-      }
-      if (res.status === 401) {
-        logout();
-        throw new Error('Неавторизован - войдите снова');
-      }
-      if (raw) return res;
-      let data = null;
-      const text = await res.text();
-      if (text) {
-        try { data = JSON.parse(text); } catch (_) { data = { _raw: text }; }
-      }
-      if (!res.ok) {
-        const msg = (data && (data.error || data.message)) || res.statusText || ('HTTP ' + res.status);
-        const err = new Error(msg);
-        err.status = res.status;
-        err.body = data;
-        throw err;
-      }
-      return data;
+      throw new Error('Ошибка сети: ' + e.message);
     }
-    throw lastErr || new Error('Не удалось выполнить запрос');
+    state.backendOk = true;
+    renderBackendStatus();
+    if (res.status === 401) {
+      logout();
+      throw new Error('Неавторизован - войдите снова');
+    }
+    if (raw) return res;
+    let data = null;
+    const text = await res.text();
+    if (text) {
+      try { data = JSON.parse(text); } catch (_) { data = { _raw: text }; }
+    }
+    if (!res.ok) {
+      const msg = (data && (data.error || data.message)) || res.statusText || ('HTTP ' + res.status);
+      const err = new Error(msg);
+      err.status = res.status;
+      err.body = data;
+      throw err;
+    }
+    return data;
   },
   get(path, opts)    { return this.request('GET',    path, opts); },
   post(path, body, opts)  { return this.request('POST',   path, { ...(opts || {}), body }); },
@@ -228,148 +189,7 @@ function saveToken(t) {
 function logout() {
   saveToken(null);
   state.user = null;
-  stopGlobalAutoRefresh();
-  stopInfraHealthWatch();
   renderApp();
-}
-
-// Global auto-refresh: re-renders the currently open page every
-// state.autoRefreshInterval ms so the admin sees live data without clicking
-// "Обновить". Pauses while a modal/form is open (state.editing or a visible
-// modal in the DOM) so it never clobbers user input.
-function startGlobalAutoRefresh() {
-  stopGlobalAutoRefresh();
-  state.autoRefreshId = setInterval(() => {
-    if (state.editing) return;
-    // Pause if any modal/backdrop is open (covers modals opened without the
-    // state.editing flag being set explicitly).
-    if (document.querySelector('.modal.open, .modal-backdrop, .modal.show')) return;
-    const fn = PAGE_FN[state.route.name];
-    if (fn && state.mainEl) fn(state.mainEl);
-  }, state.autoRefreshInterval);
-}
-
-function stopGlobalAutoRefresh() {
-  if (state.autoRefreshId) {
-    clearInterval(state.autoRefreshId);
-    state.autoRefreshId = null;
-  }
-}
-
-// Infrastructure health badge in the header. Polls /api/v1/admin/health and
-// shows Postgres/Redis status + uptime. Runs independently of page refresh so
-// the admin always sees infra health even on static pages.
-function startInfraHealthWatch() {
-  stopInfraHealthWatch();
-  loadInfraHealth();
-  state.healthTimer = setInterval(loadInfraHealth, 15000);
-}
-
-function stopInfraHealthWatch() {
-  if (state.healthTimer) {
-    clearInterval(state.healthTimer);
-    state.healthTimer = null;
-  }
-}
-
-async function loadInfraHealth() {
-  const el = document.getElementById('infra-health');
-  if (!el) return;
-  const dot = el.querySelector('.status-dot');
-  const span = el.querySelector('span');
-  try {
-    const h = await api.get('/api/v1/admin/health');
-    const pg = (h && h.status && h.status.postgres) || 'unknown';
-    const rd = (h && h.status && h.status.redis) || 'unknown';
-    const ok = h && h.all_ok;
-    const upMin = Math.floor((Number(h.uptime_sec) || 0) / 60);
-    dot.className = 'status-dot' + (ok ? ' ok' : ' down');
-    el.classList.toggle('down', !ok);
-    el.title = `Postgres: ${pg} · Redis: ${rd} · Аптайм: ${upMin} мин`;
-    span.textContent = ok ? 'Все системы OK' : 'Сбой инфраструктуры';
-  } catch (e) {
-    dot.className = 'status-dot down';
-    el.classList.add('down');
-    span.textContent = 'Нет связи';
-  }
-}
-
-/* ---- WebSocket ---- */
-function getWsUrl() {
-  const loc = window.location;
-  const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
-  return proto + '//' + loc.host + '/ws/orders';
-}
-
-function connectWs() {
-  if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) return;
-  if (!state.token) return;
-  try {
-    const ws = new WebSocket(getWsUrl() + '?access_token=' + encodeURIComponent(state.token));
-    state.ws = ws;
-    ws.onopen = () => {
-      state.wsConnected = true;
-      renderBackendStatus();
-      ws.send(JSON.stringify({ type: 'register_admin' }));
-    };
-    ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        handleWsEvent(msg);
-      } catch (_) {}
-    };
-    ws.onclose = () => {
-      state.wsConnected = false;
-      state.ws = null;
-      renderBackendStatus();
-      scheduleWsReconnect();
-    };
-    ws.onerror = () => {
-      state.wsConnected = false;
-    };
-  } catch (_) {
-    scheduleWsReconnect();
-  }
-}
-
-function scheduleWsReconnect() {
-  if (state.wsReconnectTimer) clearTimeout(state.wsReconnectTimer);
-  state.wsReconnectTimer = setTimeout(() => {
-    if (state.token && state.route.name === 'dashboard') connectWs();
-  }, 5000);
-}
-
-function disconnectWs() {
-  if (state.wsReconnectTimer) { clearTimeout(state.wsReconnectTimer); state.wsReconnectTimer = null; }
-  if (state.ws) { try { state.ws.close(); } catch (_) {} state.ws = null; }
-  state.wsConnected = false;
-}
-
-function handleWsEvent(msg) {
-  const t = msg && msg.type;
-  if (!t) return;
-  // Refresh dashboard on order lifecycle events
-  if (['order_created', 'order_accepted', 'completed', 'cancelled', 'no_driver_found'].includes(t)) {
-    if (state.route.name === 'dashboard') {
-      const main = document.querySelector('.main-content');
-      if (main) pageDashboard(main);
-    }
-  }
-}
-
-/* ---- Chart period filter ---- */
-function filterSeriesByPeriod(series, days) {
-  if (!Array.isArray(series) || series.length === 0) return series;
-  if (days >= 30) return series;
-  return series.slice(-days);
-}
-
-function formatResponseTime(seconds) {
-  if (!seconds || seconds <= 0) return '—';
-  if (seconds < 60) return Math.round(seconds) + ' сек';
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return m + ' мин ' + s + ' сек';
 }
 async function login(username, password) {
   const data = await api.post('/api/v1/auth/admin/login', { user_id: username, password });
@@ -401,7 +221,6 @@ function navigate(hash) {
 }
 function routeChanged() {
   state.route = parseHash();
-  try { window.__G = state; } catch (_) {}
   renderApp();
 }
 
@@ -562,20 +381,20 @@ function formatBigInt(n) {
 }
 
 function dashSkeleton() {
-  const kpi = Array.from({ length: 5 }).map(() => `
-    <div class="dash-kpi-hero skeleton-card">
+  const kpi = Array.from({ length: 8 }).map(() => `
+    <div class="dash-kpi skeleton-card">
       <div class="sk-line sk-w40"></div>
       <div class="sk-line sk-w70 sk-tall"></div>
       <div class="sk-line sk-w30"></div>
     </div>`).join('');
   return `
     <div class="dash-root">
-      <div class="dash-kpi-row">${kpi}</div>
+      <div class="dash-kpi-grid">${kpi}</div>
       <div class="dash-charts">
         <div class="dash-card skeleton-card" style="height:360px"></div>
         <div class="dash-card skeleton-card" style="height:360px"></div>
       </div>
-      <div class="dash-row-split">
+      <div class="dash-charts">
         <div class="dash-card skeleton-card" style="height:320px"></div>
         <div class="dash-card skeleton-card" style="height:320px"></div>
       </div>
@@ -593,15 +412,6 @@ function dashKpi(label, value, sub, iconName, tone) {
   </div>`;
 }
 
-function dashKpiHero(label, value, sub, iconName, tone) {
-  return `<div class="dash-kpi-hero ${tone ? 'tone-' + tone : ''}">
-    <div class="dash-kpi-hero-icon">${icon(iconName, 'kpi-icon')}</div>
-    <div class="dash-kpi-hero-value">${escapeHtml(String(value))}</div>
-    <div class="dash-kpi-hero-label">${escapeHtml(label)}</div>
-    <div class="dash-kpi-hero-sub">${sub || ''}</div>
-  </div>`;
-}
-
 function renderLineChart(series, opts = {}) {
   if (!Array.isArray(series) || series.length === 0) {
     return `<div class="dash-empty">
@@ -611,17 +421,15 @@ function renderLineChart(series, opts = {}) {
     </div>`;
   }
   const id = 'lc-' + Math.random().toString(36).slice(2, 8);
-  const w = 720, h = 260, padL = 60, padR = 20, padT = 28, padB = 40;
+  const w = 720, h = 240, padL = 56, padR = 16, padT = 24, padB = 36;
   const data = series.map(p => ({ date: p.date, value: Number(p.amount) || 0 }));
   const maxRaw = Math.max(...data.map(p => p.value), 0);
-  const niceMax = niceNum(maxRaw);
-  const max = niceMax === 0 ? 1 : niceMax;
+  const max = maxRaw === 0 ? 1 : maxRaw;
   const stepX = data.length > 1 ? (w - padL - padR) / (data.length - 1) : 0;
   const yFor = v => padT + (h - padT - padB) * (1 - v / max);
   const pts = data.map((p, i) => ({ x: padL + i * stepX, y: yFor(p.value), v: p.value, d: p.date }));
 
-  // Smooth Catmull-Rom -> Bezier with adjustable tension (lower = smoother)
-  const tension = 0.35;
+  // smooth path (Catmull-Rom -> Bezier)
   let path = '';
   if (pts.length === 1) {
     path = `M ${pts[0].x} ${pts[0].y}`;
@@ -632,46 +440,40 @@ function renderLineChart(series, opts = {}) {
       const p1 = pts[i];
       const p2 = pts[i + 1];
       const p3 = pts[i + 2] || p2;
-      const cp1x = p1.x + (p2.x - p0.x) * tension;
-      const cp1y = p1.y + (p2.y - p0.y) * tension;
-      const cp2x = p2.x - (p3.x - p1.x) * tension;
-      const cp2y = p2.y - (p3.y - p1.y) * tension;
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
       path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
     }
   }
   const areaPath = path + ` L ${pts[pts.length - 1].x} ${h - padB} L ${pts[0].x} ${h - padB} Z`;
 
-  // Y gridlines (5 lines for cleaner look)
-  const gridCount = 5;
+  // y gridlines (4)
+  const gridCount = 4;
   let grid = '';
   let yLabels = '';
   for (let i = 0; i <= gridCount; i++) {
     const yv = (max * (gridCount - i)) / gridCount;
     const y = yFor(yv);
-    const isZero = i === gridCount;
-    grid += `<line class="lc-grid${isZero ? ' lc-grid-zero' : ''}" x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" />`;
-    const label = opts.money ? formatCompactMoney(yv) : formatBigInt(yv);
-    yLabels += `<text class="lc-ylabel" x="${padL - 10}" y="${y + 4}" text-anchor="end">${escapeHtml(label)}</text>`;
+    grid += `<line class="lc-grid" x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" />`;
+    const label = opts.money ? formatMoneyMinor(yv) : formatBigInt(yv);
+    yLabels += `<text class="lc-ylabel" x="${padL - 8}" y="${y + 4}" text-anchor="end">${escapeHtml(label)}</text>`;
   }
 
-  // X labels — smart distribution: show 4-6 labels depending on data length
-  let xIdxs;
-  if (data.length <= 5) {
-    xIdxs = data.map((_, i) => i);
-  } else if (data.length <= 10) {
-    xIdxs = [0, Math.floor(data.length / 3), Math.floor(data.length * 2 / 3), data.length - 1];
-  } else {
-    xIdxs = [0, Math.floor(data.length / 4), Math.floor(data.length / 2), Math.floor(data.length * 3 / 4), data.length - 1];
-  }
+  // x labels — first, middle, last
+  const xIdxs = data.length <= 4
+    ? data.map((_, i) => i)
+    : [0, Math.floor((data.length - 1) / 2), data.length - 1];
   const xLabels = xIdxs.map(i => {
     const p = pts[i];
     const d = new Date(data[i].date);
     const label = isNaN(d.getTime()) ? data[i].date : d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' });
-    return `<text class="lc-xlabel" x="${p.x}" y="${h - 14}" text-anchor="middle">${escapeHtml(label)}</text>`;
+    return `<text class="lc-xlabel" x="${p.x}" y="${h - 12}" text-anchor="middle">${escapeHtml(label)}</text>`;
   }).join('');
 
-  // Dots (only on hover) + hover targets
-  const dots = pts.map((p, i) => `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="3.5" data-i="${i}"></circle>`).join('');
+  // dots + hover targets
+  const dots = pts.map((p, i) => `<circle class="lc-dot" cx="${p.x}" cy="${p.y}" r="3" data-i="${i}"></circle>`).join('');
   const hover = pts.map((p, i) => `<rect class="lc-hover" x="${p.x - stepX / 2}" y="${padT}" width="${stepX || w}" height="${h - padT - padB}" data-i="${i}"></rect>`).join('');
 
   const payload = JSON.stringify(data.map(p => ({
@@ -685,30 +487,6 @@ function renderLineChart(series, opts = {}) {
     const cursor = root.querySelector('.lc-cursor');
     const pointsData = JSON.parse(root.dataset.points);
     const dotsEls = Array.from(root.querySelectorAll('.lc-dot'));
-    const lineEl = root.querySelector('.lc-line');
-    const areaEl = root.querySelector('.lc-area');
-
-    // Animate line draw-in
-    if (lineEl) {
-      const len = lineEl.getTotalLength ? lineEl.getTotalLength() : 0;
-      if (len > 0) {
-        lineEl.style.strokeDasharray = len;
-        lineEl.style.strokeDashoffset = len;
-        lineEl.style.transition = 'none';
-        requestAnimationFrame(() => {
-          lineEl.style.transition = 'stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)';
-          lineEl.style.strokeDashoffset = '0';
-          setTimeout(() => { lineEl.style.strokeDasharray = 'none'; }, 900);
-        });
-      }
-    }
-    // Animate area fade-in
-    if (areaEl) {
-      areaEl.style.opacity = '0';
-      areaEl.style.transition = 'opacity 0.6s ease 0.3s';
-      requestAnimationFrame(() => { areaEl.style.opacity = '0.7'; });
-    }
-
     root.querySelectorAll('.lc-hover').forEach(r => {
       r.addEventListener('mouseenter', () => {
         const i = Number(r.dataset.i);
@@ -719,15 +497,15 @@ function renderLineChart(series, opts = {}) {
         cursor.setAttribute('x2', p.x);
         cursor.style.opacity = '1';
         const dt = new Date(d.d);
-        const dateLabel = isNaN(dt.getTime()) ? d.d : dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
+        const dateLabel = isNaN(dt.getTime()) ? d.d : dt.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
         const valLabel = opts.money ? formatMoneyMinor(d.v) : formatBigInt(d.v);
         tip.innerHTML = `<div class="lc-tip-date">${escapeHtml(dateLabel)}</div><div class="lc-tip-val">${escapeHtml(valLabel)}</div>`;
         tip.style.opacity = '1';
-        const tipW = 170;
+        const tipW = 160;
         let tx = p.x - tipW / 2;
         tx = Math.max(padL, Math.min(tx, w - padR - tipW));
         tip.style.left = (tx / w * 100) + '%';
-        tip.style.top = Math.max(0, p.y - 60) + 'px';
+        tip.style.top = Math.max(0, p.y - 56) + 'px';
       });
       r.addEventListener('mouseleave', () => {
         dotsEls.forEach(el => el.classList.remove('active'));
@@ -741,23 +519,18 @@ function renderLineChart(series, opts = {}) {
     <svg class="lc-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
       <defs>
         <linearGradient id="${id}-grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#A855F7" stop-opacity="0.25"/>
-          <stop offset="50%" stop-color="#A855F7" stop-opacity="0.08"/>
+          <stop offset="0%" stop-color="#A855F7" stop-opacity="0.35"/>
           <stop offset="100%" stop-color="#A855F7" stop-opacity="0"/>
         </linearGradient>
         <linearGradient id="${id}-stroke" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stop-color="#7C3AED"/>
-          <stop offset="100%" stop-color="#C084FC"/>
+          <stop offset="100%" stop-color="#A855F7"/>
         </linearGradient>
-        <filter id="${id}-glow">
-          <feGaussianBlur stdDeviation="2" result="blur"/>
-          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-        </filter>
       </defs>
       ${grid}
       ${yLabels}
       <path class="lc-area" d="${areaPath}" fill="url(#${id}-grad)"/>
-      <path class="lc-line" d="${path}" stroke="url(#${id}-stroke)" fill="none" filter="url(#${id}-glow)"/>
+      <path class="lc-line" d="${path}" stroke="url(#${id}-stroke)" fill="none"/>
       <line class="lc-cursor" x1="0" y1="${padT}" x2="0" y2="${h - padB}"/>
       ${dots}
       ${xLabels}
@@ -765,26 +538,6 @@ function renderLineChart(series, opts = {}) {
     </svg>
     <div class="lc-tip"></div>
   </div>`;
-}
-
-function niceNum(val) {
-  if (val <= 0) return 0;
-  const exp = Math.floor(Math.log10(val));
-  const frac = val / Math.pow(10, exp);
-  let nice;
-  if (frac <= 1) nice = 1;
-  else if (frac <= 2) nice = 2;
-  else if (frac <= 5) nice = 5;
-  else nice = 10;
-  return nice * Math.pow(10, exp);
-}
-
-function formatCompactMoney(amount) {
-  if (amount === 0) return '0 ₽';
-  const rub = amount / 100;
-  if (rub >= 1000000) return (rub / 1000000).toFixed(1) + 'M ₽';
-  if (rub >= 1000) return (rub / 1000).toFixed(1) + 'K ₽';
-  return Math.round(rub) + ' ₽';
 }
 
 function dashRecentOrdersHtml(items) {
@@ -832,7 +585,6 @@ function dashPendingItem(label, count, route, iconName, danger) {
 }
 
 async function pageDashboard(main) {
-  state.mainEl = main;
   main.innerHTML = dashSkeleton();
   const started = performance.now();
   let o;
@@ -845,13 +597,20 @@ async function pageDashboard(main) {
   const elapsedMs = Math.round(performance.now() - started);
   const updatedAt = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-  const autoRefreshOn = !!state.autoRefreshId;
-  const period = state.dashPeriod;
+  // Render shell synchronously with overview data; recent orders loads after.
+  const kpiBlocks = [
+    dashKpi('GMV сегодня',       formatMoneyMinor(o.gmv_today),       `за месяц ${formatMoneyMinor(o.gmv_month)}`, 'dollar-sign'),
+    dashKpi('Комиссия сегодня',  formatMoneyMinor(o.commission_today),`за месяц ${formatMoneyMinor(o.commission_month)}`, 'trending-up'),
+    dashKpi('Выплаты сегодня',   formatMoneyMinor(o.payouts_today),   `за месяц ${formatMoneyMinor(o.payouts_month)}`, 'wallet'),
+    dashKpi('Активные заказы',   formatBigInt(o.active_orders),       'идут прямо сейчас', 'inbox'),
+    dashKpi('Онлайн водители',   formatBigInt(o.online_drivers),      `всего активных ${formatBigInt(o.active_drivers ?? 0)}`, 'users'),
+    dashKpi('На модерации',      formatBigInt(o.pending_verifications), 'ожидают проверки', 'clock', (Number(o.pending_verifications) || 0) > 0 ? 'warn' : null),
+    dashKpi('Ожидают выплаты',   formatMoneyMinor(o.payouts_pending),  'к перечислению водителям', 'arrow-up-down', (Number(o.payouts_pending) || 0) > 0 ? 'warn' : null),
+    dashKpi('Failed payments',   formatBigInt(o.failed_payments),     `failed payouts: ${formatBigInt(o.failed_payouts ?? 0)}`, 'alert-triangle', (Number(o.failed_payments) || 0) + (Number(o.failed_payouts) || 0) > 0 ? 'danger' : null),
+  ].join('');
 
-  const avgAccept = Number(o.avg_acceptance_time_sec) || 0;
-  const avgComplete = Number(o.avg_completion_time_sec) || 0;
-  const acceptTone = avgAccept > 120 ? 'danger' : avgAccept > 60 ? 'warn' : null;
-  const completeTone = avgComplete > 3600 ? 'danger' : avgComplete > 1800 ? 'warn' : null;
+  const hasGmv = Array.isArray(o.gmv_by_day) && o.gmv_by_day.length > 0;
+  const hasCommission = Array.isArray(o.commission_by_day) && o.commission_by_day.length > 0;
 
   const pendingCounts = {
     moderation: Number(o.pending_verifications) || 0,
@@ -859,10 +618,8 @@ async function pageDashboard(main) {
     failedPay:  Number(o.failed_payments) || 0,
     failedPout: Number(o.failed_payouts) || 0,
   };
-  const totalAttention = pendingCounts.moderation + (pendingCounts.payouts > 0 ? 1 : 0) + pendingCounts.failedPay + pendingCounts.failedPout;
 
-  const gmvFiltered = filterSeriesByPeriod(o.gmv_by_day, period);
-  const commFiltered = filterSeriesByPeriod(o.commission_by_day, period);
+  const totalAttention = pendingCounts.moderation + (pendingCounts.payouts > 0 ? 1 : 0) + pendingCounts.failedPay + pendingCounts.failedPout;
 
   const healthOk = state.backendOk !== false && pendingCounts.failedPay === 0 && pendingCounts.failedPout === 0;
   const healthState = state.backendOk === false ? 'down' : (healthOk ? 'ok' : 'warn');
@@ -876,58 +633,38 @@ async function pageDashboard(main) {
           <p class="dash-subtitle">Ключевые показатели платформы Авро</p>
         </div>
         <div class="dash-header-meta">
-          <span class="dash-pill dash-pill-${state.wsConnected ? 'ok' : 'err'}">
-            <span class="dash-dot"></span>
-            ${state.wsConnected ? 'WS: подключено' : 'WS: отключено'}
-          </span>
           <span class="dash-pill dash-pill-${state.backendOk === false ? 'err' : 'ok'}">
             <span class="dash-dot"></span>
-            ${state.backendOk === false ? 'Нет связи' : 'Подключено'} · ${escapeHtml(updatedAt)}
+            ${state.backendOk === false ? 'Нет связи' : 'Подключено'} · обновлено ${escapeHtml(updatedAt)}
           </span>
-          <button class="btn btn-secondary btn-sm" id="dash-auto-refresh" title="Автообновление (60 сек)">
-            ${icon('refresh-cw', 'w-4 h-4')} ${autoRefreshOn ? 'Авто: ВКЛ' : 'Авто: ВЫКЛ'}
-          </button>
           <button class="btn btn-secondary btn-sm" id="dash-refresh">
             ${icon('refresh-cw', 'w-4 h-4')} Обновить
           </button>
         </div>
       </header>
 
-      <section class="dash-kpi-row">
-        ${dashKpiHero('GMV сегодня', formatMoneyMinor(o.gmv_today), `за месяц ${formatMoneyMinor(o.gmv_month)}`, 'dollar-sign')}
-        ${dashKpiHero('Заказов сегодня', formatBigInt(o.orders_today ?? 0), 'создано за день', 'package')}
-        ${dashKpiHero('Активные заказы', formatBigInt(o.active_orders), 'идут прямо сейчас', 'inbox')}
-        ${dashKpiHero('Время отклика', formatResponseTime(avgAccept), 'среднее за 30 дн', 'clock', acceptTone)}
-        ${dashKpiHero('Онлайн водители', formatBigInt(o.online_drivers), `всего ${formatBigInt(o.active_drivers ?? 0)} активных`, 'users')}
-      </section>
+      <section class="dash-kpi-grid">${kpiBlocks}</section>
 
       <section class="dash-charts">
         <div class="dash-card">
           <div class="dash-card-head">
             <div>
               <div class="dash-card-title">GMV за период</div>
-              <div class="dash-card-sub">Оборот платформы</div>
+              <div class="dash-card-sub">Оборот платформы, ${hasGmv ? o.gmv_by_day.length : 0} точек</div>
             </div>
-            <div class="dash-chart-controls">
-              <div class="dash-period-btns">
-                <button class="btn btn-sm ${period === 7 ? 'btn-primary' : 'btn-ghost'}" data-period="7">7 дн</button>
-                <button class="btn btn-sm ${period === 14 ? 'btn-primary' : 'btn-ghost'}" data-period="14">14 дн</button>
-                <button class="btn btn-sm ${period === 30 ? 'btn-primary' : 'btn-ghost'}" data-period="30">30 дн</button>
-              </div>
-              <div class="dash-card-figure">${formatMoneyMinor(o.gmv_month)}</div>
-            </div>
+            <div class="dash-card-figure">${formatMoneyMinor(o.gmv_month)}</div>
           </div>
-          <div class="dash-chart">${renderLineChart(gmvFiltered, { money: true })}</div>
+          <div class="dash-chart">${renderLineChart(o.gmv_by_day, { money: true })}</div>
         </div>
         <div class="dash-card">
           <div class="dash-card-head">
             <div>
               <div class="dash-card-title">Комиссия за период</div>
-              <div class="dash-card-sub">Заработок Авро</div>
+              <div class="dash-card-sub">Заработок Авро, ${hasCommission ? o.commission_by_day.length : 0} точек</div>
             </div>
             <div class="dash-card-figure">${formatMoneyMinor(o.commission_month)}</div>
           </div>
-          <div class="dash-chart">${renderLineChart(commFiltered, { money: true })}</div>
+          <div class="dash-chart">${renderLineChart(o.commission_by_day, { money: true })}</div>
         </div>
       </section>
 
@@ -953,9 +690,9 @@ async function pageDashboard(main) {
           <div class="dash-pending">
             ${dashPendingItem('Водители на модерации', pendingCounts.moderation, 'documents', 'file-text', pendingCounts.moderation > 0)}
             ${dashPendingItem('Запросы на выплаты',    pendingCounts.payouts > 0 ? 1 : 0, 'payouts', 'arrow-up-down', pendingCounts.payouts > 0)}
-            ${dashPendingItem('Ошибки платежей',        pendingCounts.failedPay, 'payments', 'credit-card', pendingCounts.failedPay > 0)}
-            ${dashPendingItem('Ошибки выплат',          pendingCounts.failedPout, 'payouts', 'alert-triangle', pendingCounts.failedPout > 0)}
-            ${dashPendingItem('Ожидают возвраты',      0, 'refunds', 'rotate-ccw', false)}
+            ${dashPendingItem('Failed payments',       pendingCounts.failedPay, 'payments', 'credit-card', pendingCounts.failedPay > 0)}
+            ${dashPendingItem('Failed payouts',        pendingCounts.failedPout, 'payouts', 'alert-triangle', pendingCounts.failedPout > 0)}
+            ${dashPendingItem('Pending refunds',       0, 'refunds', 'rotate-ccw', false)}
           </div>
         </div>
       </section>
@@ -979,18 +716,13 @@ async function pageDashboard(main) {
               <span class="dash-health-dot ${state.backendOk === false ? 'is-err' : 'is-ok'}"></span>
             </div>
             <div class="dash-health-row">
-              <span class="dash-health-label">WebSocket</span>
-              <span class="dash-health-val">${state.wsConnected ? 'подключён' : 'отключён'}</span>
-              <span class="dash-health-dot ${state.wsConnected ? 'is-ok' : 'is-err'}"></span>
-            </div>
-            <div class="dash-health-row">
               <span class="dash-health-label">Платежи</span>
-              <span class="dash-health-val">${pendingCounts.failedPay === 0 ? 'без ошибок' : formatBigInt(pendingCounts.failedPay) + ' ошибок'}</span>
+              <span class="dash-health-val">${pendingCounts.failedPay === 0 ? 'без ошибок' : formatBigInt(pendingCounts.failedPay) + ' failed'}</span>
               <span class="dash-health-dot ${pendingCounts.failedPay === 0 ? 'is-ok' : 'is-err'}"></span>
             </div>
             <div class="dash-health-row">
               <span class="dash-health-label">Выплаты</span>
-              <span class="dash-health-val">${pendingCounts.failedPout === 0 ? 'без ошибок' : formatBigInt(pendingCounts.failedPout) + ' ошибок'}</span>
+              <span class="dash-health-val">${pendingCounts.failedPout === 0 ? 'без ошибок' : formatBigInt(pendingCounts.failedPout) + ' failed'}</span>
               <span class="dash-health-dot ${pendingCounts.failedPout === 0 ? 'is-ok' : 'is-err'}"></span>
             </div>
           </div>
@@ -999,34 +731,34 @@ async function pageDashboard(main) {
         <div class="dash-card">
           <div class="dash-card-head">
             <div>
-              <div class="dash-card-title">Финансы</div>
-              <div class="dash-card-sub">сводка за месяц</div>
+              <div class="dash-card-title">Аудитория</div>
+              <div class="dash-card-sub">по данным платформы</div>
             </div>
           </div>
           <div class="dash-audience">
-            <div class="dash-audience-item">
-              <div class="dash-audience-label">Комиссия</div>
-              <div class="dash-audience-value">${formatMoneyMinor(o.commission_month)}</div>
-            </div>
-            <div class="dash-audience-item">
-              <div class="dash-audience-label">Выплаты</div>
-              <div class="dash-audience-value">${formatMoneyMinor(o.payouts_month)}</div>
-            </div>
-            <div class="dash-audience-item">
-              <div class="dash-audience-label">Долг водителей</div>
-              <div class="dash-audience-value">${formatMoneyMinor(o.cash_debt_total)}</div>
-            </div>
             <div class="dash-audience-item">
               <div class="dash-audience-label">Пользователей</div>
               <div class="dash-audience-value">${formatBigInt(o.total_users ?? 0)}</div>
             </div>
             <div class="dash-audience-item">
-              <div class="dash-audience-label">Рейтинг</div>
-              <div class="dash-audience-value">${o.average_driver_stars ? Number(o.average_driver_stars).toFixed(1) + ' ★' : '—'}</div>
+              <div class="dash-audience-label">Клиентов</div>
+              <div class="dash-audience-value">${formatBigInt(o.clients ?? 0)}</div>
+            </div>
+            <div class="dash-audience-item">
+              <div class="dash-audience-label">Водителей</div>
+              <div class="dash-audience-value">${formatBigInt(o.drivers ?? 0)}</div>
+            </div>
+            <div class="dash-audience-item">
+              <div class="dash-audience-label">Средний рейтинг</div>
+              <div class="dash-audience-value">${o.average_driver_stars ? Number(o.average_driver_stars).toFixed(2) : '—'}</div>
             </div>
             <div class="dash-audience-item">
               <div class="dash-audience-label">Отзывов сегодня</div>
               <div class="dash-audience-value">${formatBigInt(o.reviews_today ?? 0)}</div>
+            </div>
+            <div class="dash-audience-item">
+              <div class="dash-audience-label">Расчёты с Авро</div>
+              <div class="dash-audience-value">${formatMoneyMinor(o.cash_debt_total ?? 0)}</div>
             </div>
           </div>
         </div>
@@ -1034,25 +766,9 @@ async function pageDashboard(main) {
     </div>
   `;
 
+  // Wire actions.
   const refreshBtn = document.getElementById('dash-refresh');
   if (refreshBtn) refreshBtn.onclick = () => pageDashboard(main);
-  const autoRefreshBtn = document.getElementById('dash-auto-refresh');
-  if (autoRefreshBtn) {
-    autoRefreshBtn.onclick = () => {
-      if (state.autoRefreshId) {
-        stopGlobalAutoRefresh();
-      } else {
-        startGlobalAutoRefresh();
-      }
-      pageDashboard(main);
-    };
-  }
-  main.querySelectorAll('[data-period]').forEach(btn => {
-    btn.onclick = () => {
-      state.dashPeriod = Number(btn.dataset.period) || 30;
-      pageDashboard(main);
-    };
-  });
   main.querySelectorAll('[data-goto]').forEach(el => {
     el.onclick = () => navigate('#/' + el.dataset.goto);
   });
@@ -1067,9 +783,7 @@ async function pageDashboard(main) {
     };
   });
 
-  state.mainEl = main;
-  connectWs();
-
+  // Lazy-load recent orders from existing endpoint.
   (async () => {
     const slot = document.getElementById('dash-recent');
     if (!slot) return;
@@ -1093,6 +807,7 @@ async function pageDashboard(main) {
     }
   })();
 
+  // Lazy-load pending refunds count from the backend.
   (async () => {
     const refundsItem = document.querySelector('.dash-pending-item[data-route="refunds"]');
     if (!refundsItem) return;
@@ -2095,11 +1810,9 @@ function driversActiveChips(f) {
 }
 
 async function pageDrivers(main) {
-  const state = driversPageState;
   // If a specific driver ID is in the route, show detail page instead.
-  const routeParams = ((typeof window.__G === 'object' && window.__G) || {}).route || {};
-  if (routeParams.params && routeParams.params.driverId) {
-    return pageDriverDetail(main, routeParams.params.driverId);
+  if (state.route.params.driverId) {
+    return pageDriverDetail(main, state.route.params.driverId);
   }
   // Cleanup map / timers from any previous pageDrivers instance.
   if (driversPageState.unmount) {
@@ -2115,6 +1828,7 @@ async function pageDrivers(main) {
     driversPageState.filters.view = initialView;
   }
 
+  const state = driversPageState;
   const sources = { users: [], online: [], verifications: [], wallets: [], orders: [], errors: {} };
   let records = [];
 
@@ -2525,10 +2239,19 @@ async function pageDrivers(main) {
       drawMarkers();
     };
     $('#drv-map-auto', main).onchange = (e) => {
+      if (driversPageState.autoRefreshId) {
+        clearInterval(driversPageState.autoRefreshId);
+        driversPageState.autoRefreshId = null;
+      }
       if (e.target.checked) {
-        startGlobalAutoRefresh();
-      } else {
-        stopGlobalAutoRefresh();
+        driversPageState.autoRefreshId = setInterval(async () => {
+          const o = await safeGet('online', '/api/v1/admin/drivers-online', { limit: 200 });
+          sources.online = (o && o.items) || [];
+          records = mergeDriversData(sources);
+          refreshHeaderPills();
+          refreshKpi();
+          drawMarkers();
+        }, 10000);
       }
     };
 
@@ -4481,11 +4204,11 @@ async function pageOnlineMap(main) {
 
   await loadOnlineDrivers(main);
 
-  // WebSocket real-time updates instead of polling. The global auto-refresh
-  // (startGlobalAutoRefresh) also re-renders this page on its interval, so we
-  // don't run a second page-local poll here.
-  if (onlineMapState.pollId) { clearInterval(onlineMapState.pollId); onlineMapState.pollId = null; }
+  // WebSocket real-time updates instead of polling.
+  if (onlineMapState.pollId) clearInterval(onlineMapState.pollId);
   connectOnlineMapWS(main);
+  // Fallback polling every 30s in case WS drops.
+  onlineMapState.pollId = setInterval(() => loadOnlineDrivers(main), 30000);
 }
 
 function connectOnlineMapWS(main) {
@@ -4650,25 +4373,6 @@ function renderOnlineMapTable() {
 }
 
 /* ---------- 7.17 Settings ---------- */
-function themeSectionHtml() {
-  const current = document.documentElement.getAttribute('data-theme') || 'aurora';
-  const cards = THEMES.map(t => `
-    <div class="theme-card ${t.id === current ? 'is-active' : ''}" data-theme="${t.id}">
-      <div class="theme-card-preview" style="background:${t.swatch}"></div>
-      <div class="theme-card-label">
-        <span>${escapeHtml(t.label)}</span>
-        <span class="check">${icon('check', 'w-4 h-4')}</span>
-      </div>
-    </div>`).join('');
-  return `<div class="card glass" style="margin-bottom:16px;">
-    <div class="card-header"><div class="card-title">${icon('palette', 'w-4 h-4')} Оформление</div></div>
-    <div class="card-body">
-      <p class="muted" style="margin:0 0 4px;">Цветовая тема интерфейса. Выбор сохраняется в браузере.</p>
-      <div class="theme-grid">${cards}</div>
-    </div>
-  </div>`;
-}
-
 async function pageSettings(main) {
   main.innerHTML = LoadingState();
   try {
@@ -4712,7 +4416,6 @@ async function pageSettings(main) {
         <div class="dash-header" style="margin-bottom:20px;">
           <div><h1 class="dash-title">Настройки платформы</h1><p class="dash-subtitle">Управление конфигурацией Авро</p></div>
         </div>
-        ${themeSectionHtml()}
         ${groupHtml}
       </div>`;
 
@@ -4751,14 +4454,6 @@ async function pageSettings(main) {
           btn.disabled = false;
           btn.textContent = 'Сохранить';
         }
-      };
-    });
-
-    $$('.theme-card').forEach(card => {
-      card.onclick = () => {
-        applyTheme(card.dataset.theme);
-        $$('.theme-card').forEach(c => c.classList.toggle('is-active', c === card));
-        toast('Тема: ' + (THEMES.find(t => t.id === card.dataset.theme) || {}).label, 'success');
       };
     });
   } catch (e) {
@@ -4831,16 +4526,12 @@ const PAGE_FN = {
 
 function renderApp() {
   if (!state.token) { renderLogin(); return; }
-  // (Re)start global auto-refresh; pages also set state.mainEl on entry.
   renderShell();
   const main = $('.main-content');
   if (!main) return;
-  state.mainEl = main;
   const fn = PAGE_FN[state.route.name] || pageDashboard;
   try { fn(main); }
   catch (e) { main.innerHTML = ErrorState(e.message); }
-  startGlobalAutoRefresh();
-  startInfraHealthWatch();
 }
 
 function renderLogin() {
@@ -4904,13 +4595,6 @@ function icon(name, className = 'nav-item-icon') {
     'dollar-sign': '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
     'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/>',
     'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/>',
-    'folder-open': '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>',
-    'plus': '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-    'filter': '<polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>',
-    'list': '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
-    'search': '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
-    'check-circle': '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/>',
-    'alert-circle': '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   };
   return `<svg class="${className}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${icons[name] || ''}</svg>`;
 }
@@ -4977,16 +4661,9 @@ function renderShell() {
             <div class="status-dot"></div>
             <span>Сервер</span>
           </div>
-          <div class="header-status" id="infra-health" title="Состояние инфраструктуры">
-            <div class="status-dot"></div>
-            <span>Проверка…</span>
-          </div>
-          <div class="theme-switch" id="theme-switch">
-            <button class="btn btn-ghost btn-sm" id="theme-btn" aria-label="Сменить тему"></button>
-            <div class="theme-menu" id="theme-menu">
-              ${THEMES.map(t => `<button class="theme-swatch" data-theme="${t.id}" title="${escapeHtml(t.label)}" style="background:${t.swatch}"></button>`).join('')}
-            </div>
-          </div>
+          <button class="btn btn-ghost btn-sm" id="theme-btn">
+            ${isDark ? icon('sun', 'w-4 h-4') : icon('moon', 'w-4 h-4')}
+          </button>
           <button class="btn btn-secondary btn-sm" id="refresh-btn">
             ${icon('refresh-cw', 'w-4 h-4')}
             Обновить
@@ -5010,16 +4687,7 @@ function renderShell() {
 
   $('#refresh-btn').onclick = () => renderApp();
   $('#logout-btn').onclick = () => logout();
-  applyTheme(document.documentElement.getAttribute('data-theme') || 'aurora');
-  const themeSwitch = $('#theme-switch');
-  const themeMenu = $('#theme-menu');
-  $('#theme-btn').onclick = (e) => { e.stopPropagation(); themeMenu.classList.toggle('open'); };
-  themeMenu.querySelectorAll('.theme-swatch').forEach(sw => {
-    sw.onclick = () => { applyTheme(sw.dataset.theme); themeMenu.classList.remove('open'); };
-  });
-  document.addEventListener('click', (e) => {
-    if (themeSwitch && !themeSwitch.contains(e.target)) themeMenu.classList.remove('open');
-  }, { once: false });
+  $('#theme-btn').onclick = toggleTheme;
   renderBackendStatus();
 }
 
@@ -5032,40 +4700,13 @@ function renderBackendStatus() {
   el.lastElementChild.textContent = state.backendOk === false ? 'нет связи' : (state.backendOk === true ? 'подключен' : 'сервер');
 }
 
-var THEMES = [
-  { id: 'aurora',   label: 'Aurora',   swatch: 'linear-gradient(135deg,#7C3AED,#A855F7)' },
-  { id: 'midnight', label: 'Midnight', swatch: 'linear-gradient(135deg,#4F46E5,#38BDF8)' },
-  { id: 'emerald',  label: 'Emerald',  swatch: 'linear-gradient(135deg,#059669,#34D399)' },
-  { id: 'sunset',   label: 'Sunset',   swatch: 'linear-gradient(135deg,#F97316,#FB7185)' },
-  { id: 'ocean',    label: 'Ocean',    swatch: 'linear-gradient(135deg,#0891B2,#22D3EE)' },
-  { id: 'light',    label: 'Light',    swatch: 'linear-gradient(135deg,#6366F1,#8B5CF6)' },
-];
-
-function applyTheme(name) {
-  if (!THEMES.some(t => t.id === name)) name = 'aurora';
-  document.documentElement.setAttribute('data-theme', name);
-  document.body.setAttribute('data-theme', name);
-  try { localStorage.setItem('admin_theme', name); } catch (_) {}
-  const btn = document.getElementById('theme-btn');
-  if (btn) {
-    const t = THEMES.find(x => x.id === name) || THEMES[0];
-    btn.innerHTML = `${icon('palette', 'w-4 h-4')} <span>${escapeHtml(t.label)}</span>`;
-  }
-  syncThemeSelector();
-}
-
-function syncThemeSelector() {
-  const current = document.documentElement.getAttribute('data-theme') || 'aurora';
-  $$('.theme-swatch').forEach(el => {
-    el.classList.toggle('is-active', el.dataset.theme === current);
-  });
-}
-
 function toggleTheme() {
-  const order = THEMES.map(t => t.id);
-  const cur = document.documentElement.getAttribute('data-theme') || 'aurora';
-  const next = order[(order.indexOf(cur) + 1) % order.length];
-  applyTheme(next);
+  const body = document.body;
+  const btn = $('#theme-btn');
+  const isDark = body.getAttribute('data-theme') === 'dark';
+  body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  btn.textContent = isDark ? '🌙 Тёмная' : '☀️ Светлая';
+  try { localStorage.setItem('admin_theme', isDark ? 'light' : 'dark'); } catch (_) {}
 }
 
 /* ============================================================
@@ -5080,7 +4721,8 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadTheme() {
-  let saved = 'aurora';
-  try { saved = localStorage.getItem('admin_theme') || 'aurora'; } catch (_) {}
-  document.documentElement.setAttribute('data-theme', saved);
+  try {
+    const saved = localStorage.getItem('admin_theme') || 'light';
+    document.body.setAttribute('data-theme', saved);
+  } catch (_) {}
 }
