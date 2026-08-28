@@ -343,7 +343,10 @@ class _CodeInputState extends State<_CodeInput> {
                 if (value.isNotEmpty) widget.onChanged(index);
               },
               decoration: const InputDecoration(
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 counterText: '',
                 contentPadding: EdgeInsets.zero,
               ),

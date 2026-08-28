@@ -352,10 +352,13 @@ class _PhoneInput extends StatelessWidget {
               autofillHints: const [AutofillHints.telephoneNumber],
               inputFormatters: [_PhoneFormatter()],
               decoration: InputDecoration(
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 hintText: '+7 (999) 000-00-00',
                 hintStyle: EvikTypography.bodyLarge.copyWith(
-                  color: AvroClientColors.tabInactive,
+                  color: AvroClientColors.textMuted,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
               ),
