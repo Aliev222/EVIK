@@ -387,8 +387,14 @@ func (h *AuthHandler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, refreshToken, err := h.issueTokens(r.Context(), h.adminUserID, auth.RoleAdmin)
 	if err != nil {
-		writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
-		return
+		// The web admin consumes only the access token, and the admin virtual
+		// account often has no `users` row (FK target of refresh sessions).
+		// Fall back to session-less tokens so admin login never depends on DB.
+		accessToken, refreshToken, err = h.tokens.Issue(h.adminUserID, auth.RoleAdmin)
+		if err != nil {
+			writeAuthError(w, http.StatusInternalServerError, "failed to issue tokens")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
