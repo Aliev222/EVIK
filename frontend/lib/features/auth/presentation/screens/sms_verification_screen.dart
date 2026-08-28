@@ -1,10 +1,11 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
@@ -133,8 +134,8 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
                   authState.errorMessage ??
                       'Неверный код. Проверьте SMS и попробуйте снова.',
                   textAlign: TextAlign.center,
-                  style: EvikTypography.bodySmall.copyWith(
-                    color: AvroClientColors.error,
+                  style: EvikTypography.bodyMedium.copyWith(
+                    color: AvroClientColors.errorDeep,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -245,8 +246,10 @@ class _CodeInputState extends State<_CodeInput> {
   void initState() {
     super.initState();
     _filledStates = widget.controllers.map((c) => c.text.isNotEmpty).toList();
-    _textListeners = List.generate(widget.controllers.length, _createTextListener);
-    _focusListeners = List.generate(widget.controllers.length, _createFocusListener);
+    _textListeners =
+        List.generate(widget.controllers.length, _createTextListener);
+    _focusListeners =
+        List.generate(widget.controllers.length, _createFocusListener);
     for (int i = 0; i < widget.controllers.length; i++) {
       widget.controllers[i].addListener(_textListeners[i]);
       widget.focusNodes[i].addListener(_focusListeners[i]);
@@ -256,7 +259,8 @@ class _CodeInputState extends State<_CodeInput> {
   VoidCallback _createTextListener(int index) {
     return () {
       if (mounted) {
-        setState(() => _filledStates[index] = widget.controllers[index].text.isNotEmpty);
+        setState(() =>
+            _filledStates[index] = widget.controllers[index].text.isNotEmpty);
       }
     };
   }
@@ -289,68 +293,67 @@ class _CodeInputState extends State<_CodeInput> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(6, (index) {
-        final filled = _filledStates[index];
-        final focused = _focusedIndex == index;
-        final borderColor = widget.hasError
-            ? AvroClientColors.error
-            : focused || filled
-                ? AvroClientColors.accent
-                : AvroClientColors.surface;
-        final fillColor = widget.hasError
-            ? AvroClientColors.error.withValues(alpha: 0.08)
-            : filled || focused
-                ? AvroClientColors.accent.withValues(alpha: 0.08)
-                : AvroClientColors.background;
+          final filled = _filledStates[index];
+          final focused = _focusedIndex == index;
+          final borderColor = widget.hasError
+              ? AvroClientColors.error
+              : focused || filled
+                  ? AvroClientColors.accent
+                  : AvroClientColors.surface;
+          final fillColor = widget.hasError
+              ? AvroClientColors.error.withValues(alpha: 0.08)
+              : filled || focused
+                  ? AvroClientColors.accent.withValues(alpha: 0.08)
+                  : AvroClientColors.background;
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          width: 52,
-          height: 60,
-          margin: EdgeInsets.only(right: index < 5 ? 10 : 0),
-          decoration: BoxDecoration(
-            color: fillColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: focused ? 2.4 : 2),
-            boxShadow: focused
-                ? [
-                    BoxShadow(
-                      color: AvroClientColors.accent.withValues(alpha: 0.16),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: TextFormField(
-            controller: widget.controllers[index],
-            focusNode: widget.focusNodes[index],
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            autofillHints: const [AutofillHints.oneTimeCode],
-            textInputAction: index == 5
-                ? TextInputAction.done
-                : TextInputAction.next,
-            // No length limit here: a pasted/autofilled full code arrives in a
-            // single box and is fanned out by the parent.
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            onChanged: (value) {
-              if (value.isNotEmpty) widget.onChanged(index);
-            },
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              counterText: '',
-              contentPadding: EdgeInsets.zero,
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            width: 52,
+            height: 60,
+            margin: EdgeInsets.only(right: index < 5 ? 10 : 0),
+            decoration: BoxDecoration(
+              color: fillColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: focused ? 2.4 : 2),
+              boxShadow: focused
+                  ? [
+                      BoxShadow(
+                        color: AvroClientColors.accent.withValues(alpha: 0.16),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
             ),
-            style: EvikTypography.h3.copyWith(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+            child: TextFormField(
+              controller: widget.controllers[index],
+              focusNode: widget.focusNodes[index],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              textInputAction:
+                  index == 5 ? TextInputAction.done : TextInputAction.next,
+              // No length limit here: a pasted/autofilled full code arrives in a
+              // single box and is fanned out by the parent.
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                if (value.isNotEmpty) widget.onChanged(index);
+              },
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                counterText: '',
+                contentPadding: EdgeInsets.zero,
+              ),
+              style: EvikTypography.h3.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        );
-      }),
+          );
+        }),
       ),
     );
   }
@@ -359,7 +362,8 @@ class _CodeInputState extends State<_CodeInput> {
 class _CountdownTimer extends StatefulWidget {
   final int totalSeconds;
   final VoidCallback onFinished;
-  const _CountdownTimer({super.key, required this.totalSeconds, required this.onFinished});
+  const _CountdownTimer(
+      {super.key, required this.totalSeconds, required this.onFinished});
 
   @override
   State<_CountdownTimer> createState() => _CountdownTimerState();
@@ -400,7 +404,8 @@ class _CountdownTimerState extends State<_CountdownTimer> {
 
       return RichText(
         text: TextSpan(
-          style: EvikTypography.bodyLarge.copyWith(color: AvroClientColors.textSecondary),
+          style: EvikTypography.bodyLarge
+              .copyWith(color: AvroClientColors.textSecondary),
           children: [
             const TextSpan(text: 'Повторить через '),
             TextSpan(
@@ -417,13 +422,18 @@ class _CountdownTimerState extends State<_CountdownTimer> {
 
     return GestureDetector(
       onTap: widget.onFinished,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Text(
-          'Отправить повторно',
-          style: EvikTypography.bodyLarge.copyWith(
-            color: AvroClientColors.accent,
-            fontWeight: FontWeight.w700,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(
+              'Отправить повторно',
+              style: EvikTypography.bodyLarge.copyWith(
+                color: AvroClientColors.accentStrong,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
       ),

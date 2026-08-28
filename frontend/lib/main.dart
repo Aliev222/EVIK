@@ -244,7 +244,18 @@ class _SplashScreen extends StatelessWidget {
                 fontSize: 44,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.5,
-                color: AvroClientColors.background,
+                color: AvroClientColors.brandDark,
+              ),
+            ),
+            const SizedBox(height: 28),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AvroClientColors.brandDark,
+                ),
               ),
             ),
           ],
