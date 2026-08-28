@@ -91,7 +91,7 @@ func TestFindCandidates_FiltersStaleGeo(t *testing.T) {
 	}
 }
 
-func TestFindCandidates_FiltersNoWS(t *testing.T) {
+func TestFindCandidates_NoWSStillCandidateNeedsWake(t *testing.T) {
 	svc := NewNearestMatchingService(&fakeNearbyRepo{
 		drivers: []location.DriverLocation{
 			{DriverID: "d1", Location: location.Location{UpdatedAt: time.Now().UTC()}, DistanceKM: 1},
@@ -104,8 +104,20 @@ func TestFindCandidates_FiltersNoWS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindCandidates: %v", err)
 	}
-	if len(candidates) != 1 || candidates[0].DriverID != "d1" {
-		t.Fatalf("expected only d1 (has WS), got %v", candidates)
+	// Both available drivers are candidates; the one without a WS is flagged
+	// NeedsWake so the dispatcher can wake it via push (not silently dropped).
+	if len(candidates) != 2 {
+		t.Fatalf("expected both drivers as candidates, got %v", candidates)
+	}
+	byID := map[string]Candidate{}
+	for _, c := range candidates {
+		byID[c.DriverID] = c
+	}
+	if !byID["d2"].NeedsWake {
+		t.Fatal("expected d2 (no WS) to be NeedsWake=true")
+	}
+	if byID["d1"].NeedsWake {
+		t.Fatal("expected d1 (has WS) to be NeedsWake=false")
 	}
 }
 
@@ -155,5 +167,50 @@ func TestFindCandidates_ErrNoCandidates(t *testing.T) {
 	_, err := svc.FindCandidates(context.Background(), ord, 10, nil, &fakeLiveChecker{}, time.Minute)
 	if err != ErrNoCandidateDrivers {
 		t.Fatalf("got %v, want ErrNoCandidateDrivers", err)
+	}
+}
+
+func TestFindCandidates_OfflineOnlineStillCandidate(t *testing.T) {
+	svc := NewNearestMatchingService(&fakeNearbyRepo{
+		drivers: []location.DriverLocation{
+			// d-off is available in DB but has NO live WebSocket.
+			{DriverID: "d-off", Location: location.Location{UpdatedAt: time.Now().UTC()}, DistanceKM: 2},
+			// d-live is available AND connected.
+			{DriverID: "d-live", Location: location.Location{UpdatedAt: time.Now().UTC()}, DistanceKM: 5},
+		},
+	}, &fakeAvailRepo{available: map[string]bool{"d-off": true, "d-live": true}})
+
+	ord := &order.Order{Pickup: order.Coordinate{Lat: 55.75, Lng: 37.62}}
+	candidates, err := svc.FindCandidates(context.Background(), ord, 10, nil,
+		&fakeLiveChecker{online: map[string]bool{"d-live": true}}, time.Minute)
+	if err != nil {
+		t.Fatalf("FindCandidates: %v", err)
+	}
+	if len(candidates) != 2 {
+		t.Fatalf("got %d candidates, want 2 (offline-online must NOT be filtered out)", len(candidates))
+	}
+	byID := map[string]Candidate{}
+	for _, c := range candidates {
+		byID[c.DriverID] = c
+	}
+	if !byID["d-off"].NeedsWake {
+		t.Fatal("expected d-off (no WS) to have NeedsWake=true")
+	}
+	if byID["d-live"].NeedsWake {
+		t.Fatal("expected d-live (has WS) to have NeedsWake=false")
+	}
+}
+
+func TestFindCandidates_UnavailableExcluded(t *testing.T) {
+	svc := NewNearestMatchingService(&fakeNearbyRepo{
+		drivers: []location.DriverLocation{
+			{DriverID: "d-bad", Location: location.Location{UpdatedAt: time.Now().UTC()}, DistanceKM: 2},
+		},
+	}, &fakeAvailRepo{available: map[string]bool{"d-bad": false}})
+
+	ord := &order.Order{Pickup: order.Coordinate{Lat: 55.75, Lng: 37.62}}
+	_, err := svc.FindCandidates(context.Background(), ord, 10, nil, &fakeLiveChecker{}, time.Minute)
+	if err != ErrNoCandidateDrivers {
+		t.Fatalf("expected ErrNoCandidateDrivers, got %v", err)
 	}
 }

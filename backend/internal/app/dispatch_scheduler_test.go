@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"sync"
 	"testing"
@@ -21,6 +22,10 @@ type fakeOfferRepo struct {
 }
 
 func (f *fakeOfferRepo) Create(_ context.Context, offer *orderdomain.Offer) (bool, error) {
+	return f.CreateTx(context.Background(), nil, offer)
+}
+
+func (f *fakeOfferRepo) CreateTx(_ context.Context, _ *sql.Tx, offer *orderdomain.Offer) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	all := append(f.offers, f.created...)
@@ -34,6 +39,30 @@ func (f *fakeOfferRepo) Create(_ context.Context, offer *orderdomain.Offer) (boo
 	}
 	offer.ID = "offer-" + offer.OrderID + "-" + offer.DriverID
 	f.created = append(f.created, offer)
+	return true, nil
+}
+
+// fakeDriverRepo simulates ReserveForOfferTx. By default all drivers are
+// reservable; tests can set busyIDs to simulate a driver already taken.
+type fakeDriverRepo struct {
+	mu       sync.Mutex
+	busyIDs  map[string]bool
+	reserved map[string]bool
+}
+
+func (f *fakeDriverRepo) ReserveForOfferTx(_ context.Context, _ *sql.Tx, driverID string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.busyIDs == nil {
+		f.busyIDs = map[string]bool{}
+	}
+	if f.reserved == nil {
+		f.reserved = map[string]bool{}
+	}
+	if f.busyIDs[driverID] || f.reserved[driverID] {
+		return false, nil
+	}
+	f.reserved[driverID] = true
 	return true, nil
 }
 
@@ -195,7 +224,9 @@ func newTestScheduler(offerRepo *fakeOfferRepo, orderRepo *fakeOrderRepo, matchi
 	pushSender := &fakePushSender{}
 	return NewDispatchScheduler(
 		offerRepo,
+		&fakeDriverRepo{},
 		orderRepo,
+		nil,
 		matchingSvc,
 		settingsRepo,
 		hub,
@@ -428,8 +459,8 @@ func TestDispatchOneOfferPerOrderConcurrent(t *testing.T) {
 		eventPub := &fakeEventPub{}
 		pushSender := &fakePushSender{}
 
-		sched1 := NewDispatchScheduler(offerRepo, orderRepo, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
-		sched2 := NewDispatchScheduler(offerRepo, orderRepo, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
+		sched1 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
+		sched2 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
 
 		var wg sync.WaitGroup
 		wg.Add(2)

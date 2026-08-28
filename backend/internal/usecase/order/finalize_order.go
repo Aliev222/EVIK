@@ -81,11 +81,11 @@ func (uc *FinalizeOrderUseCase) Execute(ctx context.Context, input FinalizeOrder
 	if err != nil {
 		return nil, err
 	}
-	if ord.DriverID == nil || *ord.DriverID != input.DriverID {
-		return nil, fmt.Errorf("driver does not own this order")
-	}
 	if ord.Status != orderdomain.StatusInProgress {
 		return nil, orderdomain.ErrInvalidTransition
+	}
+	if ord.DriverID == nil || *ord.DriverID != input.DriverID {
+		return nil, fmt.Errorf("driver does not own this order")
 	}
 
 	// The server is the source of truth for the completion price. PriceTotal

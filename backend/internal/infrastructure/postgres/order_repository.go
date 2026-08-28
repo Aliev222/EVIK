@@ -849,7 +849,8 @@ SELECT
 	o.created_at,
 	o.financially_completed_at AS completed_at,
 	o.cancelled_at,
-	o.pickup_address, o.dropoff_address
+	COALESCE(o.pickup_address, '') AS pickup_address,
+	COALESCE(o.dropoff_address, '') AS dropoff_address
 FROM orders o
 LEFT JOIN users cu ON cu.id = o.user_id
 LEFT JOIN drivers d ON d.id = o.driver_id

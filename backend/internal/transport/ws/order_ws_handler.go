@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -48,6 +49,11 @@ type OrderWSHandler struct {
 
 	lastLocationPublish   map[string]time.Time
 	lastLocationPublishMu sync.Mutex
+
+	// Distance-based throttle: skip Redis writes when driver moved < minDistanceMeters
+	lastLocation    map[string][2]float64 // driverID -> [lat, lng]
+	lastLocationMu  sync.Mutex
+	minDistanceMeters float64
 }
 
 func NewOrderWSHandler(
@@ -66,12 +72,12 @@ func NewOrderWSHandler(
 		tokenManager:   tokenManager,
 		upgrader: gws.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				origin := r.Header.Get("Origin")
-				if origin == "" {
-					return true
-				}
-				return slices.Contains(allowedOrigins, origin)
-			},
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				return true
+			}
+			return slices.Contains(allowedOrigins, origin)
+		},
 		},
 		logger:                logger,
 		locationRepo:          locationRepo,
@@ -80,6 +86,9 @@ func NewOrderWSHandler(
 		clock:                 clock,
 		lastLocationPublish:   make(map[string]time.Time),
 		lastLocationPublishMu: sync.Mutex{},
+		lastLocation:          make(map[string][2]float64),
+		lastLocationMu:        sync.Mutex{},
+		minDistanceMeters:     50, // skip Redis write if driver moved <50m
 	}
 }
 
@@ -109,7 +118,7 @@ func (h *OrderWSHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.logger.Printf("ws upgrade failed: %v", err)
+		h.logger.Printf("ws upgrade failed (origin=%s): %v", r.Header.Get("Origin"), err)
 		return
 	}
 
@@ -182,6 +191,17 @@ func (h *OrderWSHandler) handleWSMessage(c *wsinfra.Client, msgBytes []byte) {
 	}
 }
 
+// haversineMeters returns the great-circle distance in meters between two points.
+func haversineMeters(lat1, lng1, lat2, lng2 float64) float64 {
+	const R = 6371000.0 // Earth radius in meters
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLng := (lng2 - lng1) * math.Pi / 180
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
+			math.Sin(dLng/2)*math.Sin(dLng/2)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+}
+
 func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte) {
 	if c.Role != "driver" {
 		return
@@ -215,6 +235,22 @@ func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte
 	}
 	h.lastLocationPublish[c.UserID] = now
 	h.lastLocationPublishMu.Unlock()
+
+	// Distance-based throttle: skip Redis write if driver moved <50m
+	// AND last update was <30s ago. This keeps geo-fresh for stationary
+	// drivers while reducing Redis writes for the common case.
+	h.lastLocationMu.Lock()
+	prev, hasPrev := h.lastLocation[c.UserID]
+	if hasPrev {
+		dist := haversineMeters(prev[0], prev[1], locData.Lat, locData.Lng)
+		lastWrite := h.lastLocationPublish[c.UserID]
+		if dist < h.minDistanceMeters && now.Sub(lastWrite) < 30*time.Second {
+			h.lastLocationMu.Unlock()
+			return
+		}
+	}
+	h.lastLocation[c.UserID] = [2]float64{locData.Lat, locData.Lng}
+	h.lastLocationMu.Unlock()
 
 	if h.locationRepo == nil {
 		return
