@@ -28,6 +28,11 @@ type Overview struct {
 	ActiveDrivers             int64
 	PendingVerifications      int64
 
+	// Response time metrics (seconds).
+	AvgAcceptanceTimeSec float64
+	AvgCompletionTimeSec float64
+	OrdersToday          int64
+
 	GMVByDay        []KPIDailyPoint
 	CommissionByDay []KPIDailyPoint
 }

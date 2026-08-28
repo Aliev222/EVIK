@@ -59,6 +59,7 @@ func main() {
 	go container.DispatchScheduler.Run(ctx)
 	go container.DriverPresenceReaper.Run(ctx)
 	go container.StuckOrderReaper.Run(ctx)
+	go container.StartPoolStatsMonitor(ctx)
 	// Only the in-memory limiter needs background eviction; the Redis backend
 	// relies on key expiry. Guard on the optional interface so non-memory
 	// backends (or future ones) don't require a cleanup goroutine.

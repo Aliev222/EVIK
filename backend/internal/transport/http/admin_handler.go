@@ -19,6 +19,7 @@ import (
 	orderdomain "evik/backend/internal/domain/order"
 	"evik/backend/internal/infrastructure/storage"
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 type AdminListPayment struct {
@@ -211,6 +212,9 @@ type AdminHandler struct {
 	clock        AdminClock
 	storage      DocumentStorageConfig
 	docStorage   *storage.DocumentStorage
+	db           *sql.DB
+	rdb          *redis.Client
+	startTime    time.Time
 }
 
 func NewAdminHandler(
@@ -221,6 +225,8 @@ func NewAdminHandler(
 	idGen AdminIDGenerator,
 	clock AdminClock,
 	storageConfig DocumentStorageConfig,
+	db *sql.DB,
+	rdb *redis.Client,
 ) *AdminHandler {
 	var docStorage *storage.DocumentStorage
 	if storageConfig.Endpoint != "" && storageConfig.Bucket != "" && storageConfig.AccessKey != "" && storageConfig.SecretKey != "" {
@@ -247,6 +253,9 @@ func NewAdminHandler(
 		clock:        clock,
 		storage:      storageConfig,
 		docStorage:   docStorage,
+		db:           db,
+		rdb:          rdb,
+		startTime:    time.Now(),
 	}
 }
 
@@ -352,6 +361,47 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 
 		"gmv_by_day":                   gmvByDay,
 		"commission_by_day":            commissionByDay,
+	})
+}
+
+// AdminHealth reports the health of the admin backend dependencies: the primary
+// Postgres database and the Redis cache/pub-sub. It lets the admin UI surface a
+// live infrastructure status badge instead of only discovering outages when a
+// data call fails.
+//
+// @Summary      Admin infrastructure health
+// @Description  Returns the health of Postgres, Redis and the process itself. Admin-only.
+// @Tags         admin
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  map[string]any  "health status"
+// @Router       /admin/health [get]
+func (h *AdminHandler) AdminHealth(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	postgresStatus := "ok"
+	if h.db == nil {
+		postgresStatus = "disabled"
+	} else if err := h.db.PingContext(ctx); err != nil {
+		postgresStatus = "down"
+	}
+
+	redisStatus := "ok"
+	if h.rdb == nil {
+		redisStatus = "disabled"
+	} else if err := h.rdb.Ping(ctx).Err(); err != nil {
+		redisStatus = "down"
+	}
+
+	uptimeSec := int64(time.Since(h.startTime).Seconds())
+	allOk := postgresStatus == "ok" && redisStatus == "ok"
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":        map[string]string{"postgres": postgresStatus, "redis": redisStatus},
+		"all_ok":        allOk,
+		"uptime_sec":    uptimeSec,
+		"server_time":   h.clock.Now().Format(time.RFC3339),
 	})
 }
 

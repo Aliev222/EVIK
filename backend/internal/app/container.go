@@ -154,9 +154,12 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	// Optimize database connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(10)
+	// MaxOpenConns sized for high concurrency: 100 handles 200+ concurrent requests
+	// with headroom. ~10MB RAM per PG connection = ~1GB total (acceptable).
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(100)
 	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(3 * time.Minute)
 
 	redisOptions := &redis.Options{
 		Addr:     cfg.RedisAddr,
@@ -183,7 +186,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	verificationRepo := postgres.NewDriverVerificationRepository(db)
 	locationRepo := redisinfra.NewLocationStore(rdb)
 	driverRepo := postgres.NewDriverRepository(db, locationRepo)
-	matchingService := domainmatching.NewNearestMatchingService(locationRepo, driverRepo)
+	matchingService := domainmatching.NewNearestMatchingServiceWithBatch(locationRepo, driverRepo, driverRepo)
 	eventPublisher := redisinfra.NewOrderEventPublisher(rdb, "orders:status")
 
 	clock := stdClock{}
@@ -266,6 +269,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 			SecretKey:     cfg.S3SecretKey,
 			PublicBaseURL: cfg.S3PublicBaseURL,
 		},
+		db,
+		rdb,
 	)
 	tokenManager := auth.NewTokenManager(cfg.JWTSecret, cfg.AccessTTL, cfg.RefreshTTL)
 	authHandler := httptransport.NewAuthHandler(tokenManager, userRepo, cfg.AdminUserID, cfg.AdminPassword, idGen, clock, !cfg.IsProduction(), cfg.OTPFixedCode, cfg.IsProduction(), cfg.DebugMode)
@@ -291,7 +296,9 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	dispatchScheduler := NewDispatchScheduler(
 		offerRepo,
+		driverRepo,
 		orderRepo,
+		db,
 		matchingService,
 		settingsRepo,
 		hub,
@@ -349,6 +356,24 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 
 	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
+}
+
+// StartPoolStatsMonitor logs DB connection pool stats every 30 seconds.
+// Call as: go container.StartPoolStatsMonitor(ctx)
+func (c *Container) StartPoolStatsMonitor(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			stats := c.db.Stats()
+			log.Printf("DB pool: open=%d in_use=%d idle=%d wait_count=%d wait_duration=%s",
+				stats.OpenConnections, stats.InUse, stats.Idle,
+				stats.WaitCount, stats.WaitDuration)
+		}
+	}
 }
 
 func (c *Container) Close() {

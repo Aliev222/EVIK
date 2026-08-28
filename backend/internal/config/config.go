@@ -123,7 +123,7 @@ func MustLoad() Config {
 		OrderExpansionDelay:               getEnvDuration("ORDER_EXPANSION_DELAY", 60*time.Second),
 		OrderExpansionRadiusKM:            getEnvFloat64("ORDER_EXPANSION_RADIUS_KM", 30.0),
 		DispatchCheckInterval:             getEnvDuration("DISPATCH_CHECK_INTERVAL", 2*time.Second),
-		DispatchOfferTimeout:              getEnvDuration("DISPATCH_OFFER_TIMEOUT", 15*time.Second),
+		DispatchOfferTimeout:              getEnvDuration("DISPATCH_OFFER_TIMEOUT", 20*time.Second),
 		DispatchGeoFreshness:              getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
 		DriverLastCityTTL:                 getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
 		DriverPresenceReaperInterval:      getEnvDuration("DRIVER_PRESENCE_REAPER_INTERVAL", 30*time.Second),
@@ -315,6 +315,8 @@ func getAllowedOrigins() []string {
 			"http://127.0.0.1:3000",
 			"http://localhost:8080",
 			"http://127.0.0.1:8080",
+			"http://localhost:5174",
+			"http://127.0.0.1:5174",
 		}
 	}
 

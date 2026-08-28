@@ -17,21 +17,29 @@ func NewOfferRepository(db *sql.DB) *OfferRepository {
 }
 
 func (r *OfferRepository) Create(ctx context.Context, offer *orderdomain.Offer) (bool, error) {
+	return r.CreateTx(ctx, nil, offer)
+}
+
+// CreateTx creates an offer. When tx is nil, a single-statement query is used;
+// when tx is provided, the insert runs inside that transaction so the offer is
+// atomic with the driver reservation (ReserveForOfferTx).
+func (r *OfferRepository) CreateTx(ctx context.Context, tx *sql.Tx, offer *orderdomain.Offer) (bool, error) {
 	const query = `
 INSERT INTO order_offers (id, order_id, driver_id, round, distance_km, offered_at, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT DO NOTHING
 RETURNING id`
 	var id string
-	err := r.db.QueryRowContext(ctx, query,
-		offer.ID,
-		offer.OrderID,
-		offer.DriverID,
-		offer.Round,
-		offer.DistanceKM,
-		offer.OfferedAt,
-		offer.ExpiresAt,
-	).Scan(&id)
+	var err error
+	if tx != nil {
+		err = tx.QueryRowContext(ctx, query,
+			offer.ID, offer.OrderID, offer.DriverID, offer.Round, offer.DistanceKM, offer.OfferedAt, offer.ExpiresAt,
+		).Scan(&id)
+	} else {
+		err = r.db.QueryRowContext(ctx, query,
+			offer.ID, offer.OrderID, offer.DriverID, offer.Round, offer.DistanceKM, offer.OfferedAt, offer.ExpiresAt,
+		).Scan(&id)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil

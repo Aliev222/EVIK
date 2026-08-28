@@ -13,6 +13,7 @@ import (
 	"evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	redisinfra "evik/backend/internal/infrastructure/redis"
+	"github.com/lib/pq"
 )
 
 type DriverRepository struct {
@@ -312,6 +313,58 @@ SELECT EXISTS(
 	return ok, nil
 }
 
+// AreAvailable checks availability for multiple drivers in a single query (batch).
+// Returns a map[driverID]bool. Drivers not found or unavailable map to false.
+func (r *DriverRepository) AreAvailable(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	const query = `
+SELECT d.id,
+       EXISTS(
+         SELECT 1
+         FROM drivers d2
+         WHERE d2.id = d.id
+           AND d2.status = $1
+           AND d2.current_order_id IS NULL
+           AND EXISTS (
+             SELECT 1
+             FROM driver_verifications dv
+             WHERE dv.user_id IN (d2.user_id, d2.id)
+               AND dv.status = 'approved'
+           )
+       ) AS available
+FROM drivers d
+WHERE d.id = ANY($2)`
+
+	// Build placeholder array for ANY($2)
+	rows, err := r.db.QueryContext(ctx, query, string(driverdomain.StatusOnline), pq.StringArray(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]bool, len(ids))
+	for rows.Next() {
+		var id string
+		var available bool
+		if err := rows.Scan(&id, &available); err != nil {
+			return nil, err
+		}
+		result[id] = available
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Mark any IDs not returned by the query as unavailable
+	for _, id := range ids {
+		if _, ok := result[id]; !ok {
+			result[id] = false
+		}
+	}
+	return result, nil
+}
+
 func (r *DriverRepository) AssignOrder(ctx context.Context, driverID string, orderID string, now time.Time) (*driverdomain.Driver, error) {
 	const query = `
 UPDATE drivers
@@ -356,6 +409,45 @@ SET status = $3, current_order_id = NULL, updated_at = $4
 WHERE id = $1 AND current_order_id = $2`
 	_, err := r.db.ExecContext(ctx, query, driverID, orderID, string(driverdomain.StatusOnline), now)
 	return err
+}
+
+// ReserveForOfferTx atomically checks that the driver is free (online, no
+// current order) AND locks the driver row for the duration of the transaction
+// using SELECT ... FOR UPDATE NOWAIT. This prevents two dispatch goroutines
+// from offering the same driver to two different orders concurrently.
+//
+// Returns:
+//   - (true, nil)   — driver is free and now row-locked; caller may create the order
+//   - (false, nil)  — driver is busy OR already locked by another tx (lock conflict).
+//     Caller should try the next candidate instead of failing the whole order.
+//   - (false, err)  — unexpected DB error.
+func (r *DriverRepository) ReserveForOfferTx(ctx context.Context, tx *sql.Tx, driverID string) (bool, error) {
+	const query = `
+SELECT id FROM drivers
+WHERE id = $1
+  AND status = $2
+  AND current_order_id IS NULL
+FOR UPDATE NOWAIT`
+
+	var id string
+	err := tx.QueryRowContext(ctx, query, driverID, string(driverdomain.StatusOnline)).Scan(&id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Driver not free (already busy / wrong status).
+			return false, nil
+		}
+		// Detect lock-not-available (Postgres 55P03 / pq code "55P03").
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "55P03" {
+			// Row already locked by another dispatch tx → treat as "try next".
+			return false, nil
+		}
+		// Any other lock error (e.g. serialized tx failure) → also try next.
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "40001" {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // AssignOrderTx is the tx variant of AssignOrder.
