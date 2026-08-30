@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -1709,8 +1710,12 @@ func (h *AdminHandler) updateTaxProfileStatus(w http.ResponseWriter, r *http.Req
 		Comments string `json:"comments"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
+		if !errors.Is(err, io.EOF) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
+		// Empty body is allowed for body-less actions like /verify.
+		req.Comments = ""
 	}
 
 	comments := strings.TrimSpace(req.Comments)

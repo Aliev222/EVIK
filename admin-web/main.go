@@ -78,9 +78,31 @@ func main() {
 	})
 
 	log.Printf("admin-web listening on %s, proxying /api/v1/* -> %s", addr, target)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, logRequests(mux)); err != nil {
 		log.Fatal(err)
 	}
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec := &statusRecorder{ResponseWriter: w, status: 200}
+		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
+			defer func() {
+				log.Printf("REQ %s %s -> %d", r.Method, r.URL.Path, rec.status)
+			}()
+		}
+		next.ServeHTTP(rec, r)
+	})
 }
 
 func serveIndex(w http.ResponseWriter, r *http.Request, sub fs.FS) {

@@ -2930,7 +2930,7 @@ function taxProfileVerify(driverId) {
     { label: 'Отмена', onClick: ({ close }) => close() },
     { label: 'Верифицировать', cls: 'btn-success', onClick: async ({ close }) => {
       try {
-        await api.post(`/api/v1/admin/tax-profiles/${encodeURIComponent(driverId)}/verify`);
+        await api.post(`/api/v1/admin/tax-profiles/${encodeURIComponent(driverId)}/verify`, {});
         toast('Профиль верифицирован', 'success');
         close(); closeDrawer(); pageTaxProfiles($('.main'));
       } catch (e) { toast(e.message, 'error'); }
