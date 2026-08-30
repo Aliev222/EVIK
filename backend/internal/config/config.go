@@ -127,7 +127,7 @@ func MustLoad() Config {
 		DispatchGeoFreshness:              getEnvDuration("DISPATCH_GEO_FRESHNESS", 60*time.Second),
 		DriverLastCityTTL:                 getEnvDurationMinutes("DRIVER_LAST_CITY_TTL_MINUTES", 30),
 		DriverPresenceReaperInterval:      getEnvDuration("DRIVER_PRESENCE_REAPER_INTERVAL", 30*time.Second),
-		DriverPresenceGracePeriod:         getEnvDuration("DRIVER_PRESENCE_GRACE_PERIOD", 90*time.Second),
+		DriverPresenceGracePeriod:         getEnvDuration("DRIVER_PRESENCE_GRACE_PERIOD", 3*time.Minute),
 		StuckOrderReaperInterval:          getEnvDuration("STUCK_ORDER_REAPER_INTERVAL", 30*time.Second),
 		StuckSearchingTimeout:             getEnvDuration("STUCK_SEARCHING_TIMEOUT", 5*time.Minute),
 		StuckAcceptedTimeout:              getEnvDuration("STUCK_ACCEPTED_TIMEOUT", 15*time.Minute),

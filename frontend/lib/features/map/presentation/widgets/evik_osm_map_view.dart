@@ -187,9 +187,11 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                       Polyline(
                         points: widget.routePoints,
                         color: widget.routeColor ?? AvroClientColors.accent,
-                        strokeWidth: 4,
+                        strokeWidth: 3,
                         borderColor: AvroClientColors.background,
-                        borderStrokeWidth: 2,
+                        borderStrokeWidth: 1.5,
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
                       ),
                     ],
                   ),

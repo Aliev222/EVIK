@@ -7,6 +7,7 @@ import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
     if (dart.library.io) '../../../../core/network/api_client_io.dart'
     as platform_api;
 import 'package:tow_truck_frontend/core/format/money.dart';
+import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
@@ -109,6 +110,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
   final Ref _ref;
   Timer? _refreshTimer;
   Timer? _paymentPollTimer;
+  Timer? _heartbeatTimer;
   StreamSubscription<OrderUpdate>? _wsSubscription;
 
   String? get _currentDriverId {
@@ -170,6 +172,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
           );
         }
         await realtime.goOnline();
+        _startHeartbeat();
         if (nextWorkState == DriverWorkState.online) {
           await _loadCurrentOffer();
         }
@@ -215,6 +218,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         workState: DriverWorkState.online,
         isLoading: false,
       );
+      _startHeartbeat();
       await _loadCurrentOffer();
     } catch (error) {
       state = state.copyWith(
@@ -249,6 +253,8 @@ class DriverNotifier extends StateNotifier<DriverState> {
         clearActiveOrder: true,
         isLoading: false,
       );
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
     } catch (error) {
       state = state.copyWith(
         workState: previousWorkState,
@@ -538,10 +544,47 @@ class DriverNotifier extends StateNotifier<DriverState> {
     });
   }
 
+  /// HTTP-сердцебиение локации: держит водителя "живым" на сервере даже при
+  /// оборванном WebSocket (VPN/сеть), чтобы reaper не снимал его со смены,
+  /// а клиент видел актуальную позицию. Молча игнорирует сетевые сбои.
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!mounted) return;
+      unawaited(_sendHeartbeat());
+    });
+  }
+
+  Future<void> _sendHeartbeat() async {
+    final driverId = _currentDriverId;
+    if (driverId == null || state.workState == DriverWorkState.offline) return;
+
+    double lat;
+    double lng;
+    try {
+      final position = await LocationService.getCurrentPositionWithFallback();
+      lat = position.latitude;
+      lng = position.longitude;
+    } catch (_) {
+      return;
+    }
+    try {
+      await _driverRepository.updateDriverStatus(
+        driverId: driverId,
+        isOnline: true,
+        lat: lat,
+        lng: lng,
+      );
+    } catch (_) {
+      // Пинг некритичен: не роняем UI из-за сетевых сбоев.
+    }
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
     _paymentPollTimer?.cancel();
+    _heartbeatTimer?.cancel();
     _wsSubscription?.cancel();
     super.dispose();
   }
