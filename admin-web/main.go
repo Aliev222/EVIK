@@ -73,6 +73,7 @@ func main() {
 			serveIndex(w, r, sub)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-store")
 		fileServer.ServeHTTP(w, r)
 	})
 
