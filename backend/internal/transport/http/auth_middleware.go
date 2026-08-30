@@ -51,7 +51,7 @@ func authMiddleware(tokens *auth.TokenManager, allowQueryToken bool, checkers ..
 				writeAuthError(w, http.StatusUnauthorized, "invalid access token")
 				return
 			}
-			if checker != nil {
+			if checker != nil && claims.Role != auth.RoleAdmin {
 				active, err := checker.IsUserActive(r.Context(), claims.UserID)
 				if err != nil {
 					writeAuthError(w, http.StatusInternalServerError, "internal server error")
