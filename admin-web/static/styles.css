@@ -853,6 +853,12 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* ============================================================
    STATES
    ============================================================ */
@@ -923,13 +929,20 @@ body {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
   opacity: 0;
   animation: fadeIn var(--transition-normal) forwards;
+}
+
+.modal-backdrop {
+  z-index: var(--z-modal);
+}
+
+.drawer-backdrop {
+  z-index: var(--z-drawer);
 }
 
 .modal {
@@ -959,6 +972,7 @@ body {
   box-shadow: var(--shadow-hover);
   display: flex;
   flex-direction: column;
+  z-index: calc(var(--z-drawer) + 1);
   transform: translateX(100%);
   animation: slideIn var(--transition-normal) forwards;
 }

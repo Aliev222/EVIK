@@ -2758,9 +2758,22 @@ async function renderDocuments(main) {
 
 function openVerificationDrawer(v) {
   if (!v) return;
-  const docs = (v.documents || []).map(d => `<li><a href="${escapeHtml(d)}" target="_blank" rel="noopener">${escapeHtml(d)}</a></li>`).join('');
+  const VEHICLE_TYPES = { winch: 'Лебёдка', platform: 'Платформа', manipulator: 'Манипулятор', tow_truck: 'Эвакуатор', vehicle: 'Авто' };
+  const vtLabel = VEHICLE_TYPES[v.vehicle_type] || v.vehicle_type || '—';
+  const docs = (v.documents || []).map(d => {
+    const s = escapeHtml(d);
+    return /^https?:\/\//i.test(s)
+      ? `<a href="${s}" target="_blank" rel="noopener" class="badge badge-info">${s}</a>`
+      : `<span class="badge badge-muted">${s}</span>`;
+  }).join(' ');
   const signals = (v.signals || []).map(s => `<span class="badge badge-warning">${escapeHtml(s)}</span>`).join(' ');
   const body = `
+    <div class="drawer-section"><h3>Статус</h3>
+      <div class="kv">
+        <div class="k">Решение</div><div>${statusBadge(v.status, { approved: 'badge-success', rejected: 'badge-danger', pending: 'badge-warning', changes_requested: 'badge-warning', blocked: 'badge-danger' })}</div>
+        <div class="k">Подана</div><div>${formatDate(v.submitted_at)}</div>
+      </div>
+    </div>
     <div class="drawer-section"><h3>Водитель</h3>
       <div class="kv">
         <div class="k">Имя</div><div>${escapeHtml(v.driver_name || '—')}</div>
@@ -2774,10 +2787,10 @@ function openVerificationDrawer(v) {
       <div class="kv">
         <div class="k">Гос. номер</div><div class="mono">${escapeHtml(v.plate || '—')}</div>
         <div class="k">Модель</div><div>${escapeHtml(v.vehicle || '—')}</div>
-        <div class="k">Тип</div><div>${escapeHtml(v.vehicle_type || '—')}</div>
+        <div class="k">Тип</div><div>${vtLabel}</div>
       </div>
     </div>
-    <div class="drawer-section"><h3>Документы</h3>${docs ? `<ul>${docs}</ul>` : '<div class="muted">—</div>'}</div>
+    <div class="drawer-section"><h3>Документы</h3>${docs ? `<div class="chip-row">${docs}</div>` : '<div class="muted">—</div>'}</div>
     ${signals ? `<div class="drawer-section"><h3>Сигналы</h3>${signals}</div>` : ''}
     ${v.decision_reason ? `<div class="drawer-section"><h3>Причина решения</h3><div>${escapeHtml(v.decision_reason)}</div></div>` : ''}`;
   const footer = `
