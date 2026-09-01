@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'core/bootstrap/app_bootstrap.dart';
 import 'core/error/global_error_handler.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'features/driver/data/services/driver_wake_service.dart';
 import 'core/performance/frame_timing_monitor.dart';
 import 'core/performance/rebuild_tracker.dart';
 import 'core/theme/app_theme.dart';
@@ -68,9 +69,42 @@ void main() async {
   runApp(
     ProviderScope(
       overrides: buildAppOverrides(),
-      child: const EvikApp(),
+      child: const _WakeBootstrap(child: EvikApp()),
     ),
   );
+}
+
+/// Restores a driver's online session after the app was killed/backgrounded.
+/// If the driver had the shift enabled (`wasOnline`), it reconnects the
+/// WebSocket so the dispatcher can deliver the order offer. Also wires the
+/// wake-up push callback from [PushNotificationService].
+class _WakeBootstrap extends ConsumerStatefulWidget {
+  const _WakeBootstrap({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_WakeBootstrap> createState() => _WakeBootstrapState();
+}
+
+class _WakeBootstrapState extends ConsumerState<_WakeBootstrap> {
+  @override
+  void initState() {
+    super.initState();
+    PushNotificationService.instance.onDriverWake = () {
+      ref.read(driverWakeServiceProvider).ensureOnline();
+    };
+    // Restore the shift if the driver was online before the app was killed.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final wake = ref.read(driverWakeServiceProvider);
+      if (await wake.wasOnline()) {
+        await wake.ensureOnline();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class EvikApp extends StatelessWidget {
@@ -192,24 +226,36 @@ class _SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AvroClientColors.accent,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/img/load.png',
-              width: 160,
+              'assets/img/app_icon_load_fg.png',
+              width: 180,
               fit: BoxFit.contain,
             ),
             const SizedBox(height: 24),
             Text(
               'Авро',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 32,
+              style: GoogleFonts.unbounded(
+                fontSize: 44,
                 fontWeight: FontWeight.w800,
+                letterSpacing: 1.5,
                 color: AvroClientColors.brandDark,
+              ),
+            ),
+            const SizedBox(height: 28),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AvroClientColors.brandDark,
+                ),
               ),
             ),
           ],
@@ -223,6 +269,9 @@ const bool _skipAuthForDevelopment = bool.fromEnvironment(
   'EVIK_SKIP_AUTH',
   defaultValue: false,
 );
+
+const String _kTestPhone = String.fromEnvironment('EVIK_TEST_PHONE');
+const String _kTestPassword = String.fromEnvironment('EVIK_TEST_PASSWORD');
 
 const bool _uiPreview = bool.fromEnvironment(
   'UI_PREVIEW',
@@ -249,6 +298,26 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       final selectedRole = ref.watch(selectedOnboardingRoleProvider);
       if (selectedRole == null) {
         return const RoleSelectionScreen();
+      }
+      // With EVIK_TEST_PHONE/EVIK_TEST_PASSWORD set, sign in automatically
+      // right after the role is picked, so the tester lands on the main
+      // screen with a working token and zero registration steps.
+      final authState = ref.watch(authProvider);
+      if (_kTestPhone.isNotEmpty &&
+          _kTestPassword.isNotEmpty &&
+          !authState.isAuthenticated &&
+          !authState.isLoading &&
+          !authState.hadPersistedSession) {
+        final phone = _kTestPhone;
+        final password = _kTestPassword;
+        final role = selectedRole;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref
+              .read(authProvider.notifier)
+              .signInWithPassword(phone, password, role: role);
+        });
+        return const _SplashScreen(key: ValueKey<String>('auto-login-splash'));
       }
       return _homeFor(selectedRole);
     }

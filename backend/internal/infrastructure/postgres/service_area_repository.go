@@ -17,27 +17,9 @@ func NewServiceAreaRepository(db *sql.DB) *ServiceAreaRepository {
 	return &ServiceAreaRepository{db: db}
 }
 
-// activeOrdersInAreaSQL counts non-terminal orders whose pickup or dropoff
-// falls within a service area's bounds. Orders have no city_id yet, so the
-// association is purely geographic via the bounding box.
-const activeOrdersInAreaSQL = `
-SELECT COUNT(*)
-FROM orders o, service_areas s
-WHERE s.id = $1
-	AND o.status NOT IN ('completed', 'cancelled', 'no_driver_found')
-	AND (
-		(o.pickup_lat BETWEEN s.min_lat AND s.max_lat AND o.pickup_lng BETWEEN s.min_lng AND s.max_lng)
-		OR
-		(o.dropoff_lat BETWEEN s.min_lat AND s.max_lat AND o.dropoff_lng BETWEEN s.min_lng AND s.max_lng)
-	)`
-
-const areaColumns = `id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active`
+const areaColumns = `id, name, COALESCE(slug, ''), min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, primary_radius_km, is_active, COALESCE(boundary_geojson, ''), COALESCE(boundary_buffer_km, 7.0)`
 
 func (r *ServiceAreaRepository) CheckPoint(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, bool, error) {
-	// Step 1: coarse bbox prefilter in SQL (fast, index-friendly) —
-	// fetch ALL active candidates whose bbox contains the point.
-	// Step 2: exact haversine check in Go domain entity for each candidate.
-	// Step 3: if multiple zones accept the point, return the closest one.
 	const query = `
 SELECT ` + areaColumns + `
 FROM service_areas
@@ -51,6 +33,7 @@ WHERE is_active = TRUE
 	defer rows.Close()
 
 	var best servicearea.ServiceArea
+	var bestLevel servicearea.MatchLevel
 	var bestDist float64
 	var found bool
 
@@ -59,20 +42,30 @@ WHERE is_active = TRUE
 		if err := rows.Scan(
 			&area.ID, &area.Name, &area.Slug,
 			&area.MinLat, &area.MinLng, &area.MaxLat, &area.MaxLng,
-			&area.CenterLat, &area.CenterLng, &area.RadiusKM,
+			&area.CenterLat, &area.CenterLng, &area.RadiusKM, &area.PrimaryRadiusKM,
 			&area.IsActive,
+			&area.BoundaryGeoJSON,
+			&area.BoundaryBufferKM,
 		); err != nil {
 			return nil, false, err
 		}
-		if !area.Contains(lat, lng) {
+		level := area.Match(lat, lng)
+		if level == servicearea.MatchNone {
+			continue
+		}
+		// Strict priority: polygon > buffer > circle, regardless of distance.
+		if found && level < bestLevel {
 			continue
 		}
 		dist := servicearea.HaversineDistance(area.CenterLat, area.CenterLng, lat, lng)
-		if !found || dist < bestDist {
-			best = area
-			bestDist = dist
-			found = true
+		// Tie-break within the same level: closest center wins.
+		if found && level == bestLevel && dist >= bestDist {
+			continue
 		}
+		best = area
+		bestLevel = level
+		bestDist = dist
+		found = true
 	}
 	if err := rows.Err(); err != nil {
 		return nil, false, err
@@ -100,8 +93,10 @@ ORDER BY name ASC`
 		if err := rows.Scan(
 			&a.ID, &a.Name, &a.Slug,
 			&a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng,
-			&a.CenterLat, &a.CenterLng, &a.RadiusKM,
+			&a.CenterLat, &a.CenterLng, &a.RadiusKM, &a.PrimaryRadiusKM,
 			&a.IsActive,
+			&a.BoundaryGeoJSON,
+			&a.BoundaryBufferKM,
 		); err != nil {
 			return nil, err
 		}
@@ -119,8 +114,10 @@ WHERE id = $1`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&a.ID, &a.Name, &a.Slug,
 		&a.MinLat, &a.MinLng, &a.MaxLat, &a.MaxLng,
-		&a.CenterLat, &a.CenterLng, &a.RadiusKM,
+		&a.CenterLat, &a.CenterLng, &a.RadiusKM, &a.PrimaryRadiusKM,
 		&a.IsActive,
+		&a.BoundaryGeoJSON,
+		&a.BoundaryBufferKM,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -133,13 +130,15 @@ WHERE id = $1`
 
 func (r *ServiceAreaRepository) Create(ctx context.Context, area servicearea.ServiceArea) error {
 	const query = `
-INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, is_active, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())`
+INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, primary_radius_km, is_active, boundary_geojson, boundary_buffer_km, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		area.ID, area.Name, area.Slug,
 		area.MinLat, area.MinLng, area.MaxLat, area.MaxLng,
-		area.CenterLat, area.CenterLng, area.RadiusKM,
+		area.CenterLat, area.CenterLng, area.RadiusKM, area.PrimaryRadiusKM,
 		area.IsActive,
+		area.BoundaryGeoJSON,
+		area.BoundaryBufferKM,
 	)
 	return err
 }
@@ -148,13 +147,16 @@ func (r *ServiceAreaRepository) Update(ctx context.Context, area servicearea.Ser
 	const query = `
 UPDATE service_areas
 SET name = $2, slug = $3, min_lat = $4, min_lng = $5, max_lat = $6, max_lng = $7,
-    center_lat = $8, center_lng = $9, radius_km = $10, is_active = $11, updated_at = NOW()
+    center_lat = $8, center_lng = $9, radius_km = $10, primary_radius_km = $11, is_active = $12,
+    boundary_geojson = $13, boundary_buffer_km = $14, updated_at = NOW()
 WHERE id = $1`
 	res, err := r.db.ExecContext(ctx, query,
 		area.ID, area.Name, area.Slug,
 		area.MinLat, area.MinLng, area.MaxLat, area.MaxLng,
-		area.CenterLat, area.CenterLng, area.RadiusKM,
+		area.CenterLat, area.CenterLng, area.RadiusKM, area.PrimaryRadiusKM,
 		area.IsActive,
+		area.BoundaryGeoJSON,
+		area.BoundaryBufferKM,
 	)
 	if err != nil {
 		return err
@@ -172,25 +174,18 @@ func (r *ServiceAreaRepository) SetActive(ctx context.Context, id string, active
 }
 
 func (r *ServiceAreaRepository) Delete(ctx context.Context, id string) error {
+	// A city/zone can always be deleted, even while orders reference it. The
+	// FK uses ON DELETE SET NULL, so existing orders keep running to
+	// completion on their stored coordinates while new orders in the deleted
+	// zone become impossible (the zone no longer passes CheckPoint).
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var active int
-	if err := tx.QueryRowContext(ctx, activeOrdersInAreaSQL, id).Scan(&active); err != nil {
-		return err
-	}
-	if active > 0 {
-		return servicearea.ErrAreaHasActiveOrders
-	}
-
 	res, err := tx.ExecContext(ctx, `DELETE FROM service_areas WHERE id = $1`, id)
 	if err != nil {
-		// FK violation 23503: rows still reference the area (e.g. orders with
-		// city_id pointing at it). Surface a domain error so the caller can
-		// respond 409 instead of exposing a raw database error as 500.
 		return mapFKViolation(err, servicearea.ErrAreaInUse)
 	}
 	if err := ensureAffected(res); err != nil {
@@ -208,7 +203,15 @@ func (r *ServiceAreaRepository) ExistsBySlug(ctx context.Context, slug string) (
 	return exists, nil
 }
 
-// ensureAffected maps a zero-rows-affected result to ErrNotFound.
+func (r *ServiceAreaRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
+	const query = `SELECT EXISTS (SELECT 1 FROM service_areas WHERE LOWER(name) = LOWER($1))`
+	var exists bool
+	if err := r.db.QueryRowContext(ctx, query, name).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func ensureAffected(res sql.Result) error {
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -220,8 +223,6 @@ func ensureAffected(res sql.Result) error {
 	return nil
 }
 
-// mapFKViolation translates a Postgres foreign-key violation (SQLSTATE 23503)
-// into the provided domain error, leaving every other error untouched.
 func mapFKViolation(err error, domainErr error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23503" {

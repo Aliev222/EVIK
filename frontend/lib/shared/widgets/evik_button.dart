@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:flutter/material.dart';
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'animated_button.dart';
 
@@ -61,7 +62,7 @@ class EvikButton extends StatelessWidget {
     switch (variant) {
       case EvikButtonVariant.primary:
         return ElevatedButton.styleFrom(
-          backgroundColor: AvroClientColors.accent,
+          backgroundColor: AvroClientColors.accentStrong,
           foregroundColor: AvroClientColors.background,
           padding: padding,
           shape: RoundedRectangleBorder(borderRadius: borderRadius),
@@ -74,11 +75,11 @@ class EvikButton extends StatelessWidget {
             if (states.contains(WidgetState.disabled)) {
               return AvroClientColors.surface;
             }
-            return AvroClientColors.accent;
+            return AvroClientColors.accentStrong;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) {
-              return AvroClientColors.tabInactive;
+              return AvroClientColors.textDisabled;
             }
             return AvroClientColors.background;
           }),

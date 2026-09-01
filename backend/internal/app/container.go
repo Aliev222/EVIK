@@ -294,6 +294,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.DriverLastCityTTL,
 	)
 
+	// serviceAreaRepo already declared at line 181
+
 	dispatchScheduler := NewDispatchScheduler(
 		offerRepo,
 		driverRepo,
@@ -301,6 +303,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		db,
 		matchingService,
 		settingsRepo,
+		serviceAreaRepo,
 		hub,
 		eventPublisher,
 		pushSender,

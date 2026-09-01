@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
@@ -77,8 +78,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Вход в приложение', style: EvikTypography.h2),
-              const SizedBox(height: 10),
               Text(
                 'Введите номер телефона для входа или регистрации',
                 style: EvikTypography.bodyLarge.copyWith(
@@ -91,6 +90,17 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 controller: _phoneController,
                 onChanged: (_) => setState(() {}),
                 isValid: _isPhoneValid(),
+                onSubmit: (_) {
+                  if (_isPhoneValid() &&
+                      !authState.isLoading &&
+                      _actionEnabled()) {
+                    if (_testPasswordMode) {
+                      _signInWithPassword();
+                    } else {
+                      _sendSmsCode();
+                    }
+                  }
+                },
               ),
               if (_kTestLogin && _testPasswordMode) ...[
                 const SizedBox(height: 8),
@@ -100,7 +110,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     labelText: 'Пароль',
-                    hintText: 'Минимум 6 символов',
+                    hintText: 'Минимум 8 символов',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -156,20 +166,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   child: Text(
                     authState.errorMessage!,
-                    style: EvikTypography.bodySmall.copyWith(
-                      color: AvroClientColors.error,
+                    style: EvikTypography.bodyMedium.copyWith(
+                      color: AvroClientColors.errorDeep,
                     ),
                   ),
                 ),
               ],
               EvikButton(
                 text: _testPasswordMode ? 'Войти по паролю' : 'Получить код',
-                onPressed:
-                    _isPhoneValid() && !authState.isLoading && _actionEnabled()
-                        ? (_testPasswordMode
-                            ? _signInWithPassword
-                            : _sendSmsCode)
-                        : null,
+                onPressed: _isPhoneValid() &&
+                        !authState.isLoading &&
+                        _actionEnabled()
+                    ? (_testPasswordMode ? _signInWithPassword : _sendSmsCode)
+                    : null,
                 isLoading: authState.isLoading,
                 width: double.infinity,
               ),
@@ -203,8 +212,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 const SizedBox(width: 4),
                 Text(
                   'Номер корректный',
-                  style: EvikTypography.bodySmall.copyWith(
-                    color: AvroClientColors.success,
+                  style: EvikTypography.bodyMedium.copyWith(
+                    color: AvroClientColors.successDeep,
                   ),
                 ),
               ],
@@ -232,7 +241,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   bool _actionEnabled() {
     if (!_testPasswordMode) return true;
-    return _passwordController.text.trim().length >= 6;
+    return _passwordController.text.trim().length >= 8;
   }
 
   void _signInWithPassword() {
@@ -298,11 +307,13 @@ class _PhoneInput extends StatelessWidget {
     required this.controller,
     required this.onChanged,
     required this.isValid,
+    required this.onSubmit,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final bool isValid;
+  final ValueChanged<String> onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -336,13 +347,18 @@ class _PhoneInput extends StatelessWidget {
               controller: controller,
               keyboardType: TextInputType.phone,
               onChanged: onChanged,
+              onFieldSubmitted: onSubmit,
+              textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.telephoneNumber],
               inputFormatters: [_PhoneFormatter()],
               decoration: InputDecoration(
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 hintText: '+7 (999) 000-00-00',
                 hintStyle: EvikTypography.bodyLarge.copyWith(
-                  color: AvroClientColors.tabInactive,
+                  color: AvroClientColors.textMuted,
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
               ),

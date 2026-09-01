@@ -34,10 +34,13 @@ type Repository interface {
 	Update(ctx context.Context, area ServiceArea) error
 	// SetActive toggles is_active for an area.
 	SetActive(ctx context.Context, id string, active bool) error
-	// Delete hard-deletes an area, returning ErrAreaHasActiveOrders if any
-	// non-terminal order falls within its bounds, ErrAreaInUse if any row still
-	// references the area through a foreign key, or ErrNotFound if absent.
+	// Delete hard-deletes an area and its orders' references are detached via
+	// ON DELETE SET NULL (orders keep running on stored coordinates). Returns
+	// ErrAreaInUse if another FK still references the area, or ErrNotFound.
 	Delete(ctx context.Context, id string) error
 	// ExistsBySlug reports whether an area with the given slug already exists.
 	ExistsBySlug(ctx context.Context, slug string) (bool, error)
+	// ExistsByName reports whether an area with the given name already exists
+	// (case-insensitive), to prevent duplicate cities.
+	ExistsByName(ctx context.Context, name string) (bool, error)
 }

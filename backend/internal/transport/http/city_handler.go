@@ -37,7 +37,9 @@ func NewCityHandler(repo servicearea.Repository, geocoder CityGeocoder, idGen Ci
 }
 
 type cityNameRequest struct {
-	Name string `json:"name"`
+	Name            string `json:"name"`
+	PrimaryRadiusKM float64 `json:"primary_radius_km"`
+	BoundaryBufferKM float64 `json:"boundary_buffer_km"`
 }
 
 type bboxPayload struct {
@@ -64,11 +66,11 @@ type centerPayload struct {
 // @Failure      404  {object}  ErrorResponse  "city not found"
 // @Router       /admin/cities/search [post]
 func (h *CityHandler) Search(w http.ResponseWriter, r *http.Request) {
-	name, ok := h.decodeName(w, r)
+	req, ok := h.decodeCityRequest(w, r)
 	if !ok {
 		return
 	}
-	res, err := h.geocoder.SearchCity(r.Context(), name)
+	res, err := h.geocoder.SearchCity(r.Context(), req.Name)
 	if err != nil {
 		h.writeGeocodeError(w, err)
 		return
@@ -82,6 +84,7 @@ func (h *CityHandler) Search(w http.ResponseWriter, r *http.Request) {
 			MaxLng: res.MaxLng,
 		},
 		"center":         centerPayload{Lat: res.CenterLat, Lng: res.CenterLng},
+		"boundary_geojson": res.BoundaryGeoJSON,
 		"suggested_slug": res.Slug,
 	})
 }
@@ -149,11 +152,11 @@ func (h *CityHandler) Autocomplete(w http.ResponseWriter, r *http.Request) {
 // @Failure      409  {object}  ErrorResponse  "city with this slug already exists"
 // @Router       /admin/cities [post]
 func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
-	name, ok := h.decodeName(w, r)
+	req, ok := h.decodeCityRequest(w, r)
 	if !ok {
 		return
 	}
-	res, err := h.geocoder.SearchCity(r.Context(), name)
+	res, err := h.geocoder.SearchCity(r.Context(), req.Name)
 	if err != nil {
 		h.writeGeocodeError(w, err)
 		return
@@ -169,21 +172,67 @@ func (h *CityHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	area := servicearea.ServiceArea{
-		ID:        h.idGen.NewID(),
-		Name:      name,
-		Slug:      res.Slug,
-		CenterLat: res.CenterLat,
-		CenterLng: res.CenterLng,
-		RadiusKM:  25,
-		IsActive:  true,
+	dup, err := h.repo.ExistsByName(r.Context(), req.Name)
+	if err != nil {
+		writeInternalError(w, err)
+		return
 	}
+	if dup {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "city with this name already exists", "name": req.Name})
+		return
+	}
+
+	area := servicearea.ServiceArea{
+		ID:             h.idGen.NewID(),
+		Name:           req.Name,
+		Slug:           res.Slug,
+		CenterLat:      res.CenterLat,
+		CenterLng:      res.CenterLng,
+		RadiusKM:       25,
+		PrimaryRadiusKM: req.PrimaryRadiusKM,
+		BoundaryBufferKM: req.BoundaryBufferKM,
+		IsActive:       true,
+	}
+
+	// Store a real administrative boundary when Nominatim gave us a trustworthy
+	// polygon (a relation geometry). Suspicious results (non-relation, or
+	// clearly an over-broad admin_level like a district) are NOT stored so the
+	// area falls back to its circle and an admin can review before finalizing.
+	var warnings []string
+	area.BoundaryGeoJSON, warnings = suspectBoundary(res)
+
 	area.ComputeBBox()
 	if err := h.repo.Create(r.Context(), area); err != nil {
 		writeInternalError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"city": cityResponse(area)})
+	resp := map[string]any{"city": cityResponse(area)}
+	if len(warnings) > 0 {
+		resp["warnings"] = warnings
+	}
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// suspectBoundary decides whether to trust the boundary returned by the
+// geocoder. It returns the polygon to persist (empty string to fall back to the
+// circle) plus any warnings for the admin UI. A boundary is only trusted when
+// it is an OSM relation and parses as a polygon/multipolygon geometry.
+func suspectBoundary(res *geocoding.CitySearchResult) (string, []string) {
+	var warnings []string
+	boundary := res.BoundaryGeoJSON
+	if boundary == "" {
+		warnings = append(warnings, "Точная граница не найдена, используется круговая зона")
+		return "", warnings
+	}
+	if res.OSMType != "relation" {
+		warnings = append(warnings, "Граница получена не как relation административной границы (osm_type="+res.OSMType+"), автоматическое сохранение полигона отменено — круговая зона")
+		return "", warnings
+	}
+	if !looksLikePolygonGeometry(boundary) {
+		warnings = append(warnings, "Геометрия границы не распознана как полигон, используется круговая зона")
+		return "", warnings
+	}
+	return boundary, warnings
 }
 
 // @Summary      List cities (admin)
@@ -207,11 +256,14 @@ func (h *CityHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type cityPatchRequest struct {
-	IsActive *bool `json:"is_active"`
+	IsActive          *bool    `json:"is_active"`
+	PrimaryRadiusKM   *float64 `json:"primary_radius_km"`
+	RadiusKM          *float64 `json:"radius_km"`
+	BoundaryBufferKM  *float64 `json:"boundary_buffer_km"`
 }
 
 // @Summary      Update city (admin)
-// @Description  Toggles the active status of a service area (city).
+// @Description  Updates a service area (city): toggles active status and/or adjusts primary_radius_km (km from city center where orders are accepted).
 // @Tags         cities
 // @Accept       json
 // @Produce      json
@@ -232,18 +284,44 @@ func (h *CityHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	if req.IsActive == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "is_active is required"})
-		return
-	}
-	if err := h.repo.SetActive(r.Context(), id, *req.IsActive); err != nil {
-		if errors.Is(err, servicearea.ErrNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
+
+	if req.IsActive != nil {
+		if err := h.repo.SetActive(r.Context(), id, *req.IsActive); err != nil {
+			if errors.Is(err, servicearea.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
+				return
+			}
+			writeInternalError(w, err)
 			return
 		}
-		writeInternalError(w, err)
-		return
 	}
+
+	if req.PrimaryRadiusKM != nil || req.RadiusKM != nil || req.BoundaryBufferKM != nil {
+		area, err := h.repo.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, servicearea.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found"})
+				return
+			}
+			writeInternalError(w, err)
+			return
+		}
+		if req.PrimaryRadiusKM != nil {
+			area.PrimaryRadiusKM = *req.PrimaryRadiusKM
+		}
+		if req.RadiusKM != nil {
+			area.RadiusKM = *req.RadiusKM
+		}
+		if req.BoundaryBufferKM != nil {
+			area.BoundaryBufferKM = *req.BoundaryBufferKM
+		}
+		area.ComputeBBox()
+		if err := h.repo.Update(r.Context(), *area); err != nil {
+			writeInternalError(w, err)
+			return
+		}
+	}
+
 	updated, err := h.repo.GetByID(r.Context(), id)
 	if err != nil {
 		writeInternalError(w, err)
@@ -271,8 +349,6 @@ func (h *CityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.repo.Delete(r.Context(), id); err != nil {
 		switch {
-		case errors.Is(err, servicearea.ErrAreaHasActiveOrders):
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "Cannot delete: city has active orders"})
 		case errors.Is(err, servicearea.ErrAreaInUse):
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "Cannot delete: city is in use and cannot be deleted"})
 		case errors.Is(err, servicearea.ErrNotFound):
@@ -286,21 +362,42 @@ func (h *CityHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // decodeName parses and validates a { "name": "..." } body.
-func (h *CityHandler) decodeName(w http.ResponseWriter, r *http.Request) (string, bool) {
+func (h *CityHandler) decodeCityRequest(w http.ResponseWriter, r *http.Request) (cityNameRequest, bool) {
 	var req cityNameRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return "", false
+		return cityNameRequest{}, false
 	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
-		return "", false
+		return cityNameRequest{}, false
 	}
-	return name, true
+	if req.PrimaryRadiusKM <= 0 {
+		req.PrimaryRadiusKM = 50
+	}
+	if req.BoundaryBufferKM <= 0 {
+		req.BoundaryBufferKM = 7
+	}
+	return req, true
 }
 
 // writeGeocodeError maps geocoding failures to client-facing statuses.
+func looksLikePolygonGeometry(geoJSON string) bool {
+	var raw struct {
+		Type     string          `json:"type"`
+		Geometry json.RawMessage `json:"geometry"`
+	}
+	if err := json.Unmarshal([]byte(geoJSON), &raw); err != nil {
+		return false
+	}
+	t := raw.Type
+	if t == "Feature" || t == "FeatureCollection" {
+		return strings.Contains(geoJSON, `"Polygon"`) || strings.Contains(geoJSON, `"MultiPolygon"`)
+	}
+	return t == "Polygon" || t == "MultiPolygon"
+}
+
 func (h *CityHandler) writeGeocodeError(w http.ResponseWriter, err error) {
 	if errors.Is(err, geocoding.ErrCityNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "city not found by geocoder"})
@@ -325,7 +422,10 @@ func cityResponse(a servicearea.ServiceArea) map[string]any {
 			Lat: a.CenterLat,
 			Lng: a.CenterLng,
 		},
-		"radius_km": a.RadiusKM,
-		"is_active": a.IsActive,
+		"radius_km":          a.RadiusKM,
+		"primary_radius_km":  a.PrimaryRadiusKM,
+		"boundary_buffer_km": a.BoundaryBufferKM,
+		"boundary_geojson":   a.BoundaryGeoJSON,
+		"is_active":          a.IsActive,
 	}
 }

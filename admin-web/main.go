@@ -47,13 +47,10 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
-		proxy.ServeHTTP(w, r)
-	})
+	forwarded := func(w http.ResponseWriter, r *http.Request) { proxy.ServeHTTP(w, r) }
 
-	mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
-		proxy.ServeHTTP(w, r)
-	})
+	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) { forwarded(w, r) })
+	mux.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) { forwarded(w, r) })
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {

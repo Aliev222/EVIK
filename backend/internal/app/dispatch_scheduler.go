@@ -15,9 +15,14 @@ import (
 
 	matchingdomain "evik/backend/internal/domain/matching"
 	orderdomain "evik/backend/internal/domain/order"
+	servicearea "evik/backend/internal/domain/servicearea"
 	"evik/backend/internal/domain/settings"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 )
+
+type dispatchServiceAreaRepo interface {
+	GetByID(ctx context.Context, id string) (*servicearea.ServiceArea, error)
+}
 
 type dispatchOfferRepo interface {
 	Create(ctx context.Context, offer *orderdomain.Offer) (bool, error)
@@ -57,24 +62,25 @@ type dispatchPushSender interface {
 }
 
 type DispatchScheduler struct {
-	offerRepo      dispatchOfferRepo
-	driverRepo     dispatchDriverRepo
-	orderRepo      dispatchOrderRepo
-	db             *sql.DB
-	matchingSvc    dispatchMatchingService
-	settingsRepo   dispatchSettingsRepo
-	hub            *wsinfra.Hub
-	eventPublisher dispatchEventPublisher
-	pushSender     dispatchPushSender
-	idGen          idGenerator
-	clock          clock
-	logger         *log.Logger
-	checkInterval  time.Duration
-	offerTimeout   time.Duration
-	maxRadiusKM    float64
-	stepRadiusKM    float64
-	geoFreshness   time.Duration
-	maxRounds      int
+	offerRepo        dispatchOfferRepo
+	driverRepo       dispatchDriverRepo
+	orderRepo        dispatchOrderRepo
+	db               *sql.DB
+	matchingSvc      dispatchMatchingService
+	settingsRepo     dispatchSettingsRepo
+	serviceAreaRepo  dispatchServiceAreaRepo
+	hub              *wsinfra.Hub
+	eventPublisher   dispatchEventPublisher
+	pushSender       dispatchPushSender
+	idGen            idGenerator
+	clock            clock
+	logger           *log.Logger
+	checkInterval    time.Duration
+	offerTimeout     time.Duration
+	maxRadiusKM      float64
+	stepRadiusKM     float64
+	geoFreshness     time.Duration
+	maxRounds        int
 
 	// wakeGrace is how long the dispatcher waits for an offline-online driver
 	// (no live WS) to reconnect after a wake-up push before giving up on them
@@ -101,6 +107,7 @@ func NewDispatchScheduler(
 	db *sql.DB,
 	matchingSvc dispatchMatchingService,
 	settingsRepo dispatchSettingsRepo,
+	serviceAreaRepo dispatchServiceAreaRepo,
 	hub *wsinfra.Hub,
 	eventPublisher dispatchEventPublisher,
 	pushSender dispatchPushSender,
@@ -121,26 +128,27 @@ func NewDispatchScheduler(
 		geoFreshness = 60 * time.Second
 	}
 	return &DispatchScheduler{
-		offerRepo:     offerRepo,
-		driverRepo:    driverRepo,
-		orderRepo:     orderRepo,
-		db:            db,
-		matchingSvc:   matchingSvc,
-		settingsRepo:  settingsRepo,
-		hub:           hub,
-		eventPublisher: eventPublisher,
-		pushSender:    pushSender,
-		idGen:         idGen,
-		clock:         clock,
-		logger:        logger,
-		checkInterval: checkInterval,
-		offerTimeout:  offerTimeout,
-		maxRadiusKM:   15,
-		stepRadiusKM:  2,
-		geoFreshness:  geoFreshness,
-		maxRounds:     3,
-		wakeGrace:     8 * time.Second,
-		waking:        make(map[string]wakeEntry),
+		offerRepo:        offerRepo,
+		driverRepo:       driverRepo,
+		orderRepo:        orderRepo,
+		db:               db,
+		matchingSvc:      matchingSvc,
+		settingsRepo:     settingsRepo,
+		serviceAreaRepo:  serviceAreaRepo,
+		hub:              hub,
+		eventPublisher:   eventPublisher,
+		pushSender:       pushSender,
+		idGen:            idGen,
+		clock:            clock,
+		logger:           logger,
+		checkInterval:    checkInterval,
+		offerTimeout:     offerTimeout,
+		maxRadiusKM:      15,
+		stepRadiusKM:     2,
+		geoFreshness:     geoFreshness,
+		maxRounds:        3,
+		wakeGrace:        8 * time.Second,
+		waking:           make(map[string]wakeEntry),
 	}
 }
 
@@ -218,6 +226,15 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 		return
 	}
 
+	// Determine initial search radius based on CityID
+	// If order has CityID, start with primary_radius_km to search all drivers in the city first
+	radius := s.stepRadiusKM
+	if ord.CityID != nil && s.serviceAreaRepo != nil {
+		if area, err := s.serviceAreaRepo.GetByID(ctx, *ord.CityID); err == nil {
+			radius = area.PrimaryRadiusKM
+		}
+	}
+
 	currentRound, err := s.offerRepo.GetCurrentRound(ctx, orderID)
 	if err != nil {
 		s.logger.Printf("dispatch: get round for %s: %v", orderID, err)
@@ -293,7 +310,6 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 	// (after an offer expires/rejects) continues from where we left off using
 	// the persisted round/exclude state. This keeps each dispatch goroutine
 	// short-lived and avoids lock contention storms under parallel dispatch.
-	radius := s.stepRadiusKM
 	var lastErr error
 	for radius <= s.maxRadiusKM {
 		candidates, err := s.matchingSvc.FindCandidates(ctx, ord, radius, offeredThisRound, s.hub, s.geoFreshness)

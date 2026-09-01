@@ -37,13 +37,13 @@ type AdminListPayment struct {
 }
 
 type AdminListWallet struct {
-	ID              string `json:"id"`
-	DriverID        string `json:"driver_id"`
-	Available       int64  `json:"available_balance"`
-	Pending         int64  `json:"pending_balance"`
-	Debt            int64  `json:"debt_balance"`
-	Currency        string `json:"currency"`
-	UpdatedAt       string `json:"updated_at"`
+	ID        string `json:"id"`
+	DriverID  string `json:"driver_id"`
+	Available int64  `json:"available_balance"`
+	Pending   int64  `json:"pending_balance"`
+	Debt      int64  `json:"debt_balance"`
+	Currency  string `json:"currency"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 type AdminListTransaction struct {
@@ -74,13 +74,13 @@ type AdminListSubscription struct {
 }
 
 type AdminAuditLogEntry struct {
-	ID           string `json:"id"`
-	EntityType   string `json:"entity_type"`
-	EntityID     string `json:"entity_id"`
-	Action       string `json:"action"`
-	Reason       string `json:"reason"`
-	ModeratorID  string `json:"moderator_id"`
-	CreatedAt    string `json:"created_at"`
+	ID          string `json:"id"`
+	EntityType  string `json:"entity_type"`
+	EntityID    string `json:"entity_id"`
+	Action      string `json:"action"`
+	Reason      string `json:"reason"`
+	ModeratorID string `json:"moderator_id"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type AdminRepository interface {
@@ -125,12 +125,12 @@ type DriverReviewsStats struct {
 }
 
 type AdminDriverDetail struct {
-	DriverID     string               `json:"driver_id"`
-	UserID       string               `json:"user_id"`
-	FullName     string               `json:"full_name"`
-	Phone        string               `json:"phone"`
-	Status       string               `json:"status"`
-	OrdersCount  int64                `json:"orders_count"`
+	DriverID     string                 `json:"driver_id"`
+	UserID       string                 `json:"user_id"`
+	FullName     string                 `json:"full_name"`
+	Phone        string                 `json:"phone"`
+	Status       string                 `json:"status"`
+	OrdersCount  int64                  `json:"orders_count"`
 	Verification *AdminVerificationInfo `json:"verification,omitempty"`
 	TaxProfile   *AdminTaxProfileInfo   `json:"tax_profile,omitempty"`
 	Wallet       *AdminWalletInfo       `json:"wallet,omitempty"`
@@ -340,22 +340,28 @@ func (h *AdminHandler) Overview(w http.ResponseWriter, r *http.Request) {
 		"active_orders":        overview.ActiveOrders,
 
 		// Phase 1 KPI. All amounts in kopecks (minor units).
-		"gmv_today":                    overview.GMVToday,
-		"gmv_month":                    overview.GMVMonth,
-		"commission_today":             overview.CommissionToday,
-		"commission_month":             overview.CommissionMonth,
-		"payouts_today":                overview.PayoutsToday,
-		"payouts_month":                overview.PayoutsMonth,
-		"payouts_pending":              overview.PayoutsPending,
-		"failed_payments":              overview.FailedPayments,
-		"failed_payouts":               overview.FailedPayouts,
-		"subscriptions_revenue_today":  overview.SubscriptionsRevenueToday,
-		"subscriptions_revenue_month":  overview.SubscriptionsRevenueMonth,
-		"cash_debt_total":              overview.CashDebtTotal,
-		"active_drivers":               overview.ActiveDrivers,
-		"pending_verifications":        overview.PendingVerifications,
-		"gmv_by_day":                   gmvByDay,
-		"commission_by_day":            commissionByDay,
+		"gmv_today":                   overview.GMVToday,
+		"gmv_month":                   overview.GMVMonth,
+		"commission_today":            overview.CommissionToday,
+		"commission_month":            overview.CommissionMonth,
+		"payouts_today":               overview.PayoutsToday,
+		"payouts_month":               overview.PayoutsMonth,
+		"payouts_pending":             overview.PayoutsPending,
+		"failed_payments":             overview.FailedPayments,
+		"failed_payouts":              overview.FailedPayouts,
+		"subscriptions_revenue_today": overview.SubscriptionsRevenueToday,
+		"subscriptions_revenue_month": overview.SubscriptionsRevenueMonth,
+		"cash_debt_total":             overview.CashDebtTotal,
+		"active_drivers":              overview.ActiveDrivers,
+		"pending_verifications":       overview.PendingVerifications,
+
+		// Response time metrics.
+		"avg_acceptance_time_sec": overview.AvgAcceptanceTimeSec,
+		"avg_completion_time_sec": overview.AvgCompletionTimeSec,
+		"orders_today":            overview.OrdersToday,
+
+		"gmv_by_day":        gmvByDay,
+		"commission_by_day": commissionByDay,
 	})
 }
 
@@ -393,10 +399,10 @@ func (h *AdminHandler) AdminHealth(w http.ResponseWriter, r *http.Request) {
 	allOk := postgresStatus == "ok" && redisStatus == "ok"
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":        map[string]string{"postgres": postgresStatus, "redis": redisStatus},
-		"all_ok":        allOk,
-		"uptime_sec":    uptimeSec,
-		"server_time":   h.clock.Now().Format(time.RFC3339),
+		"status":      map[string]string{"postgres": postgresStatus, "redis": redisStatus},
+		"all_ok":      allOk,
+		"uptime_sec":  uptimeSec,
+		"server_time": h.clock.Now().Format(time.RFC3339),
 	})
 }
 
@@ -745,8 +751,8 @@ func (h *AdminHandler) CreateReview(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.CreateReview(r.Context(), item); err != nil {
 		// Check for duplicate review (unique constraint violation)
 		if strings.Contains(err.Error(), "idx_driver_reviews_order_id") ||
-		   strings.Contains(err.Error(), "duplicate key") ||
-		   strings.Contains(err.Error(), "UNIQUE constraint") {
+			strings.Contains(err.Error(), "duplicate key") ||
+			strings.Contains(err.Error(), "UNIQUE constraint") {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "you have already reviewed this order"})
 			return
 		}
@@ -990,10 +996,10 @@ func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Reque
 	// Return successful response
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"document": map[string]any{
-			"key":         uploadedDoc.Key,
-			"public_url":  uploadedDoc.PublicURL,
-			"size":        uploadedDoc.Size,
-			"content_type": contentType,
+			"key":           uploadedDoc.Key,
+			"public_url":    uploadedDoc.PublicURL,
+			"size":          uploadedDoc.Size,
+			"content_type":  contentType,
 			"document_type": documentType,
 		},
 		"message": "document uploaded successfully",
@@ -1607,14 +1613,14 @@ func (h *AdminHandler) GetAdminOrderDetails(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"order":          adminOrderItemJSON(details.Order),
-		"pickup":         map[string]any{"lat": details.Pickup.Lat, "lng": details.Pickup.Lng},
-		"dropoff":        map[string]any{"lat": details.Dropoff.Lat, "lng": details.Dropoff.Lng},
-		"pickup_address": details.Order.PickupAddress,
-		"dropoff_address": details.Order.DropoffAddress,
-		"tow_truck_type": details.TowTruckType,
-		"timeline":       timeline,
-		"payment":        payment,
+		"order":               adminOrderItemJSON(details.Order),
+		"pickup":              map[string]any{"lat": details.Pickup.Lat, "lng": details.Pickup.Lng},
+		"dropoff":             map[string]any{"lat": details.Dropoff.Lat, "lng": details.Dropoff.Lng},
+		"pickup_address":      details.Order.PickupAddress,
+		"dropoff_address":     details.Order.DropoffAddress,
+		"tow_truck_type":      details.TowTruckType,
+		"timeline":            timeline,
+		"payment":             payment,
 		"wallet_transactions": walletTxs,
 		"payouts":             payouts,
 		"refunds":             refunds,
@@ -1645,13 +1651,13 @@ func (h *AdminHandler) ListTaxProfiles(w http.ResponseWriter, r *http.Request) {
 	payload := make([]map[string]any, 0, len(profiles))
 	for _, profile := range profiles {
 		payload = append(payload, map[string]any{
-			"driver_id":             profile.DriverID,
-			"inn":                   profile.INN,
-			"taxpayer_type":         profile.TaxpayerType,
-			"verification_status":   profile.VerificationStatus,
-			"full_name":             profile.FullName,
-			"created_at":            profile.CreatedAt.Format(time.RFC3339),
-			"updated_at":            profile.UpdatedAt.Format(time.RFC3339),
+			"driver_id":           profile.DriverID,
+			"inn":                 profile.INN,
+			"taxpayer_type":       profile.TaxpayerType,
+			"verification_status": profile.VerificationStatus,
+			"full_name":           profile.FullName,
+			"created_at":          profile.CreatedAt.Format(time.RFC3339),
+			"updated_at":          profile.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 
@@ -1725,6 +1731,10 @@ func (h *AdminHandler) updateTaxProfileStatus(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.repo.UpdateTaxProfileStatus(r.Context(), driverID, status, comments); err != nil {
+		if errors.Is(err, admindomain.ErrTaxProfileNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "tax profile not found"})
+			return
+		}
 		writeInternalError(w, err)
 		return
 	}

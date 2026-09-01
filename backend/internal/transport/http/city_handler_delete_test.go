@@ -35,6 +35,7 @@ func (f *fakeAreaRepo) Delete(ctx context.Context, id string) error {
 	return nil
 }
 func (f *fakeAreaRepo) ExistsBySlug(context.Context, string) (bool, error) { return false, nil }
+func (f *fakeAreaRepo) ExistsByName(context.Context, string) (bool, error) { return false, nil }
 
 func cityDeleteRequest(areaID string) *http.Request {
 	req := httptest.NewRequest(http.MethodDelete, "/admin/cities/"+areaID, nil)
@@ -74,18 +75,19 @@ func TestCityDelete_FreeAreaReturnsOK(t *testing.T) {
 	}
 }
 
-// Active orders inside the area keep the existing 409 contract.
-func TestCityDelete_HasActiveOrdersReturns409(t *testing.T) {
-	repo := &fakeAreaRepo{deleteFn: func(context.Context, string) error { return servicearea.ErrAreaHasActiveOrders }}
+// Deleting a city succeeds even when orders reference it (FK SET NULL keeps
+// orders running); no more 409 for active orders.
+func TestCityDelete_SucceedsWithOrders(t *testing.T) {
+	repo := &fakeAreaRepo{deleteFn: func(context.Context, string) error { return nil }}
 	h := NewCityHandler(repo, nil, nil)
 	rec := httptest.NewRecorder()
 	h.Delete(rec, cityDeleteRequest("area-busy"))
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409 Conflict", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 OK", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "active orders") {
-		t.Fatalf("body = %q, want active-orders message", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "deleted") {
+		t.Fatalf("body = %q, want deleted confirmation", rec.Body.String())
 	}
 }
 

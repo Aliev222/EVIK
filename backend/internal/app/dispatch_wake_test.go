@@ -90,6 +90,7 @@ func newWakeScheduler(offerRepo *fakeOfferRepo, orderRepo *fakeOrderRepo, matchi
 		nil,
 		matchingSvc,
 		&fakeSettingsRepo{},
+		nil,
 		hub,
 		eventPub,
 		push,

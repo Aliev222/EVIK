@@ -10,14 +10,18 @@ class AvroClientColors {
   static const Color accentBrand = Color(0xFFFF6B00);
   static const Color textPrimary = Color(0xFF000000);
   static const Color textSecondary = Color(0xFF212121);
+  static const Color textMuted = Color(0xFF3F3F3F);
+  static const Color textDisabled = Color(0xFF757575);
   static const Color navBar = Color(0xFFFFFFFF);
   static const Color tabActive = Color(0xFFFF4000);
   static const Color tabInactive = Color(0xFFAAAAAA);
   static const Color brandDark = Color(0xFF0B1220);
 
   static const Color success = Color(0xFF22C55E);
+  static const Color successDeep = Color(0xFF166534);
   static const Color warning = Color(0xFFF59E0B);
   static const Color error = Color(0xFFEF4444);
+  static const Color errorDeep = Color(0xFFB3261E);
   static const Color info = Color(0xFF3B82F6);
   static const Color sosRed = Color(0xFFDC2626);
 
