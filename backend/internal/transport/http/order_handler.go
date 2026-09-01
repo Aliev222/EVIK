@@ -700,6 +700,8 @@ func (h *OrderHandler) FinalizeOrder(w http.ResponseWriter, r *http.Request) {
 
 // ensureServiceAreaAllows validates both coordinates and returns the matched
 // service area (determined by pickup point) so the caller can record city_id.
+// It allows orders from within primary_radius_km (configurable, default 50km)
+// of any active city center, so clients near a city border can still order.
 func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, pickupLng, dropoffLat, dropoffLng float64) (*servicearea.ServiceArea, error) {
 	if h.areas == nil {
 		return nil, nil
@@ -709,14 +711,54 @@ func (h *OrderHandler) ensureServiceAreaAllows(ctx context.Context, pickupLat, p
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("%w: pickup is outside active service areas", servicearea.ErrOutsideServiceArea)
+		// Point outside exact circle — try the expanded primary radius
+		// (default 50km from city center) so near-border clients can order.
+		closest, err := h.findClosestAreaWithinPrimaryRadius(ctx, pickupLat, pickupLng)
+		if err != nil {
+			return nil, err
+		}
+		if closest == nil {
+			return nil, fmt.Errorf("%w: pickup is outside active service areas", servicearea.ErrOutsideServiceArea)
+		}
+		area = closest
 	}
 	if _, ok, err := h.areas.CheckPoint(ctx, dropoffLat, dropoffLng); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, fmt.Errorf("%w: dropoff is outside active service areas", servicearea.ErrOutsideServiceArea)
+		// Dropoff outside exact circle — allow if within primary radius of the
+		// same (or any other) active city center.
+		closest, err := h.findClosestAreaWithinPrimaryRadius(ctx, dropoffLat, dropoffLng)
+		if err != nil {
+			return nil, err
+		}
+		if closest == nil {
+			return nil, fmt.Errorf("%w: dropoff is outside active service areas", servicearea.ErrOutsideServiceArea)
+		}
 	}
 	return area, nil
+}
+
+// findClosestAreaWithinPrimaryRadius returns the active service area whose
+// center is within primary_radius_km of the given point, or nil if none.
+func (h *OrderHandler) findClosestAreaWithinPrimaryRadius(ctx context.Context, lat, lng float64) (*servicearea.ServiceArea, error) {
+	areas, err := h.areas.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var closest *servicearea.ServiceArea
+	var minDist = math.MaxFloat64
+	for i := range areas {
+		a := &areas[i]
+		if !a.IsActive {
+			continue
+		}
+		d := servicearea.HaversineDistance(a.CenterLat, a.CenterLng, lat, lng)
+		if d <= a.PrimaryRadiusKM && d < minDist {
+			minDist = d
+			closest = a
+		}
+	}
+	return closest, nil
 }
 
 // enrichWithClient attaches the client's identity (in practice their phone) to

@@ -2956,8 +2956,8 @@ function taxProfileReasonModal(driverId, action, title) {
 /* ---------- 7.6 Service Areas (autocomplete + interactive map + driver layer) ---------- */
 const serviceAreasPageState = {
   map: null,
-  rectanglesById: new Map(),
-  previewRect: null,
+  circlesById: new Map(),
+  previewCircle: null,
   cities: [],
   selectedSuggestion: null,
   selectedCityId: null,
@@ -2972,8 +2972,71 @@ function saCityColor(isActive) {
 }
 
 function saCityBounds(c) {
-  const b = c.bbox || {};
-  return L.latLngBounds([b.min_lat, b.min_lng], [b.max_lat, b.max_lng]);
+  const center = c.center || {};
+  const centerLat = center.lat;
+  const centerLng = center.lng;
+  if (centerLat == null || centerLng == null) return L.latLngBounds([0, 0], [0, 0]);
+  const radiusKm = (c.primary_radius_km || c.radius_km || 50);
+  const dLat = radiusKm / 111.0;
+  const dLng = radiusKm / (111.0 * Math.max(0.01, Math.cos(centerLat * Math.PI / 180)));
+  return L.latLngBounds(
+    [centerLat - dLat, centerLng - dLng],
+    [centerLat + dLat, centerLng + dLng]
+  );
+}
+
+// saGeoJSONToLatLngs converts a GeoJSON geometry (Polygon, MultiPolygon, or a
+// Feature/FeatureCollection wrapping them) into a list of Leaflet polygon
+// coordinate arrays [ [lat,lng], ... ]. Returns [] when nothing parseable.
+function saGeoJSONToLatLngs(geoJSON) {
+  const out = [];
+  if (!geoJSON) return out;
+
+  let obj;
+  try { obj = JSON.parse(geoJSON); } catch (_) { return out; }
+
+  const geom = obj.type === 'Feature' ? obj.geometry : (obj.type === 'FeatureCollection' ? null : obj);
+  const collect = (g) => {
+    if (!g) return;
+    if (g.type === 'Polygon') {
+      out.push(saCoordsToLatLng(g.coordinates));
+    } else if (g.type === 'MultiPolygon') {
+      (g.coordinates || []).forEach(poly => { out.push(saCoordsToLatLng(poly)); });
+    }
+  };
+
+  if (obj.type === 'FeatureCollection') {
+    (obj.features || []).forEach(f => collect(f.geometry));
+  } else {
+    collect(geom);
+  }
+  return out.filter(r => r && r.length >= 3);
+}
+
+function saCoordsToLatLng(coords) {
+  // GeoJSON order is [lng, lat]; Leaflet wants [lat, lng].
+  return (coords && coords[0] || []).map(pt => [pt[1], pt[0]]);
+}
+
+// saDrawShape renders a city shape as a polygon when a boundary exists,
+// otherwise as a circle. Shared by the saved-cities map and the geocoder preview.
+function saBuildShape(c, opts) {
+  const color = opts.color || saCityColor(c.is_active);
+  const shapeOpts = Object.assign({
+    color,
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.3,
+  }, opts.shape || {});
+
+  const latLngs = saGeoJSONToLatLngs(c.boundary_geojson);
+  if (latLngs.length > 0) {
+    return L.polygon(latLngs, shapeOpts);
+  }
+  const center = c.center || {};
+  if (center.lat == null || center.lng == null) return null;
+  const radius = (c.primary_radius_km || c.radius_km || 50) * 1000;
+  return L.circle([center.lat, center.lng], Object.assign({ radius }, shapeOpts));
 }
 
 function saDriverStatusMeta(status) {
@@ -3044,6 +3107,11 @@ function pageServiceAreas(main) {
                 <label>Название города</label>
                 <input id="sa-city-name" type="text" placeholder="Махачкала" autocomplete="off" />
                 <div id="sa-autocomplete" class="sa-autocomplete" style="display:none;"></div>
+              </div>
+              <div class="form-group radius-config">
+                <label>Радиус обслуживания (км)</label>
+                <input id="sa-primary-radius" type="number" min="1" max="200" step="5" value="50" placeholder="50" />
+                <p class="muted">Заказы принимаются в радиусе primary_radius от центра города (по умолчанию 50 км).</p>
               </div>
               <button class="btn btn-primary" id="sa-city-add">
                 ${svgIcon('plus')}
@@ -3135,61 +3203,58 @@ function pageServiceAreas(main) {
       attribution: '&copy; OpenStreetMap',
     }).addTo(map);
     serviceAreasPageState.map = map;
-    serviceAreasPageState.rectanglesById = new Map();
+    serviceAreasPageState.circlesById = new Map();
     serviceAreasPageState.driverMarkersById = new Map();
-    serviceAreasPageState.previewRect = null;
+    serviceAreasPageState.previewCircle = null;
     setTimeout(() => { try { map.invalidateSize(); } catch (_) {} }, 60);
   }
 
   function clearPreview() {
-    if (serviceAreasPageState.previewRect) {
-      try { serviceAreasPageState.map.removeLayer(serviceAreasPageState.previewRect); } catch (_) {}
-      serviceAreasPageState.previewRect = null;
+    if (serviceAreasPageState.previewCircle) {
+      try { serviceAreasPageState.map.removeLayer(serviceAreasPageState.previewCircle); } catch (_) {}
+      serviceAreasPageState.previewCircle = null;
     }
   }
 
   function drawPreview(suggestion) {
     if (!serviceAreasPageState.map) return;
     clearPreview();
-    const bounds = L.latLngBounds(
-      [suggestion.min_lat, suggestion.min_lng],
-      [suggestion.max_lat, suggestion.max_lng]
-    );
-    const rect = L.rectangle(bounds, {
+    const s = Object.assign({}, suggestion);
+    if (!s.center && s.lat != null && s.lon != null) {
+      s.center = { lat: s.lat, lng: s.lon };
+    }
+    if (s.boundary_geojson == null && s.geojson != null) {
+      s.boundary_geojson = s.geojson;
+    }
+    const shape = saBuildShape(s, {
       color: '#22C55E',
-      weight: 2,
-      dashArray: '6, 6',
-      fillColor: '#22C55E',
-      fillOpacity: 0.15,
-    }).addTo(serviceAreasPageState.map);
-    rect.bindTooltip(escapeHtml(suggestion.display_name), { permanent: true, direction: 'center', className: 'sa-city-label' });
-    serviceAreasPageState.previewRect = rect;
-    serviceAreasPageState.map.fitBounds(bounds.pad(0.3), { animate: true });
+      shape: { dashArray: '6, 6', fillOpacity: 0.15 },
+    });
+    if (!shape) return;
+    shape.addTo(serviceAreasPageState.map);
+    shape.bindTooltip(escapeHtml(s.display_name || s.name), { permanent: true, direction: 'center', className: 'sa-city-label' });
+    serviceAreasPageState.previewCircle = shape;
+    serviceAreasPageState.map.fitBounds(shape.getBounds().pad(0.3), { animate: true });
   }
 
-  function drawCityRectangles() {
+  function drawCityCircles() {
     if (!serviceAreasPageState.map) return;
-    for (const rect of serviceAreasPageState.rectanglesById.values()) {
-      try { serviceAreasPageState.map.removeLayer(rect); } catch (_) {}
+    for (const shape of serviceAreasPageState.circlesById.values()) {
+      try { serviceAreasPageState.map.removeLayer(shape); } catch (_) {}
     }
-    serviceAreasPageState.rectanglesById.clear();
+    serviceAreasPageState.circlesById.clear();
 
     for (const c of serviceAreasPageState.cities) {
-      const bounds = saCityBounds(c);
-      const color = saCityColor(c.is_active);
-      const rect = L.rectangle(bounds, {
-        color,
-        weight: 2,
-        fillColor: color,
-        fillOpacity: 0.3,
-      }).addTo(serviceAreasPageState.map);
-      rect.bindTooltip(escapeHtml(c.name), { permanent: true, direction: 'center', className: 'sa-city-label' });
-      rect.on('click', () => {
+      const shape = saBuildShape(c, {});
+      if (!shape) continue;
+      shape.addTo(serviceAreasPageState.map);
+      shape.bindTooltip(escapeHtml(c.name), { permanent: true, direction: 'center', className: 'sa-city-label' });
+      shape.on('click', () => {
         highlightCityRow(c.id);
         selectCityFilter(c);
-        serviceAreasPageState.map.fitBounds(bounds.pad(0.2), { animate: true });
+        serviceAreasPageState.map.fitBounds(shape.getBounds().pad(0.2), { animate: true });
       });
-      serviceAreasPageState.rectanglesById.set(c.id, rect);
+      serviceAreasPageState.circlesById.set(c.id, shape);
     }
   }
 
@@ -3351,7 +3416,7 @@ function pageServiceAreas(main) {
       const data = await api.get('/api/v1/admin/cities');
       const cities = (data && data.cities) || [];
       serviceAreasPageState.cities = cities;
-      drawCityRectangles();
+      drawCityCircles();
       updateCityFilterPill();
       if (cities.length === 0) { cityList.innerHTML = EmptyState('Города ещё не добавлены'); return; }
       cityList.innerHTML = `<div class="table-wrap"><table>
@@ -3442,11 +3507,17 @@ function pageServiceAreas(main) {
     const input = $('#sa-city-name', main);
     const name = (input.value || '').trim();
     if (!name) { toast('Укажите название города', 'warning'); return; }
+    const radiusInput = $('#sa-primary-radius', main);
+    const primaryRadiusKm = parseFloat((radiusInput && radiusInput.value) || '50') || 50;
     const btn = $('#sa-city-add');
     btn.disabled = true;
     try {
-      await api.post('/api/v1/admin/cities', { name });
+      const resp = await api.post('/api/v1/admin/cities', { name, primary_radius_km: primaryRadiusKm });
+      const warnings = resp && resp.warnings;
       toast('Город добавлен', 'success');
+      if (warnings && warnings.length) {
+        warnings.forEach(w => toast(w, 'warning'));
+      }
       input.value = '';
       serviceAreasPageState.selectedSuggestion = null;
       clearPreview();
@@ -3470,7 +3541,7 @@ function pageServiceAreas(main) {
       try { serviceAreasPageState.map.remove(); } catch (_) {}
     }
     serviceAreasPageState.map = null;
-    serviceAreasPageState.rectanglesById = new Map();
+    serviceAreasPageState.circlesById = new Map();
     serviceAreasPageState.driverMarkersById = new Map();
     serviceAreasPageState.cities = [];
     serviceAreasPageState.drivers = [];

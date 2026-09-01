@@ -229,6 +229,7 @@ func newTestScheduler(offerRepo *fakeOfferRepo, orderRepo *fakeOrderRepo, matchi
 		nil,
 		matchingSvc,
 		settingsRepo,
+		nil,
 		hub,
 		eventPub,
 		pushSender,
@@ -459,8 +460,8 @@ func TestDispatchOneOfferPerOrderConcurrent(t *testing.T) {
 		eventPub := &fakeEventPub{}
 		pushSender := &fakePushSender{}
 
-		sched1 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
-		sched2 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
+		sched1 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, nil, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
+		sched2 := NewDispatchScheduler(offerRepo, &fakeDriverRepo{}, orderRepo, nil, matchingSvc, &fakeSettingsRepo{}, nil, hub, eventPub, pushSender, &testIDGen{}, testClock{}, log.Default(), time.Microsecond, 5*time.Second, time.Minute)
 
 		var wg sync.WaitGroup
 		wg.Add(2)

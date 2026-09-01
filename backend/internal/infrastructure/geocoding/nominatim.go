@@ -43,6 +43,15 @@ type CitySearchResult struct {
 	Slug        string
 	OSMID       string
 	Type        string
+	// BoundaryGeoJSON is the raw GeoJSON polygon/geometry returned by
+	// Nominatim for the city's administrative boundary (empty when the result
+	// is not a boundary feature or Nominatim returned no geometry).
+	BoundaryGeoJSON string
+	// OSMType indicates the OSM object type (relation/way/node). Boundary
+	// geometries are almost always relations; non-relation results may imply a
+	// coarse/incorrect boundary worth flagging.
+	OSMType     string
+	AdminLevel string
 }
 
 // Nominatim is a rate-limited client for the OSM Nominatim search/reverse
@@ -80,12 +89,15 @@ func NewNominatim(baseURL string) *Nominatim {
 // boundingbox is encoded as an array of four strings:
 // [min_lat, max_lat, min_lng, max_lng]. lat/lon are also strings.
 type nominatimResult struct {
-	DisplayName string   `json:"display_name"`
-	Lat         string   `json:"lat"`
-	Lon         string   `json:"lon"`
-	BoundingBox []string `json:"boundingbox"`
-	OsmID       int64    `json:"osm_id"`
-	Type        string   `json:"type"`
+	DisplayName string          `json:"display_name"`
+	Lat         string          `json:"lat"`
+	Lon         string          `json:"lon"`
+	BoundingBox []string        `json:"boundingbox"`
+	OsmID       int64           `json:"osm_id"`
+	OsmType     string          `json:"osm_type"`
+	Type        string          `json:"type"`
+	GeoJSON     json.RawMessage `json:"geojson"`
+	AdminLevel  string          `json:"admin_level"`
 }
 
 // SearchCity resolves a city name to its bounding box and center via Nominatim.
@@ -96,7 +108,7 @@ func (n *Nominatim) SearchCity(ctx context.Context, name string) (*CitySearchRes
 		return nil, errors.New("geocoding: name is required")
 	}
 
-	body, err := n.doSearch(ctx, trimmed, 1)
+	body, err := n.doSearch(ctx, trimmed, 1, true)
 	if err != nil {
 		return nil, err
 	}
@@ -140,14 +152,19 @@ func (n *Nominatim) SearchCity(ctx context.Context, name string) (*CitySearchRes
 	}
 
 	return &CitySearchResult{
-		DisplayName: r.DisplayName,
-		MinLat:      minLat,
-		MaxLat:      maxLat,
-		MinLng:      minLng,
-		MaxLng:      maxLng,
-		CenterLat:   centerLat,
-		CenterLng:   centerLng,
-		Slug:        Slugify(trimmed),
+		DisplayName:     r.DisplayName,
+		MinLat:          minLat,
+		MaxLat:          maxLat,
+		MinLng:          minLng,
+		MaxLng:          maxLng,
+		CenterLat:       centerLat,
+		CenterLng:       centerLng,
+		Slug:            Slugify(trimmed),
+		OSMID:           strconv.FormatInt(r.OsmID, 10),
+		Type:            r.Type,
+		OSMType:         r.OsmType,
+		AdminLevel:      r.AdminLevel,
+		BoundaryGeoJSON: string(r.GeoJSON),
 	}, nil
 }
 
@@ -163,7 +180,7 @@ func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]City
 		limit = 5
 	}
 
-	body, err := n.doSearch(ctx, trimmed, limit)
+	body, err := n.doSearch(ctx, trimmed, limit, true)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +221,7 @@ func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]City
 }
 
 // doSearch performs the rate-limited HTTP GET against Nominatim.
-func (n *Nominatim) doSearch(ctx context.Context, name string, limit int) ([]byte, error) {
+func (n *Nominatim) doSearch(ctx context.Context, name string, limit int, includeGeometry bool) ([]byte, error) {
 	release, err := n.throttleAndLock(ctx)
 	if err != nil {
 		return nil, err
@@ -216,6 +233,10 @@ func (n *Nominatim) doSearch(ctx context.Context, name string, limit int) ([]byt
 	q.Set("format", "json")
 	q.Set("limit", strconv.Itoa(limit))
 	q.Set("addressdetails", "1")
+	if includeGeometry {
+		q.Set("polygon_geojson", "1")
+		q.Set("polygon_threshold", "0")
+	}
 	endpoint := n.baseURL + "/search?" + q.Encode()
 
 	return n.get(ctx, endpoint)

@@ -1579,6 +1579,43 @@ body {
   min-height: 400px;
 }
 
+.add-city-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.add-city-form .form-group {
+  flex: 1 1 220px;
+  margin-bottom: 0;
+}
+
+.add-city-form .radius-config {
+  flex: 1 1 200px;
+}
+
+.add-city-form .radius-config label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.add-city-form .radius-config .muted {
+  margin-top: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.add-city-form .muted {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+
 .missing-features {
   margin-top: var(--space-4);
   padding: var(--space-4);
