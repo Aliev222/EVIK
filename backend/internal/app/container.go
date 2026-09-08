@@ -238,6 +238,14 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	allowMockLocation := cfg.AllowMockLocation
 	isProduction := cfg.IsProduction()
 	orderHandler := httptransport.NewOrderHandler(createUC, acceptUC, updateUC, cancelUC, finalizeUC, orderRepo, serviceAreaRepo, driverGates, locationRepo, locationRepo, cfg.OrderExpansionRadiusKM, cfg.DriverLastCityTTL, allowMockLocation, isProduction)
+	orderHandler.RouteChanges = &orderuc.ChangeRouteUseCase{
+		Store:   orderRepo,
+		Tariffs: pricingService,
+		Routing: routingService,
+		Events:  eventPublisher,
+		Clock:   clock,
+		IDs:     idGen,
+	}
 	// NPD service uses the stub provider until the FNS Moy Nalog partner
 	// agreement is signed. Swap StubNPDProvider for a real client (e.g.
 	// lknpd.nalog.ru OAuth2) when partner credentials are available.

@@ -84,6 +84,8 @@ func NewRouter(
 			secured.Get("/orders", orderHandler.ListOrders)
 			secured.Get("/orders/active", orderHandler.GetActiveOrder)
 			secured.Get("/orders/{orderID}", orderHandler.GetOrder)
+			secured.With(RequireRoles(auth.RoleClient)).Post("/orders/{orderID}/route/quote", orderHandler.QuoteOrderRoute)
+			secured.With(RequireRoles(auth.RoleClient)).Post("/orders/{orderID}/route", orderHandler.ConfirmOrderRoute)
 			secured.Get("/orders/{orderID}/review", adminHandler.GetOrderReview)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Post("/orders/{orderID}/payments", paymentHandler.CreateOrderPayment)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/orders/{orderID}/payment-status", paymentHandler.GetOrderPaymentStatus)

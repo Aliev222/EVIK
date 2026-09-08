@@ -236,6 +236,16 @@ func (h *OrderWSHandler) handleLocationUpdate(c *wsinfra.Client, msgBytes []byte
 	h.lastLocationPublish[c.UserID] = now
 	h.lastLocationPublishMu.Unlock()
 
+	if recorder, ok := h.orderRepo.(interface {
+		RecordTripLocation(context.Context, string, string, float64, float64, time.Time) error
+	}); ok && locData.OrderID != "" {
+		if err := recorder.RecordTripLocation(
+			context.Background(), locData.OrderID, c.UserID, locData.Lat, locData.Lng, now,
+		); err != nil {
+			h.logger.Printf("ws: trip location could not be recorded: %v", err)
+		}
+	}
+
 	// Distance-based throttle: skip Redis write if driver moved <50m
 	// AND last update was <30s ago. This keeps geo-fresh for stationary
 	// drivers while reducing Redis writes for the common case.

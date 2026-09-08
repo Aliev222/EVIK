@@ -35,6 +35,7 @@ type DriverLocationCache interface {
 }
 
 type OrderHandler struct {
+	RouteChanges *orderuc.ChangeRouteUseCase
 	createUC          *orderuc.CreateOrderUseCase
 	acceptUC          *orderuc.AcceptOrderUseCase
 	updateUC          *orderuc.UpdateStatusUseCase
