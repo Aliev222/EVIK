@@ -70,8 +70,10 @@ func NewRouter(
 		api.Post("/webhooks/yookassa", paymentHandler.HandleYooKassaWebhook)
 		api.Get("/service-areas/check", serviceAreaHandler.Check)
 
-		// Reverse geocoding is intentionally public: coordinates carry no
-		// secrets, and clients resolve addresses before auth completes.
+		// Geocoding is public because clients choose and resolve addresses
+		// before authenticated order creation. Per-IP limits protect the
+		// backend-owned Nominatim client.
+		api.With(RateLimitByIP(limiter, 10)).Get("/geocode/search", geocodingHandler.Search)
 		api.With(RateLimitByIP(limiter, 10)).Get("/geocode/reverse", geocodingHandler.Reverse)
 
 		api.Group(func(secured chi.Router) {
@@ -136,14 +138,15 @@ func NewRouter(
 			secured.Get("/pricing/tariffs/{type}", pricingHandler.GetTariffByType)
 
 			// Routing endpoints for drivers
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Get("/routing/preview", routingHandler.Preview)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", routingHandler.CalculateRoute)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/directions", routingHandler.GetDirections)
 
 			secured.Route("/admin", func(admin chi.Router) {
 				admin.Use(RequireRoles(auth.RoleAdmin))
 				admin.Get("/overview", adminHandler.Overview)
-			admin.Get("/health", adminHandler.AdminHealth)
-			admin.Get("/driver-verifications", adminHandler.ListDriverVerifications)
+				admin.Get("/health", adminHandler.AdminHealth)
+				admin.Get("/driver-verifications", adminHandler.ListDriverVerifications)
 				admin.Get("/users", adminHandler.ListUsers)
 				admin.Get("/reviews", adminHandler.ListReviews)
 				admin.Post("/reviews/{reviewID}/hide", adminHandler.HideReview)

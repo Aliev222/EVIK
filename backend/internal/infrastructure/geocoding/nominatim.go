@@ -50,7 +50,7 @@ type CitySearchResult struct {
 	// OSMType indicates the OSM object type (relation/way/node). Boundary
 	// geometries are almost always relations; non-relation results may imply a
 	// coarse/incorrect boundary worth flagging.
-	OSMType     string
+	OSMType    string
 	AdminLevel string
 }
 
@@ -180,7 +180,10 @@ func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]City
 		limit = 5
 	}
 
-	body, err := n.doSearch(ctx, trimmed, limit, true)
+	// Address autocomplete only returns a label and a point. Asking the public
+	// provider for polygon GeoJSON here makes every keystroke unnecessarily
+	// expensive; geometry is needed only by the admin city workflow.
+	body, err := n.doSearch(ctx, trimmed, limit, false)
 	if err != nil {
 		return nil, err
 	}
