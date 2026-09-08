@@ -1017,16 +1017,51 @@ func (r *PaymentRepository) MarkPayoutPaid(ctx context.Context, payoutID, provid
 		return err
 	}
 	defer tx.Rollback()
+	if err := markPayoutPaidTx(ctx, tx, payoutID, providerPayoutID, idempotencyKey); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (r *PaymentRepository) MarkPayoutProcessing(ctx context.Context, payoutID, providerPayoutID string) error {
+	result, err := r.db.ExecContext(ctx, `
+UPDATE payouts
+SET status = 'processing', provider_payout_id = $2, failure_reason = NULL, updated_at = NOW()
+WHERE id = $1 AND status IN ('created', 'processing')`, payoutID, providerPayoutID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return paymentdomain.ErrPayoutNotFound
+	}
+	return nil
+}
+
+func (r *PaymentRepository) GetPayoutByProviderID(ctx context.Context, providerPayoutID string) (*paymentdomain.Payout, error) {
+	payout, err := scanPayout(r.db.QueryRowContext(ctx, `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts WHERE provider_payout_id = $1`, providerPayoutID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, paymentdomain.ErrPayoutNotFound
+	}
+	return payout, err
+}
+
+func markPayoutPaidTx(ctx context.Context, tx *sql.Tx, payoutID, providerPayoutID, idempotencyKey string) error {
 	var payout paymentdomain.Payout
 	var provider, status string
-	err = tx.QueryRowContext(ctx, `
+	err := tx.QueryRowContext(ctx, `
 SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
 FROM payouts WHERE id = $1 FOR UPDATE`, payoutID).Scan(&payout.ID, &payout.DriverID, &payout.WalletID, &provider, &payout.ProviderPayoutID, &payout.Amount, &payout.Currency, &status, &payout.FailureReason, &payout.IdempotencyKey, &payout.PaidAt, &payout.CreatedAt, &payout.UpdatedAt)
 	if err != nil {
 		return err
 	}
 	if status == string(paymentdomain.PayoutStatusPaid) {
-		return tx.Commit()
+		return nil
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT id FROM driver_wallets WHERE id = $1 FOR UPDATE`, payout.WalletID); err != nil {
 		return err
@@ -1040,7 +1075,7 @@ FROM payouts WHERE id = $1 FOR UPDATE`, payoutID).Scan(&payout.ID, &payout.Drive
 	if err := insertWalletTx(ctx, tx, payout.WalletID, payout.DriverID, nil, nil, &payout.ID, paymentdomain.WalletTypePayout, paymentdomain.WalletDirectionDebit, payout.Amount, paymentdomain.WalletTxStatusSucceeded, "Driver payout", idempotencyKey, nil); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (r *PaymentRepository) MarkPayoutFailed(ctx context.Context, payoutID, reason string) error {
@@ -1599,6 +1634,25 @@ RETURNING id, order_id, driver_id, user_id, provider, provider_payment_id, payme
 		return nil, paymentdomain.ErrPaymentNotFound
 	}
 	return p, err
+}
+
+func (w *webhookTxImpl) GetPayoutByProviderID(ctx context.Context, providerPayoutID string) (*paymentdomain.Payout, error) {
+	payout, err := scanPayout(w.tx.QueryRowContext(ctx, `
+SELECT id, driver_id, wallet_id, provider, provider_payout_id, amount, currency, status, failure_reason, idempotency_key, paid_at, created_at, updated_at
+FROM payouts WHERE provider_payout_id = $1`, providerPayoutID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, paymentdomain.ErrPayoutNotFound
+	}
+	return payout, err
+}
+
+func (w *webhookTxImpl) MarkPayoutPaid(ctx context.Context, payoutID, providerPayoutID, idempotencyKey string) error {
+	return markPayoutPaidTx(ctx, w.tx, payoutID, providerPayoutID, idempotencyKey)
+}
+
+func (w *webhookTxImpl) MarkPayoutFailed(ctx context.Context, payoutID, reason string) error {
+	_, err := w.tx.ExecContext(ctx, `UPDATE payouts SET status = 'failed', failure_reason = $2, updated_at = NOW() WHERE id = $1`, payoutID, reason)
+	return err
 }
 
 func (w *webhookTxImpl) ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error {

@@ -15,10 +15,22 @@ type payoutRepo struct {
 	listMethodsErr      error
 	createPayoutErr     error
 	markPayoutFailedArg struct {
-		called  bool
+		called   bool
 		payoutID string
 		reason   string
 	}
+	markPayoutProcessingArg struct {
+		called           bool
+		payoutID         string
+		providerPayoutID string
+	}
+}
+
+func (r *payoutRepo) MarkPayoutProcessing(_ context.Context, payoutID, providerPayoutID string) error {
+	r.markPayoutProcessingArg.called = true
+	r.markPayoutProcessingArg.payoutID = payoutID
+	r.markPayoutProcessingArg.providerPayoutID = providerPayoutID
+	return nil
 }
 
 func (r *payoutRepo) ListPayoutMethods(_ context.Context, _ string) ([]paymentdomain.DriverPayoutMethod, error) {
@@ -169,6 +181,30 @@ func TestRequestDriverPayoutProviderErrorMarksFailed(t *testing.T) {
 	}
 }
 
+func TestRequestDriverPayoutPendingStoresProviderID(t *testing.T) {
+	repo := &payoutRepo{payoutMethods: []paymentdomain.DriverPayoutMethod{{
+		ID: "m-1", DriverID: "driver-1", IsDefault: true, Status: "active", ProviderRecipientID: "pm-1",
+	}}}
+	provider := &scriptedProvider{createPayoutFn: func(context.Context, ProviderPayoutRequest) (*ProviderPayoutResponse, error) {
+		return &ProviderPayoutResponse{ID: "po-provider-1", Status: "pending"}, nil
+	}}
+	uc := newPayoutUC(repo, provider)
+
+	payout, err := uc.RequestDriverPayout(context.Background(), "driver-1", 850000, "key-pending")
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !repo.markPayoutProcessingArg.called {
+		t.Fatal("pending provider payout was not persisted as processing")
+	}
+	if repo.markPayoutProcessingArg.providerPayoutID != "po-provider-1" {
+		t.Fatalf("provider payout id = %q", repo.markPayoutProcessingArg.providerPayoutID)
+	}
+	if payout.Status != paymentdomain.PayoutStatusProcessing || payout.ProviderPayoutID == nil || *payout.ProviderPayoutID != "po-provider-1" {
+		t.Fatalf("payout = %#v, want processing with provider id", payout)
+	}
+}
+
 func TestRequestDriverPayoutAutoIdempotencyKey(t *testing.T) {
 	repo := &payoutRepo{
 		payoutMethods: []paymentdomain.DriverPayoutMethod{
@@ -253,4 +289,3 @@ func TestRequestDriverPayoutMinimumZeroDisablesGuard(t *testing.T) {
 		t.Fatal("expected a created payout")
 	}
 }
-

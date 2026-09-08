@@ -21,7 +21,7 @@ Currency is RUB. API amounts are integer kopecks. PostgreSQL stores financial ba
 6. Commission is 15%. Driver amount first repays `debt_balance`; the remaining amount is credited to `pending_balance` with `wallet_transactions.type=order_income`.
 7. `ReleasePendingBalancesJob` runs every minute and moves eligible pending income to available balance after `FINANCE_PENDING_HOLD_SECONDS`.
 8. Driver requests payout manually. After provider success, `available_balance` is debited with `wallet_transactions.type=payout`.
-9. Current YooKassa payout integration is explicitly sandbox-only: `YOOKASSA_PAYOUT_MODE=sandbox` returns a local mock provider payout id. `live` mode fails closed until separate card/SBP/bank_account payloads are implemented and certified.
+9. Driver payouts are disabled in production until the application has a provider-approved recipient-onboarding flow. Sandbox returns a local mock provider payout id for tests. The service must never interpret its current opaque internal recipient id as a YooKassa payout token or destination.
 
 ## Cash Order Flow
 
@@ -126,4 +126,4 @@ Supported report types: `orders`, `payments`, `payouts`, `commissions`, `subscri
 
 ## YooKassa Notes
 
-Payment creation uses YooKassa `/v3/payments`, Basic auth, and `Idempotence-Key`. Payouts are sandbox/mock in this build and are intentionally blocked in live mode until provider-specific card/SBP/bank_account payloads are added. Store YooKassa credentials only in environment variables.
+Payment creation uses YooKassa `/v3/payments`, Basic auth, and `Idempotence-Key`. Store YooKassa credentials only in environment variables. Before enabling payouts, implement driver-facing onboarding that collects a provider-approved payout token or typed card/SBP/YooMoney destination, validates it with YooKassa, and stores only the permitted opaque identifier. Do not accept raw recipient details through the generic payout-method endpoint.

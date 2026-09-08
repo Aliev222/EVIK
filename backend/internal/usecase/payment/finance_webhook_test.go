@@ -18,8 +18,28 @@ type webhookRepo struct {
 	markProcessedCalls     int
 	txOpenCalls            int
 
-	purposeOnUpdate paymentdomain.PaymentPurpose
-	statusOnUpdate  paymentdomain.PaymentStatus
+	purposeOnUpdate  paymentdomain.PaymentPurpose
+	statusOnUpdate   paymentdomain.PaymentStatus
+	payout           *paymentdomain.Payout
+	markPayoutPaid   int
+	markPayoutFailed int
+}
+
+func (r *webhookRepo) GetPayoutByProviderID(_ context.Context, providerPayoutID string) (*paymentdomain.Payout, error) {
+	if r.payout == nil || r.payout.ProviderPayoutID == nil || *r.payout.ProviderPayoutID != providerPayoutID {
+		return nil, paymentdomain.ErrPayoutNotFound
+	}
+	return r.payout, nil
+}
+
+func (r *webhookRepo) MarkPayoutPaid(_ context.Context, _, _, _ string) error {
+	r.markPayoutPaid++
+	return nil
+}
+
+func (r *webhookRepo) MarkPayoutFailed(_ context.Context, _, _ string) error {
+	r.markPayoutFailed++
+	return nil
 }
 
 func newWebhookRepo() *webhookRepo {
@@ -152,6 +172,30 @@ func TestHandleWebhookDuplicateIsIgnored(t *testing.T) {
 	}
 	if repo.updatePaymentCalls != 1 {
 		t.Errorf("UpdatePaymentFromProvider calls = %d, want 1 (only first call should update)", repo.updatePaymentCalls)
+	}
+}
+
+func TestHandlePayoutWebhookRequeriesAndMarksPaid(t *testing.T) {
+	providerID := "po-provider-1"
+	repo := newWebhookRepo()
+	repo.payout = &paymentdomain.Payout{
+		ID: "payout-local-1", ProviderPayoutID: &providerID, IdempotencyKey: "payout-key-1",
+	}
+	provider := &scriptedProvider{getPayoutFn: func(_ context.Context, id string) (*ProviderPayoutResponse, error) {
+		return &ProviderPayoutResponse{ID: id, Status: "succeeded"}, nil
+	}}
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	uc := NewFinanceUseCase(repo, &fakePaymentOrderRepo{}, &fakeDriverReleaseStore{}, &scriptedPricing{}, provider, &fakeSettingsRepo{}, fakeClock{now: now}, fakeIDGenerator{}, 600, 10000, nil)
+
+	payload := []byte(`{"event":"payout.succeeded","object":{"id":"po-provider-1","status":"succeeded"}}`)
+	if err := uc.HandleProviderWebhook(context.Background(), NewYooKassaVerifier(), payload); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(provider.getPayoutIDs) != 1 || provider.getPayoutIDs[0] != providerID {
+		t.Fatalf("GetPayout ids = %#v", provider.getPayoutIDs)
+	}
+	if repo.markPayoutPaid != 1 || repo.updatePaymentCalls != 0 {
+		t.Fatalf("paid calls = %d, payment update calls = %d", repo.markPayoutPaid, repo.updatePaymentCalls)
 	}
 }
 

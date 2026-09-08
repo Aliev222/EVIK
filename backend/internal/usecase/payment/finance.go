@@ -48,6 +48,10 @@ type PaymentProvider interface {
 	CreatePayout(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error)
 }
 
+type payoutStatusProvider interface {
+	GetPayout(ctx context.Context, id string) (*ProviderPayoutResponse, error)
+}
+
 type ProviderPaymentRequest struct {
 	Amount         int64
 	Currency       string
@@ -310,6 +314,32 @@ func (uc *FinanceUseCase) HandleProviderWebhook(ctx context.Context, verifier We
 		}
 		if processed {
 			return nil
+		}
+
+		if strings.HasPrefix(event.EventType, "payout.") {
+			statusProvider, ok := uc.provider.(payoutStatusProvider)
+			if !ok {
+				return errors.New("payment provider does not support payout status verification")
+			}
+			providerPayout, err := statusProvider.GetPayout(ctx, event.PaymentID)
+			if err != nil {
+				return fmt.Errorf("verify payout with provider: %w", err)
+			}
+			payout, err := txOps.GetPayoutByProviderID(ctx, event.PaymentID)
+			if err != nil {
+				return err
+			}
+			switch providerPayout.Status {
+			case "succeeded", string(paymentdomain.PayoutStatusPaid):
+				if err := txOps.MarkPayoutPaid(ctx, payout.ID, event.PaymentID, payout.IdempotencyKey); err != nil {
+					return err
+				}
+			case "canceled", "cancelled", string(paymentdomain.PayoutStatusFailed):
+				if err := txOps.MarkPayoutFailed(ctx, payout.ID, "provider status: "+providerPayout.Status); err != nil {
+					return err
+				}
+			}
+			return txOps.MarkProcessed(ctx, event.EventID)
 		}
 
 		status := event.Status
@@ -617,6 +647,17 @@ func (uc *FinanceUseCase) RequestDriverPayout(ctx context.Context, driverID stri
 			return nil, err
 		}
 		created.Status = paymentdomain.PayoutStatusPaid
+		created.ProviderPayoutID = &providerPayout.ID
+	} else if providerPayout.Status == "canceled" || providerPayout.Status == "cancelled" || providerPayout.Status == string(paymentdomain.PayoutStatusFailed) {
+		if err := uc.repo.MarkPayoutFailed(ctx, created.ID, "provider status: "+providerPayout.Status); err != nil {
+			return nil, err
+		}
+		created.Status = paymentdomain.PayoutStatusFailed
+	} else {
+		if err := uc.repo.MarkPayoutProcessing(ctx, created.ID, providerPayout.ID); err != nil {
+			return nil, err
+		}
+		created.Status = paymentdomain.PayoutStatusProcessing
 		created.ProviderPayoutID = &providerPayout.ID
 	}
 	return created, nil

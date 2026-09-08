@@ -123,44 +123,19 @@ func (c *YooKassaClient) CreatePayment(ctx context.Context, req YooKassaPaymentR
 
 func (c *YooKassaClient) CreatePayout(ctx context.Context, req YooKassaPayoutRequest) (*YooKassaPayoutResponse, error) {
 	if c.payoutMode != "live" {
-		return &YooKassaPayoutResponse{
-			ID:     "sandbox-" + req.IdempotencyKey,
-			Status: "succeeded",
-		}, nil
+		if c.payoutMode == "sandbox" {
+			return &YooKassaPayoutResponse{
+				ID:     "sandbox-" + req.IdempotencyKey,
+				Status: "succeeded",
+			}, nil
+		}
+		return nil, errors.New("yookassa payouts are disabled")
 	}
-	return nil, errors.New("live yookassa payout payloads for card/sbp/bank_account are not implemented; YOOKASSA_PAYOUT_MODE must remain sandbox")
-}
-
-func (c *YooKassaClient) createLegacyPayout(ctx context.Context, req YooKassaPayoutRequest) (*YooKassaPayoutResponse, error) {
-	if c.payoutSecretKey == "" {
-		return nil, errors.New("yookassa payout credentials are not configured")
-	}
-	payload := map[string]any{
-		"amount": map[string]string{
-			"value":    formatKopecks(req.Amount),
-			"currency": req.Currency,
-		},
-		"recipient": map[string]string{
-			"recipient_id": req.ProviderRecipientID,
-		},
-		"description": req.Description,
-	}
-	if c.payoutGatewayID != "" {
-		payload["gateway_id"] = c.payoutGatewayID
-	}
-	var out struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
-	}
-	authID := c.payoutGatewayID
-	if authID == "" {
-		authID = c.shopID
-	}
-	payoutAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(authID+":"+c.payoutSecretKey))
-	if err := c.doJSON(ctx, http.MethodPost, "/payouts", req.IdempotencyKey, payoutAuth, payload, &out); err != nil {
-		return nil, err
-	}
-	return &YooKassaPayoutResponse{ID: out.ID, Status: out.Status}, nil
+	// A driver payout method currently stores only an opaque internal recipient
+	// id. YooKassa requires a provider-approved payout token or a typed payout
+	// destination (card, SBP, or YooMoney). Do not turn that value into a live
+	// payout request until the driver onboarding flow collects the correct data.
+	return nil, errors.New("live yookassa payouts are disabled until recipient onboarding is implemented")
 }
 
 func (c *YooKassaClient) doJSON(ctx context.Context, method, path, idempotencyKey, authHeader string, payload any, out any) error {
@@ -211,6 +186,24 @@ func (c *YooKassaClient) GetPayment(ctx context.Context, paymentID string) (*Yoo
 		ConfirmationURL: out.Confirmation.ConfirmationURL,
 		Paid:            out.Paid,
 	}, nil
+}
+
+func (c *YooKassaClient) GetPayout(ctx context.Context, payoutID string) (*YooKassaPayoutResponse, error) {
+	if c.payoutMode != "live" {
+		return nil, errors.New("yookassa live payouts are disabled")
+	}
+	if c.payoutGatewayID == "" || c.payoutSecretKey == "" {
+		return nil, ErrCredentialsNotConfigured
+	}
+	var out struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	payoutAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(c.payoutGatewayID+":"+c.payoutSecretKey))
+	if err := c.doGET(ctx, "/payouts/"+payoutID, payoutAuth, &out); err != nil {
+		return nil, err
+	}
+	return &YooKassaPayoutResponse{ID: out.ID, Status: out.Status}, nil
 }
 
 func (c *YooKassaClient) doGET(ctx context.Context, path, authHeader string, out any) error {

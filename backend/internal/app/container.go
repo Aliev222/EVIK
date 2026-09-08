@@ -28,10 +28,10 @@ import (
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 	httptransport "evik/backend/internal/transport/http"
 	wstransport "evik/backend/internal/transport/ws"
+	accountuc "evik/backend/internal/usecase/account"
 	driveruc "evik/backend/internal/usecase/driver"
 	orderuc "evik/backend/internal/usecase/order"
 	paymentuc "evik/backend/internal/usecase/payment"
-	accountuc "evik/backend/internal/usecase/account"
 )
 
 type Container struct {
@@ -116,6 +116,14 @@ func (p yookassaProvider) CreatePayout(ctx context.Context, req paymentuc.Provid
 		Description:         req.Description,
 		IdempotencyKey:      req.IdempotencyKey,
 	})
+	if err != nil {
+		return nil, mapProviderError(err)
+	}
+	return &paymentuc.ProviderPayoutResponse{ID: res.ID, Status: res.Status}, nil
+}
+
+func (p yookassaProvider) GetPayout(ctx context.Context, id string) (*paymentuc.ProviderPayoutResponse, error) {
+	res, err := p.client.GetPayout(ctx, id)
 	if err != nil {
 		return nil, mapProviderError(err)
 	}

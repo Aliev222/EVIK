@@ -95,6 +95,10 @@ func (noopFinanceRepo) CreatePayout(_ context.Context, p *paymentdomain.Payout, 
 }
 func (noopFinanceRepo) MarkPayoutPaid(context.Context, string, string, string) error { return nil }
 func (noopFinanceRepo) MarkPayoutFailed(context.Context, string, string) error       { return nil }
+func (noopFinanceRepo) MarkPayoutProcessing(context.Context, string, string) error   { return nil }
+func (noopFinanceRepo) GetPayoutByProviderID(context.Context, string) (*paymentdomain.Payout, error) {
+	return nil, paymentdomain.ErrPayoutNotFound
+}
 func (noopFinanceRepo) GetActiveDriverSubscription(context.Context, string) (*paymentdomain.Subscription, error) {
 	return nil, nil
 }
@@ -146,10 +150,12 @@ type scriptedProvider struct {
 	createPaymentFn func(ctx context.Context, req ProviderPaymentRequest) (*ProviderPaymentResponse, error)
 	createPayoutFn  func(ctx context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error)
 	getPaymentFn    func(ctx context.Context, id string) (*ProviderPaymentResponse, error)
+	getPayoutFn     func(ctx context.Context, id string) (*ProviderPayoutResponse, error)
 
 	paymentCalls  []ProviderPaymentRequest
 	payoutCalls   []ProviderPayoutRequest
 	getPaymentIDs []string
+	getPayoutIDs  []string
 }
 
 func (p *scriptedProvider) CreatePayment(ctx context.Context, req ProviderPaymentRequest) (*ProviderPaymentResponse, error) {
@@ -174,6 +180,14 @@ func (p *scriptedProvider) CreatePayout(ctx context.Context, req ProviderPayoutR
 		return p.createPayoutFn(ctx, req)
 	}
 	return &ProviderPayoutResponse{ID: "provider-payout-default", Status: "succeeded"}, nil
+}
+
+func (p *scriptedProvider) GetPayout(ctx context.Context, id string) (*ProviderPayoutResponse, error) {
+	p.getPayoutIDs = append(p.getPayoutIDs, id)
+	if p.getPayoutFn != nil {
+		return p.getPayoutFn(ctx, id)
+	}
+	return &ProviderPayoutResponse{ID: id, Status: "succeeded"}, nil
 }
 
 // scriptedPricing returns a fixed total price or error.

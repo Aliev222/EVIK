@@ -92,32 +92,35 @@ func MustLoad() Config {
 	driverGateBypassDefault := otpFixedCode != "" && !isProduction
 
 	cfg := Config{
-		HTTPAddr:                          httpAddr,
-		AppEnv:                            appEnv,
-		PostgresDSN:                       normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
-		RedisAddr:                         getEnv("REDIS_ADDR", "localhost:6379"),
-		RedisPassword:                     getEnv("REDIS_PASSWORD", ""),
-		RedisURL:                          getEnv("REDIS_URL", ""),
-		JWTSecret:                         getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
-		AccessTTL:                         getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
-		RefreshTTL:                        getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
-		AllowedOrigins:                    getAllowedOrigins(),
-		AdminUserID:                       getEnv("ADMIN_USER_ID", "admin"),
-		AdminPassword:                     getEnv("ADMIN_PASSWORD", ""),
-		S3Endpoint:                        getEnv("S3_ENDPOINT", ""),
-		S3Region:                          getEnv("S3_REGION", "ru-1"),
-		S3Bucket:                          getEnv("S3_BUCKET", ""),
-		S3AccessKey:                       getEnv("S3_ACCESS_KEY", ""),
-		S3SecretKey:                       getEnv("S3_SECRET_KEY", ""),
-		S3PublicBaseURL:                   getEnv("S3_PUBLIC_BASE_URL", ""),
-		OSRMBaseURL:                       getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
-		NominatimBaseURL:                  getEnv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org"),
-		YooKassaShopID:                    getEnv("YOOKASSA_SHOP_ID", ""),
-		YooKassaSecret:                    getEnv("YOOKASSA_SECRET_KEY", ""),
-		YooKassaReturnURL:                 getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
-		YooKassaPayoutGatewayID:           getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
-		YooKassaPayoutSecret:              getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
-		YooKassaPayoutMode:                getEnv("YOOKASSA_PAYOUT_MODE", "sandbox"),
+		HTTPAddr:                httpAddr,
+		AppEnv:                  appEnv,
+		PostgresDSN:             normalizePostgresDSN(getEnv("POSTGRES_DSN", getEnv("DATABASE_URL", "postgres://evik:evik@localhost:5432/evik?sslmode=disable"))),
+		RedisAddr:               getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:           getEnv("REDIS_PASSWORD", ""),
+		RedisURL:                getEnv("REDIS_URL", ""),
+		JWTSecret:               getEnv("JWT_SECRET", "evik-dev-insecure-secret"),
+		AccessTTL:               getEnvDurationMinutes("JWT_ACCESS_TTL_MINUTES", 15),
+		RefreshTTL:              getEnvDurationHours("JWT_REFRESH_TTL_HOURS", 168),
+		AllowedOrigins:          getAllowedOrigins(),
+		AdminUserID:             getEnv("ADMIN_USER_ID", "admin"),
+		AdminPassword:           getEnv("ADMIN_PASSWORD", ""),
+		S3Endpoint:              getEnv("S3_ENDPOINT", ""),
+		S3Region:                getEnv("S3_REGION", "ru-1"),
+		S3Bucket:                getEnv("S3_BUCKET", ""),
+		S3AccessKey:             getEnv("S3_ACCESS_KEY", ""),
+		S3SecretKey:             getEnv("S3_SECRET_KEY", ""),
+		S3PublicBaseURL:         getEnv("S3_PUBLIC_BASE_URL", ""),
+		OSRMBaseURL:             getEnv("OSRM_BASE_URL", "https://router.project-osrm.org"),
+		NominatimBaseURL:        getEnv("NOMINATIM_BASE_URL", "https://nominatim.openstreetmap.org"),
+		YooKassaShopID:          getEnv("YOOKASSA_SHOP_ID", ""),
+		YooKassaSecret:          getEnv("YOOKASSA_SECRET_KEY", ""),
+		YooKassaReturnURL:       getEnv("YOOKASSA_RETURN_URL", "https://evik-web.onrender.com/payment-return"),
+		YooKassaPayoutGatewayID: getEnv("YOOKASSA_PAYOUT_GATEWAY_ID", ""),
+		YooKassaPayoutSecret:    getEnv("YOOKASSA_PAYOUT_SECRET_KEY", ""),
+		// Driver payouts remain explicitly disabled until a provider-approved
+		// recipient-onboarding flow is implemented. A sandbox default must never
+		// be mistaken for a production money path.
+		YooKassaPayoutMode:                getEnv("YOOKASSA_PAYOUT_MODE", "disabled"),
 		FinancePendingHoldSeconds:         getEnvInt("FINANCE_PENDING_HOLD_SECONDS", 600),
 		MinimumWithdrawalKopecks:          int64(getEnvInt("MINIMUM_WITHDRAWAL_KOPECKS", 10000)),
 		BalanceReleaseInterval:            getEnvDuration("EVIK_BALANCE_RELEASE_INTERVAL", 5*time.Minute),
@@ -217,11 +220,8 @@ func productionConfigProblems(cfg Config) []string {
 			missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
 		}
 	}
-	if !strings.EqualFold(cfg.YooKassaPayoutMode, "live") {
-		missing = append(missing, "YOOKASSA_PAYOUT_MODE=live")
-	}
-	if cfg.YooKassaPayoutGatewayID == "" || cfg.YooKassaPayoutSecret == "" {
-		missing = append(missing, "YOOKASSA_PAYOUT_GATEWAY_ID/YOOKASSA_PAYOUT_SECRET_KEY")
+	if !strings.EqualFold(cfg.YooKassaPayoutMode, "disabled") {
+		missing = append(missing, "YOOKASSA_PAYOUT_MODE=disabled until recipient onboarding is implemented")
 	}
 	for _, cidr := range cfg.TrustedProxyCIDRs {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {

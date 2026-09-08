@@ -16,16 +16,16 @@ import (
 // rollback of the postgres tx. On success the terminal status is committed back
 // into the fake order repository.
 type fakePaymentTxRunner struct {
-	orderRepo            *fakeOrderRepository
-	txOpenCalls          int
-	completeCalls        int
-	lastIdempotencyKey   string
+	orderRepo             *fakeOrderRepository
+	txOpenCalls           int
+	completeCalls         int
+	lastIdempotencyKey    string
 	lastCommissionPercent int
-	lastHoldSeconds      int
-	statusUpdates        []string
-	pendingStatus        string
-	failComplete         bool
-	failStatusUpdate     bool
+	lastHoldSeconds       int
+	statusUpdates         []string
+	pendingStatus         string
+	failComplete          bool
+	failStatusUpdate      bool
 }
 
 type fakeWebhookTxOps struct{ parent *fakePaymentTxRunner }
@@ -35,6 +35,15 @@ func (w *fakeWebhookTxOps) CheckProcessed(context.Context, string, string, strin
 }
 func (w *fakeWebhookTxOps) UpdatePaymentFromProvider(context.Context, string, string, bool) (*paymentdomain.Payment, error) {
 	return nil, nil
+}
+func (w *fakeWebhookTxOps) GetPayoutByProviderID(context.Context, string) (*paymentdomain.Payout, error) {
+	return nil, paymentdomain.ErrPayoutNotFound
+}
+func (w *fakeWebhookTxOps) MarkPayoutPaid(context.Context, string, string, string) error {
+	return nil
+}
+func (w *fakeWebhookTxOps) MarkPayoutFailed(context.Context, string, string) error {
+	return nil
 }
 func (w *fakeWebhookTxOps) ActivateSubscriptionByPayment(context.Context, string) error {
 	return nil

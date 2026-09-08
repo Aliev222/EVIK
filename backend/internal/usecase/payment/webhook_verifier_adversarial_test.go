@@ -60,19 +60,15 @@ func TestYooKassaVerifier_RejectsForgedSources(t *testing.T) {
 	}
 }
 
-// TestYooKassaVerifier_XRealIPBypass documents a source-verification bypass:
-// clientIPFromRequest (yookassa_verifier.go:56) trusts the X-Real-IP header
-// unconditionally and never cross-checks the caller RemoteAddr. A remote
-// attacker who POSTs directly to /webhooks/yookassa with an allowlisted
-// X-Real-IP (e.g. 185.71.76.1) passes the check. Safe only when a trusted
-// reverse proxy overwrites X-Real-IP (see TODO B-01 in the source).
-func TestYooKassaVerifier_XRealIPBypass(t *testing.T) {
+// Forwarded-IP headers are untrusted at this layer. The router may normalize
+// RemoteAddr only when the immediate peer belongs to TRUSTED_PROXY_CIDRS.
+func TestYooKassaVerifier_RejectsForgedXRealIP(t *testing.T) {
 	verifier := NewYooKassaVerifier()
 
 	// Attacker from an arbitrary internet IP spoofs an allowlisted X-Real-IP.
 	forged := webhookTestRequest("203.0.113.1:443", "185.71.76.1")
-	if err := verifier.Verify(forged, nil); err != nil {
-		t.Fatalf("forged request rejected: %v", err)
+	if err := verifier.Verify(forged, nil); err == nil {
+		t.Fatal("forged request accepted, want rejection")
 	}
 
 	// The identical request WITHOUT the spoofed header must be rejected.

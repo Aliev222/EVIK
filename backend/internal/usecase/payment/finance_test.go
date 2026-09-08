@@ -198,7 +198,7 @@ func (r *fakeFinanceRepository) CompleteOrderFinancially(_ context.Context, orde
 
 	total := r.orderAmount
 	base := total - r.surchargeAmount
-	commission := (base * int64(effectivePercent) + 50) / 100
+	commission := (base*int64(effectivePercent) + 50) / 100
 	if r.settlementMethod == paymentdomain.PaymentMethodCash {
 		r.debtBalance += commission
 		r.walletTransactionCreates++
@@ -251,10 +251,14 @@ func (r *fakeFinanceRepository) MarkPayoutPaid(ctx context.Context, payoutID, pr
 
 type fakePaymentOrderRepo struct{}
 
-func (r *fakePaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) { return nil, nil }
+func (r *fakePaymentOrderRepo) GetByOrderKey(context.Context, string) (*orderdomain.Order, error) {
+	return nil, nil
+}
 func (r *fakePaymentOrderRepo) Create(context.Context, *orderdomain.Order) error { return nil }
 func (r *fakePaymentOrderRepo) Update(context.Context, *orderdomain.Order) error { return nil }
-func (r *fakePaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error { return nil }
+func (r *fakePaymentOrderRepo) UpdateStatus(context.Context, string, orderdomain.Status, time.Time) error {
+	return nil
+}
 func (r *fakePaymentOrderRepo) GetByID(context.Context, string) (*orderdomain.Order, error) {
 	return &orderdomain.Order{
 		ID:           "order-1",
@@ -304,6 +308,10 @@ func (p *fakePaymentProvider) GetPayment(_ context.Context, id string) (*Provide
 func (p *fakePaymentProvider) CreatePayout(_ context.Context, req ProviderPayoutRequest) (*ProviderPayoutResponse, error) {
 	p.payoutCalls++
 	return &ProviderPayoutResponse{ID: "provider-payout-1", Status: "succeeded"}, nil
+}
+
+func (p *fakePaymentProvider) GetPayout(_ context.Context, id string) (*ProviderPayoutResponse, error) {
+	return &ProviderPayoutResponse{ID: id, Status: "succeeded"}, nil
 }
 
 type fakeClock struct{ now time.Time }

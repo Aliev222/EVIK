@@ -24,6 +24,9 @@ type AdminRefundFilter struct {
 type WebhookTx interface {
 	CheckProcessed(ctx context.Context, eventID, provider, eventType string, payload []byte) (bool, error)
 	UpdatePaymentFromProvider(ctx context.Context, providerPaymentID, status string, paid bool) (*Payment, error)
+	GetPayoutByProviderID(ctx context.Context, providerPayoutID string) (*Payout, error)
+	MarkPayoutPaid(ctx context.Context, payoutID, providerPayoutID, idempotencyKey string) error
+	MarkPayoutFailed(ctx context.Context, payoutID, reason string) error
 	ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error
 	ActivatePaymentMethodFromProvider(ctx context.Context, providerPaymentID, providerPaymentMethodID, brand, last4 string, expMonth, expYear int, holder string) error
 	CompleteOrderFinancially(ctx context.Context, orderID, idempotencyKey string, holdSeconds int, commissionPercent int) error
@@ -75,8 +78,10 @@ type Repository interface {
 	ListPayoutMethods(ctx context.Context, driverID string) ([]DriverPayoutMethod, error)
 	AddPayoutMethod(ctx context.Context, method DriverPayoutMethod) error
 	CreatePayout(ctx context.Context, payout *Payout, idempotencyKey string) (*Payout, error)
+	MarkPayoutProcessing(ctx context.Context, payoutID, providerPayoutID string) error
 	MarkPayoutPaid(ctx context.Context, payoutID, providerPayoutID, idempotencyKey string) error
 	MarkPayoutFailed(ctx context.Context, payoutID, reason string) error
+	GetPayoutByProviderID(ctx context.Context, providerPayoutID string) (*Payout, error)
 	GetActiveDriverSubscription(ctx context.Context, driverID string) (*Subscription, error)
 	GetLatestDriverSubscription(ctx context.Context, driverID string) (*Subscription, error)
 	ActivateSubscriptionByPayment(ctx context.Context, paymentID string) error

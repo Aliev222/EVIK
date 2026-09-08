@@ -3,7 +3,8 @@ package http
 import (
 	"context"
 	"errors"
-	"strings"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -26,19 +27,41 @@ func TestCreatePayoutIsSandboxMockByDefault(t *testing.T) {
 	}
 }
 
-func TestCreatePayoutLiveModeFailsClosedUntilProviderPayloadsAreImplemented(t *testing.T) {
-	client := NewYooKassaClient("shop", "secret", "", "gateway", "payout-secret", "live")
-
+func TestCreatePayoutLiveModeFailsClosedUntilRecipientOnboardingIsImplemented(t *testing.T) {
+	client := NewYooKassaClient("shop", "secret", "", "", "", "live")
 	_, err := client.CreatePayout(context.Background(), YooKassaPayoutRequest{
-		Amount:         850000,
-		Currency:       "RUB",
-		IdempotencyKey: "payout-key-1",
+		Amount:              500,
+		Currency:            "RUB",
+		ProviderRecipientID: "pm-saved-1",
+		IdempotencyKey:      "payout-key-1",
 	})
 	if err == nil {
 		t.Fatal("CreatePayout returned nil error in live mode")
 	}
-	if !strings.Contains(err.Error(), "card/sbp/bank_account") {
-		t.Fatalf("error = %q, want explicit card/sbp/bank_account message", err.Error())
+}
+
+func TestGetPayoutUsesGatewayCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/payouts/po-1" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		user, password, ok := r.BasicAuth()
+		if !ok || user != "gateway" || password != "payout-secret" {
+			t.Fatalf("unexpected payout auth: %q %q %v", user, password, ok)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"po-1","status":"succeeded"}`))
+	}))
+	defer server.Close()
+
+	client := NewYooKassaClient("shop", "secret", "", "gateway", "payout-secret", "live")
+	client.baseURL = server.URL
+	payout, err := client.GetPayout(context.Background(), "po-1")
+	if err != nil {
+		t.Fatalf("GetPayout error: %v", err)
+	}
+	if payout.ID != "po-1" || payout.Status != "succeeded" {
+		t.Fatalf("payout = %#v", payout)
 	}
 }
 
@@ -54,5 +77,3 @@ func TestCreatePaymentMissingCredentialsReturnsTypedError(t *testing.T) {
 		t.Fatalf("error = %v, want ErrCredentialsNotConfigured", err)
 	}
 }
-
-
