@@ -365,7 +365,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("INFO: rate limiter backend: memory")
 	}
 
-	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode)
+	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode, cfg.TrustedProxyCIDRs)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 

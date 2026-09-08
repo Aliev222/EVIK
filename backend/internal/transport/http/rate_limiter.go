@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 )
@@ -39,6 +38,8 @@ type InMemoryLimiter struct {
 	mu      sync.Mutex
 	buckets map[string]*rateBucket
 }
+
+const maxRateLimitPhoneBodyBytes int64 = 64 << 10
 
 func NewInMemoryLimiter() *InMemoryLimiter {
 	return &InMemoryLimiter{buckets: make(map[string]*rateBucket)}
@@ -99,17 +100,7 @@ func (rl *InMemoryLimiter) Allow(ctx context.Context, key string, maxPerMin int)
 }
 
 func extractClientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		if idx := strings.Index(fwd, ","); idx >= 0 {
-			return strings.TrimSpace(fwd[:idx])
-		}
-		return strings.TrimSpace(fwd)
-	}
-	addr := r.RemoteAddr
-	if idx := strings.LastIndex(addr, ":"); idx >= 0 {
-		return addr[:idx]
-	}
-	return addr
+	return remoteIP(r.RemoteAddr)
 }
 
 func writeRateLimitError(w http.ResponseWriter, retryAfter time.Duration) {
@@ -141,9 +132,15 @@ func RateLimitByPhone(limiter Limiter, maxPerMin int) func(http.Handler) http.Ha
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := "ip:" + extractClientIP(r)
 			if r.Body != nil {
-				body, err := io.ReadAll(r.Body)
+				body, err := io.ReadAll(io.LimitReader(r.Body, maxRateLimitPhoneBodyBytes+1))
 				_ = r.Body.Close()
 				r.Body = io.NopCloser(bytes.NewReader(body))
+				if int64(len(body)) > maxRateLimitPhoneBodyBytes {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusRequestEntityTooLarge)
+					_, _ = w.Write([]byte(`{"error":"request body too large"}`))
+					return
+				}
 				if err == nil {
 					var payload struct {
 						Phone string `json:"phone"`

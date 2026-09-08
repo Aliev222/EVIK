@@ -283,6 +283,37 @@ func TestAuthAdversarial_RegisterRejectsMaliciousInput(t *testing.T) {
 	}
 }
 
+func TestAuthRegister_IsDisabledInProduction(t *testing.T) {
+	clock := fixedHTTPClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
+	repo := newFakeUserRepository()
+	handler := NewAuthHandler(
+		newTokens(time.Minute),
+		repo,
+		"admin",
+		"admin-password",
+		&seqID{},
+		clock,
+		false,
+		"",
+		true,
+		false,
+	)
+
+	rec := doRequestJSON(
+		http.HandlerFunc(handler.Register),
+		http.MethodPost,
+		"/api/v1/auth/register",
+		`{"phone":"+79990000060","role":"client","password":"password1"}`,
+	)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+	if len(repo.users) != 0 || len(repo.sessions) != 0 {
+		t.Fatalf("production registration mutated state: users=%d sessions=%d", len(repo.users), len(repo.sessions))
+	}
+}
+
 func TestAuthAdversarial_OTPRejectsMaliciousInput(t *testing.T) {
 	clock := fixedHTTPClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
 	handler := NewAuthHandler(newTokens(time.Minute), newFakeUserRepository(), "admin", "admin-password", &seqID{}, clock, false, testFixedOTP, false, false)

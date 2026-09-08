@@ -42,7 +42,7 @@ func newRealRouter(tokens *auth.TokenManager, users userdomain.Repository, clock
 		&OrderHandler{}, &OfferHandler{}, &DriverHandler{}, &PaymentHandler{},
 		&PricingHandler{}, &RoutingHandler{}, &AdminHandler{}, &SettingsHandler{},
 		&ServiceAreaHandler{}, &CityHandler{}, &GeocodingHandler{}, &DriverLocationsHandler{},
-		nil, tokens, users, nil, false, limiter, false,
+		nil, tokens, users, nil, false, limiter, false, nil,
 	)
 }
 
@@ -69,6 +69,8 @@ func newFocusedSecurityRouter(tokens *auth.TokenManager, limiter Limiter, probe 
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/driver/earnings", probe)
 			// Client-only + admin (router.go line 102).
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/payments/wallet", probe)
+			// Route preview is used by both client tracking and driver active-order maps.
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Get("/routing/preview", probe)
 
 			// Admin-only subtree (router.go line 131-132).
 			secured.Route("/admin", func(admin chi.Router) {
@@ -408,12 +410,42 @@ func TestRBAC_AnyAuthenticatedReachesMe(t *testing.T) {
 	}
 }
 
+func TestRBAC_RoutePreviewAllowsClientDriverAndAdmin(t *testing.T) {
+	tokens := newTokens(time.Minute)
+	router := newFocusedSecurityRouter(tokens, NewRateLimiter(), probeOK)
+
+	for _, tc := range []struct {
+		role auth.Role
+	}{
+		{auth.RoleClient}, {auth.RoleDriver}, {auth.RoleAdmin},
+	} {
+		t.Run(string(tc.role), func(t *testing.T) {
+			id := string(tc.role) + "-1"
+			tok := issueRoleToken(t, tokens, id, tc.role)
+			rec := doRequest(router, http.MethodGet, "/api/v1/routing/preview?fromLat=42.9&fromLng=47.5&toLat=42.8&toLng=47.6", tok)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestRBAC_NoEscalation_RegisterAsAdminRejected(t *testing.T) {
 	router := newRealRouter(newTokens(time.Minute), seededUsers(), fixedHTTPClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)})
 
 	rec := doRequestJSON(router, http.MethodPost, "/api/v1/auth/register", `{"phone":"+79990000009","full_name":"Wanna Be Admin","role":"admin","password":"password1"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 (no escalation path via public register; body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRateLimitByPhoneRejectsOversizedBody(t *testing.T) {
+	router := newFocusedSecurityRouter(newTokens(time.Minute), NewRateLimiter(), probeOK)
+	body := bytes.Repeat([]byte("x"), int(maxRateLimitPhoneBodyBytes)+1)
+
+	rec := doRequestJSON(router, http.MethodPost, "/api/v1/auth/otp/request", string(body))
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413 (body=%s)", rec.Code, rec.Body.String())
 	}
 }
 

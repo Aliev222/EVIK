@@ -33,10 +33,11 @@ func NewRouter(
 	exposeSwagger bool,
 	limiter Limiter,
 	debugMode bool,
+	trustedProxyCIDRs []string,
 ) nethttp.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(TrustedProxyRealIP(trustedProxyCIDRs))
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	if debugMode {

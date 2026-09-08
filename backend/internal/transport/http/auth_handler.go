@@ -170,9 +170,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // @Param        body  body      RegisterRequest  true  "Registration payload"
 // @Success      201   {object}  LoginResponse
 // @Failure      400   {object}  ErrorResponse  "validation failed"
+// @Failure      403   {object}  ErrorResponse  "password registration is disabled"
 // @Failure      409   {object}  ErrorResponse  "user already exists"
 // @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	// Password registration does not prove ownership of the phone number. Keep
+	// it available for explicitly non-production test builds only; production
+	// accounts must be created through the one-time-code flow.
+	if h.isProduction {
+		writeAuthError(w, http.StatusForbidden, "password registration is disabled")
+		return
+	}
+
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAuthError(w, http.StatusBadRequest, "invalid request body")

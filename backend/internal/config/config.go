@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -66,6 +67,7 @@ type Config struct {
 	YooKassaStubMode                  bool
 	S3StubMode                        bool
 	RateLimiterBackend                string
+	TrustedProxyCIDRs                 []string
 }
 
 func MustLoad() Config {
@@ -145,6 +147,7 @@ func MustLoad() Config {
 		YooKassaStubMode:                  getEnvBool("YOOKASSA_STUB_MODE", false),
 		S3StubMode:                        getEnvBool("S3_STUB_MODE", false),
 		RateLimiterBackend:                getEnv("RATE_LIMITER_BACKEND", "memory"),
+		TrustedProxyCIDRs:                 getEnvList("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,::1/128"),
 	}
 	validateProductionConfig(cfg)
 	return cfg
@@ -171,16 +174,23 @@ func (c Config) IsProduction() bool {
 }
 
 func validateProductionConfig(cfg Config) {
+	problems := productionConfigProblems(cfg)
+	if len(problems) > 0 {
+		log.Fatalf("invalid production config: %s", strings.Join(problems, ", "))
+	}
+}
+
+func productionConfigProblems(cfg Config) []string {
 	if !cfg.IsProduction() {
-		return
-	}
-	if cfg.OTPFixedCode != "" {
-		log.Fatal("FATAL: OTP_FIXED_CODE must not be set in production. Remove it from environment.")
-	}
-	if cfg.DriverGateBypass {
-		log.Fatal("FATAL: DRIVER_GATE_BYPASS must not be true in production.")
+		return nil
 	}
 	var missing []string
+	if cfg.OTPFixedCode != "" {
+		missing = append(missing, "OTP_FIXED_CODE must be empty")
+	}
+	if cfg.DriverGateBypass {
+		missing = append(missing, "DRIVER_GATE_BYPASS=false")
+	}
 	if cfg.JWTSecret == "" || cfg.JWTSecret == "evik-dev-insecure-secret" || len(cfg.JWTSecret) < 32 {
 		missing = append(missing, "JWT_SECRET(>=32 chars, not dev default)")
 	}
@@ -193,19 +203,33 @@ func validateProductionConfig(cfg Config) {
 	if len(cfg.AdminPassword) < 12 {
 		missing = append(missing, "ADMIN_PASSWORD(>=12 chars)")
 	}
-	if !cfg.S3StubMode {
+	if cfg.S3StubMode {
+		missing = append(missing, "S3_STUB_MODE=false")
+	} else {
 		if cfg.S3Endpoint == "" || cfg.S3Bucket == "" || cfg.S3AccessKey == "" || cfg.S3SecretKey == "" || cfg.S3PublicBaseURL == "" {
 			missing = append(missing, "S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY/S3_SECRET_KEY/S3_PUBLIC_BASE_URL")
 		}
 	}
-	if !cfg.YooKassaStubMode {
+	if cfg.YooKassaStubMode {
+		missing = append(missing, "YOOKASSA_STUB_MODE=false")
+	} else {
 		if cfg.YooKassaShopID == "" || cfg.YooKassaSecret == "" {
 			missing = append(missing, "YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY")
 		}
 	}
-	if len(missing) > 0 {
-		log.Fatalf("invalid production config: %s", strings.Join(missing, ", "))
+	if !strings.EqualFold(cfg.YooKassaPayoutMode, "live") {
+		missing = append(missing, "YOOKASSA_PAYOUT_MODE=live")
 	}
+	if cfg.YooKassaPayoutGatewayID == "" || cfg.YooKassaPayoutSecret == "" {
+		missing = append(missing, "YOOKASSA_PAYOUT_GATEWAY_ID/YOOKASSA_PAYOUT_SECRET_KEY")
+	}
+	for _, cidr := range cfg.TrustedProxyCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			missing = append(missing, "valid TRUSTED_PROXY_CIDRS")
+			break
+		}
+	}
+	return missing
 }
 
 func getEnvInt(key string, fallback int) int {
@@ -240,6 +264,18 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func getEnvList(key, fallback string) []string {
+	raw := getEnv(key, fallback)
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func normalizePostgresDSN(dsn string) string {
