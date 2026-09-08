@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'core/bootstrap/app_bootstrap.dart';
+import 'core/config/build_flags.dart';
 import 'core/error/global_error_handler.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'features/driver/data/services/driver_wake_service.dart';
@@ -36,6 +37,8 @@ import 'features/client/presentation/screens/order_review_screen.dart';
 import 'features/order/screens/payment_confirmation_screen.dart';
 import 'features/client/presentation/screens/driver_rating_screen.dart';
 import 'features/driver/presentation/screens/active_order_screen.dart';
+import 'features/development/presentation/screens/ui_audit_hub_screen.dart';
+import 'features/development/ui_audit_fixtures.dart';
 import 'features/order/domain/entities/order.dart';
 import 'features/order/presentation/providers/order_provider.dart';
 
@@ -59,17 +62,24 @@ void main() async {
     RebuildTracker.initialize();
   }
 
-  PushNotificationService.instance
-      .setRouteHandler(EvikApp.navigateFromNotification);
-  PushNotificationService.instance
-      .setCurrentRouteResolver(EvikApp.currentRoute);
-  // Initialize push notifications in background to avoid blocking startup
-  unawaited(PushNotificationService.instance.initialize());
+  if (!_uiAuditMode) {
+    PushNotificationService.instance
+        .setRouteHandler(EvikApp.navigateFromNotification);
+    PushNotificationService.instance
+        .setCurrentRouteResolver(EvikApp.currentRoute);
+    // Initialize push notifications in background to avoid blocking startup.
+    unawaited(PushNotificationService.instance.initialize());
+  }
 
   runApp(
     ProviderScope(
-      overrides: buildAppOverrides(),
-      child: const _WakeBootstrap(child: EvikApp()),
+      overrides: [
+        ...buildAppOverrides(),
+        if (_uiAuditMode) ...uiAuditOverrides(),
+      ],
+      child: _uiAuditMode
+          ? const EvikApp()
+          : const _WakeBootstrap(child: EvikApp()),
     ),
   );
 }
@@ -92,7 +102,7 @@ class _WakeBootstrapState extends ConsumerState<_WakeBootstrap> {
   void initState() {
     super.initState();
     PushNotificationService.instance.onDriverWake = () {
-      ref.read(driverWakeServiceProvider).ensureOnline();
+      unawaited(ref.read(driverWakeServiceProvider).ensureOnline());
     };
     // Restore the shift if the driver was online before the app was killed.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -101,6 +111,12 @@ class _WakeBootstrapState extends ConsumerState<_WakeBootstrap> {
         await wake.ensureOnline();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.onDriverWake = null;
+    super.dispose();
   }
 
   @override
@@ -119,9 +135,14 @@ class EvikApp extends StatelessWidget {
   }
 
   static final GoRouter _router = GoRouter(
-    initialLocation: '/',
+    initialLocation: _uiAuditInitialLocation,
     routes: [
       GoRoute(path: '/', builder: (_, __) => const _LaunchScreen()),
+      GoRoute(
+        path: '/ui-audit',
+        builder: (_, __) =>
+            _uiAuditMode ? const UiAuditHubScreen() : const _LaunchScreen(),
+      ),
       GoRoute(
           path: '/order/pickup',
           builder: (_, __) => const PickupLocationScreen()),
@@ -265,18 +286,63 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-const bool _skipAuthForDevelopment = bool.fromEnvironment(
-  'EVIK_SKIP_AUTH',
-  defaultValue: false,
+final bool _skipAuthForDevelopment = developmentFeatureEnabled(
+  requested: const bool.fromEnvironment(
+    'EVIK_SKIP_AUTH',
+    defaultValue: false,
+  ),
+  releaseMode: kReleaseMode,
 );
 
 const String _kTestPhone = String.fromEnvironment('EVIK_TEST_PHONE');
 const String _kTestPassword = String.fromEnvironment('EVIK_TEST_PASSWORD');
 
-const bool _uiPreview = bool.fromEnvironment(
-  'UI_PREVIEW',
-  defaultValue: false,
+final bool _uiPreview = developmentFeatureEnabled(
+  requested: const bool.fromEnvironment(
+    'UI_PREVIEW',
+    defaultValue: false,
+  ),
+  releaseMode: kReleaseMode,
 );
+
+/// Enables the visual QA hub only in non-release builds.
+///
+/// Run with `--dart-define=EVIK_UI_AUDIT=true`. Passing the same define to a
+/// release build is intentionally ignored by [developmentFeatureEnabled].
+final bool _uiAuditMode = developmentFeatureEnabled(
+  requested: const bool.fromEnvironment(
+    'EVIK_UI_AUDIT',
+    defaultValue: false,
+  ),
+  releaseMode: kReleaseMode,
+);
+
+/// Optional direct start route for one reproducible screenshot, for example
+/// `--dart-define=EVIK_UI_AUDIT_START=/order/tracking`.
+const String _uiAuditStartScreen = String.fromEnvironment(
+  'EVIK_UI_AUDIT_START',
+  defaultValue: '',
+);
+
+final String _uiAuditInitialLocation = _resolveUiAuditInitialLocation();
+
+String _resolveUiAuditInitialLocation() {
+  if (!_uiAuditMode) return '/';
+  const allowedRoutes = <String>{
+    '/ui-audit',
+    '/order/pickup',
+    '/order/destination',
+    '/order/vehicle',
+    '/order/tow-truck',
+    '/order/search',
+    '/order/driver-info',
+    '/order/tracking',
+    '/order/payment-confirmation',
+  };
+  return allowedRoutes.contains(_uiAuditStartScreen)
+      ? _uiAuditStartScreen
+      : '/ui-audit';
+}
 
 class _AppRouter extends ConsumerStatefulWidget {
   const _AppRouter({super.key});
@@ -392,7 +458,7 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       OrderStatus.onWay ||
       OrderStatus.arrived ||
       OrderStatus.evacuating =>
-        '/order/tracking',
+        '/order/driver-info',
       OrderStatus.awaitingPayment => '/order/payment-confirmation',
       OrderStatus.completed || OrderStatus.cancelled => null,
     };

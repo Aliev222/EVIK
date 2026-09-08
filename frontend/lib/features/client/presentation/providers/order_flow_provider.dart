@@ -249,9 +249,11 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         errorMessage: null,
       );
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Не удалось определить местоположение. Укажите точку на карте.',
+        errorMessage:
+            'Не удалось определить местоположение. Укажите точку на карте.',
       );
     }
   }
@@ -405,6 +407,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     }
 
     if (order.status == OrderStatus.cancelled) {
+      // Звук отмены играем только если заказ успел принять водитель
+      // (т.е. отменила другая сторона). Если клиент сам отменил во время
+      // поиска — водителя ещё не было, звук не нужен.
+      if (state.assignedDriver != null ||
+          state.activeOrder?.driverId?.isNotEmpty == true) {
+        unawaited(_notificationService.playOrderCancelled());
+      }
       _searchTimer?.cancel();
       _orderPollTimer?.cancel();
       state = state.copyWith(
@@ -447,18 +456,16 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   /// when the local state doesn't have them (e.g. after app restore).
   void _syncOrderLocations(Order order) {
     state = state.copyWith(
-      pickupLocation: state.pickupLocation ??
-          MapLocation(
-            latitude: order.pickupLocation.lat,
-            longitude: order.pickupLocation.lng,
-            address: order.pickupLocation.address,
-          ),
-      destinationLocation: state.destinationLocation ??
-          MapLocation(
-            latitude: order.dropoffLocation.lat,
-            longitude: order.dropoffLocation.lng,
-            address: order.dropoffLocation.address,
-          ),
+      pickupLocation: MapLocation(
+        latitude: order.pickupLocation.lat,
+        longitude: order.pickupLocation.lng,
+        address: order.pickupLocation.address,
+      ),
+      destinationLocation: MapLocation(
+        latitude: order.dropoffLocation.lat,
+        longitude: order.dropoffLocation.lng,
+        address: order.dropoffLocation.address,
+      ),
     );
   }
 

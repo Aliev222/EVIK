@@ -13,6 +13,7 @@ class LocationPickerBody extends ConsumerWidget {
     required this.initialAddress,
     required this.confirmText,
     required this.onLocationConfirmed,
+    this.onBack,
   });
 
   final String title;
@@ -21,6 +22,7 @@ class LocationPickerBody extends ConsumerWidget {
   final String initialAddress;
   final String confirmText;
   final ValueChanged<MapLocation> onLocationConfirmed;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,6 +33,7 @@ class LocationPickerBody extends ConsumerWidget {
       initialAddress: initialAddress,
       confirmText: confirmText,
       onLocationConfirmed: onLocationConfirmed,
+      onBack: onBack,
     );
   }
 }

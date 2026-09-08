@@ -1,19 +1,30 @@
-﻿import 'dart:async';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'edit_order_route_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:tow_truck_frontend/core/config/build_flags.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
+
+/// UI audit is intentionally local-only: it must never create a real order,
+/// request GPS, or open a WebSocket merely because a designer opens a screen.
+final bool _isUiAuditMode = developmentFeatureEnabled(
+  requested: const bool.fromEnvironment('EVIK_UI_AUDIT', defaultValue: false),
+  releaseMode: kReleaseMode,
+);
 
 class DriverSearchScreen extends ConsumerStatefulWidget {
   const DriverSearchScreen({super.key});
@@ -30,7 +41,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeRealTimeService();
+    if (!_isUiAuditMode) {
+      _initializeRealTimeService();
+    }
   }
 
   void _initializeRealTimeService() async {
@@ -91,7 +104,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
   void dispose() {
     _clientLocationTimer?.cancel();
     _orderUpdateSub?.cancel();
-    ref.read(realTimeLocationServiceProvider).disconnect();
+    if (!_isUiAuditMode) {
+      ref.read(realTimeLocationServiceProvider).disconnect();
+    }
     super.dispose();
   }
 
@@ -130,6 +145,12 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     context.go('/');
   }
 
+  void _changeAddress() {
+    if (_isNavigatingToDriverInfo) return;
+    final order = ref.read(orderFlowProvider).activeOrder;
+    if (order != null) unawaited(editOrderRoute(context, order));
+  }
+
   Future<void> _finishCancel(OrderFlowNotifier notifier) async {
     final cancelled = await notifier.cancelSearch();
     if (!cancelled && mounted) {
@@ -149,7 +170,9 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
     _isNavigatingToDriverInfo = true;
 
     final activeOrder = ref.read(orderFlowProvider).activeOrder;
-    if (activeOrder != null && activeOrder.isCrossCity && activeOrder.surchargeAmount > 0) {
+    if (activeOrder != null &&
+        activeOrder.isCrossCity &&
+        activeOrder.surchargeAmount > 0) {
       final accepted = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -194,11 +217,15 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                       children: [
                         const Text(
                           'Эвакуация',
-                          style: TextStyle(fontSize: 14, color: AvroClientColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: AvroClientColors.textSecondary),
                         ),
                         Text(
                           '${((activeOrder.surchargeAmount > 0 ? (activeOrder.surchargeAmount * 100 / activeOrder.surchargePercent).round() : 0) / 100).toStringAsFixed(0)} ₽',
-                          style: const TextStyle(fontSize: 14, color: AvroClientColors.textPrimary),
+                          style: const TextStyle(
+                              fontSize: 14,
+                              color: AvroClientColors.textPrimary),
                         ),
                       ],
                     ),
@@ -208,11 +235,13 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
                       children: [
                         const Text(
                           'Подача из другого города',
-                          style: TextStyle(fontSize: 14, color: AvroClientColors.accent),
+                          style: TextStyle(
+                              fontSize: 14, color: AvroClientColors.accent),
                         ),
                         Text(
                           '+${(activeOrder.surchargeAmount / 100).toStringAsFixed(0)} ₽',
-                          style: const TextStyle(fontSize: 14, color: AvroClientColors.accent),
+                          style: const TextStyle(
+                              fontSize: 14, color: AvroClientColors.accent),
                         ),
                       ],
                     ),
@@ -321,18 +350,6 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
-      appBar: AppBar(
-        backgroundColor: AvroClientColors.background,
-        title: Text(
-          'Поиск водителя',
-          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
-        ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AvroClientColors.textPrimary),
-          onPressed: _cancelSearch,
-        ),
-      ),
       body: Stack(
         children: [
           // Map background only. Search feedback lives in the sheet below, so
@@ -346,154 +363,408 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
               ),
             ),
 
-          // Search info panel
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AvroClientColors.background,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-                border: const Border(
-                  top: BorderSide(color: AvroClientColors.surface),
-                ),
+            top: MediaQuery.paddingOf(context).top + 12,
+            left: 16,
+            child: Material(
+              color: AvroClientColors.background,
+              borderRadius: BorderRadius.circular(16),
+              child: IconButton(
+                tooltip: 'Закрыть поиск',
+                onPressed: _cancelSearch,
+                icon: const Icon(Icons.close_rounded),
               ),
-              padding: const EdgeInsets.all(20),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Search status
-                    Row(
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AvroClientColors.accent,
-                          ),
+            ),
+          ),
+          DraggableScrollableSheet(
+            initialChildSize: 0.43,
+            minChildSize: 0.40,
+            maxChildSize: 0.88,
+            builder: (context, scrollController) => CustomScrollView(
+              controller: scrollController,
+              physics: const ClampingScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: _FloatingSheetCard(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+                        child: _SearchSummary(
+                          state: orderFlowState,
+                          searchTimer: searchTimer,
+                          onCancel: _cancelSearch,
+                          onChangeAddress: _changeAddress,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Ищем свободного водителя...',
-                            style: EvikTypography.h3.copyWith(
-                              color: AvroClientColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Search timer
-                    Text(
-                      searchTimer,
-                      style: EvikTypography.bodyLarge.copyWith(
-                        color: AvroClientColors.textPrimary,
-                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Order summary
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AvroClientColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSummaryRow(
-                            'Автомобиль',
-                            orderFlowState.selectedVehicleType?.displayName ??
-                                'Не выбран',
-                            Icons.directions_car,
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow(
-                            'Эвакуатор',
-                            orderFlowState.selectedTowTruckType?.displayName ??
-                                'Не выбран',
-                            Icons.local_shipping,
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow(
-                            'Расстояние',
-                            '${orderFlowState.distance.toStringAsFixed(1)} км',
-                            Icons.route,
-                          ),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow(
-                            'Стоимость',
-                            '${orderFlowState.estimatedPrice.round()} ₽',
-                            Icons.payment,
-                            valueColor: AvroClientColors.accent,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Cancel button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _cancelSearch,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AvroClientColors.surface,
-                          foregroundColor: AvroClientColors.error,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          textStyle: EvikTypography.buttonText,
-                        ),
-                        child: const Text('Отменить поиск'),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    12,
+                    0,
+                    12,
+                    MediaQuery.paddingOf(context).bottom + 12,
+                  ),
+                  sliver: const SliverToBoxAdapter(
+                    child: _MarketplaceSheet(),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSummaryRow(
-    String label,
-    String value,
-    IconData icon, {
-    Color? valueColor,
-  }) {
-    return Row(
+const _partnerPreviews = [
+  _PartnerPreview(
+    title: 'Выездной шиномонтаж',
+    subtitle: 'Рядом с точкой подачи',
+    icon: Icons.tire_repair_rounded,
+  ),
+  _PartnerPreview(
+    title: 'Автосервис',
+    subtitle: 'Диагностика и ремонт после эвакуации',
+    icon: Icons.car_repair_rounded,
+  ),
+];
+
+class _SearchSummary extends StatelessWidget {
+  const _SearchSummary({
+    required this.state,
+    required this.searchTimer,
+    required this.onCancel,
+    required this.onChangeAddress,
+  });
+
+  final OrderFlowState state;
+  final String searchTimer;
+  final VoidCallback onCancel;
+  final VoidCallback onChangeAddress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       children: [
-        Icon(icon, size: 16, color: AvroClientColors.tabInactive),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: EvikTypography.bodySmall.copyWith(
-            color: AvroClientColors.textSecondary,
+        Container(
+          width: 38,
+          height: 4,
+          decoration: BoxDecoration(
+            color: AvroClientColors.surface,
+            borderRadius: BorderRadius.circular(999),
           ),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: EvikTypography.bodyMedium.copyWith(
-            color: valueColor ?? AvroClientColors.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            const _SearchingDot(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Ищем свободного водителя',
+                style: EvikTypography.h3.copyWith(
+                  color: AvroClientColors.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Text(
+              searchTimer,
+              style: EvikTypography.bodyLarge.copyWith(
+                color: AvroClientColors.accent,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _SearchRouteCard(
+          pickup: state.pickupLocation?.displayAddress ?? 'Точка подачи',
+          destination:
+              state.destinationLocation?.displayAddress ?? 'Точка назначения',
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _SearchActionButton(
+                label: 'Сменить адрес',
+                icon: Icons.edit_location_alt_outlined,
+                onPressed: onChangeAddress,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _SearchActionButton(
+                label: 'Отменить',
+                icon: Icons.close_rounded,
+                isDestructive: true,
+                onPressed: onCancel,
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
+}
+
+class _FloatingSheetCard extends StatelessWidget {
+  const _FloatingSheetCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: AvroClientColors.background,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 24,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: child,
+      );
+}
+
+class _SearchingDot extends StatelessWidget {
+  const _SearchingDot();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: AvroClientColors.accent,
+          shape: BoxShape.circle,
+        ),
+      );
+}
+
+class _SearchRouteCard extends StatelessWidget {
+  const _SearchRouteCard({required this.pickup, required this.destination});
+
+  final String pickup;
+  final String destination;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AvroClientColors.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            _RouteLine(
+              icon: Icons.trip_origin_rounded,
+              color: AvroClientColors.success,
+              label: 'Откуда',
+              value: pickup,
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 7),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  height: 10,
+                  child: VerticalDivider(color: AvroClientColors.tabInactive),
+                ),
+              ),
+            ),
+            _RouteLine(
+              icon: Icons.flag_rounded,
+              color: AvroClientColors.accent,
+              label: 'Куда',
+              value: destination,
+            ),
+          ],
+        ),
+      );
+}
+
+class _RouteLine extends StatelessWidget {
+  const _RouteLine({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: EvikTypography.bodySmall
+                        .copyWith(color: AvroClientColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: EvikTypography.bodyMedium.copyWith(
+                        color: AvroClientColors.textPrimary,
+                        fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _SearchActionButton extends StatelessWidget {
+  const _SearchActionButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.isDestructive = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        isDestructive ? AvroClientColors.error : AvroClientColors.textPrimary;
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.25)),
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    );
+  }
+}
+
+class _PartnerPreviewHeader extends StatelessWidget {
+  const _PartnerPreviewHeader();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 6, 18, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text('Рядом с вами',
+                  style: EvikTypography.h3.copyWith(
+                      color: AvroClientColors.textPrimary,
+                      fontWeight: FontWeight.w900)),
+            ),
+            Text('Скоро',
+                style: EvikTypography.bodySmall
+                    .copyWith(color: AvroClientColors.textSecondary)),
+          ],
+        ),
+      );
+}
+
+class _MarketplaceSheet extends StatelessWidget {
+  const _MarketplaceSheet();
+
+  @override
+  Widget build(BuildContext context) => _FloatingSheetCard(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+          child: Column(
+            children: [
+              const _PartnerPreviewHeader(),
+              for (var index = 0; index < _partnerPreviews.length; index++) ...[
+                _PartnerPreviewCard(preview: _partnerPreviews[index]),
+                if (index < _partnerPreviews.length - 1)
+                  const SizedBox(height: 12),
+              ],
+            ],
+          ),
+        ),
+      );
+}
+
+class _PartnerPreview {
+  const _PartnerPreview({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+}
+
+class _PartnerPreviewCard extends StatelessWidget {
+  const _PartnerPreviewCard({required this.preview});
+
+  final _PartnerPreview preview;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 118,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AvroClientColors.surface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 94,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: AvroClientColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child:
+                  Icon(preview.icon, color: AvroClientColors.accent, size: 38),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(preview.title,
+                      style: EvikTypography.bodyLarge.copyWith(
+                          color: AvroClientColors.textPrimary,
+                          fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text(preview.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: EvikTypography.bodySmall
+                          .copyWith(color: AvroClientColors.textSecondary)),
+                  const Spacer(),
+                  Text('Запись откроется скоро',
+                      style: EvikTypography.bodySmall
+                          .copyWith(color: AvroClientColors.tabInactive)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }

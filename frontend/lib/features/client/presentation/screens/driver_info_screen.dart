@@ -1,13 +1,15 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'edit_order_route_screen.dart';
+import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
-import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/real_time_driver_provider.dart';
 
@@ -19,8 +21,6 @@ class DriverInfoScreen extends ConsumerStatefulWidget {
 }
 
 class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
-  bool _isNavigating = false;
-
   Future<void> _makePhoneCall(String phoneNumber) async {
     final uri = Uri.parse('tel:$phoneNumber');
     if (await canLaunchUrl(uri)) await launchUrl(uri);
@@ -31,13 +31,6 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
-  void _goToTracking() {
-    if (_isNavigating) return;
-    _isNavigating = true;
-    ref.read(orderFlowProvider.notifier).goToTracking();
-    context.go('/order/tracking');
-  }
-
   @override
   Widget build(BuildContext context) {
     final orderFlowState = ref.watch(orderFlowProvider);
@@ -45,21 +38,63 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
     final pickup = orderFlowState.pickupLocation;
     final destination = orderFlowState.destinationLocation;
 
-    ref.listen<OrderFlowState>(orderFlowProvider, (previous, next) {
-      if (!mounted) return;
-      if (next.currentStep == OrderFlowStep.tracking &&
-          previous?.currentStep != OrderFlowStep.tracking) {
-        if (!_isNavigating) {
-          _isNavigating = true;
-          context.go('/order/tracking');
-        }
-      }
-    });
-
     if (driver == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AvroClientColors.background,
-        body: Center(child: Text('Информация о водителе недоступна')),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      color: AvroClientColors.surface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.all(18),
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Получаем данные водителя',
+                    textAlign: TextAlign.center,
+                    style: EvikTypography.h2.copyWith(
+                      color: AvroClientColors.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Это может занять несколько секунд. Не закрывайте экран — заказ сохраняется.',
+                    textAlign: TextAlign.center,
+                    style: EvikTypography.bodyMedium.copyWith(
+                      color: AvroClientColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  EvikButton(
+                    text: 'Обновить',
+                    width: double.infinity,
+                    onPressed: () => ref
+                        .read(orderFlowProvider.notifier)
+                        .restoreActiveFlow(),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () => context.go('/order/search'),
+                    child: const Text('Вернуться к поиску'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -74,9 +109,8 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
         47.5024;
 
     // Use real driver data instead of hardcoded values
-    final driverName = driver.fullName?.isNotEmpty == true
-        ? driver.fullName!
-        : 'Водитель';
+    final driverName =
+        driver.fullName?.isNotEmpty == true ? driver.fullName! : 'Водитель';
     final phoneNumber = driver.phone?.isNotEmpty == true
         ? driver.phone!
         : null; // No fallback phone number
@@ -131,13 +165,23 @@ class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
             right: 0,
             bottom: 0,
             child: _DriverCompactSheet(
+              onChangeAddress: orderFlowState.activeOrder != null &&
+                      ![
+                        OrderStatus.completed,
+                        OrderStatus.cancelled,
+                        OrderStatus.awaitingPayment
+                      ].contains(orderFlowState.activeOrder!.status)
+                  ? () => editOrderRoute(context, orderFlowState.activeOrder!)
+                  : null,
               driverName: driverName,
               vehicleNumber: driver.vehicleNumber,
               vehicleModel: driver.vehicleModel,
               rating: driver.rating,
-              onCall: phoneNumber != null ? () => _makePhoneCall(phoneNumber) : () {},
-              onMessage: phoneNumber != null ? () => _sendMessage(phoneNumber) : () {},
-              onTrack: _goToTracking,
+              onCall: phoneNumber != null
+                  ? () => _makePhoneCall(phoneNumber)
+                  : () {},
+              onMessage:
+                  phoneNumber != null ? () => _sendMessage(phoneNumber) : () {},
             ),
           ),
         ],
@@ -190,7 +234,7 @@ class _DriverCompactSheet extends StatelessWidget {
     required this.rating,
     required this.onCall,
     required this.onMessage,
-    required this.onTrack,
+    this.onChangeAddress,
   });
 
   final String driverName;
@@ -199,7 +243,7 @@ class _DriverCompactSheet extends StatelessWidget {
   final double rating;
   final VoidCallback onCall;
   final VoidCallback onMessage;
-  final VoidCallback onTrack;
+  final VoidCallback? onChangeAddress;
 
   @override
   Widget build(BuildContext context) {
@@ -290,13 +334,18 @@ class _DriverCompactSheet extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            EvikButton(
-              text: 'Отследить на карте',
-              onPressed: onTrack,
-              width: double.infinity,
-              variant: EvikButtonVariant.primary,
-              icon: const Icon(Icons.map_rounded, size: 18),
+            const SizedBox(height: 10),
+            if (onChangeAddress != null)
+              TextButton.icon(
+                  onPressed: onChangeAddress,
+                  icon: const Icon(Icons.edit_location_alt_outlined),
+                  label: const Text('Сменить адрес')),
+            Text(
+              'Местоположение эвакуатора обновляется на карте',
+              textAlign: TextAlign.center,
+              style: EvikTypography.bodySmall.copyWith(
+                color: AvroClientColors.textSecondary,
+              ),
             ),
           ],
         ),

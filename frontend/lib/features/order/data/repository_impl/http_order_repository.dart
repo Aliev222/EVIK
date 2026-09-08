@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:tow_truck_frontend/core/network/api_client.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -35,7 +35,8 @@ class HttpOrderRepository implements OrderRepository {
       'dropoff_lng': command.dropoffLocation.lng,
       'payment_method': command.paymentMethod.name,
       'auto_dispatch': true,
-      'is_mock': command.pickupLocation.isMocked || command.dropoffLocation.isMocked,
+      'is_mock':
+          command.pickupLocation.isMocked || command.dropoffLocation.isMocked,
     };
 
     // Add tow truck type if specified
@@ -57,7 +58,8 @@ class HttpOrderRepository implements OrderRepository {
     }
 
     final headers = <String, String>{
-      if (command.idempotencyKey != null) 'Idempotency-Key': command.idempotencyKey!,
+      if (command.idempotencyKey != null)
+        'Idempotency-Key': command.idempotencyKey!,
       ...?_authHeaders,
     };
     final response = await _apiClient.post(
@@ -83,6 +85,27 @@ class HttpOrderRepository implements OrderRepository {
       headers: _authHeaders,
     );
     return OrderPriceQuote.fromJson(response);
+  }
+
+  Future<Map<String, dynamic>> quoteRouteChange(
+          String id, LocationModel pickup, LocationModel dropoff) =>
+      _apiClient.post(
+          '/api/v1/orders/$id/route/quote',
+          {
+            'pickup_lat': pickup.lat,
+            'pickup_lng': pickup.lng,
+            'pickup_address': pickup.address,
+            'dropoff_lat': dropoff.lat,
+            'dropoff_lng': dropoff.lng,
+            'dropoff_address': dropoff.address,
+          },
+          headers: _authHeaders);
+
+  Future<Order> confirmRouteChange(String id, String quoteId) async {
+    final response = await _apiClient.post(
+        '/api/v1/orders/$id/route', {'quote_id': quoteId},
+        headers: _authHeaders);
+    return Order.fromMap(response['order'] as Map<String, dynamic>);
   }
 
   Future<OrderPayment> createOrderPayment(

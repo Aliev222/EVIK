@@ -95,7 +95,9 @@ class WsEventDispatcher implements EventDispatcher {
       case 'no_driver_found':
       case 'order_expanded':
       case 'payment_method_changed':
-        debugPrint('WS event dispatched: type=${event.type} orderId=${event.orderId}');
+      case 'order_route_changed':
+        debugPrint(
+            'WS event dispatched: type=${event.type} orderId=${event.orderId}');
         _orderEvents.add(event);
         break;
       case 'offer':

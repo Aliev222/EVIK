@@ -1,11 +1,15 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:tow_truck_frontend/core/config/build_flags.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
@@ -20,6 +24,7 @@ class OsmLocationPicker extends ConsumerStatefulWidget {
     required this.initialAddress,
     required this.confirmText,
     required this.onLocationConfirmed,
+    this.onBack,
   });
 
   final String title;
@@ -28,6 +33,7 @@ class OsmLocationPicker extends ConsumerStatefulWidget {
   final String initialAddress;
   final String confirmText;
   final ValueChanged<MapLocation> onLocationConfirmed;
+  final VoidCallback? onBack;
 
   @override
   ConsumerState<OsmLocationPicker> createState() => _OsmLocationPickerState();
@@ -47,8 +53,10 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
   @override
   void initState() {
     super.initState();
-    _selectedLat = widget.initialLocation?.latitude ?? AppConstants.makhachkalaLat;
-    _selectedLng = widget.initialLocation?.longitude ?? AppConstants.makhachkalaLng;
+    _selectedLat =
+        widget.initialLocation?.latitude ?? AppConstants.makhachkalaLat;
+    _selectedLng =
+        widget.initialLocation?.longitude ?? AppConstants.makhachkalaLng;
     _selectedAddress =
         widget.initialLocation?.displayAddress ?? widget.initialAddress;
     _addressController = TextEditingController();
@@ -221,7 +229,22 @@ class _OsmLocationPickerState extends ConsumerState<OsmLocationPicker> {
               title: widget.title,
               controller: _addressController,
               isLoading: _isLoading,
-              onBack: () => Navigator.of(context).pop(),
+              onBack: () {
+                if (widget.onBack != null) {
+                  widget.onBack!();
+                  return;
+                }
+                final navigator = Navigator.of(context);
+                if (navigator.canPop()) {
+                  navigator.pop();
+                } else {
+                  final auditMode = developmentFeatureEnabled(
+                    requested: const bool.fromEnvironment('EVIK_UI_AUDIT'),
+                    releaseMode: kReleaseMode,
+                  );
+                  context.go(auditMode ? '/ui-audit' : '/');
+                }
+              },
               onSearch: _searchAddress,
               onUseCurrentLocation: _detectCurrentLocation,
             ),
