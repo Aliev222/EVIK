@@ -59,4 +59,8 @@ node_modules/
 *service-account*.json
 *service_account*.json
 firebase-adminsdk-*.json
-gcp-key*.jsongraphify-out/cache/
+gcp-key*.json
+graphify-out/
+frontend/test/failures/
+frontend/macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+frontend/macos/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved

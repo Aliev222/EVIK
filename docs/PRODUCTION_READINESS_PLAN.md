@@ -52,9 +52,9 @@
 
 ## ФАЗА 2 — Полный аудит проекта (verification, всё по коду)
 
-### 2A. Graphify — карта архитектуры
-- ⬜ `graphify update .` — освежить граф.
-- ⬜ `graphify query` по ключевым доменам (order, payment, driver, matching) — связи, god-nodes.
+### 2A. GitNexus — карта архитектуры
+- ⬜ Обновить индекс GitNexus и убедиться, что он построен на текущем HEAD.
+- ⬜ Через GitNexus изучить ключевые домены (order, payment, driver, matching): связи, критические узлы и execution flows.
 - ⬜ Найти мёртвый код / неиспользуемые эндпоинты / орфанные функции (как refund write-path, как Preview-роут).
 - ⬜ Проверить связность слоёв Clean Architecture (domain не зависит от infra и т.д.).
 
