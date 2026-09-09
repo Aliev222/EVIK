@@ -62,25 +62,25 @@ type dispatchPushSender interface {
 }
 
 type DispatchScheduler struct {
-	offerRepo        dispatchOfferRepo
-	driverRepo       dispatchDriverRepo
-	orderRepo        dispatchOrderRepo
-	db               *sql.DB
-	matchingSvc      dispatchMatchingService
-	settingsRepo     dispatchSettingsRepo
-	serviceAreaRepo  dispatchServiceAreaRepo
-	hub              *wsinfra.Hub
-	eventPublisher   dispatchEventPublisher
-	pushSender       dispatchPushSender
-	idGen            idGenerator
-	clock            clock
-	logger           *log.Logger
-	checkInterval    time.Duration
-	offerTimeout     time.Duration
-	maxRadiusKM      float64
-	stepRadiusKM     float64
-	geoFreshness     time.Duration
-	maxRounds        int
+	offerRepo       dispatchOfferRepo
+	driverRepo      dispatchDriverRepo
+	orderRepo       dispatchOrderRepo
+	db              *sql.DB
+	matchingSvc     dispatchMatchingService
+	settingsRepo    dispatchSettingsRepo
+	serviceAreaRepo dispatchServiceAreaRepo
+	hub             *wsinfra.Hub
+	eventPublisher  dispatchEventPublisher
+	pushSender      dispatchPushSender
+	idGen           idGenerator
+	clock           clock
+	logger          *log.Logger
+	checkInterval   time.Duration
+	offerTimeout    time.Duration
+	maxRadiusKM     float64
+	stepRadiusKM    float64
+	geoFreshness    time.Duration
+	maxRounds       int
 
 	// wakeGrace is how long the dispatcher waits for an offline-online driver
 	// (no live WS) to reconnect after a wake-up push before giving up on them
@@ -88,8 +88,8 @@ type DispatchScheduler struct {
 	wakeGrace time.Duration
 	// waking holds drivers who were offered an order via push but have not yet
 	// reconnected their WebSocket. Keyed by orderID+driverID. Guarded by mu.
-	mu      sync.Mutex
-	waking  map[string]wakeEntry
+	mu     sync.Mutex
+	waking map[string]wakeEntry
 }
 
 // wakeEntry tracks a driver we sent a wake-up push to, awaiting WS reconnect.
@@ -128,27 +128,27 @@ func NewDispatchScheduler(
 		geoFreshness = 60 * time.Second
 	}
 	return &DispatchScheduler{
-		offerRepo:        offerRepo,
-		driverRepo:       driverRepo,
-		orderRepo:        orderRepo,
-		db:               db,
-		matchingSvc:      matchingSvc,
-		settingsRepo:     settingsRepo,
-		serviceAreaRepo:  serviceAreaRepo,
-		hub:              hub,
-		eventPublisher:   eventPublisher,
-		pushSender:       pushSender,
-		idGen:            idGen,
-		clock:            clock,
-		logger:           logger,
-		checkInterval:    checkInterval,
-		offerTimeout:     offerTimeout,
-		maxRadiusKM:      15,
-		stepRadiusKM:     2,
-		geoFreshness:     geoFreshness,
-		maxRounds:        3,
-		wakeGrace:        8 * time.Second,
-		waking:           make(map[string]wakeEntry),
+		offerRepo:       offerRepo,
+		driverRepo:      driverRepo,
+		orderRepo:       orderRepo,
+		db:              db,
+		matchingSvc:     matchingSvc,
+		settingsRepo:    settingsRepo,
+		serviceAreaRepo: serviceAreaRepo,
+		hub:             hub,
+		eventPublisher:  eventPublisher,
+		pushSender:      pushSender,
+		idGen:           idGen,
+		clock:           clock,
+		logger:          logger,
+		checkInterval:   checkInterval,
+		offerTimeout:    offerTimeout,
+		maxRadiusKM:     15,
+		stepRadiusKM:    2,
+		geoFreshness:    geoFreshness,
+		maxRounds:       3,
+		wakeGrace:       8 * time.Second,
+		waking:          make(map[string]wakeEntry),
 	}
 }
 
@@ -372,7 +372,11 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 		return
 	}
 
-	s.markNoDriverFound(ctx, ord)
+	// A driver may be offline when the order is created and come online later.
+	// Keep the order in the searching pool so the next scheduler tick can
+	// match it with newly available drivers. The stuck-order reaper is the
+	// single place that terminates an expanded search after its timeout.
+	s.logger.Printf("dispatch: no eligible driver yet for order=%s; keeping searching for the next tick", orderID)
 }
 
 // tryReserveAndOffer atomically reserves the candidate driver (FOR UPDATE
@@ -478,12 +482,12 @@ func (s *DispatchScheduler) sendWakePush(ctx context.Context, ord *orderdomain.O
 	}
 	grace := int(s.wakeGrace.Seconds())
 	data := map[string]string{
-		"type":                  "driver_wake",
-		"order_id":              ord.ID,
-		"wake_grace_seconds":    fmt.Sprintf("%d", grace),
-		"pickup_lat":            fmt.Sprintf("%f", ord.Pickup.Lat),
-		"pickup_lng":            fmt.Sprintf("%f", ord.Pickup.Lng),
-		"tow_truck_type":        string(ord.TowTruckType),
+		"type":               "driver_wake",
+		"order_id":           ord.ID,
+		"wake_grace_seconds": fmt.Sprintf("%d", grace),
+		"pickup_lat":         fmt.Sprintf("%f", ord.Pickup.Lat),
+		"pickup_lng":         fmt.Sprintf("%f", ord.Pickup.Lng),
+		"tow_truck_type":     string(ord.TowTruckType),
 	}
 	title := "Новый заказ"
 	body := fmt.Sprintf("Эвакуатор %s — %.0f ₽", ord.TowTruckType, float64(ord.PriceTotal)/100)
@@ -558,10 +562,10 @@ func (s *DispatchScheduler) sendOfferPush(ctx context.Context, offer *orderdomai
 		title := "Новый заказ"
 		body := fmt.Sprintf("Эвакуатор %s — %.0f ₽, %.0f км", ord.TowTruckType, float64(ord.PriceTotal)/100, distanceKM)
 		data := map[string]string{
-			"type":      "offer",
-			"offer_id":  offer.ID,
-			"order_id":  ord.ID,
-			"expires":   offer.ExpiresAt.Format(time.RFC3339),
+			"type":     "offer",
+			"offer_id": offer.ID,
+			"order_id": ord.ID,
+			"expires":  offer.ExpiresAt.Format(time.RFC3339),
 		}
 		pushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()

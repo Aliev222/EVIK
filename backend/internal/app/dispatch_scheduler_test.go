@@ -269,7 +269,7 @@ func TestDispatchOfferCreatedForNearest(t *testing.T) {
 	}
 }
 
-func TestDispatchNoCandidatesNoDriverFound(t *testing.T) {
+func TestDispatchOrderStaysSearchingUntilDriverComesOnline(t *testing.T) {
 	hub := wsinfra.NewHub()
 	go hub.Run()
 
@@ -280,7 +280,6 @@ func TestDispatchNoCandidatesNoDriverFound(t *testing.T) {
 	matchingSvc := &fakeMatchingSvc{candPool: map[string][]matchingdomain.Candidate{"o2": {}}}
 
 	sched := newTestScheduler(offerRepo, orderRepo, matchingSvc, &fakeSettingsRepo{}, hub)
-	eventPub := sched.eventPublisher.(*fakeEventPub)
 
 	sched.tick(context.Background())
 
@@ -288,18 +287,20 @@ func TestDispatchNoCandidatesNoDriverFound(t *testing.T) {
 		t.Fatalf("expected 0 offers created, got %d", len(offerRepo.created))
 	}
 
-	hasNoDriver := false
-	for _, e := range eventPub.events {
-		if e.Type == orderdomain.EventNoDriverFound {
-			hasNoDriver = true
-			break
-		}
+	if ord.Status != orderdomain.StatusSearching {
+		t.Fatalf("expected order to remain searching, got %s", ord.Status)
 	}
-	if !hasNoDriver {
-		t.Fatal("expected no_driver_found event")
+
+	matchingSvc.candPool["o2"] = []matchingdomain.Candidate{{DriverID: "d2", DistanceKM: 2}}
+	hub.Register(&wsinfra.Client{UserID: "d2", Role: "driver", Send: make(chan []byte, 10)})
+	waitHubDriver(t, hub, "d2")
+	sched.tick(context.Background())
+
+	if len(offerRepo.created) != 1 {
+		t.Fatalf("expected offer after driver came online, got %d", len(offerRepo.created))
 	}
-	if ord.Status != orderdomain.StatusNoDriverFound {
-		t.Fatalf("expected order status no_driver_found, got %s", ord.Status)
+	if offerRepo.created[0].DriverID != "d2" {
+		t.Fatalf("expected offer for d2, got %s", offerRepo.created[0].DriverID)
 	}
 }
 
