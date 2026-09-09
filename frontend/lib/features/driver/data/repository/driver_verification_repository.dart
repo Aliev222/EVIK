@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -54,7 +54,8 @@ abstract class DriverVerificationRepository {
   });
 }
 
-class LocalDriverVerificationRepository implements DriverVerificationRepository {
+class LocalDriverVerificationRepository
+    implements DriverVerificationRepository {
   const LocalDriverVerificationRepository();
 
   @override
@@ -158,6 +159,19 @@ class HttpDriverVerificationRepository implements DriverVerificationRepository {
       );
       documentUrls['selfie'] = selfieDoc['document']['public_url'];
       completed++;
+
+      await apiClient.post(
+        '/api/v1/driver-verifications',
+        <String, dynamic>{
+          'user_id': payload.userId,
+          'full_name': payload.fullName,
+          'vehicle_model': payload.vehicleModel,
+          'vehicle_plate': payload.vehicleNumber,
+          'vehicle_type': payload.vehicleType.name,
+          'documents': documentUrls.values.toList(growable: false),
+        },
+        headers: <String, String>{'Authorization': 'Bearer $_token'},
+      );
 
       onProgress?.call(1.0, 'Verification request submitted');
 
