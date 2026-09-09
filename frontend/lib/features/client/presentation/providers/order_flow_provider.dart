@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -11,6 +11,7 @@ import 'package:tow_truck_frontend/features/driver/presentation/providers/new_dr
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
 import 'package:tow_truck_frontend/features/order/data/repository_impl/http_order_repository.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_notification_service.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order_flow_state.dart';
 import 'package:tow_truck_frontend/features/order/domain/repositories/order_repository.dart';
 import 'package:tow_truck_frontend/features/order/presentation/providers/order_provider.dart';
@@ -25,11 +26,14 @@ final selectedOrderPaymentMethodProvider = StateProvider<PaymentMethod>((ref) {
 });
 
 class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
-  OrderFlowNotifier(this._ref) : super(const OrderFlowState()) {
+  OrderFlowNotifier(this._ref)
+      : _notificationService = _ref.read(driverNotificationServiceProvider),
+        super(const OrderFlowState()) {
     unawaited(restoreActiveFlow());
   }
 
   final Ref _ref;
+  final DriverNotificationService _notificationService;
   Timer? _searchTimer;
   Timer? _driverFoundTimer;
   Timer? _orderPollTimer;
@@ -202,6 +206,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
   /// caller (single GPS fix), so this only reverse-geocodes them — no second
   /// GPS request. Without them a full fix is acquired.
   Future<void> detectCurrentLocation({double? lat, double? lng}) async {
+    if (!mounted) return;
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
@@ -222,10 +227,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
         fix = await locationService.getCurrentLocationFix();
       }
 
+      if (!mounted) return;
+
       if (fix == null) {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Не удалось определить местоположение. Укажите точку на карте.',
+          errorMessage:
+              'Не удалось определить местоположение. Укажите точку на карте.',
         );
         return;
       }
@@ -271,6 +279,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
   void clearError() {
     state = state.copyWith(errorMessage: null);
+  }
+
+  void applyRouteChange(Order order) {
+    _syncOrderLocations(order);
+    state = state.copyWith(
+        activeOrder: order,
+        estimatedPrice: order.finalPrice ?? order.estimatedPrice);
   }
 
   Future<bool> _createOrderWithPaymentFlow() async {
@@ -389,6 +404,13 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
 
     if (order.status == OrderStatus.arrived ||
         order.status == OrderStatus.evacuating) {
+      // Водитель приехал на точку А — сопровождаемся звуком у клиента.
+      final prevStatus = state.activeOrder?.status;
+      final wasArrived = prevStatus == OrderStatus.arrived ||
+          prevStatus == OrderStatus.evacuating;
+      if (!wasArrived) {
+        unawaited(_notificationService.playDriverArrived());
+      }
       if (nextStep == OrderFlowStep.driverFound) {
         nextStep = OrderFlowStep.tracking;
       }
@@ -428,6 +450,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
     _syncOrderLocations(order);
     state = state.copyWith(
       activeOrder: order,
+      estimatedPrice: order.finalPrice ?? order.estimatedPrice,
       currentStep: nextStep,
       isLoading: false,
       errorMessage: null,
@@ -552,8 +575,7 @@ class OrderFlowNotifier extends StateNotifier<OrderFlowState> {
       if (!mounted) return;
       if (seq != _priceRequestSeq) return;
       final serverPrices = <TowTruckType, double>{
-        for (final entry in quote.prices.entries)
-          entry.key: entry.value / 100,
+        for (final entry in quote.prices.entries) entry.key: entry.value / 100,
       };
       final selectedPrice = state.selectedTowTruckType == null
           ? null

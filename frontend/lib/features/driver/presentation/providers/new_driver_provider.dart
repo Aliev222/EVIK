@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +12,10 @@ import 'package:tow_truck_frontend/core/services/realtime_location_service.dart'
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository_impl/http_driver_repository.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_notification_service.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_shift_tracker.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_wake_service.dart';
+import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/active_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
@@ -77,6 +81,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     required Ref ref,
   })  : _driverRepository = driverRepository,
         _ref = ref,
+        _notificationService = ref.read(driverNotificationServiceProvider),
         super(DriverState(
           workState: DriverWorkState.offline,
           availableOrders: const <AvailableOrder>[],
@@ -101,16 +106,22 @@ class DriverNotifier extends StateNotifier<DriverState> {
             ),
           ),
         )) {
-    unawaited(_initializeDriver());
+    initialized = _initializeDriver();
     _startPeriodicRefresh();
     _startOfferListener();
   }
 
   final HttpDriverRepository _driverRepository;
   final Ref _ref;
+  late final Future<void> initialized;
+  final DriverNotificationService _notificationService;
+  final DriverShiftTracker _shiftTracker = DriverShiftTracker();
   Timer? _refreshTimer;
   Timer? _paymentPollTimer;
   Timer? _heartbeatTimer;
+  Timer? _shiftTimer;
+  PaymentMethod? _lastPolledPaymentMethod;
+  bool _refreshingActiveOrder = false;
   StreamSubscription<OrderUpdate>? _wsSubscription;
 
   String? get _currentDriverId {
@@ -121,7 +132,8 @@ class DriverNotifier extends StateNotifier<DriverState> {
 
   Future<void> _initializeDriver() async {
     final driverId = _currentDriverId;
-    if (driverId == null) return;
+    if (driverId == null ||
+        _ref.read(authProvider).user?.role != UserRole.driver) return;
 
     try {
       final profile = await _driverRepository.getDriver(driverId);
@@ -172,7 +184,17 @@ class DriverNotifier extends StateNotifier<DriverState> {
           );
         }
         await realtime.goOnline();
+        if (!mounted) return;
+        if (!_ref.read(driverRealTimeProvider).isOnline) {
+          state =
+              state.copyWith(error: _ref.read(driverRealTimeProvider).error);
+          return;
+        }
         _startHeartbeat();
+        // Восстанавливаем учёт времени на смене после перезапуска приложения.
+        await _shiftTracker.restore();
+        await _shiftTracker.onShiftStarted();
+        _startShiftTimer();
         if (nextWorkState == DriverWorkState.online) {
           await _loadCurrentOffer();
         }
@@ -186,20 +208,33 @@ class DriverNotifier extends StateNotifier<DriverState> {
     }
   }
 
+  /// Resume only a server-confirmed working session; a stale push must never
+  /// start a new shift after the driver deliberately went offline.
+  Future<void> resumeOnlineSession() async {
+    await initialized;
+    if (!mounted || !state.workState.isWorking || state.isLoading) return;
+    if (!_ref.read(driverRealTimeProvider).isConnected ||
+        !_ref.read(driverRealTimeProvider).isOnline) {
+      await _initializeDriver();
+    }
+    if (!mounted) return;
+    if (state.activeOrder != null) {
+      await _pollActiveOrderPayment();
+    } else if (state.workState == DriverWorkState.online) {
+      await _loadCurrentOffer();
+    }
+  }
+
   Future<void> goOnline({double? lat, double? lng}) async {
     final driverId = _currentDriverId;
-    if (driverId == null || state.workState.hasActiveOrder) return;
+    if (driverId == null ||
+        state.workState.hasActiveOrder ||
+        state.isLoading ||
+        state.workState == DriverWorkState.online) return;
 
     final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      await _driverRepository.updateDriverStatus(
-        driverId: driverId,
-        isOnline: true,
-        lat: lat,
-        lng: lng,
-      );
-
       // Подключаем WS: регистрируем водителя в Hub, шлём локацию
       final token = _ref.read(authProvider).accessToken;
       if (token == null || token.isEmpty) {
@@ -211,16 +246,38 @@ class DriverNotifier extends StateNotifier<DriverState> {
         return;
       }
       final realtime = _ref.read(driverRealTimeProvider.notifier);
-      await realtime.connectAsDriver(driverId, accessToken: token);
+      final connected =
+          await realtime.connectAsDriver(driverId, accessToken: token);
+      if (!connected) throw StateError('Нет соединения с сервером');
       await realtime.goOnline();
+      if (!mounted) return;
+      final realtimeState = _ref.read(driverRealTimeProvider);
+      if (!realtimeState.isOnline)
+        throw StateError(realtimeState.error ?? 'Геолокация недоступна');
+      await _driverRepository.updateDriverStatus(
+        driverId: driverId,
+        isOnline: true,
+        lat: realtimeState.currentLocation?.lat ?? lat,
+        lng: realtimeState.currentLocation?.lng ?? lng,
+        isMock: realtimeState.currentLocation?.isMocked ?? false,
+      );
+      if (!mounted) return;
 
       state = state.copyWith(
         workState: DriverWorkState.online,
         isLoading: false,
       );
       _startHeartbeat();
+      await _ref.read(driverWakeServiceProvider).markOnline();
       await _loadCurrentOffer();
+      unawaited(_notificationService.playShiftStarted());
+      await _shiftTracker.restore();
+      await _shiftTracker.onShiftStarted();
+      _startShiftTimer();
     } catch (error) {
+      if (!mounted) return;
+      await _ref.read(driverRealTimeProvider.notifier).goOffline();
+      if (!mounted) return;
       state = state.copyWith(
         workState: previousWorkState,
         isLoading: false,
@@ -231,7 +288,8 @@ class DriverNotifier extends StateNotifier<DriverState> {
 
   Future<void> goOffline() async {
     final driverId = _currentDriverId;
-    if (driverId == null || state.workState.hasActiveOrder) return;
+    if (driverId == null || state.workState.hasActiveOrder || state.isLoading)
+      return;
 
     final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
@@ -255,6 +313,10 @@ class DriverNotifier extends StateNotifier<DriverState> {
       );
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
+      _shiftTimer?.cancel();
+      _shiftTimer = null;
+      await _shiftTracker.onShiftEnded();
+      await _ref.read(driverWakeServiceProvider).markOffline();
     } catch (error) {
       state = state.copyWith(
         workState: previousWorkState,
@@ -301,9 +363,11 @@ class DriverNotifier extends StateNotifier<DriverState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final order = await _driverRepository.acceptOrder(orderId);
+      final accepted = activeOrderFromBackend(order);
+      _lastPolledPaymentMethod = accepted.paymentMethod;
       state = state.copyWith(
         workState: DriverWorkState.hasActiveOrder,
-        activeOrder: activeOrderFromBackend(order),
+        activeOrder: accepted,
         availableOrders: const <AvailableOrder>[],
         isLoading: false,
       );
@@ -343,14 +407,60 @@ class DriverNotifier extends StateNotifier<DriverState> {
           if (expiresAtStr != null && expiresAtStr.isNotEmpty) {
             expiresAt = DateTime.tryParse(expiresAtStr)?.toUtc();
           }
-          if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) return;
+          if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) {
+            return;
+          }
           final order = availableOrderFromOffer(rawPayload, update.orderId);
           state = state.copyWith(
-            availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
+            availableOrders:
+                order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
           );
         }
+      } else if (update.status == OrderUpdateType.paymentMethodChanged) {
+        _handlePaymentChangedEvent(update);
+      } else if (update.status == OrderUpdateType.routeChanged) {
+        if (state.activeOrder?.id == update.orderId) {
+          unawaited(_pollActiveOrderPayment());
+        }
+      } else if (update.status == OrderUpdateType.orderCancelled) {
+        _handleOrderCancelledEvent(update);
       }
     });
+  }
+
+  /// Клиент сменил метод оплаты во время поездки — сопровождаемся звуком.
+  void _handlePaymentChangedEvent(OrderUpdate update) {
+    final activeOrder = state.activeOrder;
+    if (activeOrder == null || activeOrder.id != update.orderId) return;
+    final raw = update.rawPayload;
+    final method = raw?['payment_method']?.toString();
+    if (method != 'card' && method != 'cash') return;
+    final nextMethod =
+        method == 'card' ? PaymentMethod.card : PaymentMethod.cash;
+    _lastPolledPaymentMethod = nextMethod;
+    state = state.copyWith(
+        activeOrder: activeOrder.copyWith(paymentMethod: nextMethod));
+    if (activeOrder.paymentMethod == nextMethod) return;
+    unawaited(
+      _notificationService.playPaymentChanged(isCash: method != 'card'),
+    );
+  }
+
+  /// Заказ отменён клиентом/системой — освобождаем водителя для новых заказов.
+  void _handleOrderCancelledEvent(OrderUpdate update) {
+    final activeOrder = state.activeOrder;
+    if (activeOrder == null || activeOrder.id != update.orderId) return;
+    unawaited(_notificationService.playOrderCancelled());
+    unawaited(_ref.read(driverRealTimeProvider.notifier).completeOrder());
+    _paymentPollTimer?.cancel();
+    _lastPolledPaymentMethod = null;
+    state = state.copyWith(
+      workState: DriverWorkState.online,
+      availableOrders: const <AvailableOrder>[],
+      clearActiveOrder: true,
+      isLoading: false,
+      clearError: true,
+    );
   }
 
   Future<void> arrivedAtClient() async {
@@ -392,6 +502,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
         isLoading: false,
       );
       _ref.read(driverRealTimeProvider.notifier).startToDestination();
+      unawaited(_notificationService.playTripStarted());
     } catch (error) {
       if (!mounted) return;
       state = state.copyWith(
@@ -523,7 +634,8 @@ class DriverNotifier extends StateNotifier<DriverState> {
       }
       final order = availableOrderFromOffer(offerMap, orderId);
       state = state.copyWith(
-        availableOrders: order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
+        availableOrders:
+            order.id.isNotEmpty ? [order] : const <AvailableOrder>[],
       );
     } catch (error) {
       // Polling errors are expected (network flakiness) — don't spam the UI.
@@ -540,6 +652,79 @@ class DriverNotifier extends StateNotifier<DriverState> {
       if (!mounted) return;
       if (state.workState == DriverWorkState.online) {
         unawaited(_loadCurrentOffer());
+      } else if (state.activeOrder != null) {
+        // Fallback для смены оплаты/отмены, если WS-событие не долетело
+        // (например, водитель был в другом приложении, пока строился маршрут).
+        unawaited(_pollActiveOrderPayment());
+      }
+    });
+  }
+
+  /// HTTP-fallback: сверяет способ оплаты активного заказа с сервером.
+  /// Если оплата сменилась и WS не успел донести — воспроизводим нужный звук.
+  Future<void> _pollActiveOrderPayment() async {
+    final activeOrder = state.activeOrder;
+    if (activeOrder == null || _refreshingActiveOrder) return;
+    _refreshingActiveOrder = true;
+
+    try {
+      // Query this order directly: cancelled orders disappear from active lists.
+      final order =
+          await _ref.read(orderRepositoryProvider).getOrder(activeOrder.id);
+      if (!mounted || order == null || state.activeOrder?.id != activeOrder.id)
+        return;
+      if (order.status == OrderStatus.cancelled) {
+        _handleOrderCancelledEvent(OrderUpdate(
+            orderId: order.id, status: OrderUpdateType.orderCancelled));
+        return;
+      }
+      if (order.status == OrderStatus.completed) {
+        _paymentPollTimer?.cancel();
+        await _ref.read(driverRealTimeProvider.notifier).completeOrder();
+        if (!mounted || state.activeOrder?.id != order.id) return;
+        state = state.copyWith(
+            workState: DriverWorkState.online, clearActiveOrder: true);
+        _lastPolledPaymentMethod = null;
+        return;
+      }
+      final base = _lastPolledPaymentMethod ?? state.activeOrder!.paymentMethod;
+      final server = state.activeOrder!.copyWith(
+        paymentMethod: order.paymentMethod,
+        pickupAddress: order.pickupLocation.address,
+        pickupLat: order.pickupLocation.lat,
+        pickupLng: order.pickupLocation.lng,
+        dropoffAddress: order.dropoffLocation.address,
+        dropoffLat: order.dropoffLocation.lat,
+        dropoffLng: order.dropoffLocation.lng,
+        totalDistance: order.distance,
+        price: order.finalPrice ?? order.estimatedPrice,
+      );
+      state = state.copyWith(activeOrder: server);
+      if (base != server.paymentMethod) {
+        _lastPolledPaymentMethod = server.paymentMethod;
+        unawaited(
+          _notificationService.playPaymentChanged(
+            isCash: server.paymentMethod == PaymentMethod.cash,
+          ),
+        );
+      } else {
+        _lastPolledPaymentMethod = server.paymentMethod;
+      }
+    } catch (_) {
+      // A network error is not proof that the order ended.
+    } finally {
+      _refreshingActiveOrder = false;
+    }
+  }
+
+  /// Ежеминутная проверка суммарного времени на смене за сутки.
+  void _startShiftTimer() {
+    _shiftTimer?.cancel();
+    _shiftTimer = Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (!mounted) return;
+      final shouldAlert = await _shiftTracker.checkLongShift();
+      if (shouldAlert) {
+        unawaited(_notificationService.playLongShift());
       }
     });
   }
@@ -585,6 +770,7 @@ class DriverNotifier extends StateNotifier<DriverState> {
     _refreshTimer?.cancel();
     _paymentPollTimer?.cancel();
     _heartbeatTimer?.cancel();
+    _shiftTimer?.cancel();
     _wsSubscription?.cancel();
     super.dispose();
   }

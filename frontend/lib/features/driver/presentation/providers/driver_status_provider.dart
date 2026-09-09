@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +10,7 @@ import 'package:tow_truck_frontend/features/order/presentation/providers/order_p
 import 'package:tow_truck_frontend/features/driver/data/repository/driver_repository.dart';
 import 'package:tow_truck_frontend/features/driver/data/services/driver_location_service.dart';
 import 'package:tow_truck_frontend/features/driver/data/services/driver_notification_service.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_wake_service.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'driver_provider.dart';
 
@@ -79,6 +80,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
   DriverStatusNotifier(this.ref)
       : _driverRepository = ref.read(driverRepositoryProvider),
         _orderRepository = ref.read(orderRepositoryProvider),
+        _notificationService = ref.read(driverNotificationServiceProvider),
         super(const DriverStatusState()) {
     _bind();
   }
@@ -87,8 +89,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
   final DriverRepository _driverRepository;
   final OrderRepository _orderRepository;
   final DriverLocationService _locationService = DriverLocationService();
-  final DriverNotificationService _notificationService =
-      DriverNotificationService();
+  final DriverNotificationService _notificationService;
 
   StreamSubscription<Order?>? _currentOrderSubscription;
   StreamSubscription<List<Order>>? _availableOrdersSubscription;
@@ -118,7 +119,8 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         );
       },
       onError: (Object error) {
-        state = state.copyWith(errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
+        state = state.copyWith(
+            errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
       },
     );
 
@@ -143,7 +145,8 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         await _notificationService.showOrderNotification(orders.first);
       }
     }, onError: (Object error) {
-      state = state.copyWith(errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
+      state = state.copyWith(
+          errorMessage: 'Нет соединения с сервером. Проверьте интернет.');
     });
   }
 
@@ -161,7 +164,9 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
 
     try {
       if (!state.isOnline) {
-        await _locationService.checkPermissions();
+        // Do not mark the driver online on the server until background
+        // tracking is actually permitted on this device.
+        await _locationService.checkPermissions(requireBackground: true);
         final position = await _locationService.getCurrentPosition();
         final location = DriverLocation(
           lat: position.latitude,
@@ -175,6 +180,15 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
           onPosition: (position) {
             updateLocation(position.latitude, position.longitude);
           },
+          onError: (_) {
+            if (mounted) {
+              state = state.copyWith(
+                isGpsLost: true,
+                errorMessage:
+                    'Геолокация остановлена. Проверьте GPS и разрешения.',
+              );
+            }
+          },
         );
 
         state = state.copyWith(
@@ -185,6 +199,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
           isGpsLost: false,
           onlineSince: DateTime.now(),
         );
+        unawaited(ref.read(driverWakeServiceProvider).markOnline());
         _subscribeAvailableOrders();
         return;
       }
@@ -197,6 +212,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
         availableOrders: const <Order>[],
         onlineSince: null,
       );
+      unawaited(ref.read(driverWakeServiceProvider).markOffline());
     } catch (error) {
       // Статус не подтверждён сервером — не меняем isOnline, только сообщаем.
       state = state.copyWith(
@@ -236,8 +252,7 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
     } catch (error) {
       state = state.copyWith(
         isGpsLost: true,
-        errorMessage:
-            'Проблемы с GPS. Проверьте настройки.',
+        errorMessage: 'Проблемы с GPS. Проверьте настройки.',
       );
     }
   }
@@ -307,7 +322,6 @@ class DriverStatusNotifier extends StateNotifier<DriverStatusState>
     _currentOrderSubscription?.cancel();
     _availableOrdersSubscription?.cancel();
     _locationService.dispose();
-    _notificationService.dispose();
     super.dispose();
   }
 }

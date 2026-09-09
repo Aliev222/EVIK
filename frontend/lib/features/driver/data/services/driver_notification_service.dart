@@ -1,6 +1,7 @@
-﻿import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:vibration/vibration.dart';
 
@@ -12,14 +13,81 @@ enum DriverHapticType {
   warning,
 }
 
-class DriverNotificationService {
-  DriverNotificationService()
+/// Asset-пути к звуковым файлам (см. assets/audio/).
+class SoundAsset {
+  SoundAsset._();
+
+  static const String shiftStarted = 'assets/audio/начало работы.mp3';
+  static const String tripStarted = 'assets/audio/начало движения.mp3';
+  static const String paymentChangedToCash = 'assets/audio/оплатаналичные.mp3';
+  static const String paymentChangedToCard = 'assets/audio/оплатакартой.mp3';
+  static const String longShift = 'assets/audio/долгонасмене.mp3';
+  static const String orderCancelled = 'assets/audio/заказ отменен.mp3';
+  static const String driverArrived = 'assets/audio/сигналводителя.mp3';
+}
+
+abstract class DriverNotificationService {
+  Future<void> playAsset(String assetPath);
+  Future<void> playShiftStarted();
+  Future<void> playTripStarted();
+  Future<void> playPaymentChanged({required bool isCash});
+  Future<void> playLongShift();
+  Future<void> playOrderCancelled();
+  Future<void> playDriverArrived();
+  Future<void> ensureInitialized();
+  Future<void> playNewOrderSound();
+  Future<void> showOrderNotification(Order order);
+  Future<void> scheduleLocationReminder();
+  Future<void> vibrateFeedback(DriverHapticType type);
+  Future<void> dispose();
+}
+
+final driverNotificationServiceProvider =
+    Provider<DriverNotificationService>((ref) {
+  final service = AudioDriverNotificationService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+class AudioDriverNotificationService implements DriverNotificationService {
+  AudioDriverNotificationService()
       : _notifications = FlutterLocalNotificationsPlugin(),
         _player = AudioPlayer();
 
   final FlutterLocalNotificationsPlugin _notifications;
   final AudioPlayer _player;
   bool _initialized = false;
+
+  /// Проигрывает произвольный аудио-asset через just_audio.
+  Future<void> playAsset(String assetPath) async {
+    try {
+      await _player.stop();
+      await _player.setAsset(assetPath);
+      await _player.play();
+    } catch (_) {
+      // Звук не критичен — молча пропускаем ошибки воспроизведения.
+    }
+  }
+
+  /// Водитель вышел на смену.
+  Future<void> playShiftStarted() => playAsset(SoundAsset.shiftStarted);
+
+  /// Водитель забрал клиента и повёз машину.
+  Future<void> playTripStarted() => playAsset(SoundAsset.tripStarted);
+
+  /// Метод оплаты сменён во время поездки.
+  Future<void> playPaymentChanged({required bool isCash}) => playAsset(isCash
+      ? SoundAsset.paymentChangedToCash
+      : SoundAsset.paymentChangedToCard);
+
+  /// Водитель слишком долго на смене.
+  Future<void> playLongShift() => playAsset(SoundAsset.longShift);
+
+  /// Заказ отменён другой стороной.
+  Future<void> playOrderCancelled() => playAsset(SoundAsset.orderCancelled);
+
+  /// Водитель приехал к клиенту (звук у клиента).
+  Future<void> playDriverArrived() => playAsset(SoundAsset.driverArrived);
 
   Future<void> ensureInitialized() async {
     if (_initialized) return;
