@@ -34,6 +34,7 @@ class PushNotificationService {
   StreamSubscription<RemoteMessage>? _openedSubscription;
   void Function(String route)? _routeHandler;
   String? Function()? _currentRouteResolver;
+  VoidCallback? onDriverWake;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -77,11 +78,19 @@ class PushNotificationService {
   }
 
   Future<String?> getToken() async {
-    try { return await FirebaseMessaging.instance.getToken(); } catch (_) { return null; }
+    try {
+      return await FirebaseMessaging.instance.getToken();
+    } catch (_) {
+      return null;
+    }
   }
 
   Stream<String> get onTokenRefresh {
-    try { return FirebaseMessaging.instance.onTokenRefresh; } catch (_) { return const Stream.empty(); }
+    try {
+      return FirebaseMessaging.instance.onTokenRefresh;
+    } catch (_) {
+      return const Stream.empty();
+    }
   }
 
   Future<void> showBackgroundNotification(RemoteMessage message) async {
@@ -131,6 +140,20 @@ class PushNotificationService {
     final body = _notificationBody(message);
     final route = routeForMessage(message);
     final messenger = rootScaffoldMessengerKey.currentState;
+
+    if (message.data['type'] == 'driver_wake') {
+      onDriverWake?.call();
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Проверяем новые заказы…'),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(left: 16, right: 16, bottom: 80),
+          ),
+        );
+      return;
+    }
 
     if (messenger == null) {
       debugPrint('FCM foreground message without messenger: ${message.data}');
@@ -196,6 +219,11 @@ class PushNotificationService {
   }
 
   void _handleNotificationTap(RemoteMessage message) {
+    if (message.data['type'] == 'driver_wake') {
+      onDriverWake?.call();
+      return;
+    }
+
     final route = routeForMessage(message);
     if (route != null) {
       _routeHandler?.call(route);
@@ -227,6 +255,7 @@ class PushNotificationService {
     }
 
     return switch (type) {
+      'driver_wake' => '/driver',
       'new_order_nearby' => '/',
       'client_cancelled_order' => '/',
       'payout_approved' || 'payout_rejected' => '/',

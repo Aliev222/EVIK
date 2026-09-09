@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/features/client/presentation/screens/service_detail_screen.dart';
 
 class ServicesPlaceholderScreen extends StatelessWidget {
@@ -13,25 +14,29 @@ class ServicesPlaceholderScreen extends StatelessWidget {
       icon: Icons.tire_repair_rounded,
       label: 'Шиномонтаж',
       subtitle: 'Выездной сервис',
-      description: 'Выездной шиномонтаж прямо на месте поломки. Замена колёс, ремонт проколов, балансировка.',
+      description:
+          'Выездной шиномонтаж прямо на месте поломки. Замена колёс, ремонт проколов, балансировка.',
     ),
     _ServiceItem(
       icon: Icons.battery_charging_full_rounded,
       label: 'Не заводится',
       subtitle: 'Запуск двигателя',
-      description: 'Прикуривание аккумулятора, диагностика на месте, запуск двигателя в любую погоду.',
+      description:
+          'Прикуривание аккумулятора, диагностика на месте, запуск двигателя в любую погоду.',
     ),
     _ServiceItem(
       icon: Icons.bolt_rounded,
       label: 'Автоэлектрик',
       subtitle: 'Диагностика и ремонт',
-      description: 'Выездной автоэлектрик: диагностика, ремонт проводки, замена предохранителей.',
+      description:
+          'Выездной автоэлектрик: диагностика, ремонт проводки, замена предохранителей.',
     ),
     _ServiceItem(
       icon: Icons.local_gas_station_rounded,
       label: 'Подвоз топлива',
       subtitle: 'Быстрая доставка',
-      description: 'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
+      description:
+          'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
     ),
   ];
 
@@ -64,9 +69,9 @@ class ServicesPlaceholderScreen extends StatelessWidget {
             const _RoadmapAnnouncement(),
             const SizedBox(height: 20),
             ..._services.map((service) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ServiceCard(service: service),
-            )),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ServiceCard(service: service),
+                )),
             const SizedBox(height: 12),
             _PartnerSection(),
           ],
@@ -113,7 +118,8 @@ class _ServiceCard extends StatelessWidget {
                   color: AvroClientColors.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(service.icon, size: 28, color: AvroClientColors.accent),
+                child: Icon(service.icon,
+                    size: 28, color: AvroClientColors.accent),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -140,7 +146,8 @@ class _ServiceCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: AvroClientColors.textSecondary),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AvroClientColors.textSecondary),
             ],
           ),
         ),
@@ -164,7 +171,11 @@ class _PartnerSection extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.handshake_rounded, size: 48, color: AvroClientColors.accent),
+          Icon(
+            Icons.handshake_rounded,
+            size: 48,
+            color: AvroClientColors.accent,
+          ),
           const SizedBox(height: 12),
           Text(
             'Вы мастер или владелец СТО?',
@@ -188,7 +199,8 @@ class _PartnerSection extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () => launchUrl(Uri.parse('https://t.me/avro_partners')),
+              onPressed: () =>
+                  launchUrl(Uri.parse('https://t.me/avro_partners')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AvroClientColors.accent,
                 foregroundColor: AvroClientColors.background,
@@ -250,30 +262,41 @@ class _RoadmapAnnouncement extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'Скоро — партнёры вашего города',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AvroClientColors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'Скоро — партнёры вашего города',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AvroClientColors.textPrimary,
+                          height: 1.2,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AvroClientColors.accent.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'скоро',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AvroClientColors.accent,
+                    Flexible(
+                      flex: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              AvroClientColors.accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'скоро',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AvroClientColors.accent,
+                          ),
                         ),
                       ),
                     ),

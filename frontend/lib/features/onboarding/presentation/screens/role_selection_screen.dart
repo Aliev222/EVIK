@@ -162,8 +162,8 @@ class _RolePage extends StatelessWidget {
             builder: (context, constraints) {
               final height = constraints.maxHeight;
               final width = constraints.maxWidth;
-              final compact = height < 760;
-              final veryCompact = height < 660;
+              final compact = height < 820;
+              final veryCompact = height < 700;
 
               final horizontalPadding = (width * 0.08).clamp(24.0, 40.0);
               final topGap = veryCompact ? 14.0 : (compact ? 20.0 : 32.0);

@@ -8,7 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/pulsing_location_dot.dart';
@@ -54,7 +55,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen>
   /// padding.bottom = 0 and = 34). The card and the nav pill share no
   /// coordinate math — the constant IS the visible gap.
   static const double _servicesCardBottomGap = 15;
-  static const double _servicesCardHeight = 160;
+  static const double _servicesCardHeight = 151;
   static const double _myLocationButtonGap = 12;
   static const double _myLocationButtonSize = 48;
 
@@ -342,24 +343,21 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen>
       city = '';
     }
 
-    final lat = location?.latitude ??
-        _lastPositionLat ??
-        AppConstants.makhachkalaLat;
-    final lng = location?.longitude ??
-        _lastPositionLng ??
-        AppConstants.makhachkalaLng;
+    final lat =
+        location?.latitude ?? _lastPositionLat ?? AppConstants.makhachkalaLat;
+    final lng =
+        location?.longitude ?? _lastPositionLng ?? AppConstants.makhachkalaLng;
 
-    final outsideServiceArea =
-        serviceArea.isChecked && !serviceArea.isAllowed;
+    final outsideServiceArea = serviceArea.isChecked && !serviceArea.isAllowed;
     final canRequest = !locationUnavailable && !outsideServiceArea;
 
     final bottomInset = math.max(MediaQuery.of(context).padding.bottom, 8.0);
     // Floating services card + "my location" button anchors, measured from
     // the screen bottom, sharing the single safe-inset accounting above.
-    final servicesTop = bottomInset + _servicesCardBottomGap + _servicesCardHeight;
+    final servicesTop =
+        bottomInset + _servicesCardBottomGap + _servicesCardHeight;
     final locationButtonBottom = servicesTop + _myLocationButtonGap;
-    final attributionBottom =
-        locationButtonBottom + _myLocationButtonSize + 8;
+    final attributionBottom = locationButtonBottom + _myLocationButtonSize + 8;
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
@@ -589,45 +587,57 @@ class _FloatingServicesCard extends StatelessWidget {
     _QuickService(
       icon: Icons.tire_repair_rounded,
       label: 'Шиномонтаж',
+      shortLabel: 'Шины',
       subtitle: 'Выездной сервис',
-      description: 'Выездной шиномонтаж прямо на месте поломки. Замена колёс, ремонт проколов, балансировка.',
+      description:
+          'Выездной шиномонтаж прямо на месте поломки. Замена колёс, ремонт проколов, балансировка.',
     ),
     _QuickService(
       icon: Icons.battery_charging_full_rounded,
       label: 'Не заводится',
+      shortLabel: 'Запуск',
       subtitle: 'Запуск двигателя',
-      description: 'Прикуривание аккумулятора, диагностика на месте, запуск двигателя в любую погоду.',
+      description:
+          'Прикуривание аккумулятора, диагностика на месте, запуск двигателя в любую погоду.',
     ),
     _QuickService(
       icon: Icons.bolt_rounded,
       label: 'Автоэлектрик',
+      shortLabel: 'Электрик',
       subtitle: 'Диагностика и ремонт',
-      description: 'Выездной автоэлектрик: диагностика, ремонт проводки, замена предохранителей.',
+      description:
+          'Выездной автоэлектрик: диагностика, ремонт проводки, замена предохранителей.',
     ),
     _QuickService(
       icon: Icons.local_gas_station_rounded,
       label: 'Подвоз топлива',
+      shortLabel: 'Топливо',
       subtitle: 'Быстрая доставка',
-      description: 'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
+      description:
+          'Доставка бензина или дизеля прямо к вашей машине. Быстро и безопасно.',
     ),
     _QuickService(
       icon: Icons.car_repair_rounded,
       label: 'Разблокировка',
+      shortLabel: 'Замки',
       subtitle: 'Авто и сигнализация',
-      description: 'Помощь при срабатывании сигнализации и блокировке руля или КПП.',
+      description:
+          'Помощь при срабатывании сигнализации и блокировке руля или КПП.',
     ),
     _QuickService(
       icon: Icons.construction_rounded,
       label: 'Помощь на дороге',
+      shortLabel: 'Помощь',
       subtitle: 'Техническая помощь',
-      description: 'Выезд мастера для решения любых технических проблем на месте.',
+      description:
+          'Выезд мастера для решения любых технических проблем на месте.',
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
       decoration: BoxDecoration(
         color: AvroClientColors.background,
         borderRadius: BorderRadius.circular(24),
@@ -657,16 +667,16 @@ class _FloatingServicesCard extends StatelessWidget {
               color: AvroClientColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 96,
+            height: 92,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(),
               ),
               itemCount: _services.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return _EvacPrimaryItem(
@@ -699,12 +709,11 @@ class _EvacPrimaryItem extends StatelessWidget {
     return _PressScale(
       onTap: enabled ? onTap : null,
       child: Container(
-        width: 128,
-        padding: const EdgeInsets.all(12),
+        width: 118,
+        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: enabled
-              ? AvroClientColors.accentBrand
-              : AvroClientColors.surface,
+          color:
+              enabled ? AvroClientColors.accentBrand : AvroClientColors.surface,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
@@ -713,7 +722,7 @@ class _EvacPrimaryItem extends StatelessWidget {
           children: [
             Icon(
               Icons.local_shipping_rounded,
-              size: 26,
+              size: 24,
               color: enabled
                   ? AvroClientColors.background
                   : AvroClientColors.tabInactive,
@@ -750,8 +759,8 @@ class _FloatingServiceItem extends StatelessWidget {
     return _PressScale(
       onTap: onTap,
       child: Container(
-        width: 104,
-        padding: const EdgeInsets.all(12),
+        width: 96,
+        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
           color: AvroClientColors.surface.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(18),
@@ -760,10 +769,10 @@ class _FloatingServiceItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(service.icon, size: 24, color: AvroClientColors.accent),
+            Icon(service.icon, size: 23, color: AvroClientColors.accent),
             const SizedBox(height: 8),
             Text(
-              service.label,
+              service.shortLabel,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
@@ -830,12 +839,14 @@ class _QuickService {
   const _QuickService({
     required this.icon,
     required this.label,
+    required this.shortLabel,
     required this.subtitle,
     required this.description,
   });
 
   final IconData icon;
   final String label;
+  final String shortLabel;
   final String subtitle;
   final String description;
 }

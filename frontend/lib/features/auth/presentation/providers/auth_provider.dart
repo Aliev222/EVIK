@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -18,6 +18,8 @@ import 'package:tow_truck_frontend/features/client/presentation/providers/client
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/payment_wallet_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
+import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_realtime_provider.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_wake_service.dart';
 
 const _accessTokenKey = 'auth_access_token';
 const _refreshTokenKey = 'auth_refresh_token';
@@ -149,8 +151,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (normalizedPhone == null) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage:
-            'Введите корректный номер телефона.',
+        errorMessage: 'Введите корректный номер телефона.',
       );
       return;
     }
@@ -251,8 +252,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> verifySmsCode(String code) async {
     final sanitizedCode = code.replaceAll(RegExp(r'[^\d]'), '');
     if (sanitizedCode.length != 6) {
-      state =
-          state.copyWith(errorMessage: 'Введите 6 цифр из SMS.');
+      state = state.copyWith(errorMessage: 'Введите 6 цифр из SMS.');
       return;
     }
 
@@ -260,8 +260,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final role = state.pendingRole;
     if (phoneNumber == null || role == null) {
       state = state.copyWith(
-        errorMessage:
-            'Сессия подтверждения истекла. Запросите код заново.',
+        errorMessage: 'Сессия подтверждения истекла. Запросите код заново.',
       );
       return;
     }
@@ -270,8 +269,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final userID = _deriveUserID(phoneNumber);
     if (userID == null) {
       state = state.copyWith(
-        errorMessage:
-            'Не удалось сформировать идентификатор пользователя.',
+        errorMessage: 'Не удалось сформировать идентификатор пользователя.',
       );
       return;
     }
@@ -332,8 +330,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     if (phoneNumber == null || role == null) {
       state = state.copyWith(
-        errorMessage:
-            'Сессия подтверждения истекла. Запросите код заново.',
+        errorMessage: 'Сессия подтверждения истекла. Запросите код заново.',
       );
       return;
     }
@@ -413,6 +410,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> signOut() async {
+    if (state.user?.role == UserRole.driver) {
+      try {
+        await _ref.read(driverRealTimeProvider.notifier).goOffline();
+      } catch (_) {
+        // Local logout must remain possible even when native tracking fails.
+      }
+      await _ref.read(driverWakeServiceProvider).markOffline();
+    }
+    await _revokeCurrentFcmToken();
+    await _storage.delete(_accessTokenKey);
+    await _storage.delete(_refreshTokenKey);
+    await _storage.delete(_userKey);
+    state = const AuthState(isRestoring: false);
     // Clear all provider caches to prevent data leak between users
     try {
       _ref.invalidate(orderFlowProvider);
@@ -426,18 +436,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       _ref.invalidate(newDriverProvider);
     } catch (_) {}
-
-    await _revokeCurrentFcmToken();
-    await _storage.delete(_accessTokenKey);
-    await _storage.delete(_refreshTokenKey);
-    await _storage.delete(_userKey);
-    state = state.copyWith(
-      user: null,
-      clearAccessToken: true,
-      clearPendingAuth: true,
-      clearError: true,
-      isLoading: false,
-    );
   }
 
   void resetAuth() {
@@ -637,9 +635,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final now = DateTime.now();
     if (fallback == null) {
       // A client has no name — fall back to the phone as the display identity.
-      final displayName = identity.fullName.isNotEmpty
-          ? identity.fullName
-          : identity.phone;
+      final displayName =
+          identity.fullName.isNotEmpty ? identity.fullName : identity.phone;
       return User(
         id: identity.userID,
         phone: identity.phone,
@@ -768,7 +765,6 @@ class BackendAuthApi {
     final json = await _apiClient.post('/api/v1/auth/refresh', {
       'refresh_token': refreshToken,
     });
-    debugPrint('Refresh response: $json');
     return AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>);
   }
 
@@ -780,7 +776,6 @@ class BackendAuthApi {
         'Authorization': 'Bearer $accessToken',
       },
     );
-    debugPrint('Me response: $json');
     final user = json['user'] as Map<String, dynamic>;
     return Identity.fromJson(user);
   }
@@ -790,7 +785,7 @@ class BackendAuthApi {
     required String accessToken,
   }) async {
     debugPrint('Calling driver profile init API: $userID');
-    final json = await _apiClient.post(
+    await _apiClient.post(
       '/api/v1/drivers/$userID/status',
       <String, dynamic>{
         'status': 'offline',
@@ -799,7 +794,7 @@ class BackendAuthApi {
         'Authorization': 'Bearer $accessToken',
       },
     );
-    debugPrint('Driver profile init response: $json');
+    debugPrint('Driver profile initialized');
   }
 
   Future<void> registerFcmToken({

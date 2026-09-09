@@ -65,8 +65,10 @@ class PaymentWalletNotifier extends StateNotifier<PaymentWalletState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final wallet = await _repository.getWallet();
+      if (!mounted) return;
       state = state.copyWith(wallet: wallet, isLoading: false);
     } catch (error) {
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         errorMessage: _messageFor(error),

@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
@@ -49,8 +50,8 @@ class VehicleSelectionScreen extends ConsumerWidget {
               children: [
                 _Header(onBack: () => Navigator.of(context).pop()),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
                     child: Column(
                       children: [
                         _RouteSummary(state: state),
@@ -99,7 +100,6 @@ class VehicleSelectionScreen extends ConsumerWidget {
                               .read(selectedOrderPaymentMethodProvider.notifier)
                               .state = method,
                         ),
-                        const Spacer(),
                       ],
                     ),
                   ),
@@ -347,7 +347,8 @@ class _OrderField extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: AvroClientColors.tabInactive),
+          const Icon(Icons.chevron_right_rounded,
+              color: AvroClientColors.tabInactive),
         ],
       ),
     );
@@ -418,14 +419,17 @@ class _StepperButton extends StatelessWidget {
       width: 48,
       height: 48,
       child: Material(
-        color: onTap == null ? AvroClientColors.surface : AvroClientColors.surface,
+        color:
+            onTap == null ? AvroClientColors.surface : AvroClientColors.surface,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: onTap == null
               ? null
               : () {
-                  try { HapticFeedback.selectionClick(); } catch (_) {}
+                  try {
+                    HapticFeedback.selectionClick();
+                  } catch (_) {}
                   onTap!();
                 },
           child: Icon(icon, color: AvroClientColors.textPrimary),
@@ -490,7 +494,8 @@ class _VehicleCard extends StatelessWidget {
           color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AvroClientColors.accent : AvroClientColors.surface,
+            color:
+                selected ? AvroClientColors.accent : AvroClientColors.surface,
             width: selected ? 2 : 1,
           ),
         ),
@@ -587,8 +592,8 @@ class _TowTruckCard extends StatelessWidget {
   final VoidCallback onTap;
 
   String get _priceText {
-    if (priceUnavailable) return 'Цена недоступна';
-    if (priceLoading || price == null) return 'Цена рассчитывается…';
+    if (priceUnavailable) return 'Нет цены';
+    if (priceLoading || price == null) return 'Считаем цену';
     return '${price!.round()} ₽';
   }
 
@@ -605,7 +610,9 @@ class _TowTruckCard extends StatelessWidget {
           color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AvroClientColors.textPrimary : AvroClientColors.surface,
+            color: selected
+                ? AvroClientColors.textPrimary
+                : AvroClientColors.surface,
             width: selected ? 2 : 1,
           ),
         ),
@@ -641,6 +648,8 @@ class _TowTruckCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Время в пути зависит от маршрута',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: EvikTypography.bodySmall.copyWith(
                       color: AvroClientColors.tabInactive,
                     ),
@@ -648,6 +657,8 @@ class _TowTruckCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     _priceText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: EvikTypography.bodyLarge.copyWith(
                       color: priceUnavailable
                           ? AvroClientColors.error
@@ -738,7 +749,9 @@ class _PaymentChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? AvroClientColors.accent : AvroClientColors.surface,
+              color: isSelected
+                  ? AvroClientColors.accent
+                  : AvroClientColors.surface,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -746,8 +759,9 @@ class _PaymentChip extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color:
-                    isSelected ? AvroClientColors.accent : AvroClientColors.tabInactive,
+                color: isSelected
+                    ? AvroClientColors.accent
+                    : AvroClientColors.tabInactive,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -787,7 +801,8 @@ class _CommentTile extends StatelessWidget {
       child: _GreyTile(
         child: Row(
           children: [
-            const Icon(Icons.comment_rounded, color: AvroClientColors.tabInactive),
+            const Icon(Icons.comment_rounded,
+                color: AvroClientColors.tabInactive),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -802,7 +817,8 @@ class _CommentTile extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AvroClientColors.tabInactive),
+            const Icon(Icons.chevron_right_rounded,
+                color: AvroClientColors.tabInactive),
           ],
         ),
       ),

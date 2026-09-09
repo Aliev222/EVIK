@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -259,6 +259,22 @@ class RealTimeLocationService {
           _handleInitialState(message);
           break;
 
+        case 'payment_method_changed':
+          _handlePaymentMethodChanged(message);
+          break;
+
+        case 'order_route_changed':
+          final orderId = message['order_id']?.toString() ?? '';
+          if (orderId.isNotEmpty) {
+            _orderUpdateController.add(OrderUpdate(
+                orderId: orderId, status: OrderUpdateType.routeChanged));
+          }
+          break;
+
+        case 'cancelled':
+          _handleOrderCancelled(message);
+          break;
+
         default:
           debugPrint('Received unknown message type: $type');
       }
@@ -437,6 +453,44 @@ class RealTimeLocationService {
     }
   }
 
+  /// Обработка смены метода оплаты (в т.ч. во время поездки)
+  void _handlePaymentMethodChanged(Map<String, dynamic> message) {
+    try {
+      final orderId = message['order_id']?.toString() ?? '';
+      if (orderId.isEmpty) return;
+      _orderUpdateController.add(
+        OrderUpdate(
+          orderId: orderId,
+          status: OrderUpdateType.paymentMethodChanged,
+          rawPayload: message['payload'] is Map<String, dynamic>
+              ? message['payload'] as Map<String, dynamic>
+              : null,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error parsing payment_method_changed: $e');
+    }
+  }
+
+  /// Обработка отмены заказа
+  void _handleOrderCancelled(Map<String, dynamic> message) {
+    try {
+      final orderId = message['order_id']?.toString() ?? '';
+      if (orderId.isEmpty) return;
+      _orderUpdateController.add(
+        OrderUpdate(
+          orderId: orderId,
+          status: OrderUpdateType.orderCancelled,
+          rawPayload: message['payload'] is Map<String, dynamic>
+              ? message['payload'] as Map<String, dynamic>
+              : null,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error parsing cancelled: $e');
+    }
+  }
+
   /// Парсинг статуса водителя
   DriverMarkerStatus _parseDriverStatus(String? status) {
     switch (status) {
@@ -585,6 +639,9 @@ enum OrderUpdateType {
   noDriversAvailable,
   orderCompleted,
   offerAssigned,
+  paymentMethodChanged,
+  routeChanged,
+  orderCancelled,
 }
 
 /// Provider для real-time сервиса

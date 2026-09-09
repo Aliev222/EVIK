@@ -1,0 +1,6 @@
+# Copy this file to key.properties (ignored by Git) and fill in the values.
+# Keep the keystore and passwords outside the repository and back them up.
+storeFile=/absolute/path/to/avro-upload-key.jks
+storePassword=change-me
+keyAlias=avro-upload
+keyPassword=change-me

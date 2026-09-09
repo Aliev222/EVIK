@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/live_driver_map.dart';
@@ -87,7 +88,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         backgroundColor: AvroClientColors.background,
         title: Text(
           'Авро Админ',
-          style: EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
+          style:
+              EvikTypography.h2.copyWith(color: AvroClientColors.textPrimary),
         ),
         centerTitle: true,
         actions: [
@@ -95,8 +97,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color:
-                  _isConnected ? AvroClientColors.success : AvroClientColors.error,
+              color: _isConnected
+                  ? AvroClientColors.success
+                  : AvroClientColors.error,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -316,6 +319,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         return AvroClientColors.error;
       case OrderUpdateType.orderCompleted:
         return AvroClientColors.accent;
+      case OrderUpdateType.paymentMethodChanged:
+      case OrderUpdateType.routeChanged:
+        return AvroClientColors.info;
+      case OrderUpdateType.orderCancelled:
+        return AvroClientColors.error;
     }
   }
 
@@ -330,6 +338,12 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         return 'NO DRIVERS';
       case OrderUpdateType.orderCompleted:
         return 'COMPLETED';
+      case OrderUpdateType.paymentMethodChanged:
+        return 'PAYMENT CHANGED';
+      case OrderUpdateType.routeChanged:
+        return 'ROUTE CHANGED';
+      case OrderUpdateType.orderCancelled:
+        return 'CANCELLED';
     }
   }
 }

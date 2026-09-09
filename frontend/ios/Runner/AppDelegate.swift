@@ -3,7 +3,7 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
-  // Explicitly owned engine. Using the implicit-эngine (storyboard) path
+  // Explicitly owned engine. Using the implicit-engine (storyboard) path
   // crashes on ProMotion (120 Hz) devices running iOS 26.x:
   // -[VSyncClient initWithTaskRunner:callback:] SIGSEGV when viewDidLoad
   // runs before the engine has a shell. See flutter/flutter#190030.
@@ -17,11 +17,6 @@ import UIKit
 
     flutterEngine.run()
     GeneratedPluginRegistrant.register(with: flutterEngine)
-
-    let window = UIWindow(frame: UIScreen.main.bounds)
-    window.rootViewController = FlutterViewController(engine: flutterEngine, nibName: nil, bundle: nil)
-    window.makeKeyAndVisible()
-    self.window = window
 
     return launched
   }

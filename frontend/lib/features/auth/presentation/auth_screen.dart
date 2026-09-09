@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
     show AvroClientColors;
+import 'package:tow_truck_frontend/core/config/build_flags.dart';
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/onboarding/presentation/screens/role_selection_screen.dart';
@@ -22,7 +24,10 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-const bool _kTestLogin = bool.fromEnvironment('EVIK_TEST_LOGIN');
+final bool _kTestLogin = developmentFeatureEnabled(
+  requested: const bool.fromEnvironment('EVIK_TEST_LOGIN'),
+  releaseMode: kReleaseMode,
+);
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _phoneController = TextEditingController();

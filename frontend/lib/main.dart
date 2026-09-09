@@ -120,7 +120,15 @@ class _WakeBootstrapState extends ConsumerState<_WakeBootstrap> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (!next.isRestoring && next.accessToken != null &&
+          (previous?.isRestoring != false || previous?.accessToken != next.accessToken)) {
+        unawaited(ref.read(driverWakeServiceProvider).ensureOnline());
+      }
+    });
+    return widget.child;
+  }
 }
 
 class EvikApp extends StatelessWidget {

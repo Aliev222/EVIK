@@ -1,10 +1,11 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 
 enum ClientTab { home, services, history, profile }
 
@@ -24,9 +25,9 @@ class ClientBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      minimum: const EdgeInsets.fromLTRB(20, 0, 20, 10),
       child: Container(
-        height: 72,
+        height: 76,
         decoration: BoxDecoration(
           color: AvroClientColors.background,
           borderRadius: BorderRadius.circular(24),
@@ -100,25 +101,28 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = tab == activeTab;
-    final color = isActive ? AvroClientColors.accent : AvroClientColors.textSecondary;
+    final color =
+        isActive ? AvroClientColors.accent : AvroClientColors.textSecondary;
 
     return Expanded(
       child: SizedBox(
-        height: 72,
+        height: 76,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(18),
             onTap: () {
-              try { HapticFeedback.selectionClick(); } catch (_) {}
+              try {
+                HapticFeedback.selectionClick();
+              } catch (_) {}
               onTap(tab);
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 23, color: color),
+                  Icon(icon, size: 22, color: color),
                   const SizedBox(height: 4),
                   Text(
                     label,
@@ -221,14 +225,14 @@ class _SosNavButtonState extends State<_SosNavButton>
   Widget build(BuildContext context) {
     final hasHandler = widget.onActivated != null;
     return SizedBox(
-      width: 64,
-      height: 72,
+      width: 66,
+      height: 76,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 58,
-            height: 58,
+            width: 54,
+            height: 54,
             child: Listener(
               behavior: HitTestBehavior.opaque,
               onPointerDown: hasHandler ? (_) => _onHoldStart() : null,
@@ -243,14 +247,14 @@ class _SosNavButtonState extends State<_SosNavButton>
                     ),
                     child: Container(
                       width: 50,
-                      height: 50,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: AvroClientColors.sosRed,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AvroClientColors.sosRed
-                                .withValues(alpha: 0.35),
+                            color:
+                                AvroClientColors.sosRed.withValues(alpha: 0.35),
                             blurRadius: 12,
                             offset: const Offset(0, 5),
                           ),
@@ -267,7 +271,7 @@ class _SosNavButtonState extends State<_SosNavButton>
               ),
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 1),
           Text(
             'SOS',
             style: GoogleFonts.inter(

@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+import 'package:tow_truck_frontend/features/driver/data/services/driver_location_service.dart';
 
 /// Состояние водителя для real-time отслеживания
 class DriverRealTimeState {
@@ -35,6 +35,7 @@ class DriverRealTimeState {
     bool? isConnected,
     LocationModel? currentLocation,
     String? currentOrder,
+    bool clearCurrentOrder = false,
     DriverMarkerStatus? status,
     double? speed,
     double? bearing,
@@ -44,7 +45,7 @@ class DriverRealTimeState {
       isOnline: isOnline ?? this.isOnline,
       isConnected: isConnected ?? this.isConnected,
       currentLocation: currentLocation ?? this.currentLocation,
-      currentOrder: currentOrder ?? this.currentOrder,
+      currentOrder: clearCurrentOrder ? null : currentOrder ?? this.currentOrder,
       status: status ?? this.status,
       speed: speed ?? this.speed,
       bearing: bearing ?? this.bearing,
@@ -55,12 +56,15 @@ class DriverRealTimeState {
 
 /// Real-time провайдер для водителя (отправка GPS координат)
 class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
-  DriverRealTimeNotifier(this._realTimeService)
-      : super(const DriverRealTimeState()) {
+  DriverRealTimeNotifier(this._realTimeService, {DriverLocationService? locationService})
+      : _locationService = locationService ?? DriverLocationService(),
+        super(const DriverRealTimeState()) {
     _initializeServices();
   }
 
   final RealTimeLocationService _realTimeService;
+  final DriverLocationService _locationService;
+  bool _sendingLocation = false;
 
   Timer? _locationTimer;
   StreamSubscription<String>? _connectionSubscription;
@@ -72,7 +76,7 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     _locationTimer?.cancel();
     _connectionSubscription?.cancel();
     _orderUpdateSubscription?.cancel();
-    _realTimeService.dispose();
+    _locationService.dispose();
     super.dispose();
   }
 
@@ -116,58 +120,69 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       return;
     }
 
-    // Проверяем разрешение на геолокацию
-    final hasPermission = await _checkLocationPermission();
-    if (!hasPermission) {
-      state = state.copyWith(error: 'Нет доступа к геолокации');
-      return;
-    }
-
     // Получаем текущее местоположение (сырые GPS-координаты без reverse-geocode)
     try {
-      final position = await LocationService.getCurrentPositionWithFallback();
+      await _locationService.checkPermissions(requireBackground: true);
+      final position = await _locationService.getCurrentPosition();
+      if (!mounted) return;
       final location = _locationFromPosition(position);
+      await _locationService.startLocationTracking(
+        driverId: _driverId!,
+        interval: const Duration(seconds: 3),
+        onPosition: (position) {
+          if (!mounted || !state.isOnline) return;
+          state = state.copyWith(
+            currentLocation: _locationFromPosition(position),
+            speed: position.speed.isFinite && position.speed > 0 ? position.speed * 3.6 : 0,
+            bearing: position.heading.isFinite && position.heading >= 0 ? position.heading : state.bearing,
+          );
+          unawaited(_sendLocationUpdate());
+        },
+        onError: (_) {
+          if (mounted) state = state.copyWith(error: 'Геолокация остановлена. Проверьте разрешения.');
+        },
+      );
+      if (!mounted) return;
       state = state.copyWith(
         isOnline: true,
         currentLocation: location,
-        status: DriverMarkerStatus.waiting,
+        status: state.currentOrder == null ? DriverMarkerStatus.waiting : state.status,
         error: null,
       );
-    } catch (_) {
-      state = state.copyWith(error: 'Не удалось определить местоположение');
+    } catch (error) {
+      if (mounted) state = state.copyWith(error: '$error');
       return;
     }
 
     // Отправляем начальную позицию
     await _sendLocationUpdate();
 
-    // Начинаем отправлять GPS координаты каждые 5 секунд
-    _locationTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _sendLocationUpdate(),
-    );
+    // Начинаем отправлять GPS координаты. Частота адаптивная:
+    // в активном заказе — чаще (клиент следит за маркером), в ожидании — реже
+    // (меньше трафика и нагрузки на сервер).
+    _startLocationTimer();
+  }
+
+  /// Адаптивная отправка геолокации: в заказе каждые 3 сек, в ожидании — 10 сек.
+  void _startLocationTimer() {
+    _locationTimer?.cancel();
+    if (!state.isOnline) return;
+    final interval = state.currentOrder != null
+        ? const Duration(seconds: 3)
+        : const Duration(seconds: 10);
+    _locationTimer = Timer.periodic(interval, (_) => _sendLocationUpdate());
   }
 
   /// Завершение смены водителя (статус оффлайн)
   Future<void> goOffline() async {
     _locationTimer?.cancel();
+    await _locationService.stopLocationTracking();
+    if (!mounted) return;
 
     state = state.copyWith(
       isOnline: false,
       status: DriverMarkerStatus.waiting,
     );
-
-    // Отправляем последнее обновление со статусом offline
-    if (state.currentLocation != null) {
-      await _realTimeService.sendDriverLocation(
-        lat: state.currentLocation!.lat,
-        lng: state.currentLocation!.lng,
-        bearing: state.bearing,
-        speed: state.speed,
-        status: DriverMarkerStatus.waiting,
-        orderId: state.currentOrder,
-      );
-    }
 
     await _realTimeService.disconnect();
 
@@ -180,6 +195,7 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       currentOrder: orderId,
       status: status,
     );
+    _startLocationTimer();
   }
 
   /// Принятие заказа водителем
@@ -191,6 +207,7 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       status: DriverMarkerStatus.toPickup,
     );
 
+    _startLocationTimer();
     await _sendLocationUpdate();
   }
 
@@ -219,59 +236,27 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
   /// Завершение заказа
   Future<void> completeOrder() async {
     state = state.copyWith(
-      currentOrder: null,
+      clearCurrentOrder: true,
       status: DriverMarkerStatus.waiting,
     );
 
+    _startLocationTimer();
     await _sendLocationUpdate();
   }
 
   /// Отправка GPS координат на сервер
   Future<void> _sendLocationUpdate() async {
-    if (!state.isOnline ||
+    if (!mounted || _sendingLocation || !state.isOnline ||
         !state.isConnected ||
         state.currentLocation == null) {
       return;
     }
+    _sendingLocation = true;
 
     try {
-      // Получаем обновленное местоположение. Используем сырые GPS-координаты
-      // (getCurrentPositionWithFallback) вместо getCurrentLocation, чтобы не
-      // ходить на backend за reverse-geocode на каждом 5-секундном тике.
-      final position = await LocationService.getCurrentPositionWithFallback();
-      final location = _locationFromPosition(position);
-
-      // Вычисляем скорость и направление
-      double speed = 0.0;
-      double bearing = state.bearing;
-
-      if (state.currentLocation != null) {
-        // Простой расчет скорости (в реальном приложении используй более точные методы)
-        final distance = _calculateDistance(
-          state.currentLocation!.lat,
-          state.currentLocation!.lng,
-          location.lat,
-          location.lng,
-        );
-        speed = distance *
-            720; // Приблизительная скорость (distance за 5 сек * 720 = км/ч)
-
-        // Простой расчет направления
-        bearing = _calculateBearing(
-          state.currentLocation!.lat,
-          state.currentLocation!.lng,
-          location.lat,
-          location.lng,
-        );
-      }
-
-      // Обновляем состояние
-      state = state.copyWith(
-        currentLocation: location,
-        speed: speed,
-        bearing: bearing,
-        error: null,
-      );
+      final location = state.currentLocation!;
+      final speed = state.speed;
+      final bearing = state.bearing;
 
       // Отправляем на сервер
       await _realTimeService.sendDriverLocation(
@@ -288,7 +273,9 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
         'Driver location sent: ${location.lat}, ${location.lng}, speed: ${speed.toStringAsFixed(1)} km/h',
       );
     } catch (e) {
-      state = state.copyWith(error: 'Ошибка отправки местоположения: $e');
+      if (mounted) state = state.copyWith(error: 'Ошибка отправки местоположения: $e');
+    } finally {
+      _sendingLocation = false;
     }
   }
 
@@ -303,25 +290,9 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     );
   }
 
-  /// Проверка разрешений геолокации
-  Future<bool> _checkLocationPermission() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      return false;
-    }
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    return permission != LocationPermission.denied &&
-        permission != LocationPermission.deniedForever;
-  }
-
   /// Обработка входящих заказов от сервера
   void _handleOrderUpdate(OrderUpdate update) {
-    if (update.status == OrderUpdateType.newOrderAssigned ||
-        update.status == OrderUpdateType.offerAssigned) {
+    if (update.status == OrderUpdateType.newOrderAssigned) {
       state = state.copyWith(
         currentOrder: update.orderId,
         status: DriverMarkerStatus.toPickup,
@@ -329,16 +300,6 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
     }
   }
 
-  /// Расчет расстояния между точками в км
-  double _calculateDistance(
-      double lat1, double lng1, double lat2, double lng2) {
-    return Geolocator.distanceBetween(lat1, lng1, lat2, lng2) / 1000;
-  }
-
-  /// Расчет направления в градусах
-  double _calculateBearing(double lat1, double lng1, double lat2, double lng2) {
-    return Geolocator.bearingBetween(lat1, lng1, lat2, lng2);
-  }
 }
 
 /// Provider для real-time водителя

@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import 'package:tow_truck_frontend/core/services/location_service.dart';
@@ -7,7 +8,7 @@ import 'package:tow_truck_frontend/core/services/location_service.dart';
 class DriverLocationService {
   StreamSubscription<Position>? _positionSubscription;
 
-  Future<bool> checkPermissions() async {
+  Future<bool> checkPermissions({bool requireBackground = false}) async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw const DriverLocationException(
@@ -27,6 +28,22 @@ class DriverLocationService {
       );
     }
 
+    if (requireBackground && !kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.android &&
+          permission == LocationPermission.whileInUse) {
+        // Android requests background access separately after foreground
+        // permission has already been granted.
+        permission = await Geolocator.requestPermission();
+      }
+      if ((defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS) &&
+          permission != LocationPermission.always) {
+        throw const DriverLocationException(
+          'Для работы на линии разрешите геолокацию «Всегда» в настройках приложения.',
+        );
+      }
+    }
+
     return true;
   }
 
@@ -39,17 +56,17 @@ class DriverLocationService {
     required String driverId,
     Duration interval = const Duration(seconds: 10),
     void Function(Position position)? onPosition,
+    void Function(Object error)? onError,
   }) async {
     await stopLocationTracking();
-    await checkPermissions();
+    await checkPermissions(requireBackground: true);
 
     _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-        timeLimit: interval * 2,
+      locationSettings: driverLocationSettingsForPlatform(
+        defaultTargetPlatform,
+        interval: interval,
       ),
-    ).listen(onPosition);
+    ).listen(onPosition, onError: onError);
   }
 
   Future<void> stopLocationTracking() async {
@@ -59,6 +76,47 @@ class DriverLocationService {
 
   Future<void> dispose() async {
     await stopLocationTracking();
+  }
+}
+
+/// Platform-specific settings for a driver's active shift. Deliberately has
+/// no [LocationSettings.timeLimit]: a timeout terminates the position stream
+/// when a stationary vehicle emits no update.
+LocationSettings driverLocationSettingsForPlatform(
+  TargetPlatform platform, {
+  required Duration interval,
+}) {
+  switch (platform) {
+    case TargetPlatform.android:
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+        intervalDuration: interval,
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Авро — водитель на линии',
+          notificationText: 'Геолокация используется для получения заказов',
+          notificationChannelName: 'Работа водителя',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
+      );
+    case TargetPlatform.iOS:
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+        activityType: ActivityType.automotiveNavigation,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+      );
+    case TargetPlatform.macOS:
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
+    case TargetPlatform.fuchsia:
+      return const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      );
   }
 }
 
