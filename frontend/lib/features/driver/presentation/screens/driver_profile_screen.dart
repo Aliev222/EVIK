@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/review/domain/entities/review.dart';
@@ -12,6 +13,7 @@ import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 import 'package:tow_truck_frontend/shared/widgets/account_settings_tiles.dart';
+import 'driver_documents_screen.dart';
 
 // Provider for driver profile data
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
@@ -71,7 +73,8 @@ class DriverProfileScreen extends ConsumerWidget {
     );
   }
 
-  static Widget _buildErrorContent(BuildContext context, WidgetRef ref, Object error) {
+  static Widget _buildErrorContent(
+      BuildContext context, WidgetRef ref, Object error) {
     return Scaffold(
       backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
@@ -142,7 +145,8 @@ class DriverProfileScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildProfileContent(BuildContext context, WidgetRef ref, Driver? driver) {
+  Widget _buildProfileContent(
+      BuildContext context, WidgetRef ref, Driver? driver) {
     return Scaffold(
       backgroundColor: AvroDriverColors.background,
       appBar: AppBar(
@@ -306,13 +310,10 @@ class DriverProfileScreen extends ConsumerWidget {
                 icon: Icons.description_outlined,
                 title: 'Документы',
                 subtitle: 'Паспорт, права, СТС',
-                comingSoon: true,
-                onTap: () => _showDriverFeature(
-                  context,
-                  'Документы',
-                  'Сохранение документов водителя и их загрузка в профиль. '
-                      'Сейчас документы загружаются в разделе верификации.',
-                  const ['Паспорт', 'Водительское удостоверение', 'СТС'],
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DriverDocumentsScreen(),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -424,7 +425,7 @@ class DriverProfileScreen extends ConsumerWidget {
                       ),
                     );
                   },
-borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(16),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Center(
@@ -444,20 +445,20 @@ borderRadius: BorderRadius.circular(16),
 
             const SizedBox(height: 24),
             LegalLinksTile(
-                backgroundColor: AvroDriverColors.background,
-                textPrimaryColor: AvroDriverColors.textPrimary,
-                textSecondaryColor: AvroDriverColors.textSecondary,
-                iconColor: AvroDriverColors.accent,
-              ),
-              const SizedBox(height: 16),
-              DeleteAccountEntry(
-                backgroundColor: AvroDriverColors.background,
-                destructiveColor: AvroDriverColors.error,
-                warningMessage: 'Аккаунт будет удалён без возможности '
-                    'восстановления. Если есть активный заказ или '
-                    'невыплаченный баланс, удаление будет недоступно.',
-              ),
-            ],
+              backgroundColor: AvroDriverColors.background,
+              textPrimaryColor: AvroDriverColors.textPrimary,
+              textSecondaryColor: AvroDriverColors.textSecondary,
+              iconColor: AvroDriverColors.accent,
+            ),
+            const SizedBox(height: 16),
+            DeleteAccountEntry(
+              backgroundColor: AvroDriverColors.background,
+              destructiveColor: AvroDriverColors.error,
+              warningMessage: 'Аккаунт будет удалён без возможности '
+                  'восстановления. Если есть активный заказ или '
+                  'невыплаченный баланс, удаление будет недоступно.',
+            ),
+          ],
         ),
       ),
     );
@@ -470,16 +471,20 @@ borderRadius: BorderRadius.circular(16),
         const ['Модель и номер эвакуатора'],
       );
 
-  String _getReviewsSubtitle(BuildContext context, WidgetRef ref, String? driverId) {
+  String _getReviewsSubtitle(
+      BuildContext context, WidgetRef ref, String? driverId) {
     if (driverId == null) return 'Отзывы недоступны';
 
     return 'Загрузка отзывов...';
   }
 
-  void _showDriverReviews(BuildContext context, WidgetRef ref, String? driverId) {
+  void _showDriverReviews(
+      BuildContext context, WidgetRef ref, String? driverId) {
     if (driverId == null) return;
 
-    try { HapticFeedback.lightImpact(); } catch (_) {}
+    try {
+      HapticFeedback.lightImpact();
+    } catch (_) {}
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -878,8 +883,18 @@ class _ReviewCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     final months = [
-      'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'мая',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек'
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
