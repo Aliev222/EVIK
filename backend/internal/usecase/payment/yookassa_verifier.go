@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 )
 
 // yooKassaCIDRs lists the IP ranges YooKassa sends webhook requests from.
@@ -50,19 +51,13 @@ func (YooKassaVerifier) Verify(r *http.Request, _ []byte) error {
 	return fmt.Errorf("IP %s is not in YooKassa allowlist", clientIP)
 }
 
-// clientIPFromRequest extracts the client IP from a request.
-// It tries X-Real-IP first (trusted proxy), then falls back to RemoteAddr.
-//
-// TODO(B-01): при переезде на VPS настроить доверенный прокси (nginx X-Real-IP)
-//
-//	и указать реальный источник IP. Сейчас — базовый fallback.
+// clientIPFromRequest uses only RemoteAddr. The HTTP router is responsible for
+// replacing it from forwarding headers after verifying the immediate peer is
+// listed in TRUSTED_PROXY_CIDRS.
 func clientIPFromRequest(r *http.Request) string {
-	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-		return xrip
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		return strings.Trim(r.RemoteAddr, "[]")
 	}
 	return host
 }
