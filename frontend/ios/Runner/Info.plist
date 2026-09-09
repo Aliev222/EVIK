@@ -37,10 +37,14 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Камера нужна, чтобы сфотографировать документы водителя</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Фоновая геолокация нужна, чтобы клиент видел движение водителя во время активного заказа</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Для показа вашего местоположения на карте и поиска ближайших заказов</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Галерея нужна, чтобы выбрать фотографии документов водителя</string>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>Уведомления нужны для новых заказов, статусов и критичных событий</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

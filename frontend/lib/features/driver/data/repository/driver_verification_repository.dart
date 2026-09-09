@@ -177,7 +177,7 @@ class HttpDriverVerificationRepository implements DriverVerificationRepository {
   ) async {
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('${apiClient.baseUrl}/driver-documents/uploads'),
+      Uri.parse('${apiClient.baseUrl}/api/v1/driver-documents/uploads'),
     );
 
     // Add headers

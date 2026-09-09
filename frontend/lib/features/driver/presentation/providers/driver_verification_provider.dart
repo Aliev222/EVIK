@@ -75,7 +75,7 @@ final driverVerificationStatusProvider = FutureProvider.family<DriverVerificatio
   try {
     final apiClient = platform_api.createPlatformApiClient();
     final response = await apiClient.get(
-      '/drivers/$driverId/verification-status',
+      '/api/v1/drivers/$driverId/verification-status',
       headers: <String, String>{'Authorization': 'Bearer $token'},
     );
 
