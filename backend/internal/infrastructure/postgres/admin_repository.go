@@ -368,33 +368,20 @@ func (r *AdminRepository) DecideDriverVerification(
 	}
 	defer tx.Rollback()
 
-	// For approvals we need a terminal-state guard and (for batch approvals,
-	// which cannot collect per-driver vehicle details) a fallback to the
-	// values already stored on the verification record. Both require reading
-	// the existing row, so we do it before validation.
+	// For approvals we need a terminal-state guard. Vehicle data must come
+	// from the approval decision itself; silently reusing stale submission data
+	// would allow an empty approval request to bypass the moderation guard.
 	if decision.Status == admindomain.VerificationStatusApproved {
 		var currentStatus string
-		var existingPlate, existingModel, existingType string
 		err := tx.QueryRowContext(ctx,
-			`SELECT status, COALESCE(vehicle_plate, ''), COALESCE(vehicle_model, ''), COALESCE(vehicle_type, '') FROM driver_verifications WHERE id = $1`,
+			`SELECT status FROM driver_verifications WHERE id = $1`,
 			decision.ID,
-		).Scan(&currentStatus, &existingPlate, &existingModel, &existingType)
+		).Scan(&currentStatus)
 		if err != nil {
 			return err // sql.ErrNoRows → 404 at the API layer
 		}
 		if !admindomain.ApprovalAllowedFrom(currentStatus) {
 			return admindomain.ErrInvalidDecisionStatus
-		}
-		// Batch approval cannot collect per-driver vehicle details, so fall
-		// back to the values already stored on the verification record.
-		if strings.TrimSpace(decision.VehiclePlate) == "" {
-			decision.VehiclePlate = existingPlate
-		}
-		if strings.TrimSpace(decision.VehicleModel) == "" {
-			decision.VehicleModel = existingModel
-		}
-		if strings.TrimSpace(decision.VehicleType) == "" {
-			decision.VehicleType = existingType
 		}
 	}
 

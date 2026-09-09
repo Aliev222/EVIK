@@ -174,15 +174,46 @@ func (r *ServiceAreaRepository) SetActive(ctx context.Context, id string, active
 }
 
 func (r *ServiceAreaRepository) Delete(ctx context.Context, id string) error {
-	// A city/zone can always be deleted, even while orders reference it. The
-	// FK uses ON DELETE SET NULL, so existing orders keep running to
-	// completion on their stored coordinates while new orders in the deleted
-	// zone become impossible (the zone no longer passes CheckPoint).
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var hasActiveOrders bool
+	err = tx.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1
+  FROM orders
+  WHERE status NOT IN ('completed', 'cancelled')
+    AND (
+      (pickup_lat BETWEEN (SELECT min_lat FROM service_areas WHERE id = $1)
+       AND (SELECT max_lat FROM service_areas WHERE id = $1)
+       AND pickup_lng BETWEEN (SELECT min_lng FROM service_areas WHERE id = $1)
+       AND (SELECT max_lng FROM service_areas WHERE id = $1))
+      OR
+      (dropoff_lat BETWEEN (SELECT min_lat FROM service_areas WHERE id = $1)
+       AND (SELECT max_lat FROM service_areas WHERE id = $1)
+       AND dropoff_lng BETWEEN (SELECT min_lng FROM service_areas WHERE id = $1)
+       AND (SELECT max_lng FROM service_areas WHERE id = $1))
+    )
+)`, id).Scan(&hasActiveOrders)
+	if err != nil {
+		return err
+	}
+	if hasActiveOrders {
+		return servicearea.ErrAreaHasActiveOrders
+	}
+
+	var hasReferences bool
+	if err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS (SELECT 1 FROM orders WHERE city_id = $1)`, id,
+	).Scan(&hasReferences); err != nil {
+		return err
+	}
+	if hasReferences {
+		return servicearea.ErrAreaInUse
+	}
 
 	res, err := tx.ExecContext(ctx, `DELETE FROM service_areas WHERE id = $1`, id)
 	if err != nil {
