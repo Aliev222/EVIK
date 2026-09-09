@@ -1,171 +1,140 @@
-# Авро - Uber-like Tow Truck Architecture
+# EVIK / «Авро»
 
-Production-ready baseline for a Flutter + Go system using Clean Architecture and modular monolith backend.
+EVIK — сервис заказа эвакуатора. Клиент создаёт заявку, система рассчитывает стоимость и ищет водителя, водитель принимает заказ и выполняет перевозку, а администратор управляет пользователями, заказами, модерацией и платежными операциями.
 
-## 1) Folder Structure
+Этот README — краткая точка входа в проект. Правила работы агентов находятся в [AGENTS.md](AGENTS.md), карта разработки и команды — в [CLAUDE.md](CLAUDE.md). Если документация расходится с кодом, приоритет имеют фактический код, конфигурация и результаты тестов.
+
+## Состав проекта
 
 ```text
-.
-├── backend
-│   ├── cmd
-│   │   └── app
-│   │       └── main.go
-│   ├── go.mod
-│   └── internal
-│       ├── app
-│       │   └── container.go
-│       ├── config
-│       │   └── config.go
-│       ├── domain
-│       │   ├── driver
-│       │   │   ├── entity.go
-│       │   │   └── repository.go
-│       │   ├── order
-│       │   │   ├── entity.go
-│       │   │   ├── errors.go
-│       │   │   ├── repository.go
-│       │   │   └── state_machine.go
-│       │   └── user
-│       │       ├── entity.go
-│       │       └── repository.go
-│       ├── infrastructure
-│       │   ├── postgres
-│       │   │   ├── driver_repository.go
-│       │   │   └── order_repository.go
-│       │   ├── redis
-│       │   │   ├── location_store.go
-│       │   │   └── pubsub.go
-│       │   └── websocket
-│       │       └── hub.go
-│       ├── transport
-│       │   ├── http
-│       │   │   ├── order_handler.go
-│       │   │   └── router.go
-│       │   └── ws
-│       │       └── order_ws_handler.go
-│       └── usecase
-│           ├── matching
-│           │   └── find_driver.go
-│           └── order
-│               ├── cancel_order.go
-│               ├── create_order.go
-│               └── update_status.go
-├── docker-compose.yml
-└── frontend
-    ├── lib
-    │   ├── core
-    │   │   ├── config
-    │   │   │   └── app_config.dart
-    │   │   ├── network
-    │   │   │   └── api_client.dart
-    │   │   ├── storage
-    │   │   │   └── key_value_storage.dart
-    │   │   ├── theme
-    │   │   │   └── app_theme.dart
-    │   │   └── widgets
-    │   │       └── app_scaffold.dart
-    │   ├── features
-    │   │   ├── auth
-    │   │   │   ├── data
-    │   │   │   ├── domain
-    │   │   │   │   └── README.md
-    │   │   │   └── presentation
-    │   │   ├── driver
-    │   │   │   ├── data
-    │   │   │   ├── domain
-    │   │   │   │   └── README.md
-    │   │   │   └── presentation
-    │   │   ├── map
-    │   │   │   ├── data
-    │   │   │   ├── domain
-    │   │   │   │   └── README.md
-    │   │   │   └── presentation
-    │   │   ├── order
-    │   │   │   ├── data
-    │   │   │   │   ├── datasource
-    │   │   │   │   │   └── order_remote_datasource.dart
-    │   │   │   │   ├── dto
-    │   │   │   │   │   └── order_dto.dart
-    │   │   │   │   └── repository_impl
-    │   │   │   │       └── order_repository_impl.dart
-    │   │   │   ├── domain
-    │   │   │   │   ├── entities
-    │   │   │   │   │   └── order.dart
-    │   │   │   │   ├── repositories
-    │   │   │   │   │   └── order_repository.dart
-    │   │   │   │   └── usecases
-    │   │   │   │       └── create_order_usecase.dart
-    │   │   │   └── presentation
-    │   │   │       ├── screens
-    │   │   │       │   └── order_screen.dart
-    │   │   │       ├── state
-    │   │   │       │   └── order_state_notifier.dart
-    │   │   │       └── widgets
-    │   │   │           └── order_state_views.dart
-    │   │   └── profile
-    │   │       ├── data
-    │   │       ├── domain
-    │   │       │   └── README.md
-    │   │       └── presentation
-    │   └── main.dart
-    └── pubspec.yaml
+backend/       Go API, бизнес-логика, БД, Redis, WebSocket и платежи
+frontend/      Flutter-приложение клиента, водителя и администратора
+admin-web/     веб-часть административной панели
+deploy/        материалы для развёртывания
+docs/          аудиты, планы, стратегия тестирования и решения
 ```
 
-## 2) Clean Architecture Rules Applied
+## Роли и основной сценарий
 
-- domain: entities, state machine, repository contracts.
-- usecase: business workflows only.
-- infrastructure/data: repository and pub/sub implementations.
-- transport: thin HTTP/WS adapters with no business logic.
+- клиент — создаёт заказ и отслеживает его выполнение;
+- водитель — проходит модерацию, выходит на линию, принимает и выполняет заказ;
+- администратор — управляет пользователями, заказами, зонами, настройками и спорными ситуациями.
 
-Dependency direction: only inward (Dependency Inversion).
+Жизненный цикл заказа:
 
-## 3) Order State Machine
+```text
+создание → поиск водителя → принятие → прибытие → выполнение → завершение
+                                      └──────────────→ отмена
+```
 
-Implemented in `backend/internal/domain/order/state_machine.go`.
+Правила переходов состояния заказа находятся в backend-домене. UI не должен самостоятельно добавлять или обходить бизнес-состояния.
 
-- `created -> searching -> accepted -> arrived -> in_progress -> completed`
-- `created/searching/accepted/arrived/in_progress -> cancelled`
-- invalid transitions return `ErrInvalidTransition`
+## Архитектура
 
-State updates are done through use cases only.
+### Backend
 
-## 4) Realtime
+Go-приложение разделено на слои:
 
-- WebSocket endpoint: `/ws/orders`
-- Redis Pub/Sub channel: `orders:status`
-- Forwarder: Redis events -> WS Hub -> clients
+```text
+backend/
+├── cmd/app/                 точка запуска
+├── internal/domain/         сущности и бизнес-правила
+├── internal/usecase/        прикладные сценарии
+├── internal/transport/      HTTP и WebSocket адаптеры
+├── internal/infrastructure/ PostgreSQL, Redis, FCM, storage и внешние сервисы
+├── internal/auth/           авторизация и токены
+└── migrations/              схема базы данных
+```
 
-## 5) Geolocation
+Ключевые домены: `order`, `driver`, `user`, `payment`, `pricing`, `location`, `servicearea`, `admin`.
 
-- Redis GEO for live driver coordinates (`location_store.go`).
-- PostgreSQL for durable order history (`order_repository.go`).
+### Frontend
 
-## 6) Matching (Simplified)
+Flutter-приложение использует Riverpod и feature-based структуру:
 
-`backend/internal/usecase/matching/find_driver.go`:
+```text
+frontend/lib/
+├── core/                    сеть, WebSocket, storage, тема, уведомления и сервисы
+├── features/auth/           авторизация
+├── features/client/         интерфейс клиента
+├── features/driver/         интерфейс водителя
+├── features/order/          заказы
+├── features/map/            карты и геолокация
+├── features/admin/          административные экраны
+├── features/account/        аккаунт и профиль
+└── shared/                  общие виджеты и провайдеры
+```
 
-- search nearest available drivers
-- increase radius each N seconds
-- stop on context cancellation
+## Интеграции
 
-## 7) Frontend State Management (Riverpod)
+- PostgreSQL — постоянные данные и история заказов;
+- Redis — кэш, текущие координаты и Pub/Sub;
+- WebSocket — обновления заказов и статусов в реальном времени;
+- JWT — авторизация;
+- OpenStreetMap/flutter_map — карты, геокодирование и маршрутизация;
+- FCM — push-уведомления;
+- внешние платёжные и storage-сервисы — по конфигурации backend.
 
-- Single source of truth: `OrderUiState.status`
-- enum exactly as required:
-  - `idle, searching, accepted, arrived, inProgress, completed, cancelled`
-- state-driven UI via `switch` in `OrderScreen`
+Секреты и адреса сервисов передаются через переменные окружения. Не добавляйте ключи в Git и не вставляйте их в отчёты агента.
 
-## 8) Run Infra
+## Текущее состояние
+
+Проект находится в активной разработке. Наличие файла или экрана не означает, что сценарий полностью готов к production. Перед заявлением о готовности нужно проверить backend-тесты и миграции, Flutter-анализ и тесты, реальный API, авторизацию, платежи, геолокацию, WebSocket, push-уведомления и production-конфигурацию.
+
+Актуальные аудиты и планы находятся в [docs/](docs/). Они могут устаревать — дату и фактический код нужно проверять отдельно.
+
+## Быстрый запуск
+
+### Инфраструктура
 
 ```bash
 docker compose up -d
 ```
 
-## 9) Production Hardening (Next)
+### Backend
 
-1. Add migrations and indexes (orders, driver availability, optional PostGIS).
-2. Add auth + role-aware WS channels.
-3. Add outbox pattern for guaranteed event delivery.
-4. Add integration tests for forbidden transitions and WS fanout.
-5. Split matching/realtime into microservices using existing interfaces.
+```bash
+cd backend
+go run ./cmd/app
+go test ./...
+```
+
+### Flutter
+
+```bash
+cd frontend
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+Перед production-сборкой проверьте окружение, signing и переменные API/WS.
+
+## Правила работы агента
+
+Перед изменением агент должен:
+
+1. понять цель изменения и затронутый пользовательский сценарий;
+2. проверить фактический execution flow и связанные frontend/backend части;
+3. оценить влияние изменения через GitNexus;
+4. внести минимальный патч;
+5. запустить релевантные тесты и статический анализ;
+6. сообщить изменённые файлы, проверки и оставшиеся риски.
+
+Особенно осторожно изменяйте авторизацию, платежи, состояния заказа, геолокацию и WebSocket. Эти области нельзя заменять mock-логикой без явного запроса.
+
+## Главные точки входа
+
+| Задача | Путь |
+|---|---|
+| Запуск Flutter | `frontend/lib/main.dart` |
+| Запуск Go API | `backend/cmd/app/main.go` |
+| Авторизация | `frontend/lib/features/auth/`, `backend/internal/auth/` |
+| Клиент | `frontend/lib/features/client/` |
+| Водитель | `frontend/lib/features/driver/` |
+| Заказы | `frontend/lib/features/order/`, `backend/internal/domain/order/` |
+| Платежи | `backend/internal/domain/payment/`, `backend/internal/usecase/payment/` |
+| Карты и локация | `frontend/lib/features/map/`, `backend/internal/domain/location/` |
+| API и WebSocket | `backend/internal/transport/`, `frontend/lib/core/network/`, `frontend/lib/core/realtime/` |
+| Сборка и зависимости | `frontend/pubspec.yaml`, `backend/go.mod` |
