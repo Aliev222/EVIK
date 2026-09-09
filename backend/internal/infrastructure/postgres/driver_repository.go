@@ -13,11 +13,12 @@ import (
 	"evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	redisinfra "evik/backend/internal/infrastructure/redis"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
 type DriverRepository struct {
-	db          *sql.DB
+	db           *sql.DB
 	locationRepo *redisinfra.LocationStore
 }
 
@@ -412,9 +413,10 @@ WHERE id = $1 AND current_order_id = $2`
 }
 
 // ReserveForOfferTx atomically checks that the driver is free (online, no
-// current order) AND locks the driver row for the duration of the transaction
-// using SELECT ... FOR UPDATE NOWAIT. This prevents two dispatch goroutines
-// from offering the same driver to two different orders concurrently.
+// current order), still approved, and locks both the driver and verification
+// rows for the duration of the transaction using SELECT ... FOR UPDATE NOWAIT.
+// This prevents two dispatch goroutines from offering the same driver and
+// closes the race with a concurrent moderation block.
 //
 // Returns:
 //   - (true, nil)   — driver is free and now row-locked; caller may create the order
@@ -423,11 +425,15 @@ WHERE id = $1 AND current_order_id = $2`
 //   - (false, err)  — unexpected DB error.
 func (r *DriverRepository) ReserveForOfferTx(ctx context.Context, tx *sql.Tx, driverID string) (bool, error) {
 	const query = `
-SELECT id FROM drivers
-WHERE id = $1
-  AND status = $2
-  AND current_order_id IS NULL
-FOR UPDATE NOWAIT`
+SELECT d.id
+FROM drivers d
+JOIN driver_verifications dv
+  ON dv.user_id IN (d.user_id, d.id)
+WHERE d.id = $1
+  AND d.status = $2
+  AND d.current_order_id IS NULL
+  AND dv.status = 'approved'
+FOR UPDATE OF d, dv NOWAIT`
 
 	var id string
 	err := tx.QueryRowContext(ctx, query, driverID, string(driverdomain.StatusOnline)).Scan(&id)
@@ -436,13 +442,15 @@ FOR UPDATE NOWAIT`
 			// Driver not free (already busy / wrong status).
 			return false, nil
 		}
-		// Detect lock-not-available (Postgres 55P03 / pq code "55P03").
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "55P03" {
+		var pgErr *pgconn.PgError
+		// Test and production connections use pgx, whose database/sql errors
+		// expose *pgconn.PgError rather than lib/pq's *pq.Error.
+		if errors.As(err, &pgErr) && pgErr.Code == "55P03" {
 			// Row already locked by another dispatch tx → treat as "try next".
 			return false, nil
 		}
 		// Any other lock error (e.g. serialized tx failure) → also try next.
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "40001" {
+		if errors.As(err, &pgErr) && pgErr.Code == "40001" {
 			return false, nil
 		}
 		return false, err

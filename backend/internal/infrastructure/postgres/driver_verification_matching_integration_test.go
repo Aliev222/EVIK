@@ -180,6 +180,85 @@ func TestDriverIsAvailable_RequiresApprovedVerification(t *testing.T) {
 	})
 }
 
+// TestReserveForOfferTx_RechecksAndLocksVerification covers the gap between
+// candidate selection and offer reservation. A moderation decision in that
+// interval must win: a non-approved or concurrently blocked driver cannot be
+// reserved for a new order.
+func TestReserveForOfferTx_RechecksAndLocksVerification(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+	defer truncateAll(t, db)
+
+	ctx := context.Background()
+	repo := postgres.NewDriverRepository(db, nil)
+
+	t.Run("approved driver is reserved", func(t *testing.T) {
+		seedDriverWithVerification(t, db, "reserve-approved", "approved", nil)
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin tx: %v", err)
+		}
+		defer tx.Rollback()
+
+		reserved, err := repo.ReserveForOfferTx(ctx, tx, "reserve-approved")
+		if err != nil {
+			t.Fatalf("ReserveForOfferTx: %v", err)
+		}
+		if !reserved {
+			t.Fatal("approved online driver should be reserved")
+		}
+	})
+
+	t.Run("blocked driver is rejected", func(t *testing.T) {
+		seedDriverWithVerification(t, db, "reserve-blocked", "blocked", nil)
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin tx: %v", err)
+		}
+		defer tx.Rollback()
+
+		reserved, err := repo.ReserveForOfferTx(ctx, tx, "reserve-blocked")
+		if err != nil {
+			t.Fatalf("ReserveForOfferTx: %v", err)
+		}
+		if reserved {
+			t.Fatal("blocked driver must not be reserved")
+		}
+	})
+
+	t.Run("in-flight moderation lock makes driver unavailable", func(t *testing.T) {
+		const driverID = "reserve-being-moderated"
+		seedDriverWithVerification(t, db, driverID, "approved", nil)
+
+		moderationTx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin moderation tx: %v", err)
+		}
+		defer moderationTx.Rollback()
+		if _, err := moderationTx.ExecContext(
+			ctx,
+			`UPDATE driver_verifications SET status = 'blocked' WHERE user_id = $1`,
+			driverID,
+		); err != nil {
+			t.Fatalf("lock verification for moderation: %v", err)
+		}
+
+		reserveTx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("begin reserve tx: %v", err)
+		}
+		defer reserveTx.Rollback()
+
+		reserved, err := repo.ReserveForOfferTx(ctx, reserveTx, driverID)
+		if err != nil {
+			t.Fatalf("ReserveForOfferTx: %v", err)
+		}
+		if reserved {
+			t.Fatal("driver with an in-flight block decision must not be reserved")
+		}
+	})
+}
+
 // stubNearbyRepo is a deterministic geo source for FindCandidates integration:
 // it returns the configured driver IDs as geometrically nearby. Availability
 // is then resolved through the real postgres DriverRepository.IsAvailable.
