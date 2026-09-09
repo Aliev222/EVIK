@@ -26,6 +26,7 @@ function makeEl() {
     closest() { return null; }, focus() {}, click() {},
     get innerHTML() { return this._h || ''; }, set innerHTML(v) { this._h = v; },
     get textContent() { return this._t || ''; }, set textContent(v) { this._t = v; },
+    lastElementChild: { textContent: '' },
     getElementById() { return null; },
   };
   return el;
@@ -67,11 +68,24 @@ const sandbox = {
   setInterval,
   clearInterval,
   performance: { now: () => Date.now() },
+  AbortController,
   navigator: { clipboard: { writeText: async () => {} } },
   localStorage: localStorageStub,
   document: documentStub,
   window: windowStub,
   L: undefined,
+};
+sandbox.fetch = async (url, options = {}) => {
+  sandbox.__lastFetchRequest = { url, options };
+  return {
+    status: 200,
+    ok: true,
+    statusText: 'OK',
+    text: async () => JSON.stringify({
+      tokens: { access_token: 'test-admin-token' },
+      user: { id: 'admin' },
+    }),
+  };
 };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);

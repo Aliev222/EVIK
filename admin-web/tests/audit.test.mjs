@@ -183,6 +183,16 @@ test('buildQuery: encodes values', () => {
   assert.equal(F.buildQuery({ q: 'a b' }), '?q=a+b');
 });
 
+test('admin login sends the backend user_id field', async () => {
+  await F.login('operator', 'secret-password');
+
+  assert.equal(F.__lastFetchRequest.url, '/api/v1/auth/admin/login');
+  assert.deepEqual(
+    JSON.parse(F.__lastFetchRequest.options.body),
+    { user_id: 'operator', password: 'secret-password' },
+  );
+});
+
 /* ============ shortId ============ */
 test('shortId: empty -> dash', () => {
   assert.equal(F.shortId(''), '—');
