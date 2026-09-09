@@ -13,15 +13,30 @@ import (
 )
 
 type DocumentStorage struct {
-	client          *minio.Client
-	bucket          string
-	publicBaseURL   string
+	client        *minio.Client
+	bucket        string
+	publicBaseURL string
 }
 
 type UploadedDocument struct {
 	Key       string
 	PublicURL string
 	Size      int64
+}
+
+// StubDocumentStorage accepts test uploads without requiring an S3 account.
+// It intentionally does not retain file bytes; staging only needs a successful
+// document reference so the verification workflow can be tested end to end.
+type StubDocumentStorage struct{}
+
+func (StubDocumentStorage) EnsureBucket(context.Context) error { return nil }
+
+func (StubDocumentStorage) UploadDocument(_ context.Context, driverID, documentType string, _ io.Reader, size int64, _ string) (*UploadedDocument, error) {
+	return &UploadedDocument{
+		Key:       fmt.Sprintf("stub/drivers/%s/%s", driverID, documentType),
+		PublicURL: fmt.Sprintf("https://stub.invalid/documents/%s/%s", driverID, documentType),
+		Size:      size,
+	}, nil
 }
 
 func NewDocumentStorage(endpoint, accessKey, secretKey, bucket, region, publicBaseURL string) (*DocumentStorage, error) {
@@ -136,11 +151,11 @@ func getFileExtension(contentType string) string {
 // Helper function to validate allowed document types
 func IsAllowedDocumentType(documentType string) bool {
 	allowed := map[string]bool{
-		"passport":          true,
-		"license":           true,
-		"vehicleDocs":       true,
-		"vehiclePhoto":      true,
-		"selfie":           true,
+		"passport":     true,
+		"license":      true,
+		"vehicleDocs":  true,
+		"vehiclePhoto": true,
+		"selfie":       true,
 	}
 	return allowed[documentType]
 }
@@ -148,10 +163,10 @@ func IsAllowedDocumentType(documentType string) bool {
 // Helper function to validate content types
 func IsAllowedContentType(contentType string) bool {
 	allowed := map[string]bool{
-		"image/jpeg":       true,
-		"image/png":        true,
-		"image/webp":       true,
-		"application/pdf":  true,
+		"image/jpeg":      true,
+		"image/png":       true,
+		"image/webp":      true,
+		"application/pdf": true,
 	}
 	return allowed[contentType]
 }

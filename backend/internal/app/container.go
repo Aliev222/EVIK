@@ -284,6 +284,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 			AccessKey:     cfg.S3AccessKey,
 			SecretKey:     cfg.S3SecretKey,
 			PublicBaseURL: cfg.S3PublicBaseURL,
+			StubMode:      cfg.S3StubMode,
 		},
 		db,
 		rdb,

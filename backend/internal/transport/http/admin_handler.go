@@ -202,6 +202,12 @@ type DocumentStorageConfig struct {
 	AccessKey     string
 	SecretKey     string
 	PublicBaseURL string
+	StubMode      bool
+}
+
+type documentStorage interface {
+	EnsureBucket(context.Context) error
+	UploadDocument(context.Context, string, string, io.Reader, int64, string) (*storage.UploadedDocument, error)
 }
 
 type AdminHandler struct {
@@ -212,7 +218,7 @@ type AdminHandler struct {
 	idGen        AdminIDGenerator
 	clock        AdminClock
 	storage      DocumentStorageConfig
-	docStorage   *storage.DocumentStorage
+	docStorage   documentStorage
 	db           *sql.DB
 	rdb          *redis.Client
 	startTime    time.Time
@@ -229,8 +235,10 @@ func NewAdminHandler(
 	db *sql.DB,
 	rdb *redis.Client,
 ) *AdminHandler {
-	var docStorage *storage.DocumentStorage
-	if storageConfig.Endpoint != "" && storageConfig.Bucket != "" && storageConfig.AccessKey != "" && storageConfig.SecretKey != "" {
+	var docStorage documentStorage
+	if storageConfig.StubMode {
+		docStorage = storage.StubDocumentStorage{}
+	} else if storageConfig.Endpoint != "" && storageConfig.Bucket != "" && storageConfig.AccessKey != "" && storageConfig.SecretKey != "" {
 		var err error
 		docStorage, err = storage.NewDocumentStorage(
 			storageConfig.Endpoint,
