@@ -131,7 +131,7 @@ WHERE id = $1`
 func (r *ServiceAreaRepository) Create(ctx context.Context, area servicearea.ServiceArea) error {
 	const query = `
 INSERT INTO service_areas (id, name, slug, min_lat, min_lng, max_lat, max_lng, center_lat, center_lng, radius_km, primary_radius_km, is_active, boundary_geojson, boundary_buffer_km, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())`
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())`
 	_, err := r.db.ExecContext(ctx, query,
 		area.ID, area.Name, area.Slug,
 		area.MinLat, area.MinLng, area.MaxLat, area.MaxLng,
