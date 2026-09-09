@@ -1,0 +1,58 @@
+# Render blueprint for the disposable EVIK integration-test environment.
+# This is intentionally separate from render.yaml and must never be used for
+# the production service. Payments and document storage use local stubs.
+services:
+  - type: web
+    name: evik-backend-staging
+    env: go
+    region: frankfurt
+    plan: starter
+    rootDir: backend
+    buildCommand: go build -tags netgo -ldflags "-s -w" -o app ./cmd/app
+    startCommand: ./app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: POSTGRES_DSN
+        fromDatabase:
+          name: evik-postgres-staging
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: evik-redis-staging
+          property: connectionString
+      - key: APP_ENV
+        value: staging
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OTP_FIXED_CODE
+        value: "123456"
+      - key: DRIVER_GATE_BYPASS
+        value: "false"
+      - key: S3_STUB_MODE
+        value: "true"
+      - key: YOOKASSA_STUB_MODE
+        value: "true"
+      - key: YOOKASSA_PAYOUT_MODE
+        value: disabled
+      - key: ADMIN_USER_ID
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://evik-web-staging.onrender.com
+
+  - type: redis
+    name: evik-redis-staging
+    region: frankfurt
+    plan: starter
+    ipAllowList: []
+
+databases:
+  - name: evik-postgres-staging
+    region: frankfurt
+    plan: starter
+    databaseName: evik_staging
+    user: evik_staging
