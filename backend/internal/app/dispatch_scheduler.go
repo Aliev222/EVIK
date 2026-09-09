@@ -92,6 +92,14 @@ type DispatchScheduler struct {
 	waking map[string]wakeEntry
 }
 
+// DriverBecameAvailable retries all currently searching orders immediately.
+// It is invoked from the driver's online/status endpoint, so a newly
+// available nearby driver does not wait for the periodic scheduler tick.
+func (s *DispatchScheduler) DriverBecameAvailable(ctx context.Context, driverID string) {
+	s.logger.Printf("dispatch: driver=%s became available; waking searching-order scan", driverID)
+	go s.safeTick(ctx)
+}
+
 // wakeEntry tracks a driver we sent a wake-up push to, awaiting WS reconnect.
 type wakeEntry struct {
 	orderID   string

@@ -331,6 +331,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		cfg.DispatchOfferTimeout,
 		cfg.DispatchGeoFreshness,
 	)
+	setDriverStatusUC.SetDispatchNotifier(dispatchScheduler)
 
 	driverPresenceReaper := NewDriverPresenceReaper(
 		driverRepo,

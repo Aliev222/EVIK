@@ -53,17 +53,28 @@ type CityCache interface {
 	SetLastCity(ctx context.Context, driverID, cityID string) error
 }
 
+// DispatchNotifier is called after a driver becomes available so searching
+// orders are retried immediately instead of waiting for the polling tick.
+type DispatchNotifier interface {
+	DriverBecameAvailable(ctx context.Context, driverID string)
+}
+
 type SetStatusUseCase struct {
-	driverRepo           DriverRepository
-	orderRepo            OrderRepository
-	locationRepo         LocationRepository
-	eventPublisher       EventPublisher
-	cityDetector         CityDetector
-	cityCache            CityCache
-	clock                Clock
-	logger               Logger
-	lastLocationPublish  map[string]time.Time
+	driverRepo            DriverRepository
+	orderRepo             OrderRepository
+	locationRepo          LocationRepository
+	eventPublisher        EventPublisher
+	cityDetector          CityDetector
+	cityCache             CityCache
+	clock                 Clock
+	logger                Logger
+	dispatchNotifier      DispatchNotifier
+	lastLocationPublish   map[string]time.Time
 	lastLocationPublishMu sync.Mutex
+}
+
+func (uc *SetStatusUseCase) SetDispatchNotifier(notifier DispatchNotifier) {
+	uc.dispatchNotifier = notifier
 }
 
 type SetStatusInput struct {
@@ -177,6 +188,9 @@ func (uc *SetStatusUseCase) Execute(ctx context.Context, input SetStatusInput) (
 		// when the driver has no active order, so going online never leaks a
 		// location to anyone.
 		uc.publishDriverLocation(ctx, input.DriverID, now, *input.Lat, *input.Lng)
+	}
+	if uc.dispatchNotifier != nil {
+		uc.dispatchNotifier.DriverBecameAvailable(ctx, input.DriverID)
 	}
 	return drv, nil
 }
