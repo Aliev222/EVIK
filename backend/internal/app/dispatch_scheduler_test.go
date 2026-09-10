@@ -21,6 +21,12 @@ type fakeOfferRepo struct {
 	round   int
 }
 
+func (f *fakeOfferRepo) createdSnapshot() []*orderdomain.Offer {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*orderdomain.Offer(nil), f.created...)
+}
+
 func (f *fakeOfferRepo) Create(_ context.Context, offer *orderdomain.Offer) (bool, error) {
 	return f.CreateTx(context.Background(), nil, offer)
 }
@@ -120,7 +126,14 @@ func (f *fakeOfferRepo) ListSearchingWithoutOffer(_ context.Context, _ int) ([]*
 	return out, nil
 }
 
+var allOrdersMu sync.Mutex
 var allOrders []*orderdomain.Order
+
+func setAllOrders(orders ...*orderdomain.Order) {
+	allOrdersMu.Lock()
+	defer allOrdersMu.Unlock()
+	allOrders = append([]*orderdomain.Order(nil), orders...)
+}
 
 type fakeOrderRepo struct {
 	mu     sync.Mutex
@@ -247,7 +260,7 @@ func TestDispatchOfferCreatedForNearest(t *testing.T) {
 	go hub.Run()
 
 	ord := &orderdomain.Order{ID: "o1", Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Status: orderdomain.StatusSearching}
-	allOrders = []*orderdomain.Order{ord}
+	setAllOrders(ord)
 	orderRepo := &fakeOrderRepo{orders: map[string]*orderdomain.Order{"o1": ord}}
 	offerRepo := &fakeOfferRepo{round: 1}
 
@@ -324,7 +337,7 @@ func TestDispatchDriverBecameAvailableSurvivesRequestCancellation(t *testing.T) 
 	sched.DriverBecameAvailable(ctx, "d-context")
 
 	deadline := time.After(time.Second)
-	for len(offerRepo.created) == 0 {
+	for len(offerRepo.createdSnapshot()) == 0 {
 		select {
 		case <-deadline:
 			t.Fatal("expected dispatch to continue after request context cancellation")
@@ -339,7 +352,7 @@ func TestDispatchExpiredOfferNextDriver(t *testing.T) {
 	go hub.Run()
 
 	ord := &orderdomain.Order{ID: "o3", Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Status: orderdomain.StatusSearching}
-	allOrders = []*orderdomain.Order{ord}
+	setAllOrders(ord)
 	orderRepo := &fakeOrderRepo{orders: map[string]*orderdomain.Order{"o3": ord}}
 	offerRepo := &fakeOfferRepo{round: 1}
 
@@ -359,7 +372,7 @@ func TestDispatchExpiredOfferNextDriver(t *testing.T) {
 	sched.tick(context.Background())
 
 	foundNew := false
-	for _, c := range offerRepo.created {
+	for _, c := range offerRepo.createdSnapshot() {
 		if c.DriverID == "d2" {
 			foundNew = true
 			break
