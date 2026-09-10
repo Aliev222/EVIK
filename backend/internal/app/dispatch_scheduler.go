@@ -98,7 +98,11 @@ type DispatchScheduler struct {
 // available nearby driver does not wait for the periodic scheduler tick.
 func (s *DispatchScheduler) DriverBecameAvailable(ctx context.Context, driverID string) {
 	s.logger.Printf("dispatch: driver=%s became available; waking searching-order scan", driverID)
-	go s.safeTick(ctx)
+	// The caller is the driver's HTTP status request. Its context is canceled
+	// as soon as the response is written, but dispatch must continue after that
+	// request finishes. Detach cancellation while preserving the background
+	// deadline semantics of the scheduler itself.
+	go s.safeTick(context.WithoutCancel(ctx))
 }
 
 // wakeEntry tracks a driver we sent a wake-up push to, awaiting WS reconnect.

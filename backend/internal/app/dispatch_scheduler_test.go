@@ -304,6 +304,36 @@ func TestDispatchOrderStaysSearchingUntilDriverComesOnline(t *testing.T) {
 	}
 }
 
+func TestDispatchDriverBecameAvailableSurvivesRequestCancellation(t *testing.T) {
+	hub := wsinfra.NewHub()
+	go hub.Run()
+
+	ord := &orderdomain.Order{ID: "o-context", Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Status: orderdomain.StatusSearching}
+	allOrders = []*orderdomain.Order{ord}
+	orderRepo := &fakeOrderRepo{orders: map[string]*orderdomain.Order{"o-context": ord}}
+	offerRepo := &fakeOfferRepo{round: 1}
+	matchingSvc := &fakeMatchingSvc{candPool: map[string][]matchingdomain.Candidate{
+		"o-context": {{DriverID: "d-context", DistanceKM: 1}},
+	}}
+	hub.Register(&wsinfra.Client{UserID: "d-context", Role: "driver", Send: make(chan []byte, 10)})
+	waitHubDriver(t, hub, "d-context")
+
+	sched := newTestScheduler(offerRepo, orderRepo, matchingSvc, &fakeSettingsRepo{}, hub)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // emulate the HTTP status request finishing
+	sched.DriverBecameAvailable(ctx, "d-context")
+
+	deadline := time.After(time.Second)
+	for len(offerRepo.created) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("expected dispatch to continue after request context cancellation")
+		default:
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
 func TestDispatchExpiredOfferNextDriver(t *testing.T) {
 	hub := wsinfra.NewHub()
 	go hub.Run()
