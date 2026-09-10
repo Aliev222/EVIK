@@ -59,6 +59,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
   bool _initialized = false;
 
   /// Проигрывает произвольный аудио-asset через just_audio.
+  @override
   Future<void> playAsset(String assetPath) async {
     try {
       await _player.stop();
@@ -70,25 +71,32 @@ class AudioDriverNotificationService implements DriverNotificationService {
   }
 
   /// Водитель вышел на смену.
+  @override
   Future<void> playShiftStarted() => playAsset(SoundAsset.shiftStarted);
 
   /// Водитель забрал клиента и повёз машину.
+  @override
   Future<void> playTripStarted() => playAsset(SoundAsset.tripStarted);
 
   /// Метод оплаты сменён во время поездки.
+  @override
   Future<void> playPaymentChanged({required bool isCash}) => playAsset(isCash
       ? SoundAsset.paymentChangedToCash
       : SoundAsset.paymentChangedToCard);
 
   /// Водитель слишком долго на смене.
+  @override
   Future<void> playLongShift() => playAsset(SoundAsset.longShift);
 
   /// Заказ отменён другой стороной.
+  @override
   Future<void> playOrderCancelled() => playAsset(SoundAsset.orderCancelled);
 
   /// Водитель приехал к клиенту (звук у клиента).
+  @override
   Future<void> playDriverArrived() => playAsset(SoundAsset.driverArrived);
 
+  @override
   Future<void> ensureInitialized() async {
     if (_initialized) return;
 
@@ -100,6 +108,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
     _initialized = true;
   }
 
+  @override
   Future<void> playNewOrderSound() async {
     await ensureInitialized();
     try {
@@ -110,6 +119,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
     }
   }
 
+  @override
   Future<void> showOrderNotification(Order order) async {
     await ensureInitialized();
     const details = NotificationDetails(
@@ -137,6 +147,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
     );
   }
 
+  @override
   Future<void> scheduleLocationReminder() async {
     await ensureInitialized();
     const details = NotificationDetails(
@@ -156,6 +167,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
     );
   }
 
+  @override
   Future<void> vibrateFeedback(DriverHapticType type) async {
     if (kIsWeb) return;
     final hasVibrator = await Vibration.hasVibrator();
@@ -176,6 +188,7 @@ class AudioDriverNotificationService implements DriverNotificationService {
     }
   }
 
+  @override
   Future<void> dispose() async {
     await _player.dispose();
   }

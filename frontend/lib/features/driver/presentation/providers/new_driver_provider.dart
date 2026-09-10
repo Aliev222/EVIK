@@ -133,7 +133,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
   Future<void> _initializeDriver() async {
     final driverId = _currentDriverId;
     if (driverId == null ||
-        _ref.read(authProvider).user?.role != UserRole.driver) return;
+        _ref.read(authProvider).user?.role != UserRole.driver) {
+      return;
+    }
 
     try {
       final profile = await _driverRepository.getDriver(driverId);
@@ -230,7 +232,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
     if (driverId == null ||
         state.workState.hasActiveOrder ||
         state.isLoading ||
-        state.workState == DriverWorkState.online) return;
+        state.workState == DriverWorkState.online) {
+      return;
+    }
 
     final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
@@ -252,8 +256,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
       await realtime.goOnline();
       if (!mounted) return;
       final realtimeState = _ref.read(driverRealTimeProvider);
-      if (!realtimeState.isOnline)
+      if (!realtimeState.isOnline) {
         throw StateError(realtimeState.error ?? 'Геолокация недоступна');
+      }
       await _driverRepository.updateDriverStatus(
         driverId: driverId,
         isOnline: true,
@@ -288,8 +293,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
 
   Future<void> goOffline() async {
     final driverId = _currentDriverId;
-    if (driverId == null || state.workState.hasActiveOrder || state.isLoading)
+    if (driverId == null || state.workState.hasActiveOrder || state.isLoading) {
       return;
+    }
 
     final previousWorkState = state.workState;
     state = state.copyWith(isLoading: true, clearError: true);
@@ -671,8 +677,9 @@ class DriverNotifier extends StateNotifier<DriverState> {
       // Query this order directly: cancelled orders disappear from active lists.
       final order =
           await _ref.read(orderRepositoryProvider).getOrder(activeOrder.id);
-      if (!mounted || order == null || state.activeOrder?.id != activeOrder.id)
+      if (!mounted || order == null || state.activeOrder?.id != activeOrder.id) {
         return;
+      }
       if (order.status == OrderStatus.cancelled) {
         _handleOrderCancelledEvent(OrderUpdate(
             orderId: order.id, status: OrderUpdateType.orderCancelled));
