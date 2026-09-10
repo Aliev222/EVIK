@@ -462,6 +462,62 @@ func TestDispatchAcceptedOfferOrderAssigned(t *testing.T) {
 	}
 }
 
+func TestDispatchOnlineDriverReceivesMultipleOrdersDuringShift(t *testing.T) {
+	hub := wsinfra.NewHub()
+	go hub.Run()
+
+	first := &orderdomain.Order{ID: "shift-o1", Pickup: orderdomain.Coordinate{Lat: 55.75, Lng: 37.62}, Status: orderdomain.StatusSearching}
+	second := &orderdomain.Order{ID: "shift-o2", Pickup: orderdomain.Coordinate{Lat: 55.76, Lng: 37.63}, Status: orderdomain.StatusSearching}
+	allOrders = []*orderdomain.Order{first}
+	orderRepo := &fakeOrderRepo{orders: map[string]*orderdomain.Order{"shift-o1": first, "shift-o2": second}}
+	offerRepo := &fakeOfferRepo{round: 1}
+	matchingSvc := &fakeMatchingSvc{candPool: map[string][]matchingdomain.Candidate{
+		"shift-o1": {{DriverID: "shift-driver", DistanceKM: 1}},
+		"shift-o2": {{DriverID: "shift-driver", DistanceKM: 1.5}},
+	}}
+	hub.Register(&wsinfra.Client{UserID: "shift-driver", Role: "driver", Send: make(chan []byte, 10)})
+	waitHubDriver(t, hub, "shift-driver")
+	driverRepo := &fakeDriverRepo{}
+
+	sched := NewDispatchScheduler(
+		offerRepo,
+		driverRepo,
+		orderRepo,
+		nil,
+		matchingSvc,
+		&fakeSettingsRepo{},
+		nil,
+		hub,
+		&fakeEventPub{},
+		&fakePushSender{},
+		&testIDGen{},
+		testClock{},
+		log.Default(),
+		50*time.Millisecond,
+		5*time.Second,
+		time.Minute,
+	)
+	sched.tick(context.Background())
+	if len(offerRepo.created) != 1 || offerRepo.created[0].OrderID != "shift-o1" {
+		t.Fatalf("expected first shift order offer, got %#v", offerRepo.created)
+	}
+
+	// The first order is now accepted/completed from dispatch's perspective;
+	// the driver remains online and must be eligible for the next order.
+	outcome := "accepted"
+	offerRepo.created[0].Outcome = &outcome
+	first.Status = orderdomain.StatusAccepted
+	driverRepo.mu.Lock()
+	driverRepo.reserved = map[string]bool{}
+	driverRepo.mu.Unlock()
+	allOrders = []*orderdomain.Order{first, second}
+	sched.tick(context.Background())
+
+	if len(offerRepo.created) != 2 || offerRepo.created[1].OrderID != "shift-o2" {
+		t.Fatalf("expected second order offer during same shift, got %#v", offerRepo.created)
+	}
+}
+
 func waitHubDriver(t *testing.T, hub *wsinfra.Hub, driverID string) {
 	t.Helper()
 	for i := 0; i < 100; i++ {
