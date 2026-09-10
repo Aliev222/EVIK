@@ -62,25 +62,26 @@ type dispatchPushSender interface {
 }
 
 type DispatchScheduler struct {
-	offerRepo       dispatchOfferRepo
-	driverRepo      dispatchDriverRepo
-	orderRepo       dispatchOrderRepo
-	db              *sql.DB
-	matchingSvc     dispatchMatchingService
-	settingsRepo    dispatchSettingsRepo
-	serviceAreaRepo dispatchServiceAreaRepo
-	hub             *wsinfra.Hub
-	eventPublisher  dispatchEventPublisher
-	pushSender      dispatchPushSender
-	idGen           idGenerator
-	clock           clock
-	logger          *log.Logger
-	checkInterval   time.Duration
-	offerTimeout    time.Duration
-	maxRadiusKM     float64
-	stepRadiusKM    float64
-	geoFreshness    time.Duration
-	maxRounds       int
+	offerRepo        dispatchOfferRepo
+	driverRepo       dispatchDriverRepo
+	orderRepo        dispatchOrderRepo
+	db               *sql.DB
+	matchingSvc      dispatchMatchingService
+	settingsRepo     dispatchSettingsRepo
+	serviceAreaRepo  dispatchServiceAreaRepo
+	hub              *wsinfra.Hub
+	eventPublisher   dispatchEventPublisher
+	pushSender       dispatchPushSender
+	idGen            idGenerator
+	clock            clock
+	logger           *log.Logger
+	checkInterval    time.Duration
+	offerTimeout     time.Duration
+	maxRadiusKM      float64
+	expandedRadiusKM float64
+	stepRadiusKM     float64
+	geoFreshness     time.Duration
+	maxRounds        int
 
 	// wakeGrace is how long the dispatcher waits for an offline-online driver
 	// (no live WS) to reconnect after a wake-up push before giving up on them
@@ -136,27 +137,28 @@ func NewDispatchScheduler(
 		geoFreshness = 60 * time.Second
 	}
 	return &DispatchScheduler{
-		offerRepo:       offerRepo,
-		driverRepo:      driverRepo,
-		orderRepo:       orderRepo,
-		db:              db,
-		matchingSvc:     matchingSvc,
-		settingsRepo:    settingsRepo,
-		serviceAreaRepo: serviceAreaRepo,
-		hub:             hub,
-		eventPublisher:  eventPublisher,
-		pushSender:      pushSender,
-		idGen:           idGen,
-		clock:           clock,
-		logger:          logger,
-		checkInterval:   checkInterval,
-		offerTimeout:    offerTimeout,
-		maxRadiusKM:     15,
-		stepRadiusKM:    2,
-		geoFreshness:    geoFreshness,
-		maxRounds:       3,
-		wakeGrace:       8 * time.Second,
-		waking:          make(map[string]wakeEntry),
+		offerRepo:        offerRepo,
+		driverRepo:       driverRepo,
+		orderRepo:        orderRepo,
+		db:               db,
+		matchingSvc:      matchingSvc,
+		settingsRepo:     settingsRepo,
+		serviceAreaRepo:  serviceAreaRepo,
+		hub:              hub,
+		eventPublisher:   eventPublisher,
+		pushSender:       pushSender,
+		idGen:            idGen,
+		clock:            clock,
+		logger:           logger,
+		checkInterval:    checkInterval,
+		offerTimeout:     offerTimeout,
+		maxRadiusKM:      15,
+		expandedRadiusKM: 30,
+		stepRadiusKM:     2,
+		geoFreshness:     geoFreshness,
+		maxRounds:        3,
+		wakeGrace:        8 * time.Second,
+		waking:           make(map[string]wakeEntry),
 	}
 }
 
@@ -319,7 +321,11 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 	// the persisted round/exclude state. This keeps each dispatch goroutine
 	// short-lived and avoids lock contention storms under parallel dispatch.
 	var lastErr error
-	for radius <= s.maxRadiusKM {
+	searchMaxRadius := s.maxRadiusKM
+	if ord.IsExpanded && s.expandedRadiusKM > searchMaxRadius {
+		searchMaxRadius = s.expandedRadiusKM
+	}
+	for radius <= searchMaxRadius {
 		candidates, err := s.matchingSvc.FindCandidates(ctx, ord, radius, offeredThisRound, s.hub, s.geoFreshness)
 		if err != nil && err != matchingdomain.ErrNoCandidateDrivers {
 			lastErr = err
@@ -359,7 +365,7 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 		radius += s.stepRadiusKM
 	}
 
-	s.logger.Printf("dispatch: no candidate reserved for order=%s after reaching %gkm (last_err=%v)", orderID, s.maxRadiusKM, lastErr)
+	s.logger.Printf("dispatch: no candidate reserved for order=%s after reaching %gkm (last_err=%v)", orderID, searchMaxRadius, lastErr)
 
 	// If any candidate is currently being woken (push sent, awaiting app
 	// reconnect), do NOT give up on the order yet — matureWaking will deliver
