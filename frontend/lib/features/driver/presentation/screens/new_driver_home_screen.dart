@@ -1,21 +1,24 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/performance/rebuild_tracker.dart';
 
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/providers/service_area_provider.dart';
-import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_map_view.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/available_order.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver_work_state.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_stats.dart';
+import 'package:tow_truck_frontend/features/driver/domain/entities/driver_wallet.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/new_driver_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_wallet_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/widgets/driver_debt_banner.dart';
@@ -32,16 +35,529 @@ final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
 });
 
 class NewDriverHomeScreen extends ConsumerStatefulWidget {
-  const NewDriverHomeScreen({super.key});
+  const NewDriverHomeScreen({super.key, this.auditState, this.onOpenProfile});
+
+  /// Local-only visual fixture. It is supplied only by the UI-audit catalogue.
+  final DriverState? auditState;
+
+  /// Opens the existing profile tab when this screen is hosted by the shell.
+  final VoidCallback? onOpenProfile;
 
   @override
   ConsumerState<NewDriverHomeScreen> createState() =>
       _NewDriverHomeScreenState();
 }
 
+class _DriverHomeDashboard extends StatelessWidget {
+  const _DriverHomeDashboard({
+    required this.name,
+    required this.initial,
+    required this.isOnline,
+    required this.isLoading,
+    required this.stats,
+    required this.locationUnavailable,
+    required this.outsideServiceArea,
+    required this.wallet,
+    required this.onOpenProfile,
+    required this.onPrimaryAction,
+    required this.primaryLabel,
+    this.incomingOrder,
+    this.offerProgress = 1,
+    this.onAcceptOrder,
+    this.onDeclineOrder,
+  });
+
+  final String name;
+  final String initial;
+  final bool isOnline;
+  final bool isLoading;
+  final TodayStats stats;
+  final bool locationUnavailable;
+  final bool outsideServiceArea;
+  final DriverWallet? wallet;
+  final VoidCallback? onOpenProfile;
+  final VoidCallback? onPrimaryAction;
+  final String primaryLabel;
+  final AvailableOrder? incomingOrder;
+  final double offerProgress;
+  final VoidCallback? onAcceptOrder;
+  final VoidCallback? onDeclineOrder;
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Доброе утро';
+    if (hour < 18) return 'Добрый день';
+    return 'Добрый вечер';
+  }
+
+  String _money(double amount) {
+    final digits = amount.round().toString();
+    final groups = <String>[];
+    for (var end = digits.length; end > 0; end -= 3) {
+      groups.add(digits.substring(end >= 3 ? end - 3 : 0, end));
+    }
+    return '${groups.reversed.join(' ')} ₽';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    final heading = name == 'Водитель' ? _greeting : '$_greeting, $name';
+    final state = _stateContent();
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Авро',
+                          style: EvikTypography.h3.copyWith(
+                            color: AvroDriverColors.textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        Semantics(
+                          button: true,
+                          label: 'Открыть профиль',
+                          child: InkWell(
+                            onTap: onOpenProfile,
+                            borderRadius: BorderRadius.circular(22),
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: AvroDriverColors.border,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                initial,
+                                style: const TextStyle(
+                                  color: AvroDriverColors.textPrimary,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      heading,
+                      style: EvikTypography.h2.copyWith(
+                        color: AvroDriverColors.textPrimary,
+                        fontSize: 24,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _LineStatus(isOnline: isOnline),
+                    const SizedBox(height: 24),
+                    _TodayCard(
+                      earnings: _money(stats.earnings),
+                      orders: stats.ordersCount,
+                      isLoading: isLoading && !isOnline,
+                    ),
+                    const SizedBox(height: 16),
+                    AnimatedSwitcher(
+                      duration: reducedMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      switchInCurve: Curves.easeOut,
+                      child: _ReadinessCard(
+                        key: ValueKey(state.title),
+                        icon: state.icon,
+                        accent: state.accent,
+                        title: state.title,
+                        description: state.description,
+                        isOnline: isOnline,
+                      ),
+                    ),
+                    if (incomingOrder != null) ...[
+                      const SizedBox(height: 16),
+                      _IncomingOrderSheet(
+                        order: incomingOrder!,
+                        progress: offerProgress,
+                        isLoading: isLoading,
+                        onAccept: onAcceptOrder!,
+                        onDecline: onDeclineOrder!,
+                      ),
+                    ],
+                    if (wallet != null && wallet!.debtBalance > 0) ...[
+                      const SizedBox(height: 16),
+                      DriverDebtBanner(wallet: wallet!),
+                    ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        DecoratedBox(
+          decoration: const BoxDecoration(color: AvroDriverColors.background),
+          child: SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: _DriverPrimaryActionButton(
+                  label: primaryLabel,
+                  isLoading: isLoading,
+                  onPressed: onPrimaryAction,
+                  icon: locationUnavailable
+                      ? Icons.location_on_outlined
+                      : isOnline
+                          ? Icons.power_settings_new_rounded
+                          : Icons.play_arrow_rounded,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  _ReadinessContent _stateContent() {
+    if (locationUnavailable) {
+      return const _ReadinessContent(
+        icon: Icons.location_on_outlined,
+        accent: AvroDriverColors.warning,
+        title: 'Включите геолокацию',
+        description:
+            'Чтобы получать заказы рядом и показывать клиенту ваш путь',
+      );
+    }
+    if (outsideServiceArea) {
+      return const _ReadinessContent(
+        icon: Icons.location_off_outlined,
+        accent: AvroDriverColors.warning,
+        title: 'Сервис пока недоступен',
+        description: 'Авро ещё не работает в вашем городе.',
+      );
+    }
+    if (isOnline) {
+      return const _ReadinessContent(
+        icon: Icons.radar_rounded,
+        accent: AvroDriverColors.success,
+        title: 'Ищем заказы рядом',
+        description: 'Новый заказ появится автоматически',
+      );
+    }
+    return const _ReadinessContent(
+      icon: Icons.power_settings_new_rounded,
+      accent: AvroDriverColors.grayHint,
+      title: 'Готовы принимать заказы?',
+      description: 'Выйдите на линию, чтобы получать предложения поблизости',
+    );
+  }
+}
+
+class _ReadinessContent {
+  const _ReadinessContent({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String description;
+}
+
+class _LineStatus extends StatelessWidget {
+  const _LineStatus({required this.isOnline});
+
+  final bool isOnline;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isOnline
+                  ? AvroDriverColors.success
+                  : AvroDriverColors.grayHint,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isOnline ? 'Вы на линии' : 'Вы не на линии',
+            style: EvikTypography.bodyMedium.copyWith(
+              color: AvroDriverColors.grayHint,
+              fontSize: 14,
+              height: 1.43,
+            ),
+          ),
+        ],
+      );
+}
+
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({
+    required this.earnings,
+    required this.orders,
+    required this.isLoading,
+  });
+
+  final String earnings;
+  final int orders;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AvroDriverColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AvroDriverColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Сегодня',
+              style: EvikTypography.bodyMedium.copyWith(
+                color: AvroDriverColors.grayHint,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                      child: _TodayMetric(
+                          value: earnings,
+                          label: 'Заработано',
+                          isLoading: isLoading)),
+                  const VerticalDivider(
+                      color: AvroDriverColors.border, width: 33),
+                  Expanded(
+                      child: _TodayMetric(
+                          value: '$orders',
+                          label: 'Заказов',
+                          isLoading: isLoading)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _TodayMetric extends StatelessWidget {
+  const _TodayMetric(
+      {required this.value, required this.label, required this.isLoading});
+  final String value;
+  final String label;
+  final bool isLoading;
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isLoading)
+            Container(
+                width: 104,
+                height: 38,
+                decoration: BoxDecoration(
+                    color: AvroDriverColors.border,
+                    borderRadius: BorderRadius.circular(8)))
+          else
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value,
+                  style: EvikTypography.h2.copyWith(
+                      color: AvroDriverColors.textPrimary,
+                      fontSize: 32,
+                      height: 1.19,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+          const SizedBox(height: 4),
+          Text(label,
+              style: EvikTypography.bodyMedium.copyWith(
+                  color: AvroDriverColors.grayHint,
+                  fontSize: 14,
+                  height: 1.43)),
+        ],
+      );
+}
+
+class _ReadinessCard extends StatelessWidget {
+  const _ReadinessCard(
+      {super.key,
+      required this.icon,
+      required this.accent,
+      required this.title,
+      required this.description,
+      required this.isOnline});
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String description;
+  final bool isOnline;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+            color: AvroDriverColors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AvroDriverColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, color: accent, size: 28),
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(
+                child: Text(title,
+                    style: EvikTypography.h2.copyWith(
+                        color: AvroDriverColors.textPrimary,
+                        fontSize: 28,
+                        height: 1.21,
+                        fontWeight: FontWeight.w600))),
+            if (isOnline)
+              const Padding(
+                  padding: EdgeInsets.only(left: 12), child: _SearchPulse()),
+          ]),
+          const SizedBox(height: 12),
+          Text(description,
+              style: EvikTypography.bodyLarge.copyWith(
+                  color: AvroDriverColors.grayHint, fontSize: 16, height: 1.5)),
+        ]),
+      );
+}
+
+class _SearchPulse extends StatefulWidget {
+  const _SearchPulse();
+  @override
+  State<_SearchPulse> createState() => _SearchPulseState();
+}
+
+class _SearchPulseState extends State<_SearchPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1800))
+    ..repeat(reverse: true);
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return const _PulseDot(opacity: 1);
+    }
+    return FadeTransition(
+        opacity: Tween<double>(begin: .45, end: 1).animate(
+            CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+        child: const _PulseDot(opacity: 1));
+  }
+}
+
+class _PulseDot extends StatelessWidget {
+  const _PulseDot({required this.opacity});
+  final double opacity;
+  @override
+  Widget build(BuildContext context) => Opacity(
+      opacity: opacity,
+      child: Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(
+              color: AvroDriverColors.success, shape: BoxShape.circle)));
+}
+
+class _DriverPrimaryActionButton extends StatefulWidget {
+  const _DriverPrimaryActionButton(
+      {required this.label,
+      required this.icon,
+      required this.isLoading,
+      required this.onPressed});
+  final String label;
+  final IconData icon;
+  final bool isLoading;
+  final VoidCallback? onPressed;
+  @override
+  State<_DriverPrimaryActionButton> createState() =>
+      _DriverPrimaryActionButtonState();
+}
+
+class _DriverPrimaryActionButtonState
+    extends State<_DriverPrimaryActionButton> {
+  bool _pressed = false;
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: widget.label,
+        child: AnimatedScale(
+          scale: _pressed && !MediaQuery.disableAnimationsOf(context) ? .98 : 1,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 100),
+          child: Listener(
+            onPointerDown: (_) => setState(() => _pressed = true),
+            onPointerUp: (_) => setState(() => _pressed = false),
+            onPointerCancel: (_) => setState(() => _pressed = false),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: widget.onPressed,
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    backgroundColor: AvroDriverColors.textPrimary,
+                    foregroundColor: AvroDriverColors.background,
+                    disabledBackgroundColor: AvroDriverColors.border,
+                    disabledForegroundColor: AvroDriverColors.grayHint,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                    textStyle: EvikTypography.buttonText
+                        .copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
+                icon: widget.isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AvroDriverColors.background))
+                    : Icon(widget.icon, size: 20),
+                label: Text(widget.label),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
 class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     with TickerProviderStateMixin {
-  bool _isAppInForeground = true;
   late final _DriverLifecycleObserver _lifecycleObserver;
   AnimationController? _offerAnimationController;
   Animation<double>? _offerProgressAnimation;
@@ -52,6 +568,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   double? _currentLat;
   double? _currentLng;
   bool _locationUnavailable = false;
+  PermissionResult? _locationPermission;
 
   @override
   void initState() {
@@ -59,11 +576,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     _lifecycleObserver = _DriverLifecycleObserver(
       onChanged: (state) {
         if (!mounted) return;
-        setState(() {
-          _isAppInForeground = state != AppLifecycleState.paused &&
-              state != AppLifecycleState.detached &&
-              state != AppLifecycleState.hidden;
-        });
+        if (state == AppLifecycleState.resumed) _initLocation();
       },
     );
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
@@ -75,18 +588,11 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
 
     if (!mounted) return;
 
-    if (permission == PermissionResult.serviceDisabled) {
-      setState(() => _locationUnavailable = true);
-      return;
-    }
-
-    if (permission == PermissionResult.deniedForever) {
-      setState(() => _locationUnavailable = true);
-      return;
-    }
-
-    if (permission == PermissionResult.denied) {
-      setState(() => _locationUnavailable = true);
+    if (permission != PermissionResult.granted) {
+      setState(() {
+        _locationUnavailable = true;
+        _locationPermission = permission;
+      });
       return;
     }
 
@@ -96,6 +602,8 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
         setState(() {
           _currentLat = pos.latitude;
           _currentLng = pos.longitude;
+          _locationUnavailable = false;
+          _locationPermission = PermissionResult.granted;
         });
         ref
             .read(serviceAreaProvider.notifier)
@@ -103,9 +611,32 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _locationUnavailable = true);
+        setState(() {
+          _locationUnavailable = true;
+          _locationPermission = PermissionResult.denied;
+        });
       }
     }
+  }
+
+  Future<void> _openLocationSettings({required bool serviceDisabled}) async {
+    final opened = serviceDisabled
+        ? await Geolocator.openLocationSettings()
+        : await Geolocator.openAppSettings();
+    if (opened || !mounted) return;
+
+    // iOS simulators do not always expose a separate system location page.
+    // The app settings page is the supported fallback for its permission.
+    if (serviceDisabled && await Geolocator.openAppSettings()) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Не удалось открыть настройки. Разрешите геолокацию для Авро в настройках устройства.',
+        ),
+        backgroundColor: AvroDriverColors.error,
+      ),
+    );
   }
 
   @override
@@ -119,13 +650,13 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
   Widget build(BuildContext context) {
     RebuildTracker.trackRebuild('NewDriverHomeScreen');
 
-    final workState =
-        ref.watch(newDriverProvider.select((state) => state.workState));
-    final availableOrders =
-        ref.watch(newDriverProvider.select((state) => state.availableOrders));
-    final isLoading =
-        ref.watch(newDriverProvider.select((state) => state.isLoading));
-    final stats = ref.watch(newDriverProvider.select((state) => state.stats));
+    final auditState = widget.auditState;
+    final providerState = ref.watch(newDriverProvider);
+    final displayedState = auditState ?? providerState;
+    final workState = displayedState.workState;
+    final availableOrders = displayedState.availableOrders;
+    final isLoading = displayedState.isLoading;
+    final stats = displayedState.stats;
     final driverProfile = ref.watch(driverProfileProvider);
     final serviceArea = ref.watch(serviceAreaProvider);
     final walletState = ref.watch(driverWalletProvider);
@@ -152,16 +683,15 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
 
     return Scaffold(
-      backgroundColor: AvroDriverColors.surface,
-      body: workState == DriverWorkState.offline
-          ? SafeArea(
-              child: _buildOfflineView(
-                  driverState, driverProfile, serviceArea, walletState))
-          : _BackgroundOptimizer(
-              isDriverWaiting: workState == DriverWorkState.online,
-              isAppInForeground: _isAppInForeground,
-              child: _buildOnlineView(driverState, driverProfile, serviceArea),
-            ),
+      backgroundColor: AvroDriverColors.background,
+      body: SafeArea(
+        child: _buildOfflineView(
+          driverState,
+          driverProfile,
+          serviceArea,
+          walletState,
+        ),
+      ),
     );
   }
 
@@ -245,145 +775,106 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     );
   }
 
-  Widget _buildOfflineView(DriverState driverState,
-      AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea,
+  Widget _buildOfflineView(
+      DriverState driverState,
+      AsyncValue<Driver?> driverProfile,
+      ServiceAreaState serviceArea,
       DriverWalletState walletState) {
     final outsideServiceArea = serviceArea.isChecked && !serviceArea.isAllowed;
     final canGoOnline = !_locationUnavailable && !outsideServiceArea;
-    final wallet = walletState.wallet;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (outsideServiceArea) _DriverServiceAreaBanner(),
-            if (_locationUnavailable) _LocationUnavailableBanner(),
-            if (wallet != null && wallet.debtBalance > 0)
-              DriverDebtBanner(wallet: wallet),
-            // Приветствие
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Добрый день,',
-                      style: EvikTypography.h2.copyWith(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 22,
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        Text(
-                          _getDriverDisplayName(driverProfile),
-                          style: EvikTypography.h2.copyWith(fontSize: 22),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('👋', style: TextStyle(fontSize: 20)),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: AvroDriverColors.textPrimary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      _getDriverInitial(driverProfile),
-                      style: const TextStyle(
-                        color: AvroDriverColors.surface,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    final isOnline = driverState.workState == DriverWorkState.online;
+    _syncIncomingOffer(driverState.workState, driverState.availableOrders);
+    final incomingOrder = isOnline && driverState.availableOrders.isNotEmpty
+        ? driverState.availableOrders.first
+        : null;
+    final locationAction = _locationPermission == PermissionResult.deniedForever
+        ? 'Открыть настройки'
+        : _locationPermission == PermissionResult.serviceDisabled
+            ? 'Включить геолокацию'
+            : 'Разрешить геолокацию';
+
+    Future<void> handleAction() async {
+      if (_locationUnavailable) {
+        if (_locationPermission == PermissionResult.deniedForever) {
+          await _openLocationSettings(serviceDisabled: false);
+          return;
+        }
+        if (_locationPermission == PermissionResult.serviceDisabled) {
+          await _openLocationSettings(serviceDisabled: true);
+          return;
+        }
+        await _initLocation();
+        if (!mounted || !_locationUnavailable) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Разрешение не выдано. Откройте настройки и включите геолокацию для Авро.',
             ),
-
-            const SizedBox(height: 24),
-
-            // Offline состояние
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AvroDriverColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.20),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AvroDriverColors.grayHint,
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    child: const Icon(
-                      Icons.power_settings_new,
-                      color: AvroDriverColors.grayHint,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Вы не в сети',
-                    style: EvikTypography.h3.copyWith(fontSize: 18),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                      'Включите режим работы, чтобы получать заказы',
-                    style: EvikTypography.bodyMedium.copyWith(
-                      color: AvroDriverColors.grayHint,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+            action: SnackBarAction(
+              label: 'Настройки',
+              onPressed: () => _openLocationSettings(serviceDisabled: false),
             ),
+          ),
+        );
+        return;
+      }
+      try {
+        HapticFeedback.selectionClick();
+      } catch (_) {}
+      if (isOnline) {
+        await ref.read(newDriverProvider.notifier).goOffline();
+      } else if (canGoOnline) {
+        await ref.read(newDriverProvider.notifier).goOnline(
+              lat: _currentLat,
+              lng: _currentLng,
+            );
+      }
+    }
 
-            const SizedBox(height: 24),
-
-            // Кнопка начать работу
-            EvikButton(
-              text: 'Начать работу',
-              isLoading: driverState.isLoading,
-              onPressed: driverState.isLoading || !canGoOnline
-                  ? null
-                  : () {
-                      try { HapticFeedback.selectionClick(); } catch (_) {}
-                      ref.read(newDriverProvider.notifier).goOnline(
-                        lat: _currentLat,
-                        lng: _currentLng,
-                      );
-                    },
-              width: double.infinity,
-              variant: EvikButtonVariant.green,
-            ),
-          ],
-        ),
-      ),
+    return _DriverHomeDashboard(
+      name: _getDriverDisplayName(driverProfile),
+      initial: _getDriverInitial(driverProfile),
+      isOnline: isOnline,
+      isLoading: driverState.isLoading,
+      stats: driverState.stats.today,
+      locationUnavailable: _locationUnavailable,
+      outsideServiceArea: outsideServiceArea,
+      wallet: walletState.wallet,
+      onOpenProfile: widget.onOpenProfile,
+      onPrimaryAction: driverState.isLoading || (!isOnline && !canGoOnline)
+          ? (_locationUnavailable ? handleAction : null)
+          : handleAction,
+      primaryLabel: driverState.isLoading
+          ? 'Подключаемся…'
+          : _locationUnavailable
+              ? locationAction
+              : isOnline
+                  ? 'Завершить работу'
+                  : 'Выйти на линию',
+      incomingOrder: incomingOrder,
+      offerProgress: _offerProgressAnimation?.value ?? 1,
+      onDeclineOrder: incomingOrder == null
+          ? null
+          : () {
+              _offerAnimationController?.stop();
+              ref
+                  .read(newDriverProvider.notifier)
+                  .declineOrder(incomingOrder.id);
+            },
+      onAcceptOrder: incomingOrder == null
+          ? null
+          : () {
+              _offerAnimationController?.stop();
+              ref
+                  .read(newDriverProvider.notifier)
+                  .acceptOrder(incomingOrder.id);
+            },
     );
   }
 
-  Widget _buildOnlineView(
-      DriverState driverState, AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
+  // ignore: unused_element
+  Widget _buildOnlineView(DriverState driverState,
+      AsyncValue<Driver?> driverProfile, ServiceAreaState serviceArea) {
     _syncIncomingOffer(driverState.workState, driverState.availableOrders);
     final incomingOrder = driverState.availableOrders.isEmpty
         ? null
@@ -424,7 +915,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
             onGoOffline: driverState.isLoading
                 ? null
                 : () {
-                    try { HapticFeedback.selectionClick(); } catch (_) {}
+                    try {
+                      HapticFeedback.selectionClick();
+                    } catch (_) {}
                     ref.read(newDriverProvider.notifier).goOffline();
                   },
           ),
@@ -450,7 +943,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                   progress: _offerProgressAnimation?.value ?? 1.0,
                   isLoading: driverState.isLoading,
                   onDecline: () {
-                    try { HapticFeedback.lightImpact(); } catch (_) {}
+                    try {
+                      HapticFeedback.lightImpact();
+                    } catch (_) {}
                     _offerAnimationController?.stop();
                     setState(() {
                       _visibleOfferId = null;
@@ -460,7 +955,9 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
                         .declineOrder(incomingOrder.id);
                   },
                   onAccept: () {
-                    try { HapticFeedback.heavyImpact(); } catch (_) {}
+                    try {
+                      HapticFeedback.heavyImpact();
+                    } catch (_) {}
                     _offerAnimationController?.stop();
                     ref
                         .read(newDriverProvider.notifier)
@@ -566,6 +1063,7 @@ class _RouteUnavailableBadge extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _DriverServiceAreaBanner extends StatelessWidget {
   const _DriverServiceAreaBanner();
 
@@ -602,6 +1100,7 @@ class _DriverServiceAreaBanner extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _LocationUnavailableBanner extends StatelessWidget {
   const _LocationUnavailableBanner();
 
@@ -747,6 +1246,7 @@ class _WaitingForOrdersCard extends StatelessWidget {
                   Text(
                     'Ищем заказы рядом',
                     style: EvikTypography.bodyLarge.copyWith(
+                      color: AvroDriverColors.textPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -814,7 +1314,9 @@ class _IncomingOrderSheet extends StatelessWidget {
                       children: [
                         Text(
                           'Новый заказ рядом',
-                          style: EvikTypography.h3.copyWith(fontSize: 19),
+                          style: EvikTypography.h3.copyWith(
+                              fontSize: 19,
+                              color: AvroDriverColors.textPrimary),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -828,7 +1330,8 @@ class _IncomingOrderSheet extends StatelessWidget {
                   ),
                   Text(
                     '${order.price.toInt()} ₽',
-                    style: EvikTypography.price.copyWith(fontSize: 21),
+                    style: EvikTypography.price.copyWith(
+                        fontSize: 21, color: AvroDriverColors.textPrimary),
                   ),
                 ],
               ),
@@ -918,7 +1421,6 @@ class _IncomingOrderSheet extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _OrderActionButton extends StatelessWidget {
@@ -1033,13 +1535,16 @@ class _AddressLine extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: EvikTypography.sectionLabel),
+              Text(label,
+                  style: EvikTypography.sectionLabel
+                      .copyWith(color: AvroDriverColors.grayHint)),
               const SizedBox(height: 2),
               Text(
                 value,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: EvikTypography.bodyMedium.copyWith(
+                  color: AvroDriverColors.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1062,6 +1567,7 @@ class _DriverLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
+// ignore: unused_element
 class _BackgroundOptimizer extends StatelessWidget {
   const _BackgroundOptimizer({
     required this.child,

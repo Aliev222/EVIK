@@ -119,7 +119,9 @@ void main() {
 
     await tester.pumpAndSettle();
     expect(find.byType(DriverMainScreen), findsOneWidget);
-    expect(find.text('Начать работу'), findsOneWidget);
+    expect(find.text('Сегодня'), findsOneWidget);
+    expect(find.text('Готовы принимать заказы?'), findsOneWidget);
+    expect(find.text('Выйти на линию'), findsOneWidget);
   });
 }
 

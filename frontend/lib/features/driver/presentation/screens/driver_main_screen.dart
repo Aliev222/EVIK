@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/app_theme.dart';
@@ -29,51 +29,40 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
     return Theme(
       data: AppTheme.driver(),
       child: Scaffold(
-      extendBody: true,
-      body: RepaintBoundary(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            RepaintBoundary(
-              child: hasActiveOrder
-                  ? const ActiveOrderScreen()
-                  : const NewDriverHomeScreen(),
-            ),
-            RepaintBoundary(
-              child: DriverOrdersHistoryScreen(
-                onGoHome: () => setState(() => _currentIndex = 0),
+        body: RepaintBoundary(
+          child: IndexedStack(
+            index: _currentIndex,
+            children: [
+              RepaintBoundary(
+                child: hasActiveOrder
+                    ? const ActiveOrderScreen()
+                    : NewDriverHomeScreen(
+                        onOpenProfile: () => setState(() => _currentIndex = 3),
+                      ),
               ),
-            ),
-            const RepaintBoundary(child: DriverEarningsScreen()),
-            const RepaintBoundary(child: DriverProfileScreen()),
-          ],
+              RepaintBoundary(
+                child: DriverOrdersHistoryScreen(
+                  onGoHome: () => setState(() => _currentIndex = 0),
+                ),
+              ),
+              const RepaintBoundary(child: DriverEarningsScreen()),
+              const RepaintBoundary(child: DriverProfileScreen()),
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildBottomNavigation(hasActiveOrder),
       ),
-      bottomNavigationBar: _buildBottomNavigation(hasActiveOrder),
-    ),
     );
   }
 
   Widget _buildBottomNavigation(bool hasActiveOrder) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+    return SafeArea(
+      top: false,
       child: Container(
         height: 72,
         decoration: BoxDecoration(
           color: AvroDriverColors.navBar,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.14),
-              blurRadius: 22,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: const Border(top: BorderSide(color: AvroDriverColors.border)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Row(
@@ -127,7 +116,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => setState(() => _currentIndex = index),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.zero,
           child: SizedBox(
             height: 72,
             child: Column(
@@ -174,10 +163,11 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color:
-                        isActive ? AvroDriverColors.accent : AvroDriverColors.grayHint,
+                    color: isActive
+                        ? AvroDriverColors.accent
+                        : AvroDriverColors.grayHint,
                   ),
                 ),
               ],
