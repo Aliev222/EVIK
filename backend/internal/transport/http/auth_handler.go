@@ -340,8 +340,19 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: now,
 		}
 		if err := h.users.Create(r.Context(), user); err != nil {
-			writeAuthError(w, http.StatusInternalServerError, "failed to create user")
-			return
+			// A concurrent OTP verification can create the same (phone, role)
+			// account after our lookup but before this insert. The unique index is
+			// the authoritative arbiter; load the winner rather than surfacing an
+			// expected race as HTTP 500.
+			if !errors.Is(err, userdomain.ErrUserAlreadyExists) {
+				writeAuthError(w, http.StatusInternalServerError, "failed to create user")
+				return
+			}
+			user, err = h.users.GetByPhoneAndRole(r.Context(), phone, string(role))
+			if err != nil {
+				writeAuthError(w, http.StatusInternalServerError, "failed to load concurrently created user")
+				return
+			}
 		}
 	} else if err != nil {
 		writeAuthError(w, http.StatusInternalServerError, "failed to load user")

@@ -10,10 +10,13 @@ import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_dr
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('online uses background stream, preserves restored trip and clears ended order', () async {
+  test(
+      'online uses background stream, preserves restored trip and clears ended order',
+      () async {
     final transport = _Transport();
     final location = _Location();
-    final notifier = DriverRealTimeNotifier(transport, locationService: location);
+    final notifier =
+        DriverRealTimeNotifier(transport, locationService: location);
     addTearDown(notifier.dispose);
     addTearDown(transport.dispose);
     await notifier.connectAsDriver('driver', accessToken: 'token');
@@ -37,10 +40,12 @@ void main() {
 
   test('an offer is not an accepted order', () async {
     final transport = _Transport();
-    final notifier = DriverRealTimeNotifier(transport, locationService: _Location());
+    final notifier =
+        DriverRealTimeNotifier(transport, locationService: _Location());
     addTearDown(notifier.dispose);
     addTearDown(transport.dispose);
-    transport.orders.add(OrderUpdate(orderId: 'offered', status: OrderUpdateType.offerAssigned));
+    transport.orders.add(
+        OrderUpdate(orderId: 'offered', status: OrderUpdateType.offerAssigned));
     await Future<void>.delayed(Duration.zero);
     expect(notifier.state.currentOrder, isNull);
   });
@@ -48,7 +53,8 @@ void main() {
   test('denied background permission does not enter online state', () async {
     final transport = _Transport();
     final location = _Location()..denyPermission = true;
-    final notifier = DriverRealTimeNotifier(transport, locationService: location);
+    final notifier =
+        DriverRealTimeNotifier(transport, locationService: location);
     addTearDown(notifier.dispose);
     addTearDown(transport.dispose);
     await notifier.connectAsDriver('driver', accessToken: 'token');
@@ -66,17 +72,27 @@ class _Location extends DriverLocationService {
   void Function(Position)? onPosition;
 
   Position position({double speed = 0, double heading = 0}) => Position(
-    longitude: 47.5, latitude: 42.98, timestamp: DateTime.now(), accuracy: 5,
-    altitude: 0, altitudeAccuracy: 0, heading: heading, headingAccuracy: 0,
-    speed: speed, speedAccuracy: 0,
-  );
+        longitude: 47.5,
+        latitude: 42.98,
+        timestamp: DateTime.now(),
+        accuracy: 5,
+        altitude: 0,
+        altitudeAccuracy: 0,
+        heading: heading,
+        headingAccuracy: 0,
+        speed: speed,
+        speedAccuracy: 0,
+      );
 
-  void emit({required double speed, required double heading}) => onPosition?.call(position(speed: speed, heading: heading));
+  void emit({required double speed, required double heading}) =>
+      onPosition?.call(position(speed: speed, heading: heading));
 
   @override
   Future<bool> checkPermissions({bool requireBackground = false}) async {
     requiredBackground = requireBackground;
-    if (denyPermission) throw const DriverLocationException('permission denied');
+    if (denyPermission) {
+      throw const DriverLocationException('permission denied');
+    }
     return true;
   }
 
@@ -84,13 +100,19 @@ class _Location extends DriverLocationService {
   Future<Position> getCurrentPosition() async => position();
 
   @override
-  Future<void> startLocationTracking({required String driverId, Duration interval = const Duration(seconds: 10), void Function(Position)? onPosition, void Function(Object)? onError}) async {
+  Future<void> startLocationTracking(
+      {required String driverId,
+      Duration interval = const Duration(seconds: 10),
+      void Function(Position)? onPosition,
+      void Function(Object)? onError}) async {
     tracking = true;
     this.onPosition = onPosition;
   }
 
   @override
-  Future<void> stopLocationTracking() async { tracking = false; }
+  Future<void> stopLocationTracking() async {
+    tracking = false;
+  }
 }
 
 class _Transport extends RealTimeLocationService {
@@ -108,14 +130,25 @@ class _Transport extends RealTimeLocationService {
     required String userId,
     required String userType,
     String accessToken = '',
-  }) async => true;
+  }) async =>
+      true;
   @override
   Future<void> disconnect() async {}
   @override
-  Future<void> sendDriverLocation({required double lat, required double lng, double bearing = 0, double speed = 0, DriverMarkerStatus status = DriverMarkerStatus.waiting, String? orderId, bool isMock = false}) async {
+  Future<void> sendDriverLocation(
+      {required double lat,
+      required double lng,
+      double bearing = 0,
+      double speed = 0,
+      DriverMarkerStatus status = DriverMarkerStatus.waiting,
+      String? orderId,
+      bool isMock = false,
+      DateTime? sampledAt,
+      double? accuracyM}) async {
     lastOrderId = orderId;
     lastSpeed = speed;
   }
+
   @override
   void dispose() {
     orders.close();

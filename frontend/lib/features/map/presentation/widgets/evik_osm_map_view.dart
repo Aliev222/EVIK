@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,7 +8,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:tow_truck_frontend/core/constants/app_constants.dart';
 import 'package:tow_truck_frontend/core/services/location_service.dart';
 import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'pulsing_location_dot.dart';
 
 class EvikOsmMapView extends StatefulWidget {
@@ -20,23 +21,30 @@ class EvikOsmMapView extends StatefulWidget {
     this.onTap,
     this.onCameraMove,
     this.onCameraEnd,
+    this.onManualCamera,
     this.onRecenter,
     this.markers = const <EvikMapMarker>[],
     this.routePoints = const <LatLng>[],
     this.routeColor,
+    this.routeStrokeWidth = 3,
+    this.routeBorderStrokeWidth = 1.5,
+    this.scaleMarkersWithZoom = false,
     this.showControls = true,
     this.fitToMarkers = true,
+    this.refitOnMarkerChanges = true,
     this.showUserLocation = true,
     this.showLocationButton = true,
     this.showRecenterButton = false,
     this.onLocationButtonPressed,
     this.controlsBottomOffset = 42,
     this.attributionBottomOffset = 16,
+    this.attributionRightOffset = 16,
     this.controlsBackgroundColor,
     this.controlsIconColor,
     this.mapController,
     this.showStandaloneLocationButton = false,
     this.locationButtonBottomOffset = 16,
+    this.fitPadding = const EdgeInsets.all(42),
   });
 
   final double? initialLat;
@@ -45,12 +53,26 @@ class EvikOsmMapView extends StatefulWidget {
   final void Function(double lat, double lng)? onTap;
   final void Function(double lat, double lng)? onCameraMove;
   final VoidCallback? onCameraEnd;
+
+  /// Called once a gesture or a local zoom control takes ownership of camera.
+  final VoidCallback? onManualCamera;
   final VoidCallback? onRecenter;
   final List<EvikMapMarker> markers;
   final List<LatLng> routePoints;
   final Color? routeColor;
+
+  /// Width of the visible route centre line in logical pixels.
+  final double routeStrokeWidth;
+
+  /// Width of the contrasting route casing in logical pixels.
+  final double routeBorderStrokeWidth;
+
+  /// Opt-in marker scaling for the live tracking map. Other map surfaces
+  /// deliberately retain their established fixed marker sizes.
+  final bool scaleMarkersWithZoom;
   final bool showControls;
   final bool fitToMarkers;
+  final bool refitOnMarkerChanges;
   final bool showUserLocation;
   final bool showLocationButton;
   final bool showRecenterButton;
@@ -58,6 +80,7 @@ class EvikOsmMapView extends StatefulWidget {
       onLocationButtonPressed;
   final double controlsBottomOffset;
   final double attributionBottomOffset;
+  final double attributionRightOffset;
   final Color? controlsBackgroundColor;
   final Color? controlsIconColor;
 
@@ -72,6 +95,7 @@ class EvikOsmMapView extends StatefulWidget {
 
   /// Bottom offset (from the view's bottom edge) of the standalone button.
   final double locationButtonBottomOffset;
+  final EdgeInsets fitPadding;
 
   @override
   State<EvikOsmMapView> createState() => _EvikOsmMapViewState();
@@ -79,11 +103,20 @@ class EvikOsmMapView extends StatefulWidget {
 
 class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   late final MapController _mapController;
+  late final NetworkTileProvider _tileProvider;
   bool _isLocating = false;
   bool _userInteracted = false;
   StreamSubscription<Position>? _userLocationSubscription;
   LatLng? _userLocation;
   bool _locationErrorShown = false;
+  double _markerScale = 1;
+
+  // The tracking marker is 28 logical pixels at zoom 12 and 44 at zoom 18.
+  // Keep these values here so visual tuning is explicit and local.
+  static const double trackingMarkerMinZoom = 12;
+  static const double trackingMarkerMaxZoom = 18;
+  static const double trackingMarkerMinSize = 28;
+  static const double trackingMarkerMaxSize = 44;
 
   LatLng get _initialCenter => LatLng(
         widget.initialLat ?? AppConstants.makhachkalaLat,
@@ -94,19 +127,33 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   void initState() {
     super.initState();
     _mapController = widget.mapController ?? MapController();
+    // The tracking marker animates independently at frame rate. Keep the
+    // network client alive across those rebuilds, otherwise every frame
+    // disposes the previous TileLayer client and aborts in-flight tile loads.
+    _tileProvider = NetworkTileProvider(
+      // Marker-only rebuilds do not make the visible map tiles obsolete.
+      // Treating them as obsolete aborts every request during continuous GPS
+      // interpolation and leaves a blank map on a cold cache.
+      abortObsoleteRequests: false,
+    );
+    _markerScale = _markerScaleForZoom(widget.initialZoom);
     if (widget.showUserLocation) _subscribeToUserLocation();
   }
 
   @override
   void didUpdateWidget(covariant EvikOsmMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final routeLenChanged = widget.routePoints.length != oldWidget.routePoints.length;
+    final routeLenChanged =
+        widget.routePoints.length != oldWidget.routePoints.length;
     if (routeLenChanged) {
-      debugPrint('[MAPVIEW] routePoints changed: ${oldWidget.routePoints.length} → ${widget.routePoints.length}');
+      debugPrint(
+          '[MAPVIEW] routePoints changed: ${oldWidget.routePoints.length} → ${widget.routePoints.length}');
       if (widget.routePoints.length >= 2) {
-        debugPrint('[MAPVIEW] PolylineLayer WILL render (${widget.routePoints.length} points, color: ${widget.routeColor})');
+        debugPrint(
+            '[MAPVIEW] PolylineLayer WILL render (${widget.routePoints.length} points, color: ${widget.routeColor})');
       } else {
-        debugPrint('[MAPVIEW] PolylineLayer NOT rendered — need >=2 points, got ${widget.routePoints.length}');
+        debugPrint(
+            '[MAPVIEW] PolylineLayer NOT rendered — need >=2 points, got ${widget.routePoints.length}');
       }
     }
     if (widget.showUserLocation != oldWidget.showUserLocation) {
@@ -121,13 +168,15 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
         widget.initialZoom != oldWidget.initialZoom;
     if (centerChanged && !widget.fitToMarkers) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _mapController.move(_initialCenter, _mapController.camera.zoom);
+        if (mounted) {
+          _mapController.move(_initialCenter, _mapController.camera.zoom);
+        }
       });
       return;
     }
 
     if (widget.fitToMarkers &&
-        (widget.markers != oldWidget.markers ||
+        ((widget.refitOnMarkerChanges && widget.markers != oldWidget.markers) ||
             widget.routePoints != oldWidget.routePoints)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fitCamera());
     }
@@ -154,7 +203,12 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                   widget.onTap?.call(latLng.latitude, latLng.longitude);
                 },
                 onPositionChanged: (camera, hasGesture) {
+                  _updateMarkerScale(camera.zoom);
                   if (!hasGesture) return;
+                  if (!_userInteracted) {
+                    _userInteracted = true;
+                    widget.onManualCamera?.call();
+                  }
                   final center = camera.center;
                   widget.onCameraMove?.call(
                     center.latitude,
@@ -166,7 +220,10 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                           event.source == MapEventSource.dragStart ||
                       event is MapEventDoubleTapZoom ||
                       event is MapEventScrollWheelZoom) {
-                    _userInteracted = true;
+                    if (!_userInteracted) {
+                      _userInteracted = true;
+                      widget.onManualCamera?.call();
+                    }
                   }
                   if (event is MapEventMoveEnd ||
                       event is MapEventFlingAnimationEnd) {
@@ -175,11 +232,42 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                 },
               ),
               children: [
-                TileLayer(
-                  urlTemplate: AppConstants.openStreetMapTileUrl,
-                  userAgentPackageName: 'com.avro.app',
-                  subdomains: const ['a', 'b', 'c', 'd'],
-                  maxZoom: 19,
+                ColorFiltered(
+                  // Keep the reliable OSM raster source, but calm its visual
+                  // density so routes, vehicles and order points stay primary.
+                  // This single layer filter avoids switching back to a tile
+                  // provider that can render "API KEY REQUIRED" tiles.
+                  colorFilter: const ColorFilter.matrix(<double>[
+                    0.106,
+                    0.358,
+                    0.036,
+                    0,
+                    128,
+                    0.106,
+                    0.358,
+                    0.036,
+                    0,
+                    128,
+                    0.106,
+                    0.358,
+                    0.036,
+                    0,
+                    128,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                  ]),
+                  child: TileLayer(
+                    urlTemplate: AppConstants.openStreetMapTileUrl,
+                    tileProvider: _tileProvider,
+                    userAgentPackageName: 'com.rasul.avro',
+                    maxZoom: 19,
+                    errorTileCallback: (tile, error, _) {
+                      debugPrint('EvikOsmMapView: tile load failed: $error');
+                    },
+                  ),
                 ),
                 if (widget.routePoints.length >= 2)
                   PolylineLayer(
@@ -187,9 +275,9 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                       Polyline(
                         points: widget.routePoints,
                         color: widget.routeColor ?? AvroClientColors.accent,
-                        strokeWidth: 3,
+                        strokeWidth: widget.routeStrokeWidth,
                         borderColor: AvroClientColors.background,
-                        borderStrokeWidth: 1.5,
+                        borderStrokeWidth: widget.routeBorderStrokeWidth,
                         strokeCap: StrokeCap.round,
                         strokeJoin: StrokeJoin.round,
                       ),
@@ -208,20 +296,25 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                     ],
                   ),
                 MarkerLayer(
-                  markers: widget.markers
-                      .map(
-                        (marker) {
-                          final isCustom = marker.child != null;
-                          return Marker(
-                            point: LatLng(marker.lat, marker.lng),
-                            width: isCustom ? 56 : 48,
-                            height: isCustom ? 56 : 56,
-                            alignment: isCustom ? Alignment.center : Alignment.topCenter,
-                            child: _AnimatedMapMarker(marker: marker),
-                          );
-                        },
-                      )
-                      .toList(growable: false),
+                  markers: widget.markers.map(
+                    (marker) {
+                      final isCustom = marker.child != null;
+                      return Marker(
+                        point: LatLng(marker.lat, marker.lng),
+                        width: isCustom ? 56 : 48,
+                        height: isCustom ? 56 : 56,
+                        alignment:
+                            isCustom ? Alignment.center : Alignment.topCenter,
+                        child: Transform.scale(
+                          // Only the tow-truck artwork follows the explicit
+                          // 28–44 px zoom curve. A/B pins keep a stable size
+                          // and cannot visually grow over the vehicle.
+                          scale: isCustom ? _markerScale : 1,
+                          child: _AnimatedMapMarker(marker: marker),
+                        ),
+                      );
+                    },
+                  ).toList(growable: false),
                 ),
               ],
             ),
@@ -238,14 +331,8 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
                 iconColor: widget.controlsIconColor,
                 onLocate: _moveToCurrentLocation,
                 onRecenter: _recenterMap,
-                onZoomIn: () => _mapController.move(
-                  _mapController.camera.center,
-                  (_mapController.camera.zoom + 1).clamp(3, 19),
-                ),
-                onZoomOut: () => _mapController.move(
-                  _mapController.camera.center,
-                  (_mapController.camera.zoom - 1).clamp(3, 19),
-                ),
+                onZoomIn: () => _manualZoom(1),
+                onZoomOut: () => _manualZoom(-1),
               ),
             ),
           if (widget.showStandaloneLocationButton)
@@ -257,11 +344,12 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
               ),
             ),
           Positioned(
-            right: 16,
+            right: widget.attributionRightOffset,
             bottom: widget.attributionBottomOffset,
             child: const Text(
               AppConstants.openStreetMapAttribution,
-              style: TextStyle(color: AvroClientColors.textSecondary, fontSize: 10),
+              style: TextStyle(
+                  color: AvroClientColors.textSecondary, fontSize: 10),
             ),
           ),
         ],
@@ -272,6 +360,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
   @override
   void dispose() {
     _unsubscribeFromUserLocation();
+    unawaited(_tileProvider.dispose());
     super.dispose();
   }
 
@@ -310,6 +399,10 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
       final location = await OpenStreetMapService.getCurrentLocation();
       if (!mounted || location == null) return;
       final point = LatLng(location.latitude, location.longitude);
+      if (!_userInteracted) {
+        _userInteracted = true;
+        widget.onManualCamera?.call();
+      }
       _mapController.move(point, 17);
       widget.onLocationButtonPressed?.call(
         location.latitude,
@@ -335,12 +428,42 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
     widget.onRecenter?.call();
   }
 
+  void _manualZoom(double delta) {
+    if (!_userInteracted) {
+      _userInteracted = true;
+      widget.onManualCamera?.call();
+    }
+    _mapController.move(
+      _mapController.camera.center,
+      (_mapController.camera.zoom + delta).clamp(3, 19),
+    );
+  }
+
+  void _updateMarkerScale(double zoom) {
+    if (!widget.scaleMarkersWithZoom) return;
+    final nextScale = _markerScaleForZoom(zoom);
+    if ((nextScale - _markerScale).abs() < 0.01 || !mounted) return;
+    setState(() => _markerScale = nextScale);
+  }
+
+  double _markerScaleForZoom(double zoom) {
+    if (!widget.scaleMarkersWithZoom) return 1;
+    final span = trackingMarkerMaxZoom - trackingMarkerMinZoom;
+    final progress = ((zoom - trackingMarkerMinZoom) / span).clamp(0.0, 1.0);
+    final size = trackingMarkerMinSize +
+        (trackingMarkerMaxSize - trackingMarkerMinSize) * progress;
+    return size / trackingMarkerMaxSize;
+  }
+
   /// Centers the camera on the position currently represented by the map
   /// (initialLat/initialLng — i.e. the client's known position) without
   /// issuing a new GPS request.
   void _centerOnMyPosition() {
+    if (!_userInteracted) {
+      _userInteracted = true;
+      widget.onManualCamera?.call();
+    }
     _mapController.move(_initialCenter, 17);
-    widget.onRecenter?.call();
   }
 
   void _fitCamera() {
@@ -360,7 +483,7 @@ class _EvikOsmMapViewState extends State<EvikOsmMapView> {
     _mapController.fitCamera(
       CameraFit.bounds(
         bounds: bounds,
-        padding: const EdgeInsets.all(42),
+        padding: widget.fitPadding,
       ),
     );
   }
@@ -395,7 +518,8 @@ class _StandaloneLocationButton extends StatelessWidget {
   }
 }
 
-class _AnimatedMapMarker extends StatelessWidget {  const _AnimatedMapMarker({required this.marker});
+class _AnimatedMapMarker extends StatelessWidget {
+  const _AnimatedMapMarker({required this.marker});
 
   final EvikMapMarker marker;
 
@@ -423,7 +547,8 @@ class _AnimatedMapMarker extends StatelessWidget {  const _AnimatedMapMarker({re
               decoration: BoxDecoration(
                 color: marker.color,
                 shape: BoxShape.circle,
-                border: Border.all(color: AvroClientColors.background, width: 3),
+                border:
+                    Border.all(color: AvroClientColors.background, width: 3),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.2),

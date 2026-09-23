@@ -6,6 +6,7 @@ class _FakeApiClient implements ApiClient {
   Map<String, dynamic> response = <String, dynamic>{};
   String? lastPath;
   Map<String, String>? lastHeaders;
+  Map<String, dynamic>? lastBody;
 
   @override
   Future<Map<String, dynamic>> get(
@@ -28,9 +29,16 @@ class _FakeApiClient implements ApiClient {
       throw UnimplementedError();
 
   @override
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body,
-          {Map<String, String>? headers}) =>
-      throw UnimplementedError();
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    Map<String, String>? headers,
+  }) async {
+    lastPath = path;
+    lastBody = body;
+    lastHeaders = headers;
+    return response;
+  }
 
   @override
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body,
@@ -89,5 +97,42 @@ void main() {
     expect(result?.points, hasLength(2));
     expect(result?.distanceMeters, 1200);
     expect(result?.durationSeconds, 300);
+  });
+
+  test('order route uses canonical endpoint and parses route metadata',
+      () async {
+    final client = _FakeApiClient()
+      ..response = <String, dynamic>{
+        'points': <Map<String, dynamic>>[
+          <String, dynamic>{'lat': 42.98, 'lng': 47.50},
+          <String, dynamic>{'lat': 42.99, 'lng': 47.51},
+        ],
+        'distanceMeters': 1250,
+        'durationSeconds': 320,
+        'routeVersion': 'route-v7',
+        'phase': 'to_destination',
+        'target': 'dropoff',
+      };
+    final api = MapApi(
+      apiClient: client,
+      accessTokenProvider: () => 'access-token',
+    );
+
+    final result = await api.getOrderRoutePreview(
+      orderId: 'order-7',
+      fromLat: 42.98,
+      fromLng: 47.50,
+    );
+
+    expect(client.lastPath, '/api/v1/routing/orders/order-7/route');
+    expect(client.lastBody, <String, dynamic>{
+      'driver_lat': 42.98,
+      'driver_lng': 47.50,
+    });
+    expect(client.lastHeaders?['Authorization'], 'Bearer access-token');
+    expect(result?.points, hasLength(2));
+    expect(result?.routeVersion, 'route-v7');
+    expect(result?.phase, 'to_destination');
+    expect(result?.target, 'dropoff');
   });
 }

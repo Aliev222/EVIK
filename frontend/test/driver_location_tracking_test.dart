@@ -21,8 +21,7 @@ class FakeRealTimeLocationService extends RealTimeLocationService {
   final List<String> connectCalls = <String>[];
 
   @override
-  Stream<DriverLocationUpdate> get driverLocationStream =>
-      _driverCtrl.stream;
+  Stream<DriverLocationUpdate> get driverLocationStream => _driverCtrl.stream;
 
   @override
   Stream<OrderUpdate> get orderUpdateStream => _orderCtrl.stream;
@@ -53,6 +52,10 @@ class FakeRealTimeLocationService extends RealTimeLocationService {
   void emitDriverLocation(DriverLocationUpdate update) {
     _driverCtrl.add(update);
   }
+
+  void emitConnection(String status) => _connCtrl.add(status);
+
+  void emitOrder(OrderUpdate update) => _orderCtrl.add(update);
 }
 
 /// Minimal harness mirroring tracking_screen's behavior: it renders the driver
@@ -67,9 +70,7 @@ class _MarkerHarness extends ConsumerWidget {
       home: Scaffold(
         body: Center(
           child: Text(
-            location == null
-                ? 'marker: none'
-                : 'marker: ${location.lat}',
+            location == null ? 'marker: none' : 'marker: ${location.lat}',
             key: const Key('driverMarker'),
           ),
         ),
@@ -93,14 +94,13 @@ void main() {
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const _MarkerHarness()),
+      UncontrolledProviderScope(
+          container: container, child: const _MarkerHarness()),
     );
 
     expect(find.text('marker: none'), findsOneWidget);
 
-    await container
-        .read(realTimeDriverProvider.notifier)
-        .startTracking(
+    await container.read(realTimeDriverProvider.notifier).startTracking(
           'order-1',
           const LocationModel(
             lat: 55.0,
@@ -142,12 +142,11 @@ void main() {
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const _MarkerHarness()),
+      UncontrolledProviderScope(
+          container: container, child: const _MarkerHarness()),
     );
 
-    await container
-        .read(realTimeDriverProvider.notifier)
-        .startTracking(
+    await container.read(realTimeDriverProvider.notifier).startTracking(
           'order-1',
           const LocationModel(
             lat: 55.0,
@@ -187,9 +186,7 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    await container
-        .read(realTimeDriverProvider.notifier)
-        .startTracking(
+    await container.read(realTimeDriverProvider.notifier).startTracking(
           'order-1',
           const LocationModel(lat: 55.0, lng: 37.0, address: 'pickup'),
           userId: 'client-77',
@@ -199,5 +196,69 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(fakeService.connectCalls.length, 1);
     expect(fakeService.connectCalls.first, 'client-77|client|abc');
+  });
+
+  test('tracking ignores another driver and exposes reconnect state', () async {
+    final fakeService = FakeRealTimeLocationService();
+    final container = ProviderContainer(
+      overrides: [
+        realTimeLocationServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(realTimeDriverProvider.notifier).startTracking(
+          'order-1',
+          const LocationModel(lat: 55, lng: 37, address: 'pickup'),
+          userId: 'client-1',
+          driverId: 'assigned-driver',
+        );
+    fakeService.emitDriverLocation(DriverLocationUpdate(
+      driverId: 'foreign-driver',
+      lat: 60,
+      lng: 40,
+      bearing: 0,
+      speed: 0,
+      status: DriverMarkerStatus.toPickup,
+      orderId: 'order-1',
+      timestamp: DateTime.now(),
+    ));
+    fakeService.emitConnection('disconnected');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(realTimeDriverProvider).latestUpdate, isNull);
+    expect(
+      container.read(realTimeDriverProvider).connectionStatus,
+      'disconnected',
+    );
+  });
+
+  test('copyWith can explicitly clear a nullable error', () {
+    const failed = RealTimeDriverState(error: 'offline');
+    expect(failed.copyWith(error: null).error, isNull);
+  });
+
+  test('terminal order event clears the tracking session', () async {
+    final fakeService = FakeRealTimeLocationService();
+    final container = ProviderContainer(
+      overrides: [
+        realTimeLocationServiceProvider.overrideWithValue(fakeService),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(realTimeDriverProvider.notifier).startTracking(
+          'order-1',
+          const LocationModel(lat: 55, lng: 37, address: 'pickup'),
+          userId: 'client-1',
+        );
+
+    fakeService.emitOrder(const OrderUpdate(
+      orderId: 'order-1',
+      status: OrderUpdateType.orderCompleted,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(realTimeDriverProvider).isTracking, isFalse);
+    expect(container.read(realTimeDriverProvider).latestUpdate, isNull);
   });
 }

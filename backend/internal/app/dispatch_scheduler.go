@@ -83,9 +83,9 @@ type DispatchScheduler struct {
 	geoFreshness     time.Duration
 	maxRounds        int
 
-	// wakeGrace is how long the dispatcher waits for an offline-online driver
-	// (no live WS) to reconnect after a wake-up push before giving up on them
-	// for this offer round.
+	// wakeGrace is how long the dispatcher waits for an online driver without a
+	// live WS connection to reconnect after a wake-up push before falling back to
+	// an offer that the app can retrieve by polling.
 	wakeGrace time.Duration
 	// waking holds drivers who were offered an order via push but have not yet
 	// reconnected their WebSocket. Keyed by orderID+driverID. Guarded by mu.
@@ -107,10 +107,11 @@ func (s *DispatchScheduler) DriverBecameAvailable(ctx context.Context, driverID 
 
 // wakeEntry tracks a driver we sent a wake-up push to, awaiting WS reconnect.
 type wakeEntry struct {
-	orderID   string
-	driverID  string
-	round     int
-	expiresAt time.Time
+	orderID    string
+	driverID   string
+	round      int
+	distanceKM float64
+	expiresAt  time.Time
 }
 
 func NewDispatchScheduler(
@@ -156,9 +157,9 @@ func NewDispatchScheduler(
 		logger:           logger,
 		checkInterval:    checkInterval,
 		offerTimeout:     offerTimeout,
-		maxRadiusKM:      15,
-		expandedRadiusKM: 30,
-		stepRadiusKM:     2,
+		maxRadiusKM:      40,
+		expandedRadiusKM: 40,
+		stepRadiusKM:     5,
 		geoFreshness:     geoFreshness,
 		maxRounds:        3,
 		wakeGrace:        8 * time.Second,
@@ -240,15 +241,6 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 		return
 	}
 
-	// Determine initial search radius based on CityID
-	// If order has CityID, start with primary_radius_km to search all drivers in the city first
-	radius := s.stepRadiusKM
-	if ord.CityID != nil && s.serviceAreaRepo != nil {
-		if area, err := s.serviceAreaRepo.GetByID(ctx, *ord.CityID); err == nil {
-			radius = area.PrimaryRadiusKM
-		}
-	}
-
 	currentRound, err := s.offerRepo.GetCurrentRound(ctx, orderID)
 	if err != nil {
 		s.logger.Printf("dispatch: get round for %s: %v", orderID, err)
@@ -325,11 +317,8 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 	// the persisted round/exclude state. This keeps each dispatch goroutine
 	// short-lived and avoids lock contention storms under parallel dispatch.
 	var lastErr error
-	searchMaxRadius := s.maxRadiusKM
-	if ord.IsExpanded && s.expandedRadiusKM > searchMaxRadius {
-		searchMaxRadius = s.expandedRadiusKM
-	}
-	for radius <= searchMaxRadius {
+	searchRadii := s.searchRadii(ctx, ord)
+	for _, radius := range searchRadii {
 		candidates, err := s.matchingSvc.FindCandidates(ctx, ord, radius, offeredThisRound, s.hub, s.geoFreshness)
 		if err != nil && err != matchingdomain.ErrNoCandidateDrivers {
 			lastErr = err
@@ -366,9 +355,9 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 				return
 			}
 		}
-		radius += s.stepRadiusKM
 	}
 
+	searchMaxRadius := searchRadii[len(searchRadii)-1]
 	s.logger.Printf("dispatch: no candidate reserved for order=%s after reaching %gkm (last_err=%v)", orderID, searchMaxRadius, lastErr)
 
 	// If any candidate is currently being woken (push sent, awaiting app
@@ -395,6 +384,33 @@ func (s *DispatchScheduler) tryOfferNext(ctx context.Context, orderID string) {
 	// match it with newly available drivers. The stuck-order reaper is the
 	// single place that terminates an expanded search after its timeout.
 	s.logger.Printf("dispatch: no eligible driver yet for order=%s; keeping searching for the next tick", orderID)
+}
+
+// searchRadii returns the fixed outward search passes around the order pickup.
+// A city order never expands beyond the configured city radius plus 20 km.
+func (s *DispatchScheduler) searchRadii(ctx context.Context, ord *orderdomain.Order) []float64 {
+	maxRadius := s.maxRadiusKM
+	if ord.CityID != nil && s.serviceAreaRepo != nil {
+		if area, err := s.serviceAreaRepo.GetByID(ctx, *ord.CityID); err == nil && area != nil && area.RadiusKM > 0 {
+			maxRadius = area.RadiusKM + 20
+		}
+	}
+	if maxRadius <= 0 {
+		maxRadius = 40
+	}
+
+	passes := []float64{5, 20, 40}
+	radii := make([]float64, 0, len(passes)+1)
+	for _, radius := range passes {
+		if radius > maxRadius {
+			break
+		}
+		radii = append(radii, radius)
+	}
+	if len(radii) == 0 || radii[len(radii)-1] < maxRadius {
+		radii = append(radii, maxRadius)
+	}
+	return radii
 }
 
 // tryReserveAndOffer atomically reserves the candidate driver (FOR UPDATE
@@ -480,10 +496,11 @@ func (s *DispatchScheduler) tryWakeDriver(ctx context.Context, ord *orderdomain.
 		return true // already waking this driver for this order
 	}
 	s.waking[key] = wakeEntry{
-		orderID:   ord.ID,
-		driverID:  candidate.DriverID,
-		round:     round,
-		expiresAt: s.clock.Now().Add(s.wakeGrace),
+		orderID:    ord.ID,
+		driverID:   candidate.DriverID,
+		round:      round,
+		distanceKM: candidate.DistanceKM,
+		expiresAt:  s.clock.Now().Add(s.wakeGrace),
 	}
 	s.mu.Unlock()
 
@@ -518,8 +535,9 @@ func (s *DispatchScheduler) sendWakePush(ctx context.Context, ord *orderdomain.O
 
 // matureWaking checks drivers we previously sent a wake push to. If a driver
 // has reconnected their WebSocket within the grace window, we deliver the real
-// offer now. If the grace window elapsed without a reconnect, the entry is
-// dropped so the next tick can try the next candidate (or mark no_driver_found).
+// offer now. If the grace window elapsed without a reconnect, an online driver
+// still receives the offer: the foreground app polls current-offer even when
+// WebSocket setup failed.
 func (s *DispatchScheduler) matureWaking(ctx context.Context) {
 	now := s.clock.Now()
 	var expired []wakeEntry
@@ -552,7 +570,21 @@ func (s *DispatchScheduler) matureWaking(ctx context.Context) {
 		s.tryOfferNext(ctx, w.orderID)
 	}
 	for _, w := range expired {
-		s.logger.Printf("dispatch: wake grace expired for driver=%s order=%s (no WS reconnect)", w.driverID, w.orderID)
+		ord, err := s.orderRepo.GetByID(ctx, w.orderID)
+		if err != nil || ord == nil || ord.Status != orderdomain.StatusSearching {
+			continue
+		}
+		candidate := matchingdomain.Candidate{DriverID: w.driverID, DistanceKM: w.distanceKM}
+		ok, offerID, err := s.tryReserveAndOffer(ctx, ord, candidate, w.round, s.loadOfferTimeout(ctx))
+		if err != nil {
+			s.logger.Printf("dispatch: fallback offer after wake grace order=%s driver=%s: %v", w.orderID, w.driverID, err)
+			continue
+		}
+		if ok {
+			s.logger.Printf("dispatch: offer %s created after wake grace for order=%s driver=%s", offerID, w.orderID, w.driverID)
+			continue
+		}
+		s.logger.Printf("dispatch: wake grace expired for driver=%s order=%s; driver is no longer available", w.driverID, w.orderID)
 	}
 }
 

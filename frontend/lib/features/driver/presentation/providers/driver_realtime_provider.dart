@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,6 +18,8 @@ class DriverRealTimeState {
     this.status = DriverMarkerStatus.waiting,
     this.speed = 0.0,
     this.bearing = 0.0,
+    this.accuracyM,
+    this.sampledAt,
     this.error,
   });
 
@@ -28,6 +30,8 @@ class DriverRealTimeState {
   final DriverMarkerStatus status;
   final double speed;
   final double bearing;
+  final double? accuracyM;
+  final DateTime? sampledAt;
   final String? error;
 
   DriverRealTimeState copyWith({
@@ -39,16 +43,21 @@ class DriverRealTimeState {
     DriverMarkerStatus? status,
     double? speed,
     double? bearing,
+    double? accuracyM,
+    DateTime? sampledAt,
     String? error,
   }) {
     return DriverRealTimeState(
       isOnline: isOnline ?? this.isOnline,
       isConnected: isConnected ?? this.isConnected,
       currentLocation: currentLocation ?? this.currentLocation,
-      currentOrder: clearCurrentOrder ? null : currentOrder ?? this.currentOrder,
+      currentOrder:
+          clearCurrentOrder ? null : currentOrder ?? this.currentOrder,
       status: status ?? this.status,
       speed: speed ?? this.speed,
       bearing: bearing ?? this.bearing,
+      accuracyM: accuracyM ?? this.accuracyM,
+      sampledAt: sampledAt ?? this.sampledAt,
       error: error ?? this.error,
     );
   }
@@ -56,7 +65,8 @@ class DriverRealTimeState {
 
 /// Real-time провайдер для водителя (отправка GPS координат)
 class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
-  DriverRealTimeNotifier(this._realTimeService, {DriverLocationService? locationService})
+  DriverRealTimeNotifier(this._realTimeService,
+      {DriverLocationService? locationService})
       : _locationService = locationService ?? DriverLocationService(),
         super(const DriverRealTimeState()) {
     _initializeServices();
@@ -86,7 +96,8 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       _handleOrderUpdate,
     );
     // Слушаем статус соединения для авто-обновления isConnected после реконнекта
-    _connectionSubscription = _realTimeService.connectionStream.listen((status) {
+    _connectionSubscription =
+        _realTimeService.connectionStream.listen((status) {
       if (status == 'connected') {
         state = state.copyWith(isConnected: true);
       } else if (status == 'disconnected' || status == 'connection_failed') {
@@ -96,7 +107,8 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
   }
 
   /// Подключение водителя к real-time системе
-  Future<bool> connectAsDriver(String driverId, {required String accessToken}) async {
+  Future<bool> connectAsDriver(String driverId,
+      {required String accessToken}) async {
     _driverId = driverId;
 
     final connected = await _realTimeService.connect(
@@ -133,20 +145,33 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
           if (!mounted || !state.isOnline) return;
           state = state.copyWith(
             currentLocation: _locationFromPosition(position),
-            speed: position.speed.isFinite && position.speed > 0 ? position.speed * 3.6 : 0,
-            bearing: position.heading.isFinite && position.heading >= 0 ? position.heading : state.bearing,
+            speed: position.speed.isFinite && position.speed > 0
+                ? position.speed * 3.6
+                : 0,
+            bearing: position.heading.isFinite && position.heading >= 0
+                ? position.heading
+                : state.bearing,
+            accuracyM: position.accuracy.isFinite ? position.accuracy : null,
+            sampledAt: position.timestamp,
           );
           unawaited(_sendLocationUpdate());
         },
         onError: (_) {
-          if (mounted) state = state.copyWith(error: 'Геолокация остановлена. Проверьте разрешения.');
+          if (mounted) {
+            state = state.copyWith(
+                error: 'Геолокация остановлена. Проверьте разрешения.');
+          }
         },
       );
       if (!mounted) return;
       state = state.copyWith(
         isOnline: true,
         currentLocation: location,
-        status: state.currentOrder == null ? DriverMarkerStatus.waiting : state.status,
+        accuracyM: position.accuracy.isFinite ? position.accuracy : null,
+        sampledAt: position.timestamp,
+        status: state.currentOrder == null
+            ? DriverMarkerStatus.waiting
+            : state.status,
         error: null,
       );
     } catch (error) {
@@ -246,7 +271,9 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
 
   /// Отправка GPS координат на сервер
   Future<void> _sendLocationUpdate() async {
-    if (!mounted || _sendingLocation || !state.isOnline ||
+    if (!mounted ||
+        _sendingLocation ||
+        !state.isOnline ||
         !state.isConnected ||
         state.currentLocation == null) {
       return;
@@ -267,13 +294,17 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
         status: state.status,
         orderId: state.currentOrder,
         isMock: location.isMocked,
+        sampledAt: state.sampledAt,
+        accuracyM: state.accuracyM,
       );
 
       debugPrint(
         'Driver location sent: ${location.lat}, ${location.lng}, speed: ${speed.toStringAsFixed(1)} km/h',
       );
     } catch (e) {
-      if (mounted) state = state.copyWith(error: 'Ошибка отправки местоположения: $e');
+      if (mounted) {
+        state = state.copyWith(error: 'Ошибка отправки местоположения: $e');
+      }
     } finally {
       _sendingLocation = false;
     }
@@ -299,7 +330,6 @@ class DriverRealTimeNotifier extends StateNotifier<DriverRealTimeState> {
       );
     }
   }
-
 }
 
 /// Provider для real-time водителя

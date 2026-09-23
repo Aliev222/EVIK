@@ -159,7 +159,8 @@ void main() {
 
   group('services card vs bottom nav gap', () {
     for (final inset in [0.0, 34.0]) {
-      testWidgets('~15px gap between card bottom and navbar top '
+      testWidgets(
+          '~15px gap between card bottom and navbar top '
           '(padding.bottom=$inset)', (tester) async {
         tester.view.physicalSize = const Size(1170, 2532);
         tester.view.devicePixelRatio = 3.0;
@@ -202,7 +203,7 @@ void main() {
         find.byTooltip('Моё местоположение'),
       );
       final attributionRect = tester.getRect(
-        find.text('© OpenStreetMap contributors'),
+        find.textContaining('© OpenStreetMap contributors'),
       );
 
       // Button bottom sits 12px above the card top (unchanged relative gap).

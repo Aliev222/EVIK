@@ -14,15 +14,20 @@ type DriverCityGetter interface {
 	GetDriverCity(ctx context.Context, driverID string) (string, error)
 }
 
+type ChatAccessChecker interface {
+	CanAccess(ctx context.Context, orderID, userID string) (bool, error)
+}
+
 type OrderEventRelay struct {
 	hub        *Hub
 	pubsub     *redis.OrderEventPublisher
 	cityGetter DriverCityGetter
 	logger     *log.Logger
+	chatAccess ChatAccessChecker
 }
 
-func NewOrderEventRelay(hub *Hub, pubsub *redis.OrderEventPublisher, cityGetter DriverCityGetter, logger *log.Logger) *OrderEventRelay {
-	return &OrderEventRelay{hub: hub, pubsub: pubsub, cityGetter: cityGetter, logger: logger}
+func NewOrderEventRelay(hub *Hub, pubsub *redis.OrderEventPublisher, cityGetter DriverCityGetter, chatAccess ChatAccessChecker, logger *log.Logger) *OrderEventRelay {
+	return &OrderEventRelay{hub: hub, pubsub: pubsub, cityGetter: cityGetter, chatAccess: chatAccess, logger: logger}
 }
 
 func (r *OrderEventRelay) Run(ctx context.Context) {
@@ -54,6 +59,17 @@ func (r *OrderEventRelay) handleEvent(payload string) {
 	driverID, _ := pm["driver_id"].(string)
 
 	switch event.Type {
+	case orderdomain.EventChatMessage:
+		recipientID, _ := pm["recipient_id"].(string)
+		if recipientID == "" || r.chatAccess == nil {
+			return
+		}
+		allowed, err := r.chatAccess.CanAccess(context.Background(), event.OrderID, recipientID)
+		if err != nil || !allowed {
+			return
+		}
+		r.hub.SendChatToUser(recipientID, event.OrderID, []byte(payload))
+
 	case orderdomain.EventOrderCreated:
 		if userID != "" {
 			r.hub.SendToUser(userID, []byte(payload))

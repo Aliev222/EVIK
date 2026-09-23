@@ -1,46 +1,52 @@
-﻿import 'dart:async';
-import 'dart:math';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/constants/app_constants.dart';
-import 'package:tow_truck_frontend/core/services/openstreetmap_service.dart';
+import 'package:tow_truck_frontend/core/network/api_client_stub.dart'
+    if (dart.library.io) 'package:tow_truck_frontend/core/network/api_client_io.dart'
+    as platform_api;
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/map/presentation/widgets/animated_driver_marker.dart';
+
+const Object _notProvided = Object();
 
 /// Real-time driver tracking for client
 class RealTimeDriverState {
   const RealTimeDriverState({
     this.driverLocation,
-    this.route,
+    this.latestUpdate,
     this.estimatedArrival,
     this.status = DriverMarkerStatus.toPickup,
     this.isTracking = false,
+    this.connectionStatus = 'disconnected',
     this.error,
   });
 
   final LocationModel? driverLocation;
-  final RoutePreview? route;
+  final DriverLocationUpdate? latestUpdate;
   final DateTime? estimatedArrival;
   final DriverMarkerStatus status;
   final bool isTracking;
+  final String connectionStatus;
   final String? error;
 
   RealTimeDriverState copyWith({
     LocationModel? driverLocation,
-    RoutePreview? route,
+    DriverLocationUpdate? latestUpdate,
     DateTime? estimatedArrival,
     DriverMarkerStatus? status,
     bool? isTracking,
-    String? error,
+    String? connectionStatus,
+    Object? error = _notProvided,
   }) {
     return RealTimeDriverState(
       driverLocation: driverLocation ?? this.driverLocation,
-      route: route ?? this.route,
+      latestUpdate: latestUpdate ?? this.latestUpdate,
       estimatedArrival: estimatedArrival ?? this.estimatedArrival,
       status: status ?? this.status,
       isTracking: isTracking ?? this.isTracking,
-      error: error ?? this.error,
+      connectionStatus: connectionStatus ?? this.connectionStatus,
+      error: identical(error, _notProvided) ? this.error : error as String?,
     );
   }
 }
@@ -56,19 +62,23 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
   String? _activeOrderId;
   StreamSubscription? _driverLocationSubscription;
   StreamSubscription? _orderUpdateSubscription;
-  LocationModel? _destination;
-  LocationModel? _lastRouteDriverLocation;
+  StreamSubscription<String>? _connectionSubscription;
+  String? _activeDriverId;
 
   @override
   void dispose() {
     _trackingTimer?.cancel();
     _driverLocationSubscription?.cancel();
     _orderUpdateSubscription?.cancel();
-    _realTimeService.dispose();
+    _connectionSubscription?.cancel();
+    // This service is shared by the app provider; a client tracking widget
+    // must not close its streams for another consumer.
+    _realTimeService.disconnect();
     super.dispose();
   }
 
-  /// Инициализация real-time соединения
+  /// The provider is the one owner of the client tracking session. Screens
+  /// consume its state; they never create a second raw location subscription.
   void _initializeRealTimeConnection() {
     // Слушаем обновления местоположения водителей
     _driverLocationSubscription = _realTimeService.driverLocationStream.listen(
@@ -79,17 +89,28 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
     _orderUpdateSubscription = _realTimeService.orderUpdateStream.listen(
       _handleOrderUpdate,
     );
+    _connectionSubscription = _realTimeService.connectionStream.listen(
+      (status) {
+        if (_activeOrderId == null) return;
+        state = state.copyWith(
+          connectionStatus: status,
+          error: status == 'connected' ? null : state.error,
+        );
+      },
+    );
   }
 
   /// Обработка обновлений местоположения водителя от WebSocket
   void _handleDriverLocationUpdate(DriverLocationUpdate update) {
-    if (_activeOrderId != null && update.orderId == _activeOrderId) {
+    if (_activeOrderId != null &&
+        update.orderId == _activeOrderId &&
+        (_activeDriverId == null || update.driverId == _activeDriverId)) {
       state = state.copyWith(
         driverLocation: update.location,
+        latestUpdate: update,
         status: update.status,
         error: null,
       );
-      _refreshRoutePreviewIfNeeded(update.location);
     }
   }
 
@@ -101,10 +122,10 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
           if (update.driver != null) {
             state = state.copyWith(
               driverLocation: update.driver!.location,
+              latestUpdate: update.driver,
               status: update.driver!.status,
               error: null,
             );
-            _refreshRoutePreviewIfNeeded(update.driver!.location);
           }
           break;
         case OrderUpdateType.noDriversAvailable:
@@ -112,6 +133,10 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
             error: update.message ?? 'Водители недоступны',
             isTracking: false,
           );
+          break;
+        case OrderUpdateType.orderCompleted:
+        case OrderUpdateType.orderCancelled:
+          stopTracking();
           break;
         default:
           break;
@@ -129,15 +154,50 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
     LocationModel destination, {
     String? userId,
     String? accessToken,
+    String? driverId,
+    DriverMarkerStatus initialStatus = DriverMarkerStatus.toPickup,
   }) async {
+    if (_activeOrderId == orderId && state.isTracking) {
+      final newlyKnownDriver =
+          (_activeDriverId == null || _activeDriverId!.isEmpty) &&
+              driverId != null &&
+              driverId.isNotEmpty;
+      if (driverId != null && driverId.isNotEmpty) {
+        _activeDriverId = driverId;
+      }
+      if (newlyKnownDriver && state.latestUpdate == null) {
+        unawaited(_restoreLastKnownLocation(
+          orderId: orderId,
+          driverId: driverId,
+          accessToken: accessToken ?? '',
+          status: initialStatus,
+        ));
+      }
+      return;
+    }
+    if (_activeOrderId != null && _activeOrderId != orderId) {
+      await _realTimeService.disconnect();
+      state = const RealTimeDriverState();
+    }
     _activeOrderId = orderId;
-    _destination = destination;
-    _lastRouteDriverLocation = null;
+    _activeDriverId = driverId;
+    // Target routing is owned by TrackingScreen until the backend delivers a
+    // canonical route session. Do not start a second unused preview here.
 
-    state = state.copyWith(
+    state = const RealTimeDriverState().copyWith(
       isTracking: true,
+      connectionStatus: 'connecting',
       error: null,
     );
+
+    if (driverId != null && driverId.isNotEmpty) {
+      unawaited(_restoreLastKnownLocation(
+        orderId: orderId,
+        driverId: driverId,
+        accessToken: accessToken ?? '',
+        status: initialStatus,
+      ));
+    }
 
     // Подключаемся к WebSocket серверу как авторизованный клиент.
     final hasUserId = userId != null && userId.isNotEmpty;
@@ -159,22 +219,63 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
     // Больше не нужен таймер для симуляции
   }
 
+  Future<void> _restoreLastKnownLocation({
+    required String orderId,
+    required String driverId,
+    required String accessToken,
+    required DriverMarkerStatus status,
+  }) async {
+    try {
+      final response = await platform_api.createPlatformApiClient().get(
+            '/api/v1/drivers/$driverId/location',
+            headers: accessToken.isEmpty
+                ? null
+                : <String, String>{'Authorization': 'Bearer $accessToken'},
+          );
+      if (_activeOrderId != orderId) return;
+      final raw = response['location'];
+      if (raw is! Map<String, dynamic>) return;
+      final lat = (raw['lat'] as num?)?.toDouble();
+      final lng = (raw['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) return;
+      final sampledAt =
+          DateTime.tryParse(raw['updated_at']?.toString() ?? '') ??
+              DateTime.now();
+      final current = state.latestUpdate;
+      if (current != null && !sampledAt.isAfter(current.timestamp)) return;
+      final update = DriverLocationUpdate(
+        driverId: driverId,
+        lat: lat,
+        lng: lng,
+        bearing: current?.bearing ?? 0,
+        speed: current?.speed ?? 0,
+        status: current?.status ?? status,
+        orderId: orderId,
+        timestamp: sampledAt,
+      );
+      state = state.copyWith(
+        driverLocation: update.location,
+        latestUpdate: update,
+        status: update.status,
+      );
+    } catch (_) {
+      // Live tracking remains usable when the non-blocking snapshot is absent.
+    }
+  }
+
   /// Stop tracking
   void stopTracking() {
     _trackingTimer?.cancel();
     _activeOrderId = null;
+    _activeDriverId = null;
 
     // Отключаемся от WebSocket
     _realTimeService.disconnect();
-    _destination = null;
-    _lastRouteDriverLocation = null;
 
-    state = state.copyWith(
-      isTracking: false,
-      driverLocation: null,
-      route: null,
-      estimatedArrival: null,
-    );
+    // `copyWith` deliberately keeps nullable values for incremental updates;
+    // a terminal session needs an explicit fresh state so coordinates cannot
+    // bleed into the next order.
+    state = const RealTimeDriverState();
   }
 
   /// Update driver status (pickup -> destination)
@@ -199,53 +300,6 @@ class RealTimeDriverNotifier extends StateNotifier<RealTimeDriverState> {
     final remainingMinutes = minutes % 60;
     return '$hours ч $remainingMinutes мин';
   }
-
-  /// Get distance to destination in km
-  double? get distanceKm {
-    return state.route?.distanceKm;
-  }
-
-  Future<void> _refreshRoutePreviewIfNeeded(
-      LocationModel driverLocation) async {
-    final destination = _destination;
-    if (destination == null) return;
-
-    final last = _lastRouteDriverLocation;
-    if (last != null &&
-        _distanceMeters(last, driverLocation) <
-            AppConstants.clientRouteRefreshThresholdM) {
-      return;
-    }
-    _lastRouteDriverLocation = driverLocation;
-
-    final route = await OpenStreetMapService.getRoutePreview(
-      fromLat: driverLocation.lat,
-      fromLng: driverLocation.lng,
-      toLat: destination.lat,
-      toLng: destination.lng,
-    );
-    if (route == null || _activeOrderId == null) return;
-
-    state = state.copyWith(
-      route: route,
-      estimatedArrival: DateTime.now().add(
-        Duration(seconds: route.durationSeconds.round()),
-      ),
-    );
-  }
-
-  double _distanceMeters(LocationModel a, LocationModel b) {
-    const earthRadiusM = 6371000.0;
-    final dLat = _radians(b.lat - a.lat);
-    final dLng = _radians(b.lng - a.lng);
-    final lat1 = _radians(a.lat);
-    final lat2 = _radians(b.lat);
-    final h = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2);
-    return 2 * earthRadiusM * atan2(sqrt(h), sqrt(1 - h));
-  }
-
-  double _radians(double degrees) => degrees * pi / 180;
 }
 
 /// Provider for real-time driver tracking

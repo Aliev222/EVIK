@@ -52,10 +52,15 @@ class WsEventDispatcher implements EventDispatcher {
       try {
         final dynamic decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
-          final orderId = decoded['order_id']?.toString();
           final type = decoded['type']?.toString();
+          final payload = decoded['payload'] ?? decoded['data'] ?? decoded;
+          final payloadMap = payload is Map<String, dynamic> ? payload : null;
+          final message = payloadMap?['message'];
+          final messageMap = message is Map<String, dynamic> ? message : null;
+          final orderId = decoded['order_id']?.toString() ??
+              payloadMap?['order_id']?.toString() ??
+              messageMap?['order_id']?.toString();
           if (orderId != null && type != null) {
-            final payload = decoded['payload'] ?? decoded;
             handleEvent(
               Event(
                 type: type,
@@ -102,6 +107,12 @@ class WsEventDispatcher implements EventDispatcher {
         break;
       case 'offer':
         debugPrint('WS offer received: orderId=${event.orderId}');
+        _orderEvents.add(event);
+        break;
+      case 'chat.message':
+      case 'chat.ack':
+      case 'chat.error':
+      case 'chat.subscribed':
         _orderEvents.add(event);
         break;
       default:

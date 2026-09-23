@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -17,12 +18,14 @@ import 'package:tow_truck_frontend/features/review/presentation/providers/review
 enum HistoryState { loading, empty, loaded, error }
 
 class ClientHistoryScreen extends ConsumerStatefulWidget {
-  const ClientHistoryScreen({super.key, this.onSwitchToHome});
+  const ClientHistoryScreen({super.key, this.onSwitchToHome, this.auditState});
 
   final VoidCallback? onSwitchToHome;
+  final HistoryState? auditState;
 
   @override
-  ConsumerState<ClientHistoryScreen> createState() => _ClientHistoryScreenState();
+  ConsumerState<ClientHistoryScreen> createState() =>
+      _ClientHistoryScreenState();
 }
 
 class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
@@ -33,7 +36,11 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadOrders();
+    if (widget.auditState != null) {
+      _state = widget.auditState!;
+    } else {
+      _loadOrders();
+    }
   }
 
   Future<void> _loadOrders() async {
@@ -53,7 +60,8 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
       });
     } catch (error) {
       setState(() {
-        _error = 'Не удалось загрузить заказы. Проверьте интернет и попробуйте снова.';
+        _error =
+            'Не удалось загрузить заказы. Проверьте интернет и попробуйте снова.';
         _state = HistoryState.error;
       });
     }
@@ -62,7 +70,8 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     // Convert Order objects to _HistoryOrder for UI display
-    final orders = _orders.map((order) => _HistoryOrder.fromOrder(order)).toList();
+    final orders =
+        _orders.map((order) => _HistoryOrder.fromOrder(order)).toList();
 
     return Scaffold(
       backgroundColor: AvroClientColors.background,
@@ -95,9 +104,7 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Text(
-                _state == HistoryState.loaded
-                    ? '${orders.length} поездки'
-                    : '',
+                _state == HistoryState.loaded ? '${orders.length} поездки' : '',
                 style: EvikTypography.bodyMedium.copyWith(
                   color: AvroClientColors.textSecondary,
                 ),
@@ -138,7 +145,8 @@ class _ClientHistoryScreenState extends ConsumerState<ClientHistoryScreen> {
           padding: const EdgeInsets.fromLTRB(12, 14, 12, 100),
           itemBuilder: (context, index) => AnimatedListItem(
             index: index,
-            child: _HistoryCard(order: orders[index], realOrder: _orders[index]),
+            child:
+                _HistoryCard(order: orders[index], realOrder: _orders[index]),
           ),
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemCount: orders.length,
@@ -318,7 +326,8 @@ class _HistoryOrder {
   /// Convert real Order data to UI display format
   factory _HistoryOrder.fromOrder(Order order) {
     // Format date
-    final dateText = '${order.createdAt.day} ${_getMonthName(order.createdAt.month)}, ${order.createdAt.hour.toString().padLeft(2, '0')}:${order.createdAt.minute.toString().padLeft(2, '0')}';
+    final dateText =
+        '${order.createdAt.day} ${_getMonthName(order.createdAt.month)}, ${order.createdAt.hour.toString().padLeft(2, '0')}:${order.createdAt.minute.toString().padLeft(2, '0')}';
 
     // Vehicle type display
     String car = '';
@@ -382,8 +391,18 @@ class _HistoryOrder {
 
   static String _getMonthName(int month) {
     const months = [
-      'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'мая',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек'
     ];
     return months[month - 1];
   }

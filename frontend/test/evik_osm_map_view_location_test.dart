@@ -8,10 +8,36 @@ import 'package:tow_truck_frontend/features/map/presentation/widgets/evik_osm_ma
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('OSM tiles use the calm light presentation layer',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: EvikOsmMapView(
+            showControls: false,
+            showUserLocation: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final lightLayer = find.descendant(
+      of: find.byType(FlutterMap),
+      matching: find.byType(ColorFiltered),
+    );
+    expect(lightLayer, findsOneWidget);
+    expect(
+      find.descendant(of: lightLayer, matching: find.byType(TileLayer)),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('my location button centers the camera on the client position',
       (tester) async {
     final controller = MapController();
     var recenterCalls = 0;
+    var manualCameraCalls = 0;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -25,6 +51,7 @@ void main() {
             showStandaloneLocationButton: true,
             mapController: controller,
             onRecenter: () => recenterCalls++,
+            onManualCamera: () => manualCameraCalls++,
           ),
         ),
       ),
@@ -45,7 +72,8 @@ void main() {
     expect(controller.camera.center.latitude, closeTo(42.9849, 0.0001));
     expect(controller.camera.center.longitude, closeTo(47.4947, 0.0001));
     expect(controller.camera.zoom, closeTo(17, 0.0001));
-    expect(recenterCalls, 1);
+    expect(recenterCalls, 0);
+    expect(manualCameraCalls, 1);
   });
 
   testWidgets('map tap without an onTap handler is a no-op', (tester) async {
@@ -75,7 +103,9 @@ void main() {
     // disambiguation); advance past it so no timer leaks.
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(controller.camera.center.latitude, closeTo(centerBefore.latitude, 0.0001));
-    expect(controller.camera.center.longitude, closeTo(centerBefore.longitude, 0.0001));
+    expect(controller.camera.center.latitude,
+        closeTo(centerBefore.latitude, 0.0001));
+    expect(controller.camera.center.longitude,
+        closeTo(centerBefore.longitude, 0.0001));
   });
 }

@@ -76,6 +76,17 @@ class OpenStreetMapService {
         toLng: toLng,
       );
 
+  static Future<RoutePreview?> getOrderRoutePreview({
+    required String orderId,
+    required double fromLat,
+    required double fromLng,
+  }) =>
+      _mapApi.getOrderRoutePreview(
+        orderId: orderId,
+        fromLat: fromLat,
+        fromLng: fromLng,
+      );
+
   static Future<List<OsmPlace>> searchNearby({
     required double lat,
     required double lng,

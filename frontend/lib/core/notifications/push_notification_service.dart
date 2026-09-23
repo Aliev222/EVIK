@@ -259,7 +259,7 @@ class PushNotificationService {
       'new_order_nearby' => '/',
       'client_cancelled_order' => '/',
       'payout_approved' || 'payout_rejected' => '/',
-      'driver_accepted_order' => '/order/driver-info',
+      'driver_accepted_order' => '/order/tracking',
       'driver_on_way' || 'driver_arrived' => '/order/tracking',
       'order_completed' => '/order/completion',
       'payment_succeeded' => '/order/completion',

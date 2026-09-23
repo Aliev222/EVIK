@@ -103,6 +103,29 @@ func TestAuthOTP_RequestPersistsAndVerifySucceedsAndIssuesTokens(t *testing.T) {
 	}
 }
 
+func TestAuthOTP_VerifyConcurrentUserCreationReturnsExistingUser(t *testing.T) {
+	clock := &mutableClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
+	handler, repo := newOTPHandler(t, clock)
+	phone := "+79990000028"
+
+	if rec := sendOTPRequest(handler, phone, "client"); rec.Code != http.StatusAccepted {
+		t.Fatalf("request status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	// Simulate another request winning the unique (phone, role) insert between
+	// this request's initial lookup and Create call.
+	repo.onCreate = func(*userdomain.User) error {
+		repo.users["concurrent-user"] = &userdomain.User{
+			ID: "concurrent-user", Phone: phone, Name: "Concurrent", Role: auth.RoleClient, Status: userdomain.StatusActive,
+		}
+		return userdomain.ErrUserAlreadyExists
+	}
+
+	rec := sendOTPVerify(handler, phone, "client", testFixedOTP)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("verify status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAuthOTP_WrongCodeRejected(t *testing.T) {
 	clock := &mutableClock{now: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)}
 	handler, repo := newOTPHandler(t, clock)

@@ -186,6 +186,7 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	}
 
 	orderRepo := postgres.NewOrderRepository(db)
+	chatRepo := postgres.NewChatRepository(db)
 	paymentRepo := postgres.NewPaymentRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	serviceAreaRepo := postgres.NewServiceAreaRepository(db)
@@ -296,7 +297,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 	hub := wsinfra.NewHub()
 	go hub.Run()
 	wsHandler := wstransport.NewOrderWSHandler(hub, cfg.AllowedOrigins, logger, tokenManager, locationRepo, orderRepo, eventPublisher, clock.Now)
-	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, logger)
+	wsHandler.SetChatRepository(chatRepo)
+	eventRelay := wsinfra.NewOrderEventRelay(hub, eventPublisher, locationRepo, chatRepo, logger)
 	go eventRelay.Run(context.Background())
 	scheduler := NewScheduler(financeUC, paymentRepo, logger, cfg.BalanceReleaseInterval)
 	expansionScheduler := NewSearchExpansionScheduler(
@@ -375,7 +377,8 @@ func NewContainer(cfg config.Config, logger *log.Logger) (*Container, error) {
 		logger.Printf("INFO: rate limiter backend: memory")
 	}
 
-	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode, cfg.TrustedProxyCIDRs)
+	chatHandler := httptransport.NewChatHandler(chatRepo, eventPublisher)
+	router := httptransport.NewRouter(authHandler, accountHandler, orderHandler, offerHandler, driverHandler, paymentHandler, pricingHandler, routingHandler, adminHandler, settingsHandler, serviceAreaHandler, cityHandler, geocodingHandler, driverLocationsHandler, wsHandler, tokenManager, userRepo, cfg.AllowedOrigins, cfg.ExposeSwagger, limiter, cfg.DebugMode, cfg.TrustedProxyCIDRs, chatHandler)
 	return &Container{Router: router, Scheduler: scheduler, ExpansionScheduler: expansionScheduler, DispatchScheduler: dispatchScheduler, DriverPresenceReaper: driverPresenceReaper, StuckOrderReaper: stuckOrderReaper, RateLimiter: limiter, db: db, rdb: rdb}, nil
 }
 

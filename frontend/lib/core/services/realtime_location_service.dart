@@ -23,6 +23,10 @@ class RealTimeLocationService {
   String? _savedAccessToken;
   bool _shouldReconnect = false;
   Timer? _pingTimer;
+  Timer? _reconnectTimer;
+  int _connectionGeneration = 0;
+  int _reconnectAttempts = 0;
+  final Map<String, DriverLocationUpdate> _lastDriverUpdateByOrder = {};
 
   // Stream controllers для потоков данных локации
   final StreamController<DriverLocationUpdate> _driverLocationController =
@@ -51,12 +55,25 @@ class RealTimeLocationService {
     String accessToken = '',
   }) async {
     try {
+      final sameIdentity = _userId == userId &&
+          _userType == userType &&
+          _savedAccessToken == accessToken;
+      if (_isConnected && sameIdentity) return true;
+      if (_isConnected || _channel != null) {
+        final oldChannel = _channel;
+        _channel = null;
+        _isConnected = false;
+        await oldChannel?.sink.close();
+      }
       _savedUserId = userId;
       _savedUserType = userType;
       _userId = userId;
       _userType = userType;
       _savedAccessToken = accessToken;
       _shouldReconnect = true;
+      _reconnectTimer?.cancel();
+
+      final generation = ++_connectionGeneration;
 
       var wsUrl = _wsUrl;
       if (accessToken.isNotEmpty) {
@@ -64,19 +81,30 @@ class RealTimeLocationService {
           queryParameters: <String, String>{'access_token': accessToken},
         ).toString();
       }
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _channel = channel;
+      await channel.ready;
+
+      if (generation != _connectionGeneration) return false;
 
       // Слушаем входящие сообщения
-      _channel!.stream.listen(
-        _handleMessage,
-        onError: _handleError,
-        onDone: _handleDisconnection,
+      channel.stream.listen(
+        (message) {
+          if (generation == _connectionGeneration) _handleMessage(message);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (generation == _connectionGeneration) _handleError(error);
+        },
+        onDone: () {
+          if (generation == _connectionGeneration) _handleDisconnection();
+        },
       );
 
       // Переподключаемся к серверу
       await _register();
 
       _isConnected = true;
+      _reconnectAttempts = 0;
       _connectionController.add('connected');
       _startPingTimer();
 
@@ -86,6 +114,9 @@ class RealTimeLocationService {
       debugPrint('WebSocket connection failed: $e');
       _isConnected = false;
       _connectionController.add('connection_failed');
+      if (_shouldReconnect && _savedUserId != null && _savedUserType != null) {
+        _scheduleReconnect();
+      }
       return false;
     }
   }
@@ -116,7 +147,13 @@ class RealTimeLocationService {
   }
 
   void _scheduleReconnect() {
-    Future.delayed(const Duration(seconds: 2), () async {
+    if (_reconnectTimer?.isActive == true) return;
+    final exponent = _reconnectAttempts.clamp(0, 4);
+    _reconnectAttempts += 1;
+    final jitterMs = DateTime.now().microsecond % 700;
+    final delay = Duration(seconds: 1 << exponent, milliseconds: jitterMs);
+    _reconnectTimer = Timer(delay, () async {
+      _reconnectTimer = null;
       if (_savedUserId != null && _savedUserType != null && _shouldReconnect) {
         await connect(
           userId: _savedUserId!,
@@ -136,6 +173,8 @@ class RealTimeLocationService {
     required DriverMarkerStatus status,
     String? orderId,
     bool isMock = false,
+    DateTime? sampledAt,
+    double? accuracyM,
   }) async {
     if (!_isConnected || _userType != 'driver') return;
 
@@ -147,9 +186,13 @@ class RealTimeLocationService {
         'lng': lng,
         'bearing': bearing,
         'speed': speed,
-        'status': status.name,
+        'speed_kmh': speed,
+        'speed_mps': speed / 3.6,
+        if (accuracyM != null) 'accuracy_m': accuracyM,
+        'status': _wireDriverStatus(status),
         'order_id': orderId,
         'is_mock': isMock,
+        'sampled_at': (sampledAt ?? DateTime.now()).toUtc().toIso8601String(),
       },
       'timestamp': DateTime.now().toIso8601String(),
     };
@@ -275,6 +318,16 @@ class RealTimeLocationService {
           _handleOrderCancelled(message);
           break;
 
+        case 'completed':
+          _orderUpdateController.add(OrderUpdate(
+            orderId: message['order_id']?.toString() ?? '',
+            status: OrderUpdateType.orderCompleted,
+            rawPayload: message['payload'] is Map<String, dynamic>
+                ? message['payload'] as Map<String, dynamic>
+                : null,
+          ));
+          break;
+
         default:
           debugPrint('Received unknown message type: $type');
       }
@@ -288,17 +341,50 @@ class RealTimeLocationService {
     try {
       final payload = message['payload'] as Map<String, dynamic>?;
       if (payload == null) return;
+      final orderId = message['order_id']?.toString();
+      final previous =
+          orderId == null ? null : _lastDriverUpdateByOrder[orderId];
+      final sequence = (payload['seq'] as num?)?.toInt();
+      final sampledAt = _parseMeasurementTime(payload['sampled_at'] ??
+          payload['timestamp'] ??
+          message['timestamp']);
+      final receivedAt = _parseOptionalTime(payload['received_at']);
+      if (previous != null) {
+        final timeOrder = sampledAt.compareTo(previous.timestamp);
+        // WS and HTTP publishers may use independent sequence counters. Time
+        // is therefore the primary cross-transport watermark; seq only breaks
+        // ties for two events representing the same device sample.
+        if (timeOrder < 0 ||
+            (timeOrder == 0 &&
+                (sequence == null ||
+                    previous.sequence == null ||
+                    sequence <= previous.sequence!))) {
+          return;
+        }
+      }
       final update = DriverLocationUpdate(
         driverId: payload['driver_id']?.toString() ?? '',
         lat: (payload['lat'] as num?)?.toDouble() ?? 0.0,
         lng: (payload['lng'] as num?)?.toDouble() ?? 0.0,
-        bearing: (payload['bearing'] as num?)?.toDouble() ?? 0.0,
-        speed: (payload['speed'] as num?)?.toDouble() ?? 0.0,
-        status: _parseDriverStatus(payload['status']?.toString()),
-        orderId: message['order_id']?.toString(),
-        timestamp: DateTime.now(),
+        // HTTP heartbeats may omit optional motion fields.  Missing is not
+        // zero: retain the last confirmed direction/speed instead of turning
+        // the marker north or reverting the phase.
+        bearing: (payload['bearing'] as num?)?.toDouble() ??
+            previous?.bearing ??
+            0.0,
+        speed: (payload['speed'] as num?)?.toDouble() ?? previous?.speed ?? 0.0,
+        status: payload['status'] == null
+            ? previous?.status ?? DriverMarkerStatus.toPickup
+            : _parseDriverStatus(payload['status']?.toString()),
+        orderId: orderId,
+        timestamp: sampledAt,
+        sequence: sequence,
+        receivedAt: receivedAt,
+        accuracyM: (payload['accuracy_m'] as num?)?.toDouble(),
       );
-
+      if (orderId != null && orderId.isNotEmpty) {
+        _lastDriverUpdateByOrder[orderId] = update;
+      }
       _driverLocationController.add(update);
     } catch (e) {
       debugPrint('Error parsing server driver location: $e');
@@ -319,7 +405,15 @@ class RealTimeLocationService {
         orderId: location['order_id'],
         timestamp: DateTime.parse(location['last_update']),
       );
-
+      final orderId = update.orderId;
+      final previous =
+          orderId == null ? null : _lastDriverUpdateByOrder[orderId];
+      if (previous != null && !update.timestamp.isAfter(previous.timestamp)) {
+        return;
+      }
+      if (orderId != null && orderId.isNotEmpty) {
+        _lastDriverUpdateByOrder[orderId] = update;
+      }
       _driverLocationController.add(update);
     } catch (e) {
       debugPrint('Error parsing driver location: $e');
@@ -493,7 +587,11 @@ class RealTimeLocationService {
 
   /// Парсинг статуса водителя
   DriverMarkerStatus _parseDriverStatus(String? status) {
-    switch (status) {
+    final normalized = (status ?? '')
+        .replaceAll('toDestination', 'to_destination')
+        .replaceAll('toPickup', 'to_pickup')
+        .toLowerCase();
+    switch (normalized) {
       case 'to_pickup':
         return DriverMarkerStatus.toPickup;
       case 'to_destination':
@@ -504,6 +602,22 @@ class RealTimeLocationService {
         return DriverMarkerStatus.toPickup;
     }
   }
+
+  String _wireDriverStatus(DriverMarkerStatus status) {
+    return switch (status) {
+      DriverMarkerStatus.toPickup => 'to_pickup',
+      DriverMarkerStatus.toDestination => 'to_destination',
+      DriverMarkerStatus.waiting => 'waiting',
+    };
+  }
+
+  DateTime _parseMeasurementTime(Object? value) {
+    return DateTime.tryParse(value?.toString() ?? '')?.toLocal() ??
+        DateTime.now();
+  }
+
+  DateTime? _parseOptionalTime(Object? value) =>
+      DateTime.tryParse(value?.toString() ?? '')?.toLocal();
 
   /// Отправка сообщения на сервер
   void _sendMessage(Map<String, dynamic> message) {
@@ -537,10 +651,14 @@ class RealTimeLocationService {
   /// Отключение от сервера
   Future<void> disconnect() async {
     _shouldReconnect = false;
+    _connectionGeneration += 1;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _stopPingTimer();
     _isConnected = false;
     await _channel?.sink.close();
     _channel = null;
+    _lastDriverUpdateByOrder.clear();
     _connectionController.add('disconnected');
   }
 
@@ -564,6 +682,9 @@ class DriverLocationUpdate {
   final DriverMarkerStatus status;
   final String? orderId;
   final DateTime timestamp;
+  final int? sequence;
+  final DateTime? receivedAt;
+  final double? accuracyM;
 
   const DriverLocationUpdate({
     required this.driverId,
@@ -574,6 +695,9 @@ class DriverLocationUpdate {
     required this.status,
     this.orderId,
     required this.timestamp,
+    this.sequence,
+    this.receivedAt,
+    this.accuracyM,
   });
 
   LocationModel get location => LocationModel(

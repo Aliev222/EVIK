@@ -15,10 +15,16 @@ class SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+    final resolvedMargin =
+        margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+    final compact = height < 110;
+    final contentHeight = (height - resolvedMargin.vertical).clamp(0.0, height);
+
+    return Padding(
+      padding: resolvedMargin,
+      child: Container(
+      height: contentHeight,
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: compact ? 10 : 16),
       decoration: BoxDecoration(
         color: AvroClientColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -33,6 +39,7 @@ class SkeletonCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               const Row(
                 children: [
@@ -50,13 +57,13 @@ class SkeletonCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (height >= 110) ...const [
+              if (height >= 156) ...const [
                 SizedBox(height: 16),
                 _SkeletonBlock(width: double.infinity, height: 12),
                 SizedBox(height: 8),
                 _SkeletonBlock(width: 220, height: 12),
               ],
-              if (height >= 130) ...const [
+              if (height >= 202) ...const [
                 SizedBox(height: 16),
                 Row(
                   children: [
@@ -69,6 +76,7 @@ class SkeletonCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

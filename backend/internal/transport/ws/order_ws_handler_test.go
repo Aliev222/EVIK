@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	chatdomain "evik/backend/internal/domain/chat"
 	"evik/backend/internal/domain/location"
 	orderdomain "evik/backend/internal/domain/order"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
@@ -16,6 +17,27 @@ import (
 type fakeLocationRepo struct {
 	savedDriverID string
 	savedLoc      location.Location
+}
+
+type fakeWSChatRepo struct {
+	sender  string
+	allow   bool
+	message chatdomain.Message
+}
+
+func (r *fakeWSChatRepo) CanAccess(context.Context, string, string) (bool, error) {
+	return r.allow, nil
+}
+func (r *fakeWSChatRepo) Create(_ context.Context, orderID, sender, clientID, text string) (chatdomain.Message, error) {
+	if !r.allow {
+		return chatdomain.Message{}, chatdomain.ErrForbidden
+	}
+	r.sender = sender
+	r.message = chatdomain.Message{ID: "m1", OrderID: orderID, SenderID: sender, ClientMessageID: clientID, Text: text}
+	return r.message, nil
+}
+func (r *fakeWSChatRepo) List(context.Context, string, string, string, int) ([]chatdomain.Message, error) {
+	return nil, nil
 }
 
 func (r *fakeLocationRepo) SaveLocation(_ context.Context, driverID string, loc location.Location) error {
@@ -75,13 +97,13 @@ func newTestHandler() (
 
 func driverWSMessage(driverID, orderID string, lat, lng float64) []byte {
 	data, _ := json.Marshal(map[string]any{
-		"lat":     lat,
-		"lng":     lng,
-		"bearing": 90.0,
-		"speed":   42.0,
-		"status":  "to_pickup",
+		"lat":      lat,
+		"lng":      lng,
+		"bearing":  90.0,
+		"speed":    42.0,
+		"status":   "to_pickup",
 		"order_id": orderID,
-		"is_mock": false,
+		"is_mock":  false,
 	})
 	msg, _ := json.Marshal(map[string]any{
 		"type":      "location_update",
@@ -130,6 +152,29 @@ func TestWSHandleLocationUpdatePublishesToOrderClient(t *testing.T) {
 	}
 	if payload["driver_id"] != "driver-1" {
 		t.Fatalf("payload driver_id = %v, want driver-1", payload["driver_id"])
+	}
+}
+
+func TestWSChatSendPersistsBeforeAcknowledgementAndUsesSocketIdentity(t *testing.T) {
+	handler, _, _, publisher, _ := newTestHandler()
+	chatRepo := &fakeWSChatRepo{allow: true}
+	handler.SetChatRepository(chatRepo)
+	client := &wsinfra.Client{UserID: "client-1", Role: "client", Send: make(chan []byte, 1)}
+	handler.handleWSMessage(client, []byte(`{"type":"chat.send","data":{"order_id":"o1","client_message_id":"retry-1","text":"Где вы?","sender_id":"driver-1"}}`))
+	if chatRepo.sender != "client-1" {
+		t.Fatalf("sender=%q, want authenticated socket user", chatRepo.sender)
+	}
+	if len(publisher.events) != 1 || publisher.events[0].Type != orderdomain.EventChatMessage {
+		t.Fatalf("events=%+v", publisher.events)
+	}
+	select {
+	case ack := <-client.Send:
+		var frame map[string]any
+		if err := json.Unmarshal(ack, &frame); err != nil || frame["type"] != "chat.ack" {
+			t.Fatalf("ack=%s", ack)
+		}
+	default:
+		t.Fatal("missing saved acknowledgement")
 	}
 }
 
@@ -208,5 +253,108 @@ func TestWSHandleLocationUpdateThrottle(t *testing.T) {
 
 	if len(publisher.events) != 2 {
 		t.Fatalf("events = %+v, want 2 (throttled mid-window update)", publisher.events)
+	}
+}
+
+// Small GPS movements are still live-order telemetry.  The 50 m geo-index
+// optimisation must not make the client wait for a large jump on the map.
+func TestWSHandleLocationUpdatePublishesSmallMovement(t *testing.T) {
+	handler, _, orderRepo, publisher, clock := newTestHandler()
+	orderID := "order-1"
+	orderRepo.orders[orderID] = &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusAccepted}
+	client := &wsinfra.Client{UserID: "driver-1", Role: "driver"}
+
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755000, 37.617000))
+	clock.now = clock.now.Add(3 * time.Second)
+	// ~11 m north: deliberately below the geo-index threshold.
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755100, 37.617000))
+
+	if got := len(publisher.events); got != 2 {
+		t.Fatalf("events = %d, want 2 live client updates", got)
+	}
+}
+
+func TestWSHandleLocationUpdateRejectsRepeatedOrOlderSample(t *testing.T) {
+	handler, _, orderRepo, publisher, clock := newTestHandler()
+	orderID := "order-1"
+	orderRepo.orders[orderID] = &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusAccepted}
+	client := &wsinfra.Client{UserID: "driver-1", Role: "driver"}
+	sampledAt := clock.now.Add(-time.Second).UTC().Format(time.RFC3339Nano)
+	// Use the real frame shape because sampled_at is part of the driver data,
+	// not a server timestamp.
+	data, _ := json.Marshal(map[string]any{"lat": 55.755, "lng": 37.617, "order_id": orderID, "sampled_at": sampledAt})
+	frame, _ := json.Marshal(map[string]any{"type": "location_update", "driver_id": "driver-1", "data": json.RawMessage(data)})
+	handler.handleLocationUpdate(client, frame)
+	clock.now = clock.now.Add(3 * time.Second)
+	handler.handleLocationUpdate(client, frame)
+	if got := len(publisher.events); got != 1 {
+		t.Fatalf("events = %d, want 1 after repeated sampled_at", got)
+	}
+}
+
+func TestWSHandleLocationUpdateRejectsSingleGPSOutlier(t *testing.T) {
+	handler, _, orderRepo, publisher, clock := newTestHandler()
+	orderID := "order-1"
+	orderRepo.orders[orderID] = &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusAccepted}
+	client := &wsinfra.Client{UserID: "driver-1", Role: "driver"}
+
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755, 37.617))
+	clock.now = clock.now.Add(3 * time.Second)
+	// More than 10 km in three seconds: reject without poisoning the last good
+	// sample, so the following legitimate point can still be accepted.
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.855, 37.817))
+	clock.now = clock.now.Add(3 * time.Second)
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.7551, 37.617))
+
+	if got := len(publisher.events); got != 2 {
+		t.Fatalf("events = %d, want first and recovered valid point only", got)
+	}
+	payload := publisher.events[1].Payload.(map[string]any)
+	if payload["lat"] != 55.7551 {
+		t.Fatalf("recovered latitude = %v, want 55.7551", payload["lat"])
+	}
+}
+
+// A stationary vehicle still needs periodic freshness for a truthful client
+// state (and phase changes must not be hidden by a distance filter).
+func TestWSHandleLocationUpdatePublishesStationaryFreshness(t *testing.T) {
+	handler, _, orderRepo, publisher, clock := newTestHandler()
+	orderID := "order-1"
+	orderRepo.orders[orderID] = &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusAccepted}
+	client := &wsinfra.Client{UserID: "driver-1", Role: "driver"}
+
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755, 37.617))
+	clock.now = clock.now.Add(31 * time.Second)
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755, 37.617))
+
+	if got := len(publisher.events); got != 2 {
+		t.Fatalf("events = %d, want 2 stationary freshness updates", got)
+	}
+	payload := publisher.events[1].Payload.(map[string]any)
+	if payload["sampled_at"] == "" || payload["received_at"] == "" {
+		t.Fatalf("timestamps missing from telemetry payload: %+v", payload)
+	}
+}
+
+func TestWSHandleLocationUpdateUsesAuthoritativeOrderPhase(t *testing.T) {
+	handler, _, orderRepo, publisher, clock := newTestHandler()
+	orderID := "order-1"
+	order := &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusAccepted}
+	orderRepo.orders[orderID] = order
+	client := &wsinfra.Client{UserID: "driver-1", Role: "driver"}
+
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755, 37.617))
+	order.Status = orderdomain.StatusInProgress
+	// A state transition is relevant even when its accompanying GPS sample is
+	// within the usual two-second event throttle.
+	clock.now = clock.now.Add(time.Second)
+	handler.handleLocationUpdate(client, driverWSMessage("driver-1", orderID, 55.755, 37.617))
+
+	if got := len(publisher.events); got != 2 {
+		t.Fatalf("events = %d, want phase transition to publish", got)
+	}
+	payload := publisher.events[1].Payload.(map[string]any)
+	if payload["status"] != "to_destination" {
+		t.Fatalf("status = %v, want to_destination", payload["status"])
 	}
 }

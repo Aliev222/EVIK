@@ -34,7 +34,12 @@ func NewRouter(
 	limiter Limiter,
 	debugMode bool,
 	trustedProxyCIDRs []string,
+	chatHandlers ...*ChatHandler,
 ) nethttp.Handler {
+	var chatHandler *ChatHandler
+	if len(chatHandlers) > 0 {
+		chatHandler = chatHandlers[0]
+	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(TrustedProxyRealIP(trustedProxyCIDRs))
@@ -87,6 +92,10 @@ func NewRouter(
 			secured.Get("/orders", orderHandler.ListOrders)
 			secured.Get("/orders/active", orderHandler.GetActiveOrder)
 			secured.Get("/orders/{orderID}", orderHandler.GetOrder)
+			if chatHandler != nil {
+				secured.Get("/orders/{orderID}/chat/messages", chatHandler.List)
+				secured.Post("/orders/{orderID}/chat/messages", chatHandler.Send)
+			}
 			secured.With(RequireRoles(auth.RoleClient)).Post("/orders/{orderID}/route/quote", orderHandler.QuoteOrderRoute)
 			secured.With(RequireRoles(auth.RoleClient)).Post("/orders/{orderID}/route", orderHandler.ConfirmOrderRoute)
 			secured.Get("/orders/{orderID}/review", adminHandler.GetOrderReview)
@@ -137,9 +146,9 @@ func NewRouter(
 			secured.Get("/pricing/tariffs", pricingHandler.GetTariffs)
 			secured.Get("/pricing/tariffs/{type}", pricingHandler.GetTariffByType)
 
-			// Routing endpoints for drivers
+			// Order participants share one server-authoritative route geometry.
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Get("/routing/preview", routingHandler.Preview)
-			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", routingHandler.CalculateRoute)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", routingHandler.CalculateRoute)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/directions", routingHandler.GetDirections)
 
 			secured.Route("/admin", func(admin chi.Router) {

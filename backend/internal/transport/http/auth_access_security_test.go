@@ -71,6 +71,7 @@ func newFocusedSecurityRouter(tokens *auth.TokenManager, limiter Limiter, probe 
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/payments/wallet", probe)
 			// Route preview is used by both client tracking and driver active-order maps.
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Get("/routing/preview", probe)
+			secured.With(RequireRoles(auth.RoleClient, auth.RoleDriver, auth.RoleAdmin)).Post("/routing/orders/{orderID}/route", probe)
 
 			// Admin-only subtree (router.go line 131-132).
 			secured.Route("/admin", func(admin chi.Router) {
@@ -423,6 +424,21 @@ func TestRBAC_RoutePreviewAllowsClientDriverAndAdmin(t *testing.T) {
 			id := string(tc.role) + "-1"
 			tok := issueRoleToken(t, tokens, id, tc.role)
 			rec := doRequest(router, http.MethodGet, "/api/v1/routing/preview?fromLat=42.9&fromLng=47.5&toLat=42.8&toLng=47.6", tok)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestRBAC_OrderRouteAllowsClientDriverAndAdmin(t *testing.T) {
+	tokens := newTokens(time.Minute)
+	router := newFocusedSecurityRouter(tokens, NewRateLimiter(), probeOK)
+
+	for _, role := range []auth.Role{auth.RoleClient, auth.RoleDriver, auth.RoleAdmin} {
+		t.Run(string(role), func(t *testing.T) {
+			tok := issueRoleToken(t, tokens, string(role)+"-1", role)
+			rec := doRequest(router, http.MethodPost, "/api/v1/routing/orders/order-1/route", tok)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
 			}

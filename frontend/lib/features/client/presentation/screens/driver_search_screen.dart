@@ -308,7 +308,10 @@ class _DriverSearchScreenState extends ConsumerState<DriverSearchScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.go('/order/driver-info');
+      // The tracking session owns both the live map and the driver details.
+      // Going through the former info-only screen left an accepted order
+      // without its only startTracking call until the user found another path.
+      context.go('/order/tracking');
     });
   }
 

@@ -41,6 +41,29 @@ func TestAcceptOrderRejectsUnavailableDriver(t *testing.T) {
 	}
 }
 
+func TestAcceptOrderRejectsMissingActiveOfferAsConflict(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	orderRepo := &fakeOrderRepository{
+		order: &orderdomain.Order{ID: "order-1", UserID: "client-1", Status: orderdomain.StatusSearching},
+	}
+	uc := NewAcceptOrderUseCase(
+		nil,
+		orderRepo,
+		&fakeDriverOrderRepository{},
+		missingActiveOfferResolver{},
+		nil, nil, nil,
+		&fakeEventPublisher{},
+		nil,
+		fakeClock{now: now},
+		fakeLogger{},
+	)
+
+	_, err := uc.Execute(context.Background(), "order-1", "driver-1")
+	if !errors.Is(err, orderdomain.ErrOfferNotActive) {
+		t.Fatalf("Execute error = %v, want ErrOfferNotActive", err)
+	}
+}
+
 func TestAcceptOrderAssignsDriverAndPublishesEvent(t *testing.T) {
 	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
 	orderRepo := &fakeOrderRepository{
@@ -242,7 +265,6 @@ func TestAcceptOrderRecoveryUsesDriverAndTargetOrderIDs(t *testing.T) {
 	}
 }
 
-
 func TestAcceptOrderReusesSameDriverCurrentOrderOnUnavailable(t *testing.T) {
 	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
 	targetID := "order-1"
@@ -289,6 +311,16 @@ type fakeOrderRepository struct {
 	updated        bool
 	getByKeyOrders map[string]*orderdomain.Order
 	savedSnapshots map[string]*orderSnapshot
+}
+
+type missingActiveOfferResolver struct{}
+
+func (missingActiveOfferResolver) GetActiveForOrderAndDriver(context.Context, string, string) (*orderdomain.Offer, error) {
+	return nil, nil
+}
+
+func (missingActiveOfferResolver) ResolveOfferTx(context.Context, *sql.Tx, string, string, string) error {
+	return nil
 }
 
 func (r *fakeOrderRepository) AcceptOrder(_ context.Context, orderID, driverID string) (*orderdomain.Order, error) {

@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors, AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'evik_button.dart';
 
@@ -23,6 +24,11 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasButton = buttonText != null && onButtonTap != null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText =
+        isDark ? AvroDriverColors.textPrimary : AvroClientColors.textPrimary;
+    final secondaryText =
+        isDark ? AvroDriverColors.grayHint : AvroClientColors.tabInactive;
 
     return Center(
       child: Padding(
@@ -33,18 +39,20 @@ class EmptyState extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: const BoxDecoration(
-                color: AvroClientColors.background,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AvroDriverColors.surface
+                    : AvroClientColors.background,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 40, color: AvroClientColors.tabInactive),
+              child: Icon(icon, size: 40, color: secondaryText),
             ),
             const SizedBox(height: 24),
             Text(
               title,
               style: EvikTypography.h3.copyWith(
                 fontSize: 20,
-                color: AvroClientColors.textPrimary,
+                color: primaryText,
               ),
               textAlign: TextAlign.center,
             ),
@@ -52,7 +60,7 @@ class EmptyState extends StatelessWidget {
             Text(
               subtitle,
               style: EvikTypography.bodyMedium.copyWith(
-                color: AvroClientColors.tabInactive,
+                color: secondaryText,
               ),
               textAlign: TextAlign.center,
             ),

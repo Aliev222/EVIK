@@ -2,6 +2,8 @@ import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/providers/order_flow_provider.dart';
 import 'package:tow_truck_frontend/features/client/presentation/screens/client_home_screen.dart';
+import 'package:tow_truck_frontend/features/client/presentation/screens/tracking_screen.dart';
+import 'package:tow_truck_frontend/features/development/ui_audit_fixtures.dart';
 import 'package:tow_truck_frontend/features/driver/domain/entities/driver.dart';
 import 'package:tow_truck_frontend/features/driver/data/repository/driver_verification_repository.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/available_orders_provider.dart';
@@ -122,6 +124,74 @@ void main() {
     expect(find.text('Сегодня'), findsOneWidget);
     expect(find.text('Готовы принимать заказы?'), findsOneWidget);
     expect(find.text('Выйти на линию'), findsOneWidget);
+  });
+
+  testWidgets('TrackingScreen renders real compact and expanded content',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: uiAuditOverrides(),
+        child: const MaterialApp(home: TrackingScreen(auditDemo: true)),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.byType(TrackingScreen), findsOneWidget);
+    expect(find.text('Водитель едет к вам'), findsOneWidget);
+    expect(find.text('Магомед Алиев'), findsOneWidget);
+    expect(find.text('А 777 АА 05'), findsOneWidget);
+
+    await tester.drag(find.text('Водитель едет к вам'), const Offset(0, -500));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('Детали заказа'), findsOneWidget);
+    expect(find.text('Подача'), findsOneWidget);
+    expect(find.text('Назначение'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TrackingScreen keeps actions reachable at 320px and 200% text',
+      (tester) async {
+    tester.view.physicalSize = const Size(320, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: uiAuditOverrides(),
+        child: MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 780),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: const TrackingScreen(auditDemo: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    await tester.scrollUntilVisible(
+      find.text('Позвонить'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Позвонить'), findsOneWidget);
+    expect(find.text('Чат'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

@@ -115,6 +115,7 @@ func truncateAll(t *testing.T, db *sql.DB) {
 	// Truncate order_offers first (before orders due to FK constraints)
 	tables := []string{
 		"order_offers",
+		"chat_messages",
 		"wallet_transactions",
 		"wallet_transaction_locks",
 		"payouts",

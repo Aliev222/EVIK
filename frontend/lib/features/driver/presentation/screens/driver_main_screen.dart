@@ -12,7 +12,10 @@ import 'driver_profile_screen.dart';
 import 'new_driver_home_screen.dart';
 
 class DriverMainScreen extends ConsumerStatefulWidget {
-  const DriverMainScreen({super.key});
+  const DriverMainScreen({super.key, this.auditNow});
+
+  /// Fixed time used only by deterministic UI-audit captures.
+  final DateTime? auditNow;
 
   @override
   ConsumerState<DriverMainScreen> createState() => _DriverMainScreenState();
@@ -37,6 +40,7 @@ class _DriverMainScreenState extends ConsumerState<DriverMainScreen> {
                 child: hasActiveOrder
                     ? const ActiveOrderScreen()
                     : NewDriverHomeScreen(
+                        auditNow: widget.auditNow,
                         onOpenProfile: () => setState(() => _currentIndex = 3),
                       ),
               ),

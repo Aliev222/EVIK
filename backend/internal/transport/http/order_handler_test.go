@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"evik/backend/internal/auth"
@@ -56,6 +58,15 @@ func TestOrderAccessAllowsOnlyOwnerAssignedDriverOrAdmin(t *testing.T) {
 				t.Fatalf("canAccessOrder = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestWriteOrderErrorMapsInactiveOfferToConflict(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	(&OrderHandler{}).writeOrderError(recorder, orderdomain.ErrOfferNotActive)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
 	}
 }
 

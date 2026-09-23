@@ -1,4 +1,4 @@
-﻿class AppConstants {
+class AppConstants {
   static const String appName = 'Авро';
   static const String appVersion = '1.0.0';
 
@@ -7,7 +7,7 @@
 
   static const String openStreetMapTileUrl = String.fromEnvironment(
     'OSM_TILE_URL',
-    defaultValue: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   );
 
   static const String openStreetMapAttribution = String.fromEnvironment(

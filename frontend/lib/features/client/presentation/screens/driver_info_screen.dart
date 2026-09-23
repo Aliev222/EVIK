@@ -21,6 +21,17 @@ class DriverInfoScreen extends ConsumerStatefulWidget {
 }
 
 class _DriverInfoScreenState extends ConsumerState<DriverInfoScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Kept as a backwards-compatible deep-link target. The old screen had a
+    // second map but never started tracking; the companion screen contains
+    // these details in its expandable sheet and owns the one live session.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.go('/order/tracking');
+    });
+  }
+
   Future<void> _makePhoneCall(String phoneNumber) async {
     final uri = Uri.parse('tel:$phoneNumber');
     if (await canLaunchUrl(uri)) await launchUrl(uri);

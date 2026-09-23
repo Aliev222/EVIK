@@ -1,10 +1,14 @@
 package http
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"evik/backend/internal/auth"
 	orderdomain "evik/backend/internal/domain/order"
 	routingdomain "evik/backend/internal/domain/routing"
 	"github.com/go-chi/chi/v5"
@@ -31,6 +35,16 @@ type routePreviewResponse struct {
 	Points          []routePoint `json:"points"`
 	DistanceMeters  float64      `json:"distanceMeters"`
 	DurationSeconds int          `json:"durationSeconds"`
+}
+
+type orderRouteResponse struct {
+	*routingdomain.Route
+	Points          []routePoint `json:"points"`
+	DistanceMeters  float64      `json:"distanceMeters"`
+	DurationSeconds int          `json:"durationSeconds"`
+	RouteVersion    string       `json:"routeVersion"`
+	Phase           string       `json:"phase"`
+	Target          string       `json:"target"`
 }
 
 type routePoint struct {
@@ -73,11 +87,26 @@ func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) 
 		writeInternalError(w, err)
 		return
 	}
+	callerID, idErr := userIDFromContext(r.Context())
+	callerRole, roleErr := roleFromContext(r.Context())
+	if idErr != nil || roleErr != nil {
+		writeAuthError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !canAccessOrderRoute(order, callerID, callerRole) {
+		writeAuthError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if isTerminalRouteStatus(order.Status) {
+		http.Error(w, "order is closed", http.StatusConflict)
+		return
+	}
 
-	// Calculate route from driver to pickup location
+	target, phase, targetName := routeTarget(order)
+
 	routeReq := routingdomain.RouteRequest{
 		DriverLocation: orderdomain.Coordinate{Lat: req.DriverLat, Lng: req.DriverLng},
-		ClientLocation: order.Pickup,
+		ClientLocation: target,
 		OrderID:        orderID,
 	}
 
@@ -88,7 +117,42 @@ func (h *RoutingHandler) CalculateRoute(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(route)
+	_ = json.NewEncoder(w).Encode(orderRouteResponse{
+		Route:           route,
+		Points:          routePointsFromPolyline(route.Polyline),
+		DistanceMeters:  route.Distance,
+		DurationSeconds: route.Duration,
+		RouteVersion:    canonicalRouteVersion(order, route.Polyline, phase, targetName),
+		Phase:           phase,
+		Target:          targetName,
+	})
+}
+
+func canonicalRouteVersion(order *orderdomain.Order, polyline, phase, target string) string {
+	payload := fmt.Sprintf("%s\x00%s\x00%s\x00%s\x00%s", order.ID, order.UpdatedAt.UTC().Format(time.RFC3339Nano), phase, target, polyline)
+	digest := sha256.Sum256([]byte(payload))
+	return fmt.Sprintf("%x", digest[:12])
+}
+
+func canAccessOrderRoute(order *orderdomain.Order, callerID string, role auth.Role) bool {
+	if role == auth.RoleAdmin {
+		return true
+	}
+	if role == auth.RoleClient {
+		return order.UserID == callerID
+	}
+	return role == auth.RoleDriver && order.DriverID != nil && *order.DriverID == callerID
+}
+
+func isTerminalRouteStatus(status orderdomain.Status) bool {
+	return status == orderdomain.StatusCompleted || status == orderdomain.StatusCancelled || status == orderdomain.StatusNoDriverFound
+}
+
+func routeTarget(order *orderdomain.Order) (orderdomain.Coordinate, string, string) {
+	if order.Status == orderdomain.StatusInProgress || order.Status == orderdomain.StatusAwaitingPayment {
+		return order.Dropoff, "to_destination", "dropoff"
+	}
+	return order.Pickup, "to_pickup", "pickup"
 }
 
 // @Summary      Get turn-by-turn directions

@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	matchingdomain "evik/backend/internal/domain/matching"
 	orderdomain "evik/backend/internal/domain/order"
+	servicearea "evik/backend/internal/domain/servicearea"
 	"evik/backend/internal/domain/settings"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
 )
@@ -156,13 +158,15 @@ func (f *fakeOrderRepo) Update(_ context.Context, ord *orderdomain.Order) error 
 type fakeMatchingSvc struct {
 	mu       sync.Mutex
 	calls    int
+	radii    []float64
 	candPool map[string][]matchingdomain.Candidate
 }
 
-func (f *fakeMatchingSvc) FindCandidates(_ context.Context, ord *orderdomain.Order, _ float64, exclude []string, liveChecker matchingdomain.LiveDriverChecker, _ time.Duration) ([]matchingdomain.Candidate, error) {
+func (f *fakeMatchingSvc) FindCandidates(_ context.Context, ord *orderdomain.Order, radiusKM float64, exclude []string, liveChecker matchingdomain.LiveDriverChecker, _ time.Duration) ([]matchingdomain.Candidate, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
+	f.radii = append(f.radii, radiusKM)
 	excludeSet := make(map[string]bool)
 	for _, id := range exclude {
 		excludeSet[id] = true
@@ -182,6 +186,14 @@ func (f *fakeMatchingSvc) FindCandidates(_ context.Context, ord *orderdomain.Ord
 		return nil, matchingdomain.ErrNoCandidateDrivers
 	}
 	return out, nil
+}
+
+type fakeServiceAreaRepo struct {
+	areas map[string]*servicearea.ServiceArea
+}
+
+func (f *fakeServiceAreaRepo) GetByID(_ context.Context, id string) (*servicearea.ServiceArea, error) {
+	return f.areas[id], nil
 }
 
 type fakeSettingsRepo struct {
@@ -279,6 +291,32 @@ func TestDispatchOfferCreatedForNearest(t *testing.T) {
 	}
 	if offerRepo.created[0].DriverID != "d1" {
 		t.Fatalf("expected offer for d1, got %s", offerRepo.created[0].DriverID)
+	}
+}
+
+func TestDispatchSearchesCityInConfiguredRingsAndStopsAtCityBuffer(t *testing.T) {
+	hub := wsinfra.NewHub()
+	go hub.Run()
+
+	cityID := "city-1"
+	ord := &orderdomain.Order{
+		ID: "city-order", CityID: &cityID,
+		Pickup: orderdomain.Coordinate{Lat: 42.98, Lng: 47.50},
+		Status: orderdomain.StatusSearching,
+	}
+	setAllOrders(ord)
+	orderRepo := &fakeOrderRepo{orders: map[string]*orderdomain.Order{ord.ID: ord}}
+	matchingSvc := &fakeMatchingSvc{candPool: map[string][]matchingdomain.Candidate{ord.ID: {}}}
+	sched := newTestScheduler(&fakeOfferRepo{round: 1}, orderRepo, matchingSvc, &fakeSettingsRepo{}, hub)
+	sched.serviceAreaRepo = &fakeServiceAreaRepo{areas: map[string]*servicearea.ServiceArea{
+		cityID: {ID: cityID, RadiusKM: 25, IsActive: true},
+	}}
+
+	sched.tryOfferNext(context.Background(), ord.ID)
+
+	want := []float64{5, 20, 40, 45}
+	if !reflect.DeepEqual(matchingSvc.radii, want) {
+		t.Fatalf("search radii = %v, want %v", matchingSvc.radii, want)
 	}
 }
 

@@ -71,6 +71,8 @@ type SetStatusUseCase struct {
 	dispatchNotifier      DispatchNotifier
 	lastLocationPublish   map[string]time.Time
 	lastLocationPublishMu sync.Mutex
+	lastLocationSeq       map[string]int64
+	lastLocationSeqMu     sync.Mutex
 }
 
 func (uc *SetStatusUseCase) SetDispatchNotifier(notifier DispatchNotifier) {
@@ -105,6 +107,7 @@ func NewSetStatusUseCase(
 		clock:               clock,
 		logger:              logger,
 		lastLocationPublish: make(map[string]time.Time),
+		lastLocationSeq:     make(map[string]int64),
 	}
 }
 
@@ -235,28 +238,62 @@ func (uc *SetStatusUseCase) publishDriverLocation(ctx context.Context, driverID 
 
 	orderID := ""
 	userID := ""
+	phase := "to_pickup"
 	drv, err := uc.driverRepo.GetByID(ctx, driverID)
 	if err == nil && drv != nil && drv.CurrentOrderID != nil {
 		orderID = *drv.CurrentOrderID
 		ord, ordErr := uc.orderRepo.GetByID(ctx, orderID)
-		if ordErr == nil && ord != nil {
+		if ordErr == nil && ord != nil && isLiveTrackingOrder(ord.Status) && ord.DriverID != nil && *ord.DriverID == driverID {
 			userID = ord.UserID
+			phase = clientMarkerPhase(ord.Status)
+		} else {
+			// A stale busy/current_order_id must never keep publishing a
+			// driver's location after cancellation, completion, or reassignment.
+			orderID = ""
 		}
 	}
 	if userID == "" {
 		return
 	}
+	uc.lastLocationSeqMu.Lock()
+	uc.lastLocationSeq[driverID]++
+	seq := uc.lastLocationSeq[driverID]
+	uc.lastLocationSeqMu.Unlock()
 	if pubErr := uc.eventPublisher.Publish(ctx, orderdomain.Event{
 		Type:    orderdomain.EventDriverLocationUpdated,
 		OrderID: orderID,
 		Payload: map[string]any{
-			"driver_id": driverID,
-			"user_id":   userID,
-			"lat":       lat,
-			"lng":       lng,
+			"driver_id":   driverID,
+			"user_id":     userID,
+			"lat":         lat,
+			"lng":         lng,
+			"status":      phase,
+			"sampled_at":  now.UTC().Format(time.RFC3339Nano),
+			"received_at": now.UTC().Format(time.RFC3339Nano),
+			"seq":         seq,
 		},
 	}); pubErr != nil {
 		uc.logger.Error("failed to publish driver location", pubErr, "driver_id", driverID)
+	}
+}
+
+func isLiveTrackingOrder(status orderdomain.Status) bool {
+	switch status {
+	case orderdomain.StatusCompleted, orderdomain.StatusCancelled, orderdomain.StatusNoDriverFound:
+		return false
+	default:
+		return true
+	}
+}
+
+func clientMarkerPhase(status orderdomain.Status) string {
+	switch status {
+	case orderdomain.StatusArrived:
+		return "waiting"
+	case orderdomain.StatusInProgress, orderdomain.StatusAwaitingPayment:
+		return "to_destination"
+	default:
+		return "to_pickup"
 	}
 }
 

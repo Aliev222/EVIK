@@ -1,10 +1,12 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:tow_truck_frontend/core/services/realtime_location_service.dart';
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroClientColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroClientColors;
 import 'package:tow_truck_frontend/features/map/domain/entities/map_location.dart';
+import 'package:tow_truck_frontend/features/map/domain/driver_motion.dart';
 import 'animated_driver_marker.dart';
 import 'evik_osm_map_view.dart';
 
@@ -16,34 +18,117 @@ class LiveDriverMap extends ConsumerStatefulWidget {
     this.destinationLocation,
     this.showSearchAnimation = false,
     this.driverLocation,
+    this.animatedDriverLocation,
+    this.driverMarkerBuilder,
+    this.animateDriverMarker = false,
     this.routePoints = const [],
     this.extraMarkers = const [],
     this.routeColor,
+    this.routeStrokeWidth = 3,
+    this.routeBorderStrokeWidth = 1.5,
+    this.scaleMarkersWithZoom = false,
     this.adminMode = false,
     this.activeDrivers = const [],
     this.controlsBottomOffset = 42,
+    this.attributionBottomOffset = 16,
+    this.attributionRightOffset = 16,
     this.showRecenterButton = false,
     this.onRecenter,
+    this.onManualCamera,
+    this.fitToMarkers = true,
+    this.fitPadding = const EdgeInsets.all(42),
+    this.initialZoom = 15,
   });
 
   final MapLocation? pickupLocation;
   final MapLocation? destinationLocation;
   final bool showSearchAnimation;
   final DriverLocationUpdate? driverLocation;
+
+  /// A tracking-only input. Its animation is contained in this map state, so
+  /// the surrounding order screen and its sheet do not rebuild on every frame.
+  final DriverLocationUpdate? animatedDriverLocation;
+  final Widget Function(DriverLocationUpdate location)? driverMarkerBuilder;
+  final bool animateDriverMarker;
   final List<LatLng> routePoints;
   final List<EvikMapMarker> extraMarkers;
   final Color? routeColor;
+  final double routeStrokeWidth;
+  final double routeBorderStrokeWidth;
+  final bool scaleMarkersWithZoom;
   final bool adminMode;
   final List<DriverLocationUpdate> activeDrivers;
   final double controlsBottomOffset;
+  final double attributionBottomOffset;
+  final double attributionRightOffset;
   final bool showRecenterButton;
   final VoidCallback? onRecenter;
+  final VoidCallback? onManualCamera;
+  final bool fitToMarkers;
+  final EdgeInsets fitPadding;
+  final double initialZoom;
 
   @override
   ConsumerState<LiveDriverMap> createState() => _LiveDriverMapState();
 }
 
-class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
+class _LiveDriverMapState extends ConsumerState<LiveDriverMap>
+    with SingleTickerProviderStateMixin {
+  static const _driverMotionDuration = Duration(milliseconds: 2000);
+
+  late final AnimationController _driverMotionController;
+  DriverLocationUpdate? _motionStart;
+  DriverLocationUpdate? _motionEnd;
+
+  @override
+  void initState() {
+    super.initState();
+    _driverMotionController = AnimationController(
+      vsync: this,
+      duration: _driverMotionDuration,
+    )..addListener(() {
+        if (mounted) setState(() {});
+      });
+    final initial = widget.animatedDriverLocation;
+    if (initial != null) _motionStart = _motionEnd = initial;
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveDriverMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final rawIncoming = widget.animatedDriverLocation;
+    if (!widget.animateDriverMarker || rawIncoming == null) return;
+    final previousTarget = _motionEnd;
+    if (previousTarget == null) {
+      _motionStart = _motionEnd = rawIncoming;
+      return;
+    }
+    // GPS heading is effectively noise while stationary. Keep the last
+    // confirmed nose direction until movement resumes.
+    final incoming = _withBearing(
+      rawIncoming,
+      stableDriverBearing(
+        previous: previousTarget.bearing,
+        incoming: rawIncoming.bearing,
+        speedKmh: rawIncoming.speed,
+      ),
+    );
+    if (_sameFix(previousTarget, incoming)) return;
+    _motionStart = _displayedDriverLocation ?? previousTarget;
+    _motionEnd = incoming;
+    _driverMotionController.duration = driverMotionDuration(
+      previousTarget.timestamp,
+      incoming.timestamp,
+    );
+    _driverMotionController.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _driverMotionController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Determine map center and initial zoom
@@ -56,9 +141,13 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             ? widget.activeDrivers.first.lng
             : 47.5024);
 
-    final zoom = widget.adminMode ? 12.0 : 15.0; // Zoom out for admin view
+    final zoom = widget.adminMode ? 12.0 : widget.initialZoom;
 
-    // Build all map markers
+    final displayedDriver = _displayedDriverLocation;
+    final displayedRoute = widget.routePoints;
+
+    // Build all map markers. The animated driver is appended last so it is
+    // never hidden behind pickup/destination markers at close zoom.
     final markers = <EvikMapMarker>[...widget.extraMarkers];
 
     if (widget.pickupLocation != null) {
@@ -81,6 +170,18 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
       ));
     }
 
+    if (widget.animateDriverMarker &&
+        displayedDriver != null &&
+        widget.driverMarkerBuilder != null) {
+      markers.add(EvikMapMarker(
+        lat: displayedDriver.lat,
+        lng: displayedDriver.lng,
+        title: 'Эвакуатор',
+        color: AvroClientColors.accent,
+        child: widget.driverMarkerBuilder!(displayedDriver),
+      ));
+    }
+
     return Stack(
       children: [
         // Base OSM view with markers and route
@@ -90,11 +191,22 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
             initialLng: centerLng,
             initialZoom: zoom,
             markers: markers,
-            routePoints: widget.routePoints,
+            routePoints: displayedRoute,
             routeColor: widget.routeColor,
+            routeStrokeWidth: widget.routeStrokeWidth,
+            routeBorderStrokeWidth: widget.routeBorderStrokeWidth,
+            scaleMarkersWithZoom: widget.scaleMarkersWithZoom,
             showRecenterButton: widget.showRecenterButton,
             onRecenter: widget.onRecenter,
+            onManualCamera: widget.onManualCamera,
+            fitToMarkers: widget.fitToMarkers,
+            // The animated driver marker changes every frame. Camera fitting
+            // belongs to route/phase changes, never to animation frames.
+            refitOnMarkerChanges: false,
+            fitPadding: widget.fitPadding,
             controlsBottomOffset: widget.controlsBottomOffset,
+            attributionBottomOffset: widget.attributionBottomOffset,
+            attributionRightOffset: widget.attributionRightOffset,
             controlsBackgroundColor: AvroClientColors.background,
             controlsIconColor: AvroClientColors.accent,
             onTap: (lat, lng) {
@@ -132,6 +244,64 @@ class _LiveDriverMapState extends ConsumerState<LiveDriverMap> {
       ),
     );
   }
+
+  DriverLocationUpdate? get _displayedDriverLocation {
+    final end = _motionEnd;
+    if (end == null) return null;
+    final start = _motionStart ?? end;
+    // Linear interpolation preserves velocity across regularly spaced GPS
+    // fixes; restarting an ease-in curve for every packet creates visible
+    // stop/go motion even when the tow truck moves steadily.
+    final progress = _driverMotionController.value;
+    final routedPosition = interpolateDriverPositionOnRoute(
+      start: LatLng(start.lat, start.lng),
+      end: LatLng(end.lat, end.lng),
+      route: widget.routePoints,
+      progress: progress,
+      accuracyM: end.accuracyM ?? 15,
+      bearing: end.bearing,
+      speedKmh: end.speed,
+    );
+    return DriverLocationUpdate(
+      driverId: end.driverId,
+      lat: routedPosition?.latitude ?? _lerp(start.lat, end.lat, progress),
+      lng: routedPosition?.longitude ?? _lerp(start.lng, end.lng, progress),
+      bearing: interpolateDriverBearing(start.bearing, end.bearing, progress),
+      speed: end.speed,
+      status: end.status,
+      orderId: end.orderId,
+      timestamp: end.timestamp,
+      sequence: end.sequence,
+      receivedAt: end.receivedAt,
+      accuracyM: end.accuracyM,
+    );
+  }
+
+  bool _sameFix(DriverLocationUpdate a, DriverLocationUpdate b) =>
+      a.lat == b.lat &&
+      a.lng == b.lng &&
+      a.bearing == b.bearing &&
+      a.timestamp == b.timestamp;
+
+  double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  DriverLocationUpdate _withBearing(
+    DriverLocationUpdate update,
+    double bearing,
+  ) =>
+      DriverLocationUpdate(
+        driverId: update.driverId,
+        lat: update.lat,
+        lng: update.lng,
+        bearing: bearing,
+        speed: update.speed,
+        status: update.status,
+        orderId: update.orderId,
+        timestamp: update.timestamp,
+        sequence: update.sequence,
+        receivedAt: update.receivedAt,
+        accuracyM: update.accuracyM,
+      );
 
   Widget _buildDriverInfoPanel(DriverLocationUpdate driver) {
     return Positioned(

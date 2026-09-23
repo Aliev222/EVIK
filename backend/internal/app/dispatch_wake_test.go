@@ -184,7 +184,7 @@ func TestDispatchWakeDeliversOfferAfterReconnect(t *testing.T) {
 	}
 }
 
-func TestDispatchWakeGraceExpiryDropsEntry(t *testing.T) {
+func TestDispatchWakeGraceExpiryCreatesOfferForOnlineDriver(t *testing.T) {
 	hub := wsinfra.NewHub()
 	go hub.Run()
 
@@ -208,8 +208,11 @@ func TestDispatchWakeGraceExpiryDropsEntry(t *testing.T) {
 	clk.advance(sched.wakeGrace + time.Second)
 	sched.matureWaking(context.Background())
 
-	if len(offerRepo.created) != 0 {
-		t.Fatalf("expected still 0 offers after grace (no reconnect), got %d", len(offerRepo.created))
+	if len(offerRepo.created) != 1 {
+		t.Fatalf("expected an offer after grace without reconnect, got %d", len(offerRepo.created))
+	}
+	if offerRepo.created[0].DriverID != "wd3" {
+		t.Fatalf("expected offer for wd3, got %s", offerRepo.created[0].DriverID)
 	}
 	sched.mu.Lock()
 	_, waking := sched.waking["wo3:wd3"]

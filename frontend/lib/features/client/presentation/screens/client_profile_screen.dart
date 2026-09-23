@@ -49,21 +49,18 @@ class ClientProfileScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 54,
-                    height: 54,
-                    decoration: const BoxDecoration(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
                       color: AvroClientColors.accent,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      user?.fullName.isNotEmpty == true
-                          ? user!.fullName[0].toUpperCase()
-                          : '?',
-                      style: EvikTypography.h3.copyWith(
-                        color: AvroClientColors.background,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 20,
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Image.asset(
+                        'assets/img/app_icon_load.png',
+                        fit: BoxFit.contain,
                       ),
                     ),
                   ),
@@ -72,18 +69,12 @@ class ClientProfileScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(user?.fullName ?? 'Неизвестный',
-                            style:
-                                EvikTypography.h3.copyWith(fontSize: 34 / 2)),
-                        const SizedBox(height: 2),
-                        Text(user?.phone ?? '',
-                            style: EvikTypography.bodyMedium
-                                .copyWith(color: AvroClientColors.textSecondary)),
-                        const SizedBox(height: 4),
                         Text('Клиент Авро',
-                            style: EvikTypography.bodySmall.copyWith(
-                                color: AvroClientColors.warning,
-                                fontWeight: FontWeight.w700)),
+                            style: EvikTypography.h3.copyWith(fontSize: 18)),
+                        const SizedBox(height: 4),
+                        Text(user?.phone ?? 'Номер телефона не указан',
+                            style: EvikTypography.bodyMedium.copyWith(
+                                color: AvroClientColors.textSecondary)),
                       ],
                     ),
                   ),
@@ -95,14 +86,24 @@ class ClientProfileScreen extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                 children: [
+                  const _ProfileSectionTitle('АККАУНТ'),
+                  const SizedBox(height: 8),
                   _ProfileTile(
                     icon: Icons.notifications_none,
                     title: 'Уведомления',
                     subtitle: 'Оповещения о статусе заказа',
-                    comingSoon: true,
                     onTap: () => _openNotifications(context),
                   ),
                   const SizedBox(height: 12),
+                  _ProfileTile(
+                    icon: Icons.credit_card_outlined,
+                    title: 'Способы оплаты',
+                    subtitle: 'Карты, промокоды',
+                    onTap: () => _openWallet(context),
+                  ),
+                  const SizedBox(height: 24),
+                  const _ProfileSectionTitle('ПОМОЩЬ'),
+                  const SizedBox(height: 8),
                   _ProfileTile(
                     icon: Icons.health_and_safety_outlined,
                     title: 'Экстренная связь',
@@ -114,15 +115,7 @@ class ClientProfileScreen extends ConsumerWidget {
                     icon: Icons.chat_bubble_outline,
                     title: 'Поддержка',
                     subtitle: 'Связь с оператором Авро',
-                    comingSoon: true,
                     onTap: () => _openSupport(context),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileTile(
-                    icon: Icons.credit_card_outlined,
-                    title: 'Способы оплаты',
-                    subtitle: 'Карты, промокоды',
-                    onTap: () => _openWallet(context),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -248,14 +241,12 @@ class _ProfileTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.comingSoon = false,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
@@ -306,26 +297,6 @@ class _ProfileTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (comingSoon) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AvroClientColors.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'скоро',
-                    style: EvikTypography.bodySmall.copyWith(
-                      color: AvroClientColors.accent,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
               const Icon(Icons.chevron_right, color: AvroClientColors.tabInactive),
             ],
           ),
@@ -334,4 +305,20 @@ class _ProfileTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProfileSectionTitle extends StatelessWidget {
+  const _ProfileSectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        label,
+        style: EvikTypography.bodySmall.copyWith(
+          color: AvroClientColors.textSecondary,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
+      );
 }

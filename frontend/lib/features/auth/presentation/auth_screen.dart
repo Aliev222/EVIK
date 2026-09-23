@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
-    show AvroClientColors;
+    show AvroClientColors, AvroDriverColors;
 import 'package:tow_truck_frontend/core/config/build_flags.dart';
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
@@ -32,160 +32,150 @@ final bool _kTestLogin = developmentFeatureEnabled(
 class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _phoneFocusNode = FocusNode();
   UserRole? _role;
   bool _testPasswordMode = false;
+  bool _phoneWasTouched = false;
 
   @override
   void initState() {
     super.initState();
     _role = widget.initialRole;
+    _phoneFocusNode.addListener(() {
+      if (!_phoneFocusNode.hasFocus) setState(() => _phoneWasTouched = true);
+    });
   }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _passwordController.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final role = _role ?? ref.watch(selectedOnboardingRoleProvider);
+    final isDriver = role == UserRole.driver;
+    final background =
+        isDriver ? AvroDriverColors.background : AvroClientColors.background;
+    final primary =
+        isDriver ? AvroDriverColors.textPrimary : AvroClientColors.textPrimary;
+    final secondary = isDriver
+        ? AvroDriverColors.textSecondary
+        : AvroClientColors.textSecondary;
 
     return Scaffold(
-      backgroundColor: AvroClientColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Вход в Авро',
-          style: EvikTypography.h2.copyWith(fontSize: 24),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: false,
-        titleSpacing: 16,
-        leading: IconButton(
-          onPressed: () {
-            ref.read(selectedOnboardingRoleProvider.notifier).state = null;
-            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: AvroClientColors.textPrimary,
-            size: 20,
-          ),
-          splashRadius: 24,
-          padding: const EdgeInsets.all(8),
-        ),
-      ),
+      backgroundColor: background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Введите номер телефона для входа или регистрации',
-                style: EvikTypography.bodyLarge.copyWith(
-                  color: AvroClientColors.textSecondary,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 30),
-              _PhoneInput(
-                controller: _phoneController,
-                onChanged: (_) => setState(() {}),
-                isValid: _isPhoneValid(),
-                onSubmit: (_) {
-                  if (_isPhoneValid() &&
-                      !authState.isLoading &&
-                      _actionEnabled()) {
-                    if (_testPasswordMode) {
-                      _signInWithPassword();
-                    } else {
-                      _sendSmsCode();
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () {
+                    ref.read(selectedOnboardingRoleProvider.notifier).state =
+                        null;
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
                     }
-                  }
-                },
+                  },
+                  icon: Icon(Icons.arrow_back_ios_new_rounded, color: primary),
+                  tooltip: 'Назад',
+                ),
               ),
-              if (_kTestLogin && _testPasswordMode) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Пароль',
-                    hintText: 'Минимум 8 символов',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-              if (_kTestLogin) ...[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => setState(
-                      () => _testPasswordMode = !_testPasswordMode,
-                    ),
-                    child: Text(
-                      _testPasswordMode
-                          ? '← Вернуться к входу по SMS'
-                          : 'Тестовый вход по паролю',
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              _buildPhoneValidationHint(_phoneController.text),
-              const SizedBox(height: 14),
               Expanded(
-                child: _testPasswordMode
-                    ? Text(
-                        'Режим теста: аккаунт создаётся автоматически при первом входе (регистрация по телефону + паролю, без SMS).',
-                        style: EvikTypography.bodyLarge.copyWith(
-                          color: AvroClientColors.textSecondary,
-                          height: 1.35,
-                        ),
-                      )
-                    : Text(
-                        'Мы отправим SMS с кодом подтверждения на этот номер',
-                        style: EvikTypography.bodyLarge.copyWith(
-                          color: AvroClientColors.textSecondary,
-                          height: 1.35,
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 42),
+                      Text(
+                        'Ваш номер телефона',
+                        style: EvikTypography.h1.copyWith(
+                          color: primary,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w700,
+                          height: 1.12,
                         ),
                       ),
-              ),
-              if (authState.errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AvroClientColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AvroClientColors.error.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Text(
-                    authState.errorMessage!,
-                    style: EvikTypography.bodyMedium.copyWith(
-                      color: AvroClientColors.errorDeep,
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Отправим SMS с кодом для входа или регистрации.',
+                        style: EvikTypography.bodyLarge.copyWith(
+                          color: secondary,
+                          fontSize: 17,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      _PhoneInput(
+                        controller: _phoneController,
+                        focusNode: _phoneFocusNode,
+                        onChanged: (_) => setState(() {}),
+                        isValid: _isPhoneValid(),
+                        isFocused: _phoneFocusNode.hasFocus,
+                        isDark: isDriver,
+                        onSubmit: (_) => _submitIfPossible(authState),
+                      ),
+                      if (_phoneWasTouched && !_isPhoneValid()) ...[
+                        const SizedBox(height: 8),
+                        _buildPhoneValidationHint(
+                          _phoneController.text,
+                          color: secondary,
+                        ),
+                      ],
+                      if (_kTestLogin && _testPasswordMode) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Пароль',
+                            hintText: 'Минимум 8 символов',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                      if (_kTestLogin) ...[
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () => setState(
+                            () => _testPasswordMode = !_testPasswordMode,
+                          ),
+                          child: Text(
+                            _testPasswordMode
+                                ? 'Вернуться к входу по SMS'
+                                : 'Тестовый вход по паролю',
+                          ),
+                        ),
+                      ],
+                      if (authState.errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        _AuthError(message: authState.errorMessage!),
+                      ],
+                    ],
                   ),
                 ),
-              ],
-              EvikButton(
-                text: _testPasswordMode ? 'Войти по паролю' : 'Получить код',
-                onPressed: _isPhoneValid() &&
-                        !authState.isLoading &&
-                        _actionEnabled()
-                    ? (_testPasswordMode ? _signInWithPassword : _sendSmsCode)
-                    : null,
-                isLoading: authState.isLoading,
-                width: double.infinity,
+              ),
+              _ThemedAuthButton(
+                isDark: isDriver,
+                child: EvikButton(
+                  text: _testPasswordMode ? 'Войти по паролю' : 'Получить код',
+                  onPressed: _isPhoneValid() &&
+                          !authState.isLoading &&
+                          _actionEnabled()
+                      ? () => _submitIfPossible(authState)
+                      : null,
+                  isLoading: authState.isLoading,
+                  width: double.infinity,
+                ),
               ),
             ],
           ),
@@ -196,50 +186,31 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   bool _isPhoneValid() {
     final digitsOnly = _phoneController.text.replaceAll(RegExp(r'[^\d]'), '');
-    return digitsOnly.length == 11 && digitsOnly.startsWith('7');
+    return digitsOnly.length == 10;
   }
 
-  Widget _buildPhoneValidationHint(String phone) {
-    final isEmpty = phone.trim().isEmpty;
-    final isValid = _isPhoneValid();
+  String _normalizedPhone() =>
+      '+7${_phoneController.text.replaceAll(RegExp(r'[^\d]'), '')}';
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: isValid
-          ? Row(
-              key: const ValueKey('valid-phone'),
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: AvroClientColors.success,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Номер корректный',
-                  style: EvikTypography.bodyMedium.copyWith(
-                    color: AvroClientColors.successDeep,
-                  ),
-                ),
-              ],
-            )
-          : Text(
-              isEmpty
-                  ? 'Введите номер в формате +7 (999) 123-45-67'
-                  : 'Проверьте формат номера: +7 (999) 123-45-67',
-              key: const ValueKey('invalid-phone'),
-              style: EvikTypography.bodySmall.copyWith(
-                color: AvroClientColors.textPrimary,
-              ),
-            ),
+  Widget _buildPhoneValidationHint(String phone, {required Color color}) {
+    return Text(
+      phone.trim().isEmpty
+          ? 'Введите номер телефона.'
+          : 'Введите номер полностью.',
+      style: EvikTypography.bodySmall.copyWith(color: color),
     );
+  }
+
+  void _submitIfPossible(AuthState authState) {
+    if (!_isPhoneValid() || authState.isLoading || !_actionEnabled()) return;
+    _testPasswordMode ? _signInWithPassword() : _sendSmsCode();
   }
 
   void _sendSmsCode() {
     final role =
         _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
     ref.read(authProvider.notifier).signInWithPhone(
-          _phoneController.text.trim(),
+          _normalizedPhone(),
           role: role,
         );
   }
@@ -253,11 +224,42 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final role =
         _role ?? ref.read(selectedOnboardingRoleProvider) ?? UserRole.client;
     ref.read(authProvider.notifier).signInWithPassword(
-          _phoneController.text.trim(),
+          _normalizedPhone(),
           _passwordController.text,
           role: role,
         );
   }
+}
+
+class _AuthError extends StatelessWidget {
+  const _AuthError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AvroClientColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(message),
+      );
+}
+
+class _ThemedAuthButton extends StatelessWidget {
+  const _ThemedAuthButton({required this.isDark, required this.child});
+
+  final bool isDark;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Theme(
+        data: Theme.of(context).copyWith(
+          disabledColor: isDark ? AvroDriverColors.border : null,
+        ),
+        child: child,
+      );
 }
 
 class _PhoneFormatter extends TextInputFormatter {
@@ -275,28 +277,29 @@ class _PhoneFormatter extends TextInputFormatter {
         selection: TextSelection.collapsed(offset: 0),
       );
     }
-    if (digits.startsWith('8')) digits = '7${digits.substring(1)}';
-    if (!digits.startsWith('7')) digits = '7$digits';
-    if (digits.length > 11) digits = digits.substring(0, 11);
+    if (digits.length == 11 &&
+        (digits.startsWith('7') || digits.startsWith('8'))) {
+      digits = digits.substring(1);
+    }
+    if (digits.length > 10) digits = digits.substring(0, 10);
 
-    final local = digits.length > 1 ? digits.substring(1) : '';
-    final buffer = StringBuffer('+7');
-    if (local.isNotEmpty) {
+    final buffer = StringBuffer();
+    if (digits.isNotEmpty) {
       buffer.write(' (');
-      buffer.write(local.substring(0, _limit(local.length, 3)));
+      buffer.write(digits.substring(0, _limit(digits.length, 3)));
     }
-    if (local.length >= 3) buffer.write(')');
-    if (local.length > 3) {
+    if (digits.length >= 3) buffer.write(')');
+    if (digits.length > 3) {
       buffer.write(' ');
-      buffer.write(local.substring(3, _limit(local.length, 6)));
+      buffer.write(digits.substring(3, _limit(digits.length, 6)));
     }
-    if (local.length > 6) {
+    if (digits.length > 6) {
       buffer.write('-');
-      buffer.write(local.substring(6, _limit(local.length, 8)));
+      buffer.write(digits.substring(6, _limit(digits.length, 8)));
     }
-    if (local.length > 8) {
+    if (digits.length > 8) {
       buffer.write('-');
-      buffer.write(local.substring(8, _limit(local.length, 10)));
+      buffer.write(digits.substring(8, _limit(digits.length, 10)));
     }
 
     final text = buffer.toString();
@@ -310,14 +313,20 @@ class _PhoneFormatter extends TextInputFormatter {
 class _PhoneInput extends StatelessWidget {
   const _PhoneInput({
     required this.controller,
+    required this.focusNode,
     required this.onChanged,
     required this.isValid,
+    required this.isFocused,
+    required this.isDark,
     required this.onSubmit,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final ValueChanged<String> onChanged;
   final bool isValid;
+  final bool isFocused;
+  final bool isDark;
   final ValueChanged<String> onSubmit;
 
   @override
@@ -325,31 +334,43 @@ class _PhoneInput extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeInOut,
-      height: 56,
+      height: 64,
       decoration: BoxDecoration(
-        color: AvroClientColors.background,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? AvroDriverColors.surface : AvroClientColors.background,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isValid ? AvroClientColors.accent : AvroClientColors.surface,
+          color: isFocused || isValid
+              ? AvroClientColors.accent
+              : isDark
+                  ? AvroDriverColors.border
+                  : AvroClientColors.surface,
           width: 2,
         ),
       ),
       child: Row(
         children: [
-          const SizedBox(width: 16),
+          const SizedBox(width: 18),
           Text(
-            'RU',
+            '+7',
             style: EvikTypography.bodyMedium.copyWith(
+              fontSize: 17,
               fontWeight: FontWeight.w700,
-              color: AvroClientColors.textPrimary,
+              color: isDark
+                  ? AvroDriverColors.textPrimary
+                  : AvroClientColors.textPrimary,
             ),
           ),
-          const SizedBox(width: 12),
-          Container(width: 1, height: 26, color: AvroClientColors.surface),
+          const SizedBox(width: 14),
+          Container(
+            width: 1,
+            height: 28,
+            color: isDark ? AvroDriverColors.border : AvroClientColors.surface,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: TextFormField(
               controller: controller,
+              focusNode: focusNode,
               keyboardType: TextInputType.phone,
               onChanged: onChanged,
               onFieldSubmitted: onSubmit,
@@ -361,15 +382,20 @@ class _PhoneInput extends StatelessWidget {
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                hintText: '+7 (999) 000-00-00',
+                hintText: '(999) 000-00-00',
                 hintStyle: EvikTypography.bodyLarge.copyWith(
-                  color: AvroClientColors.textMuted,
+                  color: isDark
+                      ? AvroDriverColors.textSecondary
+                      : AvroClientColors.textMuted,
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                contentPadding: const EdgeInsets.symmetric(vertical: 18),
               ),
               style: EvikTypography.bodyLarge.copyWith(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AvroDriverColors.textPrimary
+                    : AvroClientColors.textPrimary,
               ),
             ),
           ),

@@ -35,7 +35,7 @@ type DriverLocationCache interface {
 }
 
 type OrderHandler struct {
-	RouteChanges *orderuc.ChangeRouteUseCase
+	RouteChanges      *orderuc.ChangeRouteUseCase
 	createUC          *orderuc.CreateOrderUseCase
 	acceptUC          *orderuc.AcceptOrderUseCase
 	updateUC          *orderuc.UpdateStatusUseCase
@@ -138,32 +138,32 @@ type PriceBreakdown struct {
 }
 
 type orderResponse struct {
-	ID              string             `json:"id"`
-	UserID          string             `json:"user_id"`
-	DriverID        *string            `json:"driver_id"`
-	Pickup          coordinateResponse `json:"pickup"`
-	Dropoff         coordinateResponse `json:"dropoff"`
-	PickupLat       float64            `json:"pickup_lat"`
-	PickupLng       float64            `json:"pickup_lng"`
-	DropoffLat      float64            `json:"dropoff_lat"`
-	DropoffLng      float64            `json:"dropoff_lng"`
-	PickupAddress   string             `json:"pickup_address"`
-	DropoffAddress  string             `json:"dropoff_address"`
-	TowTruckType    string             `json:"tow_truck_type"`
-	Status          string             `json:"status"`
-	PaymentMethod   string             `json:"payment_method"`
-	IsExpanded      bool               `json:"is_expanded"`
-	IsCrossCity     bool               `json:"is_cross_city"`
-	PriceTotal      int64              `json:"price_total"`
-	SurchargeAmount int64              `json:"surcharge_amount"`
+	ID               string             `json:"id"`
+	UserID           string             `json:"user_id"`
+	DriverID         *string            `json:"driver_id"`
+	Pickup           coordinateResponse `json:"pickup"`
+	Dropoff          coordinateResponse `json:"dropoff"`
+	PickupLat        float64            `json:"pickup_lat"`
+	PickupLng        float64            `json:"pickup_lng"`
+	DropoffLat       float64            `json:"dropoff_lat"`
+	DropoffLng       float64            `json:"dropoff_lng"`
+	PickupAddress    string             `json:"pickup_address"`
+	DropoffAddress   string             `json:"dropoff_address"`
+	TowTruckType     string             `json:"tow_truck_type"`
+	Status           string             `json:"status"`
+	PaymentMethod    string             `json:"payment_method"`
+	IsExpanded       bool               `json:"is_expanded"`
+	IsCrossCity      bool               `json:"is_cross_city"`
+	PriceTotal       int64              `json:"price_total"`
+	SurchargeAmount  int64              `json:"surcharge_amount"`
 	SurchargePercent int                `json:"surcharge_percent"`
-	PriceBreakdown  *PriceBreakdown    `json:"price_breakdown,omitempty"`
-	DistanceKM      *float64           `json:"distance_km,omitempty"`
-	CreatedAt       string             `json:"created_at"`
-	UpdatedAt       string             `json:"updated_at"`
-	Notes           string             `json:"notes"`
-	CancelledAt     *string            `json:"cancelled_at"`
-	CancelReason    string             `json:"cancel_reason,omitempty"`
+	PriceBreakdown   *PriceBreakdown    `json:"price_breakdown,omitempty"`
+	DistanceKM       *float64           `json:"distance_km,omitempty"`
+	CreatedAt        string             `json:"created_at"`
+	UpdatedAt        string             `json:"updated_at"`
+	Notes            string             `json:"notes"`
+	CancelledAt      *string            `json:"cancelled_at"`
+	CancelReason     string             `json:"cancel_reason,omitempty"`
 	// ClientName/ClientPhone are attached only when the caller may see the
 	// client's identity (order owner, assigned driver, or admin). Omitted for
 	// the searching pool and for strangers, preserving client privacy.
@@ -865,6 +865,8 @@ func (h *OrderHandler) writeOrderError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, err)
 	case errors.Is(err, orderdomain.ErrOrderAlreadyTaken):
 		h.writeError(w, http.StatusConflict, err)
+	case errors.Is(err, orderdomain.ErrOfferNotActive):
+		h.writeError(w, http.StatusConflict, err)
 	case errors.Is(err, orderuc.ErrCompletionRequiresFinalize):
 		h.writeError(w, http.StatusBadRequest, err)
 	case errors.Is(err, orderuc.ErrFinalPriceMismatch):
@@ -893,9 +895,9 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 	}
 
 	return orderResponse{
-		ID:              ord.ID,
-		UserID:          ord.UserID,
-		DriverID:        ord.DriverID,
+		ID:       ord.ID,
+		UserID:   ord.UserID,
+		DriverID: ord.DriverID,
 		Pickup: coordinateResponse{
 			Lat: ord.Pickup.Lat,
 			Lng: ord.Pickup.Lng,
@@ -904,26 +906,26 @@ func newOrderResponse(ord *orderdomain.Order) orderResponse {
 			Lat: ord.Dropoff.Lat,
 			Lng: ord.Dropoff.Lng,
 		},
-		PickupLat:       ord.Pickup.Lat,
-		PickupLng:       ord.Pickup.Lng,
-		DropoffLat:      ord.Dropoff.Lat,
-		DropoffLng:      ord.Dropoff.Lng,
-		PickupAddress:   ord.PickupAddress,
-		DropoffAddress:  ord.DropoffAddress,
-		TowTruckType:    string(ord.TowTruckType),
-		Status:          string(ord.Status),
-		PaymentMethod:   ord.PaymentMethod,
-		IsExpanded:      ord.IsExpanded,
-		IsCrossCity:     ord.IsCrossCity,
-		PriceTotal:      ord.PriceTotal,
-		SurchargeAmount: ord.SurchargeAmount,
+		PickupLat:        ord.Pickup.Lat,
+		PickupLng:        ord.Pickup.Lng,
+		DropoffLat:       ord.Dropoff.Lat,
+		DropoffLng:       ord.Dropoff.Lng,
+		PickupAddress:    ord.PickupAddress,
+		DropoffAddress:   ord.DropoffAddress,
+		TowTruckType:     string(ord.TowTruckType),
+		Status:           string(ord.Status),
+		PaymentMethod:    ord.PaymentMethod,
+		IsExpanded:       ord.IsExpanded,
+		IsCrossCity:      ord.IsCrossCity,
+		PriceTotal:       ord.PriceTotal,
+		SurchargeAmount:  ord.SurchargeAmount,
 		SurchargePercent: ord.SurchargePercent,
-		PriceBreakdown:  breakdown,
-		CreatedAt:       ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		UpdatedAt:       ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
-		Notes:           ord.Notes,
-		CancelledAt:     cancelledAt,
-		CancelReason:    ord.CancelReason,
+		PriceBreakdown:   breakdown,
+		CreatedAt:        ord.CreatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		UpdatedAt:        ord.UpdatedAt.Format("2006-01-02T15:04:05.000Z07:00"),
+		Notes:            ord.Notes,
+		CancelledAt:      cancelledAt,
+		CancelReason:     ord.CancelReason,
 	}
 }
 

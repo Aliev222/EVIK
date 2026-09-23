@@ -129,7 +129,10 @@ func (uc *AcceptOrderUseCase) Execute(ctx context.Context, orderID string, drive
 	if uc.offerResolver != nil {
 		activeOffer, offerErr := uc.offerResolver.GetActiveForOrderAndDriver(ctx, orderID, driverID)
 		if offerErr != nil || activeOffer == nil {
-			return nil, fmt.Errorf("no active offer for driver %s on order %s", driverID, orderID)
+			if offerErr != nil {
+				return nil, fmt.Errorf("get active offer: %w", offerErr)
+			}
+			return nil, fmt.Errorf("%w: order %s", orderdomain.ErrOfferNotActive, orderID)
 		}
 	}
 

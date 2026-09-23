@@ -69,18 +69,22 @@ class AppTheme {
         hintStyle: EvikTypography.bodyMedium.copyWith(
           color: AvroClientColors.tabInactive,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroClientColors.surface, width: 1.5),
+          borderSide:
+              const BorderSide(color: AvroClientColors.surface, width: 1.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroClientColors.surface, width: 1.5),
+          borderSide:
+              const BorderSide(color: AvroClientColors.surface, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroClientColors.accent, width: 2),
+          borderSide:
+              const BorderSide(color: AvroClientColors.accent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -100,6 +104,10 @@ class AppTheme {
       fontFamily: _fontFamily,
       scaffoldBackgroundColor: AvroDriverColors.background,
       brightness: Brightness.dark,
+      textTheme: ThemeData.dark().textTheme.apply(
+            bodyColor: AvroDriverColors.textPrimary,
+            displayColor: AvroDriverColors.textPrimary,
+          ),
       colorScheme: ColorScheme.dark(
         primary: AvroDriverColors.accent,
         surface: AvroDriverColors.surface,
@@ -157,18 +165,22 @@ class AppTheme {
         hintStyle: EvikTypography.bodyMedium.copyWith(
           color: AvroDriverColors.grayHint,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroDriverColors.border, width: 1.5),
+          borderSide:
+              const BorderSide(color: AvroDriverColors.border, width: 1.5),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroDriverColors.border, width: 1.5),
+          borderSide:
+              const BorderSide(color: AvroDriverColors.border, width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AvroDriverColors.accent, width: 2),
+          borderSide:
+              const BorderSide(color: AvroDriverColors.accent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
-    show AvroClientColors;
+    show AvroClientColors, AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
+import 'package:tow_truck_frontend/features/auth/domain/entities/user.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 
 class SmsVerificationScreen extends ConsumerStatefulWidget {
@@ -21,51 +22,25 @@ class SmsVerificationScreen extends ConsumerStatefulWidget {
 class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
   static const _codeLength = 6;
 
-  late final List<TextEditingController> _controllers;
-  late final List<FocusNode> _focusNodes;
+  final _codeController = TextEditingController();
+  final _codeFocusNode = FocusNode();
   int _timerKey = 0;
   bool _hasCodeError = false;
-  bool _distributingCode = false;
-
-  String get _smsCode =>
-      _controllers.map((controller) => controller.text).join();
+  String get _smsCode => _codeController.text;
   bool get _isComplete => _smsCode.length == _codeLength;
 
   @override
   void initState() {
     super.initState();
-    _controllers = List.generate(_codeLength, (_) => TextEditingController());
-    _focusNodes = List.generate(_codeLength, (_) => FocusNode());
-
-    for (int i = 0; i < _codeLength; i++) {
-      _controllers[i].addListener(() => _onCodeChanged(i));
-      // Pressing backspace on an empty digit box returns focus to the previous
-      // box (standard OTP UX).
-      _focusNodes[i].onKeyEvent = (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.backspace &&
-            i > 0 &&
-            _controllers[i].text.isEmpty) {
-          _focusNodes[i - 1].requestFocus();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      };
-    }
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focusNodes.first.requestFocus();
+      if (mounted) _codeFocusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
-    for (final controller in _controllers) {
-      controller.dispose();
-    }
-    for (final focusNode in _focusNodes) {
-      focusNode.dispose();
-    }
+    _codeController.dispose();
+    _codeFocusNode.dispose();
     super.dispose();
   }
 
@@ -80,53 +55,63 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     });
 
     final authState = ref.watch(authProvider);
+    final isDriver = authState.pendingRole == UserRole.driver;
+    final background =
+        isDriver ? AvroDriverColors.background : AvroClientColors.background;
+    final primary =
+        isDriver ? AvroDriverColors.textPrimary : AvroClientColors.textPrimary;
+    final secondary = isDriver
+        ? AvroDriverColors.textSecondary
+        : AvroClientColors.textSecondary;
     final phoneNumber = authState.phoneNumber ?? '+7 (999) 000-00-00';
     final hasError = _hasCodeError || authState.errorMessage != null;
 
     return Scaffold(
-      backgroundColor: AvroClientColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Подтверждение',
-          style: EvikTypography.h2.copyWith(fontSize: 24),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: false,
-        titleSpacing: 16,
-        leading: IconButton(
-          onPressed: () {
-            ref.read(authProvider.notifier).resetAuth();
-            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-          },
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: AvroClientColors.textPrimary,
-            size: 20,
-          ),
-          splashRadius: 24,
-          padding: const EdgeInsets.all(8),
-        ),
-      ),
+      backgroundColor: background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Введите код из SMS', style: EvikTypography.h2),
-              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  onPressed: () {
+                    ref.read(authProvider.notifier).resetAuth();
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  icon: Icon(Icons.arrow_back_ios_new_rounded, color: primary),
+                  tooltip: 'Назад',
+                ),
+              ),
+              const SizedBox(height: 42),
+              Text(
+                'Введите код из SMS',
+                style: EvikTypography.h1.copyWith(
+                  color: primary,
+                  fontSize: 36,
+                  fontWeight: FontWeight.w700,
+                  height: 1.12,
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Отправлен на $phoneNumber',
-                style: EvikTypography.bodyLarge
-                    .copyWith(color: AvroClientColors.textSecondary),
+                style: EvikTypography.bodyLarge.copyWith(
+                  color: secondary,
+                  fontSize: 17,
+                ),
               ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 32),
               _CodeInput(
-                controllers: _controllers,
-                focusNodes: _focusNodes,
+                controller: _codeController,
+                focusNode: _codeFocusNode,
                 onChanged: _onCodeChanged,
                 hasError: hasError,
+                isDark: isDriver,
               ),
               if (hasError) ...[
                 const SizedBox(height: 10),
@@ -135,7 +120,9 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
                       'Неверный код. Проверьте SMS и попробуйте снова.',
                   textAlign: TextAlign.center,
                   style: EvikTypography.bodyMedium.copyWith(
-                    color: AvroClientColors.errorDeep,
+                    color: isDriver
+                        ? const Color(0xFFFFA4A1)
+                        : AvroClientColors.errorDeep,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -163,30 +150,8 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     );
   }
 
-  void _onCodeChanged(int index) {
-    if (_hasCodeError) {
-      setState(() => _hasCodeError = false);
-    }
-    if (_distributingCode) return;
-
-    final text = _controllers[index].text;
-
-    // A pasted / autofilled code arrives as several digits in a single box.
-    // Fan it out across the digit boxes (count capped at the boxes left).
-    if (text.length > 1) {
-      _distributingCode = true;
-      final count = text.length <= _codeLength - index
-          ? text.length
-          : _codeLength - index;
-      for (int i = 0; i < count; i++) {
-        _controllers[index + i].text = text[i];
-      }
-      _distributingCode = false;
-      final lastIndex = index + count - 1;
-      _focusNodes[lastIndex].requestFocus();
-    } else if (text.isNotEmpty && index < _codeLength - 1) {
-      _focusNodes[index + 1].requestFocus();
-    }
+  void _onCodeChanged(String value) {
+    setState(() => _hasCodeError = false);
 
     if (_isComplete) {
       Future<void>.delayed(const Duration(milliseconds: 100), () {
@@ -207,7 +172,9 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
     setState(() {
       _timerKey++;
       _hasCodeError = false;
+      _codeController.clear();
     });
+    _codeFocusNode.requestFocus();
   }
 
   void _verifySmsCode() {
@@ -219,144 +186,101 @@ class _SmsVerificationScreenState extends ConsumerState<SmsVerificationScreen> {
   }
 }
 
-class _CodeInput extends StatefulWidget {
+class _CodeInput extends StatelessWidget {
   const _CodeInput({
-    required this.controllers,
-    required this.focusNodes,
+    required this.controller,
+    required this.focusNode,
     required this.onChanged,
     required this.hasError,
+    required this.isDark,
   });
 
-  final List<TextEditingController> controllers;
-  final List<FocusNode> focusNodes;
-  final void Function(int index) onChanged;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
   final bool hasError;
-
-  @override
-  State<_CodeInput> createState() => _CodeInputState();
-}
-
-class _CodeInputState extends State<_CodeInput> {
-  int? _focusedIndex;
-  late List<bool> _filledStates;
-  late List<VoidCallback> _textListeners;
-  late List<VoidCallback> _focusListeners;
-
-  @override
-  void initState() {
-    super.initState();
-    _filledStates = widget.controllers.map((c) => c.text.isNotEmpty).toList();
-    _textListeners =
-        List.generate(widget.controllers.length, _createTextListener);
-    _focusListeners =
-        List.generate(widget.controllers.length, _createFocusListener);
-    for (int i = 0; i < widget.controllers.length; i++) {
-      widget.controllers[i].addListener(_textListeners[i]);
-      widget.focusNodes[i].addListener(_focusListeners[i]);
-    }
-  }
-
-  VoidCallback _createTextListener(int index) {
-    return () {
-      if (mounted) {
-        setState(() =>
-            _filledStates[index] = widget.controllers[index].text.isNotEmpty);
-      }
-    };
-  }
-
-  VoidCallback _createFocusListener(int index) {
-    return () {
-      if (!mounted) return;
-      setState(() {
-        if (widget.focusNodes[index].hasFocus) {
-          _focusedIndex = index;
-        } else if (_focusedIndex == index) {
-          _focusedIndex = null;
-        }
-      });
-    };
-  }
-
-  @override
-  void dispose() {
-    for (int i = 0; i < widget.controllers.length; i++) {
-      widget.controllers[i].removeListener(_textListeners[i]);
-      widget.focusNodes[i].removeListener(_focusListeners[i]);
-    }
-    super.dispose();
-  }
+  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
     return AutofillGroup(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(6, (index) {
-          final filled = _filledStates[index];
-          final focused = _focusedIndex == index;
-          final borderColor = widget.hasError
-              ? AvroClientColors.error
-              : focused || filled
-                  ? AvroClientColors.accent
-                  : AvroClientColors.surface;
-          final fillColor = widget.hasError
-              ? AvroClientColors.error.withValues(alpha: 0.08)
-              : filled || focused
-                  ? AvroClientColors.accent.withValues(alpha: 0.08)
-                  : AvroClientColors.background;
+      child: AnimatedBuilder(
+        animation: focusNode,
+        builder: (context, _) => LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 8.0;
+            final boxWidth = (constraints.maxWidth - (gap * 5)) / 6;
+            final code = controller.text;
+            final activeIndex = code.length.clamp(0, 5);
+            final textColor = isDark
+                ? AvroDriverColors.textPrimary
+                : AvroClientColors.textPrimary;
+            final emptyBorder =
+                isDark ? AvroDriverColors.border : AvroClientColors.surface;
 
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            width: 52,
-            height: 60,
-            margin: EdgeInsets.only(right: index < 5 ? 10 : 0),
-            decoration: BoxDecoration(
-              color: fillColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor, width: focused ? 2.4 : 2),
-              boxShadow: focused
-                  ? [
-                      BoxShadow(
-                        color: AvroClientColors.accent.withValues(alpha: 0.16),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: TextFormField(
-              controller: widget.controllers[index],
-              focusNode: widget.focusNodes[index],
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              textInputAction:
-                  index == 5 ? TextInputAction.done : TextInputAction.next,
-              // No length limit here: a pasted/autofilled full code arrives in a
-              // single box and is fanned out by the parent.
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-              ],
-              onChanged: (value) {
-                if (value.isNotEmpty) widget.onChanged(index);
-              },
-              decoration: const InputDecoration(
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                counterText: '',
-                contentPadding: EdgeInsets.zero,
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: focusNode.requestFocus,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Row(
+                    children: List.generate(6, (index) {
+                      final isActive = index == activeIndex;
+                      final borderColor = hasError
+                          ? AvroClientColors.error
+                          : isActive && focusNode.hasFocus
+                              ? AvroClientColors.accent
+                              : emptyBorder;
+                      return Container(
+                        width: boxWidth,
+                        height: 60,
+                        margin: EdgeInsets.only(right: index < 5 ? gap : 0),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: borderColor,
+                            width: isActive ? 2.2 : 1.5,
+                          ),
+                        ),
+                        child: index < code.length
+                            ? Text(
+                                code[index],
+                                style: EvikTypography.h3.copyWith(
+                                  color: textColor,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            : null,
+                      );
+                    }),
+                  ),
+                  Opacity(
+                    opacity: 0.01,
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      autofocus: true,
+                      keyboardType: TextInputType.number,
+                      autofillHints: const [AutofillHints.oneTimeCode],
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      onChanged: onChanged,
+                      textInputAction: TextInputAction.done,
+                      decoration:
+                          const InputDecoration(border: InputBorder.none),
+                    ),
+                  ),
+                ],
               ),
-              style: EvikTypography.h3.copyWith(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ),
     );
   }

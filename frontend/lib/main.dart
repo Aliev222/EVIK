@@ -122,8 +122,10 @@ class _WakeBootstrapState extends ConsumerState<_WakeBootstrap> {
   @override
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if (!next.isRestoring && next.accessToken != null &&
-          (previous?.isRestoring != false || previous?.accessToken != next.accessToken)) {
+      if (!next.isRestoring &&
+          next.accessToken != null &&
+          (previous?.isRestoring != false ||
+              previous?.accessToken != next.accessToken)) {
         unawaited(ref.read(driverWakeServiceProvider).ensureOnline());
       }
     });
@@ -170,7 +172,8 @@ class EvikApp extends StatelessWidget {
           path: '/order/driver-info',
           builder: (_, __) => const DriverInfoScreen()),
       GoRoute(
-          path: '/order/tracking', builder: (_, __) => const TrackingScreen()),
+          path: '/order/tracking',
+          builder: (_, __) => TrackingScreen(auditDemo: _uiAuditMode)),
       GoRoute(
           path: '/order/payment-confirmation',
           builder: (_, __) => const PaymentConfirmationScreen()),
@@ -466,7 +469,7 @@ class _AppRouterState extends ConsumerState<_AppRouter> {
       OrderStatus.onWay ||
       OrderStatus.arrived ||
       OrderStatus.evacuating =>
-        '/order/driver-info',
+        '/order/tracking',
       OrderStatus.awaitingPayment => '/order/payment-confirmation',
       OrderStatus.completed || OrderStatus.cancelled => null,
     };

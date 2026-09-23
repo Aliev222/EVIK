@@ -307,9 +307,9 @@ void main() {
             (ref) => const AsyncValue.data(<Order>[]),
           ),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: DriverMainScreen(),
+          home: DriverMainScreen(auditNow: DateTime(2026, 9, 16, 9)),
         ),
       ),
     );

@@ -63,6 +63,7 @@ class OnlineStatusToggle extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
+                  color: AvroDriverColors.darkBlue,
                 ),
               ),
               if (isOnline && onlineSince != null)

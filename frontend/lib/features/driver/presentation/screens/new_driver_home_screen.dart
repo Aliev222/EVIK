@@ -35,10 +35,18 @@ final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
 });
 
 class NewDriverHomeScreen extends ConsumerStatefulWidget {
-  const NewDriverHomeScreen({super.key, this.auditState, this.onOpenProfile});
+  const NewDriverHomeScreen({
+    super.key,
+    this.auditState,
+    this.auditNow,
+    this.onOpenProfile,
+  });
 
   /// Local-only visual fixture. It is supplied only by the UI-audit catalogue.
   final DriverState? auditState;
+
+  /// Fixed time used only by deterministic UI-audit captures.
+  final DateTime? auditNow;
 
   /// Opens the existing profile tab when this screen is hosted by the shell.
   final VoidCallback? onOpenProfile;
@@ -65,6 +73,7 @@ class _DriverHomeDashboard extends StatelessWidget {
     this.offerProgress = 1,
     this.onAcceptOrder,
     this.onDeclineOrder,
+    this.auditNow,
   });
 
   final String name;
@@ -82,9 +91,10 @@ class _DriverHomeDashboard extends StatelessWidget {
   final double offerProgress;
   final VoidCallback? onAcceptOrder;
   final VoidCallback? onDeclineOrder;
+  final DateTime? auditNow;
 
   String get _greeting {
-    final hour = DateTime.now().hour;
+    final hour = (auditNow ?? DateTime.now()).hour;
     if (hour < 12) return 'Доброе утро';
     if (hour < 18) return 'Добрый день';
     return 'Добрый вечер';
@@ -832,6 +842,7 @@ class _NewDriverHomeScreenState extends ConsumerState<NewDriverHomeScreen>
     }
 
     return _DriverHomeDashboard(
+      auditNow: widget.auditNow,
       name: _getDriverDisplayName(driverProfile),
       initial: _getDriverInitial(driverProfile),
       isOnline: isOnline,

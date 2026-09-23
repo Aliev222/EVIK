@@ -189,6 +189,7 @@ type fakeUserRepository struct {
 	sessions     map[string]*userdomain.RefreshSession
 	otps         map[string]*userdomain.PhoneOTP
 	deviceTokens map[string]*userdomain.DeviceToken
+	onCreate     func(*userdomain.User) error
 }
 
 func newFakeUserRepository() *fakeUserRepository {
@@ -226,6 +227,9 @@ func (r *fakeUserRepository) IsUserActive(_ context.Context, userID string) (boo
 }
 
 func (r *fakeUserRepository) Create(_ context.Context, user *userdomain.User) error {
+	if r.onCreate != nil {
+		return r.onCreate(user)
+	}
 	for _, existing := range r.users {
 		if existing.Phone == user.Phone && existing.Role == user.Role {
 			return userdomain.ErrUserAlreadyExists

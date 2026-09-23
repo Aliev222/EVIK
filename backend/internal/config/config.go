@@ -223,6 +223,12 @@ func productionConfigProblems(cfg Config) []string {
 	if !strings.EqualFold(cfg.YooKassaPayoutMode, "disabled") {
 		missing = append(missing, "YOOKASSA_PAYOUT_MODE=disabled until recipient onboarding is implemented")
 	}
+	osrmURL, osrmErr := url.Parse(cfg.OSRMBaseURL)
+	if osrmErr != nil || osrmURL.Scheme != "https" || osrmURL.Hostname() == "" {
+		missing = append(missing, "OSRM_BASE_URL(valid https production routing host)")
+	} else if strings.EqualFold(osrmURL.Hostname(), "router.project-osrm.org") {
+		missing = append(missing, "OSRM_BASE_URL must not use the public demo router.project-osrm.org")
+	}
 	for _, cidr := range cfg.TrustedProxyCIDRs {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			missing = append(missing, "valid TRUSTED_PROXY_CIDRS")

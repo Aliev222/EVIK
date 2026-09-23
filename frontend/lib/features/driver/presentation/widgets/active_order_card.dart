@@ -1,11 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroDriverColors;
 import 'package:tow_truck_frontend/features/order/domain/entities/order.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_navigation_provider.dart';
+import 'package:tow_truck_frontend/features/chat/presentation/chat_screen.dart';
 
 class DriverActiveOrderCard extends ConsumerWidget {
   const DriverActiveOrderCard({
@@ -16,6 +18,8 @@ class DriverActiveOrderCard extends ConsumerWidget {
     required this.onStatusUpdate,
     required this.onCancel,
     required this.onComplete,
+    this.chatBuilder,
+    this.launchUri,
   });
 
   final Order order;
@@ -24,6 +28,8 @@ class DriverActiveOrderCard extends ConsumerWidget {
   final Future<void> Function(OrderStatus status) onStatusUpdate;
   final Future<void> Function() onCancel;
   final Future<void> Function() onComplete;
+  final Widget Function(Order order)? chatBuilder;
+  final Future<void> Function(Uri uri)? launchUri;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -80,9 +86,19 @@ class DriverActiveOrderCard extends ConsumerWidget {
                 label: const Text('Позвонить'),
               ),
               OutlinedButton.icon(
-                onPressed: () => _launch(Uri.parse('sms:${order.clientId}')),
-                icon: const Icon(Icons.sms_outlined),
-                label: const Text('SMS'),
+                onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                        builder: (_) =>
+                            chatBuilder?.call(order) ??
+                            ChatScreen(
+                                orderId: order.id,
+                                title: 'Клиент',
+                                driverTheme: true,
+                                readOnly: order.status ==
+                                        OrderStatus.completed ||
+                                    order.status == OrderStatus.cancelled))),
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Чат'),
               ),
               OutlinedButton.icon(
                 onPressed: () {
@@ -218,6 +234,10 @@ class DriverActiveOrderCard extends ConsumerWidget {
   }
 
   Future<void> _launch(Uri uri) async {
+    if (launchUri != null) {
+      await launchUri!(uri);
+      return;
+    }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

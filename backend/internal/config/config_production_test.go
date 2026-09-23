@@ -20,7 +20,17 @@ func validProductionConfig() Config {
 		YooKassaShopID:     "shop",
 		YooKassaSecret:     "payment-secret",
 		YooKassaPayoutMode: "disabled",
+		OSRMBaseURL:        "https://routing.avro.example",
 		TrustedProxyCIDRs:  []string{"127.0.0.0/8"},
+	}
+}
+
+func TestProductionConfigRejectsPublicOSRMDemo(t *testing.T) {
+	cfg := validProductionConfig()
+	cfg.OSRMBaseURL = "https://router.project-osrm.org"
+	problems := productionConfigProblems(cfg)
+	if len(problems) == 0 || !strings.Contains(strings.Join(problems, ","), "public demo") {
+		t.Fatalf("problems = %#v, want public demo routing rejection", problems)
 	}
 }
 

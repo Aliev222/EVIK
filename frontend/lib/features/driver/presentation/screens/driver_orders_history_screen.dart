@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:tow_truck_frontend/core/theme/evik_colors.dart' show AvroDriverColors;
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroDriverColors;
 import 'package:tow_truck_frontend/core/theme/evik_typography.dart';
 import 'package:tow_truck_frontend/shared/widgets/empty_state.dart';
 import 'package:tow_truck_frontend/shared/widgets/error_state.dart';
@@ -26,9 +27,10 @@ final driverOrderHistoryProvider =
 enum DriverHistoryState { loading, empty, loaded, error }
 
 class DriverOrdersHistoryScreen extends ConsumerStatefulWidget {
-  const DriverOrdersHistoryScreen({super.key, this.onGoHome});
+  const DriverOrdersHistoryScreen({super.key, this.onGoHome, this.auditState});
 
   final VoidCallback? onGoHome;
+  final DriverHistoryState? auditState;
 
   @override
   ConsumerState<DriverOrdersHistoryScreen> createState() =>
@@ -39,6 +41,9 @@ class _DriverOrdersHistoryScreenState
     extends ConsumerState<DriverOrdersHistoryScreen> {
   @override
   Widget build(BuildContext context) {
+    if (widget.auditState != null) {
+      return _buildAuditState(context, widget.auditState!);
+    }
     final ordersAsync = ref.watch(driverOrderHistoryProvider);
 
     return Scaffold(
@@ -95,6 +100,33 @@ class _DriverOrdersHistoryScreenState
           );
         },
       ),
+    );
+  }
+
+  Widget _buildAuditState(BuildContext context, DriverHistoryState state) {
+    final body = switch (state) {
+      DriverHistoryState.loading => ListView.builder(
+          padding: const EdgeInsets.only(top: 8, bottom: 100),
+          itemCount: 5,
+          itemBuilder: (_, __) => const SkeletonCard(height: 128),
+        ),
+      DriverHistoryState.empty => EmptyState(
+          icon: Icons.local_shipping_outlined,
+          title: 'Пока заказов нет',
+          subtitle: 'Включите статус «Онлайн» чтобы получать заказы',
+          buttonText: 'Перейти на главную',
+          onButtonTap: widget.onGoHome,
+        ),
+      DriverHistoryState.error => ErrorState(
+          message: 'История заказов временно недоступна.',
+          onRetry: () {},
+        ),
+      DriverHistoryState.loaded => const SizedBox.shrink(),
+    };
+    return Scaffold(
+      backgroundColor: AvroDriverColors.background,
+      appBar: AppBar(title: const Text('История заказов')),
+      body: body,
     );
   }
 }

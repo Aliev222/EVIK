@@ -55,7 +55,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen>
   /// padding.bottom = 0 and = 34). The card and the nav pill share no
   /// coordinate math — the constant IS the visible gap.
   static const double _servicesCardBottomGap = 15;
-  static const double _servicesCardHeight = 151;
+  static const double _servicesCardHeight = 156;
   static const double _myLocationButtonGap = 12;
   static const double _myLocationButtonSize = 48;
 
@@ -586,6 +586,8 @@ class _FloatingServicesCard extends StatelessWidget {
   static const List<_QuickService> _services = <_QuickService>[
     _QuickService(
       icon: Icons.tire_repair_rounded,
+      asset: 'assets/img/services/tire_service.png',
+      imageScale: 1.12,
       label: 'Шиномонтаж',
       shortLabel: 'Шины',
       subtitle: 'Выездной сервис',
@@ -594,6 +596,8 @@ class _FloatingServicesCard extends StatelessWidget {
     ),
     _QuickService(
       icon: Icons.battery_charging_full_rounded,
+      asset: 'assets/img/services/jump_start.png',
+      imageScale: 1.08,
       label: 'Не заводится',
       shortLabel: 'Запуск',
       subtitle: 'Запуск двигателя',
@@ -602,6 +606,8 @@ class _FloatingServicesCard extends StatelessWidget {
     ),
     _QuickService(
       icon: Icons.bolt_rounded,
+      asset: 'assets/img/services/auto_electrician.png',
+      imageScale: 0.96,
       label: 'Автоэлектрик',
       shortLabel: 'Электрик',
       subtitle: 'Диагностика и ремонт',
@@ -610,6 +616,8 @@ class _FloatingServicesCard extends StatelessWidget {
     ),
     _QuickService(
       icon: Icons.local_gas_station_rounded,
+      asset: 'assets/img/services/fuel_delivery.png',
+      imageScale: 0.98,
       label: 'Подвоз топлива',
       shortLabel: 'Топливо',
       subtitle: 'Быстрая доставка',
@@ -618,19 +626,13 @@ class _FloatingServicesCard extends StatelessWidget {
     ),
     _QuickService(
       icon: Icons.car_repair_rounded,
+      asset: 'assets/img/services/car_unlock.png',
+      imageScale: 1.08,
       label: 'Разблокировка',
       shortLabel: 'Замки',
       subtitle: 'Авто и сигнализация',
       description:
           'Помощь при срабатывании сигнализации и блокировке руля или КПП.',
-    ),
-    _QuickService(
-      icon: Icons.construction_rounded,
-      label: 'Помощь на дороге',
-      shortLabel: 'Помощь',
-      subtitle: 'Техническая помощь',
-      description:
-          'Выезд мастера для решения любых технических проблем на месте.',
     ),
   ];
 
@@ -662,34 +664,64 @@ class _FloatingServicesCard extends StatelessWidget {
           Text(
             'Услуги',
             style: GoogleFonts.inter(
-              fontSize: 13,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AvroClientColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 9),
           SizedBox(
             height: 92,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              itemCount: _services.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _EvacPrimaryItem(
-                    enabled: enabled,
-                    onTap: onEvacTap,
-                  );
-                }
-                final service = _services[index - 1];
-                return _FloatingServiceItem(
-                  service: service,
-                  onTap: () => onServiceTap(service),
-                );
-              },
+            child: Stack(
+              children: [
+                ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  itemCount: _services.length + 1,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _EvacPrimaryItem(
+                        enabled: enabled,
+                        onTap: onEvacTap,
+                      );
+                    }
+                    final service = _services[index - 1];
+                    return _FloatingServiceItem(
+                      service: service,
+                      onTap: () => onServiceTap(service),
+                    );
+                  },
+                ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 28,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AvroClientColors.background.withValues(alpha: 0),
+                            AvroClientColors.background,
+                          ],
+                        ),
+                      ),
+                      alignment: Alignment.centerRight,
+                      child: Icon(
+                        Icons.chevron_right_rounded,
+                        size: 19,
+                        color: AvroClientColors.textMuted.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -710,35 +742,44 @@ class _EvacPrimaryItem extends StatelessWidget {
       onTap: enabled ? onTap : null,
       child: Container(
         width: 118,
-        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
           color:
               enabled ? AvroClientColors.accentBrand : AvroClientColors.surface,
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Icon(
-              Icons.local_shipping_rounded,
-              size: 24,
-              color: enabled
-                  ? AvroClientColors.background
-                  : AvroClientColors.tabInactive,
+            Positioned(
+              top: 2,
+              right: -8,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: enabled ? 1 : 0.38,
+                  child: Image.asset(
+                    'assets/img/services/tow_truck.png',
+                    width: 90,
+                    height: 58,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Вызвать эвакуатор',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
-                color: enabled
-                    ? AvroClientColors.background
-                    : AvroClientColors.tabInactive,
+            Positioned(
+              left: 11,
+              right: 11,
+              bottom: 11,
+              child: Text(
+                'Вызвать эвакуатор',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                  color: enabled
+                      ? AvroClientColors.background
+                      : AvroClientColors.tabInactive,
+                ),
               ),
             ),
           ],
@@ -760,26 +801,40 @@ class _FloatingServiceItem extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 96,
-        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
           color: AvroClientColors.surface.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Icon(service.icon, size: 23, color: AvroClientColors.accent),
-            const SizedBox(height: 8),
-            Text(
-              service.shortLabel,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                height: 1.15,
-                color: AvroClientColors.textPrimary,
+            Positioned(
+              top: 3,
+              right: -2,
+              child: IgnorePointer(
+                child: SizedBox(
+                  width: 74,
+                  height: 54,
+                  child: Transform.scale(
+                    scale: service.imageScale,
+                    child: Image.asset(service.asset, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 11,
+              right: 11,
+              bottom: 11,
+              child: Text(
+                service.shortLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  height: 1.15,
+                  color: AvroClientColors.textPrimary,
+                ),
               ),
             ),
           ],
@@ -838,6 +893,8 @@ class _PressScaleState extends State<_PressScale> {
 class _QuickService {
   const _QuickService({
     required this.icon,
+    required this.asset,
+    this.imageScale = 1,
     required this.label,
     required this.shortLabel,
     required this.subtitle,
@@ -845,6 +902,8 @@ class _QuickService {
   });
 
   final IconData icon;
+  final String asset;
+  final double imageScale;
   final String label;
   final String shortLabel;
   final String subtitle;

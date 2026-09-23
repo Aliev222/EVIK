@@ -93,37 +93,61 @@ class MapApi {
 
     try {
       final response = await _apiClient.get(path, headers: _authHeaders());
-      final rawPoints = response['points'];
-      final points = rawPoints is List
-          ? rawPoints
-              .whereType<Map>()
-              .map(Map<String, dynamic>.from)
-              .map((point) {
-                final lat = _asDouble(point['lat']);
-                final lng = _asDouble(point['lng']);
-                return lat == null || lng == null ? null : LatLng(lat, lng);
-              })
-              .whereType<LatLng>()
-              .toList(growable: false)
-          : const <LatLng>[];
-
-      return RoutePreview(
-        points: points.isEmpty
-            ? <LatLng>[LatLng(fromLat, fromLng), LatLng(toLat, toLng)]
-            : points,
-        distanceMeters: _asDouble(
-              response['distanceMeters'] ?? response['distance_meters'],
-            ) ??
-            0,
-        durationSeconds: _asDouble(
-              response['durationSeconds'] ?? response['duration_seconds'],
-            ) ??
-            0,
-      );
+      return _parseRoutePreview(response);
     } catch (error) {
       debugPrint('MapApi route preview error: $error');
       return null;
     }
+  }
+
+  Future<RoutePreview?> getOrderRoutePreview({
+    required String orderId,
+    required double fromLat,
+    required double fromLng,
+  }) async {
+    try {
+      final response = await _apiClient.post(
+        '/api/v1/routing/orders/$orderId/route',
+        <String, dynamic>{'driver_lat': fromLat, 'driver_lng': fromLng},
+        headers: _authHeaders(),
+      );
+      return _parseRoutePreview(response);
+    } catch (error) {
+      debugPrint('MapApi order route error: $error');
+      return null;
+    }
+  }
+
+  RoutePreview? _parseRoutePreview(Map<String, dynamic> response) {
+    final rawPoints = response['points'];
+    final points = rawPoints is List
+        ? rawPoints
+            .whereType<Map>()
+            .map(Map<String, dynamic>.from)
+            .map((point) {
+              final lat = _asDouble(point['lat']);
+              final lng = _asDouble(point['lng']);
+              return lat == null || lng == null ? null : LatLng(lat, lng);
+            })
+            .whereType<LatLng>()
+            .toList(growable: false)
+        : const <LatLng>[];
+    if (points.length < 2) return null;
+    return RoutePreview(
+      points: points,
+      distanceMeters: _asDouble(
+            response['distanceMeters'] ?? response['distance_meters'],
+          ) ??
+          0,
+      durationSeconds: _asDouble(
+            response['durationSeconds'] ?? response['duration_seconds'],
+          ) ??
+          0,
+      routeVersion: response['routeVersion']?.toString() ??
+          response['route_version']?.toString(),
+      phase: response['phase']?.toString(),
+      target: response['target']?.toString(),
+    );
   }
 
   Map<String, String>? _authHeaders() {
@@ -143,11 +167,17 @@ class RoutePreview {
     required this.points,
     required this.distanceMeters,
     required this.durationSeconds,
+    this.routeVersion,
+    this.phase,
+    this.target,
   });
 
   final List<LatLng> points;
   final double distanceMeters;
   final double durationSeconds;
+  final String? routeVersion;
+  final String? phase;
+  final String? target;
 
   double get distanceKm => distanceMeters / 1000;
   double get durationMinutes => durationSeconds / 60;

@@ -2,6 +2,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:tow_truck_frontend/core/theme/evik_colors.dart'
+    show AvroDriverColors;
 import 'package:tow_truck_frontend/shared/widgets/evik_button.dart';
 import 'package:tow_truck_frontend/features/auth/presentation/providers/auth_provider.dart';
 import 'package:tow_truck_frontend/features/driver/presentation/providers/driver_tax_profile_provider.dart';
@@ -136,7 +138,9 @@ class _DriverTaxProfileScreenState
               const SizedBox(height: 16),
               Text(
                 'Ошибка загрузки данных',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AvroDriverColors.darkBlue,
+                    ),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -264,6 +268,7 @@ class _DriverTaxProfileScreenState
             style: TextStyle(
               fontSize: 14,
               height: 1.4,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
         ],
@@ -293,6 +298,7 @@ class _DriverTaxProfileScreenState
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
           const SizedBox(height: 12),
@@ -303,6 +309,7 @@ class _DriverTaxProfileScreenState
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
+              color: AvroDriverColors.darkBlue,
             ),
           ),
           const SizedBox(height: 12),
@@ -387,6 +394,7 @@ class _DriverTaxProfileScreenState
   Widget _buildInnField() {
     return TextFormField(
       controller: _innController,
+      style: const TextStyle(color: AvroDriverColors.darkBlue),
       keyboardType: TextInputType.number,
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
@@ -394,7 +402,11 @@ class _DriverTaxProfileScreenState
       ],
       decoration: InputDecoration(
         hintText: 'Введите ИНН (10 или 12 цифр)',
-        prefixIcon: const Icon(Icons.business),
+        hintStyle: const TextStyle(color: AvroDriverColors.graySubtle),
+        prefixIcon: const Icon(
+          Icons.business,
+          color: AvroDriverColors.graySubtle,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
         ),

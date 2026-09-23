@@ -190,6 +190,33 @@ func TestSetStatusNoCurrentOrderDoesNotPublishDriverLocation(t *testing.T) {
 	}
 }
 
+func TestSetStatusBusyPublishesAuthoritativeTransportPhase(t *testing.T) {
+	now := time.Date(2026, 4, 22, 10, 0, 0, 0, time.UTC)
+	orderID := "order-1"
+	driverRepo := newFakeDriverRepository()
+	driverRepo.drivers["driver-1"] = &driverdomain.Driver{ID: "driver-1", UserID: "user-1", Status: driverdomain.StatusBusy, CurrentOrderID: &orderID}
+	orderRepo := newFakeOrderRepository()
+	orderRepo.orders[orderID] = &orderdomain.Order{ID: orderID, UserID: "client-1", DriverID: strPtr("driver-1"), Status: orderdomain.StatusInProgress}
+	publisher := &fakeEventPublisher{}
+	lat, lng := 55.755, 37.617
+	uc := NewSetStatusUseCase(driverRepo, orderRepo, &fakeLocationRepository{}, publisher, nil, nil, fakeClock{now: now}, fakeLogger{})
+	if _, err := uc.Execute(context.Background(), SetStatusInput{DriverID: "driver-1", Status: driverdomain.StatusOnline, Lat: &lat, Lng: &lng}); err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	for _, event := range publisher.events {
+		if event.Type == orderdomain.EventDriverLocationUpdated {
+			payload = event.Payload.(map[string]any)
+		}
+	}
+	if payload == nil || payload["status"] != "to_destination" {
+		t.Fatalf("payload = %+v, want authoritative transport phase", payload)
+	}
+	if payload["sampled_at"] == "" || payload["received_at"] == "" {
+		t.Fatalf("timestamps missing: %+v", payload)
+	}
+}
+
 type fakeClock struct {
 	now time.Time
 }
