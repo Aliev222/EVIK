@@ -1004,8 +1004,8 @@ func (h *AdminHandler) CreateDocumentUpload(w http.ResponseWriter, r *http.Reque
 	// Return successful response
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"document": map[string]any{
-			"key":           uploadedDoc.Key,
-			"public_url":    uploadedDoc.PublicURL,
+			"key": uploadedDoc.Key,
+			// Documents are private; expose only an opaque storage key.
 			"size":          uploadedDoc.Size,
 			"content_type":  contentType,
 			"document_type": documentType,

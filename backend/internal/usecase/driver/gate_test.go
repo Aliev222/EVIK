@@ -15,6 +15,8 @@ type fakeGateRepo struct {
 	subscriptionActive bool
 	debtBalance        int64
 	debtErr            error
+	offerAccepted      bool
+	settlementApproved bool
 }
 
 func (r fakeGateRepo) IsDriverDocumentsApproved(context.Context, string) (bool, error) {
@@ -31,6 +33,13 @@ func (r fakeGateRepo) IsDriverSubscriptionActive(context.Context, string, time.T
 
 func (r fakeGateRepo) DriverDebtBalance(context.Context, string) (int64, error) {
 	return r.debtBalance, r.debtErr
+}
+
+func (r fakeGateRepo) IsDriverOnboardingOfferAccepted(context.Context, string) (bool, error) {
+	return r.offerAccepted, nil
+}
+func (r fakeGateRepo) IsDriverSettlementApproved(context.Context, string) (bool, error) {
+	return r.settlementApproved, nil
 }
 
 type fakeDebtSettingsRepo struct {
@@ -98,6 +107,20 @@ func TestGateServiceAllowsWorkWhenAllRequirementsPass(t *testing.T) {
 
 	if err := uc.EnsureCanWork(context.Background(), "driver-1"); err != nil {
 		t.Fatalf("expected gate to pass, got %v", err)
+	}
+}
+
+func TestGateServiceSettlementFeatureBlocksUnacceptedOffer(t *testing.T) {
+	uc := NewGateService(fakeGateRepo{docsApproved: true, taxVerified: true, subscriptionActive: true, settlementApproved: true}, fakeDebtSettingsRepo{}, fakeClock{now: time.Now()}, true, false, false, true)
+	if err := uc.EnsureCanWork(context.Background(), "driver-1"); !errors.Is(err, ErrDriverOfferNotAccepted) {
+		t.Fatalf("expected offer gate error, got %v", err)
+	}
+}
+
+func TestGateServiceSettlementFeatureBlocksUnapprovedSettlement(t *testing.T) {
+	uc := NewGateService(fakeGateRepo{docsApproved: true, taxVerified: true, subscriptionActive: true, offerAccepted: true}, fakeDebtSettingsRepo{}, fakeClock{now: time.Now()}, true, false, false, true)
+	if err := uc.EnsureCanWork(context.Background(), "driver-1"); !errors.Is(err, ErrDriverSettlementNotApproved) {
+		t.Fatalf("expected settlement gate error, got %v", err)
 	}
 }
 

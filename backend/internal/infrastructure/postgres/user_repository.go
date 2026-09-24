@@ -259,12 +259,16 @@ WHERE user_id = $1 AND role = $2 AND fcm_token = $3`,
 
 func (r *UserRepository) UpsertTaxProfile(ctx context.Context, profile *userdomain.TaxProfile) error {
 	const query = `
-INSERT INTO driver_tax_profiles (driver_id, inn, taxpayer_type, verification_status, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO driver_tax_profiles (driver_id, inn, taxpayer_type, verification_status, verification_source, created_at, updated_at)
+VALUES ($1, $2, $3, $4, 'driver_declared', $5, $6)
 ON CONFLICT (driver_id) DO UPDATE SET
 	inn = EXCLUDED.inn,
 	taxpayer_type = EXCLUDED.taxpayer_type,
 	verification_status = EXCLUDED.verification_status,
+	verification_source = 'driver_declared',
+	verified_by = NULL,
+	verified_at = NULL,
+	verification_reason = NULL,
 	updated_at = EXCLUDED.updated_at`
 	_, err := r.db.ExecContext(ctx, query, profile.DriverID, profile.INN, profile.TaxpayerType, profile.VerificationStatus, profile.CreatedAt, profile.UpdatedAt)
 	return err
@@ -272,7 +276,7 @@ ON CONFLICT (driver_id) DO UPDATE SET
 
 func (r *UserRepository) GetTaxProfile(ctx context.Context, driverID string) (*userdomain.TaxProfile, error) {
 	const query = `
-SELECT driver_id, inn, taxpayer_type, verification_status, created_at, updated_at,
+SELECT driver_id, inn, taxpayer_type, verification_status, COALESCE(verification_source, 'driver_declared'), COALESCE(verified_by, ''), verified_at, COALESCE(verification_reason, ''), created_at, updated_at,
        COALESCE(npd_access_token, ''),
        COALESCE(npd_refresh_token, ''),
        npd_token_expires_at,
@@ -283,7 +287,7 @@ FROM driver_tax_profiles
 WHERE driver_id = $1`
 	var profile userdomain.TaxProfile
 	err := r.db.QueryRowContext(ctx, query, driverID).Scan(
-		&profile.DriverID, &profile.INN, &profile.TaxpayerType, &profile.VerificationStatus,
+		&profile.DriverID, &profile.INN, &profile.TaxpayerType, &profile.VerificationStatus, &profile.VerificationSource, &profile.VerifiedBy, &profile.VerifiedAt, &profile.VerificationReason,
 		&profile.CreatedAt, &profile.UpdatedAt,
 		&profile.NPDAccessToken, &profile.NPDRefreshToken,
 		&profile.NPDTokenExpiresAt, &profile.NPDConnectedAt, &profile.NPDRevokedAt,
@@ -379,6 +383,76 @@ func (r *UserRepository) IsDriverDocumentsApproved(ctx context.Context, driverID
 	var ok bool
 	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM driver_verifications WHERE user_id = $1 AND status = 'approved')`, driverID).Scan(&ok)
 	return ok, err
+}
+
+func (r *UserRepository) IsDriverOnboardingOfferAccepted(ctx context.Context, driverID string) (bool, error) {
+	var ok bool
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM driver_offers o WHERE o.is_required AND o.is_current AND EXISTS (SELECT 1 FROM driver_offer_acceptances a WHERE a.driver_id=$1 AND a.offer_id=o.id AND a.version=o.version AND a.document_hash=o.document_hash))`, driverID).Scan(&ok)
+	return ok, err
+}
+
+func (r *UserRepository) IsDriverSettlementApproved(ctx context.Context, driverID string) (bool, error) {
+	var ok bool
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM driver_settlement_connections WHERE driver_id=$1 AND status='approved' AND external_executor_id IS NOT NULL AND external_account_id IS NOT NULL)`, driverID).Scan(&ok)
+	return ok, err
+}
+
+func (r *UserRepository) GetDriverOnboarding(ctx context.Context, driverID string) (map[string]any, error) {
+	state := map[string]any{"driver_id": driverID}
+	var offerVersion, offerHash, offerURL string
+	err := r.db.QueryRowContext(ctx, `SELECT version, document_hash, document_url FROM driver_offers WHERE is_current AND is_required ORDER BY published_at DESC NULLS LAST LIMIT 1`).Scan(&offerVersion, &offerHash, &offerURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		state["offer"] = map[string]any{"status": "not_configured", "reason": "актуальная оферта не опубликована"}
+	} else if err != nil {
+		return nil, err
+	} else {
+		var accepted bool
+		err = r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM driver_offer_acceptances a JOIN driver_offers o ON o.id=a.offer_id WHERE a.driver_id=$1 AND o.is_current AND o.is_required AND a.version=$2 AND a.document_hash=$3)`, driverID, offerVersion, offerHash).Scan(&accepted)
+		if err != nil {
+			return nil, err
+		}
+		state["offer"] = map[string]any{"status": map[bool]string{true: "accepted", false: "required"}[accepted], "version": offerVersion, "document_hash": offerHash, "document_url": offerURL}
+	}
+	var taxStatus, settlementStatus string
+	var moderationStatus string
+	var documentCount int
+	_ = r.db.QueryRowContext(ctx, `SELECT verification_status FROM driver_tax_profiles WHERE driver_id=$1`, driverID).Scan(&taxStatus)
+	if taxStatus == "" {
+		taxStatus = "not_started"
+	}
+	_ = r.db.QueryRowContext(ctx, `SELECT status FROM driver_settlement_connections WHERE driver_id=$1`, driverID).Scan(&settlementStatus)
+	if settlementStatus == "" {
+		settlementStatus = "not_started"
+	}
+	_ = r.db.QueryRowContext(ctx, `SELECT status FROM driver_verifications WHERE user_id=$1`, driverID).Scan(&moderationStatus)
+	_ = r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM driver_documents dd JOIN driver_verifications dv ON dv.id=dd.verification_id WHERE dv.user_id=$1`, driverID).Scan(&documentCount)
+	if moderationStatus == "" {
+		moderationStatus = "not_started"
+	}
+	docStatus := "required"
+	if documentCount > 0 {
+		docStatus = "uploaded"
+	}
+	state["steps"] = []map[string]string{
+		{"id": "profile", "status": "completed"},
+		{"id": "tax_type", "status": map[bool]string{true: "completed", false: "required"}[taxStatus != "not_started"]},
+		{"id": "offer", "status": "server_computed"},
+		{"id": "documents", "status": docStatus, "reason": map[string]string{"required": "загрузите обязательные документы", "uploaded": "документы отправлены на проверку"}[docStatus]},
+		{"id": "moderation", "status": moderationStatus, "reason": map[string]string{"not_started": "заявка не отправлена", "pending": "ожидает модерации", "changes_requested": "требуются исправления", "rejected": "заявка отклонена", "blocked": "аккаунт заблокирован", "approved": "одобрено"}[moderationStatus]},
+		{"id": "tax_verification", "status": taxStatus, "reason": map[string]string{"not_started": "укажите налоговый тип и ИНН", "pending": "проверка ФНС не подтверждена", "rejected": "налоговый статус отклонён", "verified": "подтверждено доверенным процессом"}[taxStatus]},
+		{"id": "settlement", "status": settlementStatus, "reason": map[string]string{"not_started": "подключение расчётов не начато", "pending": "ожидается подтверждение банка", "rejected": "банк отклонил подключение", "suspended": "подключение приостановлено", "approved": "подтверждено доверенным процессом"}[settlementStatus]},
+	}
+	return state, nil
+}
+
+func (r *UserRepository) AcceptCurrentDriverOffer(ctx context.Context, driverID, method string, now time.Time) error {
+	var id, version, hash string
+	err := r.db.QueryRowContext(ctx, `SELECT id, version, document_hash FROM driver_offers WHERE is_current AND is_required ORDER BY published_at DESC NULLS LAST LIMIT 1`).Scan(&id, &version, &hash)
+	if err != nil {
+		return errors.New("актуальная оферта не опубликована")
+	}
+	_, err = r.db.ExecContext(ctx, `INSERT INTO driver_offer_acceptances (id, driver_id, offer_id, version, document_hash, accepted_at, acceptance_method) VALUES (md5($1||$2||$3),$1,$4,$2,$3,$5,$6) ON CONFLICT (driver_id,offer_id) DO NOTHING`, driverID, version, hash, id, now, method)
+	return err
 }
 
 func (r *UserRepository) IsDriverSubscriptionActive(ctx context.Context, driverID string, now time.Time) (bool, error) {

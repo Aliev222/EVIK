@@ -121,6 +121,8 @@ func NewRouter(
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/drivers/{driverID}/npd/connect", driverHandler.ConnectNPD)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/drivers/{driverID}/npd/disconnect", driverHandler.DisconnectNPD)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/drivers/{driverID}/verification-status", driverHandler.GetVerificationStatus)
+			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Get("/drivers/{driverID}/onboarding", driverHandler.GetOnboarding)
+			secured.With(RequireRoles(auth.RoleDriver)).Post("/drivers/{driverID}/onboarding/offer/accept", driverHandler.AcceptDriverOffer)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver-verifications", adminHandler.SubmitDriverVerification)
 			secured.With(RequireRoles(auth.RoleDriver, auth.RoleAdmin)).Post("/driver-documents/uploads", adminHandler.CreateDocumentUpload)
 			secured.With(RequireRoles(auth.RoleClient, auth.RoleAdmin)).Get("/payments/wallet", paymentHandler.GetWallet)

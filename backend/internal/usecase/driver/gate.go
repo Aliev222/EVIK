@@ -18,7 +18,9 @@ var (
 	// debt exceeds the configured maximum and the driver is not allowed to take
 	// new orders until it is repaid. Subscribers (0% commission) never accrue
 	// debt and are unaffected.
-	ErrOutstandingDebtBlocksWork = errors.New("outstanding debt blocks work")
+	ErrOutstandingDebtBlocksWork   = errors.New("outstanding debt blocks work")
+	ErrDriverOfferNotAccepted      = errors.New("current driver offer has not been accepted")
+	ErrDriverSettlementNotApproved = errors.New("driver settlement connection is not approved")
 )
 
 type GateRepository interface {
@@ -31,6 +33,11 @@ type GateRepository interface {
 	DriverDebtBalance(ctx context.Context, driverID string) (int64, error)
 }
 
+type OnboardingGateRepository interface {
+	IsDriverOnboardingOfferAccepted(context.Context, string) (bool, error)
+	IsDriverSettlementApproved(context.Context, string) (bool, error)
+}
+
 type GateService struct {
 	repo                 GateRepository
 	settingsRepo         settings.Repository
@@ -38,15 +45,37 @@ type GateService struct {
 	subscriptionRequired bool
 	bypass               bool
 	debugMode            bool
+	settlementRequired   bool
 }
 
-func NewGateService(repo GateRepository, settingsRepo settings.Repository, clock Clock, subscriptionRequired bool, bypass bool, debugMode bool) *GateService {
-	return &GateService{repo: repo, settingsRepo: settingsRepo, clock: clock, subscriptionRequired: subscriptionRequired, bypass: bypass, debugMode: debugMode}
+func NewGateService(repo GateRepository, settingsRepo settings.Repository, clock Clock, subscriptionRequired bool, bypass bool, debugMode bool, settlementRequired ...bool) *GateService {
+	required := len(settlementRequired) > 0 && settlementRequired[0]
+	return &GateService{repo: repo, settingsRepo: settingsRepo, clock: clock, subscriptionRequired: subscriptionRequired, bypass: bypass, debugMode: debugMode, settlementRequired: required}
 }
 
 func (s *GateService) EnsureCanWork(ctx context.Context, driverID string) error {
 	if s.bypass || s.debugMode {
 		return nil
+	}
+	if s.settlementRequired {
+		onboarding, ok := s.repo.(OnboardingGateRepository)
+		if !ok {
+			return ErrDriverSettlementNotApproved
+		}
+		accepted, err := onboarding.IsDriverOnboardingOfferAccepted(ctx, driverID)
+		if err != nil {
+			return err
+		}
+		if !accepted {
+			return ErrDriverOfferNotAccepted
+		}
+		approved, err := onboarding.IsDriverSettlementApproved(ctx, driverID)
+		if err != nil {
+			return err
+		}
+		if !approved {
+			return ErrDriverSettlementNotApproved
+		}
 	}
 	docsApproved, err := s.repo.IsDriverDocumentsApproved(ctx, driverID)
 	if err != nil {

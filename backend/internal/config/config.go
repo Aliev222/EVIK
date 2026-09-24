@@ -50,6 +50,7 @@ type Config struct {
 	DriverLastCityTTL                 time.Duration
 	DriverSubscriptionRequired        bool
 	DriverGateBypass                  bool
+	DriverSettlementGateEnabled       bool
 	DriverPresenceReaperInterval      time.Duration
 	DriverPresenceGracePeriod         time.Duration
 	StuckOrderReaperInterval          time.Duration
@@ -142,6 +143,7 @@ func MustLoad() Config {
 		StuckAcceptedAction:               getEnv("STUCK_ACCEPTED_ACTION", "cancel"),
 		DriverSubscriptionRequired:        getEnvBool("DRIVER_SUBSCRIPTION_REQUIRED", false),
 		DriverGateBypass:                  getEnvBool("DRIVER_GATE_BYPASS", driverGateBypassDefault),
+		DriverSettlementGateEnabled:       getEnvBool("DRIVER_SETTLEMENT_GATE_ENABLED", false),
 		ExposeSwagger:                     getEnvBool("EXPOSE_SWAGGER", false),
 		FirebaseCredentialsJSON:           getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		OTPFixedCode:                      otpFixedCode,

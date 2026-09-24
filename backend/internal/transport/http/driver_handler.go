@@ -30,6 +30,11 @@ type DriverProfileRepository interface {
 	GetTaxProfile(ctx context.Context, driverID string) (*userdomain.TaxProfile, error)
 }
 
+type DriverOnboardingRepository interface {
+	GetDriverOnboarding(ctx context.Context, driverID string) (map[string]any, error)
+	AcceptCurrentDriverOffer(ctx context.Context, driverID, method string, now time.Time) error
+}
+
 type DriverVerificationRepository interface {
 	GetVerificationStatus(ctx context.Context, driverID string) (*DriverVerificationStatus, error)
 }
@@ -39,18 +44,18 @@ type ActiveOrderChecker interface {
 }
 
 type DriverVerificationStatus struct {
-	DriverID         string                      `json:"driver_id"`
-	Status           string                      `json:"status"` // "pending", "approved", "rejected", "changes_requested", "blocked"
-	DocumentsUploaded map[string]DocumentInfo    `json:"documents_uploaded"`
-	SubmittedAt      *time.Time                  `json:"submitted_at"`
-	UpdatedAt        *time.Time                  `json:"updated_at"`
-	AdminComments    string                      `json:"admin_comments,omitempty"`
+	DriverID          string                  `json:"driver_id"`
+	Status            string                  `json:"status"` // "pending", "approved", "rejected", "changes_requested", "blocked"
+	DocumentsUploaded map[string]DocumentInfo `json:"documents_uploaded"`
+	SubmittedAt       *time.Time              `json:"submitted_at"`
+	UpdatedAt         *time.Time              `json:"updated_at"`
+	AdminComments     string                  `json:"admin_comments,omitempty"`
 }
 
 type DocumentInfo struct {
-	URL         string `json:"url"`
+	URL         string    `json:"url"`
 	UploadedAt  time.Time `json:"uploaded_at"`
-	ContentType string `json:"content_type"`
+	ContentType string    `json:"content_type"`
 }
 
 type DriverHandler struct {
@@ -344,10 +349,9 @@ func (h *DriverHandler) UpsertTaxProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	now := h.clock.Now()
+	// This endpoint records a declaration only. External tax verification and
+	// any trusted admin decision are separate explicit operations.
 	status := "pending"
-	if role == auth.RoleAdmin {
-		status = "verified"
-	}
 	profile := &userdomain.TaxProfile{
 		DriverID:           driverID,
 		INN:                req.INN,
@@ -381,8 +385,8 @@ func (h *DriverHandler) GetVerificationStatus(w http.ResponseWriter, r *http.Req
 
 	if h.verificationRepo == nil {
 		h.writeJSON(w, http.StatusOK, map[string]any{
-			"driver_id": driverID,
-			"status":    "not_submitted",
+			"driver_id":          driverID,
+			"status":             "not_submitted",
 			"documents_uploaded": map[string]any{},
 		})
 		return
@@ -396,14 +400,64 @@ func (h *DriverHandler) GetVerificationStatus(w http.ResponseWriter, r *http.Req
 
 	if status == nil {
 		h.writeJSON(w, http.StatusOK, map[string]any{
-			"driver_id": driverID,
-			"status":    "not_submitted",
+			"driver_id":          driverID,
+			"status":             "not_submitted",
 			"documents_uploaded": map[string]any{},
 		})
 		return
 	}
 
 	h.writeJSON(w, http.StatusOK, status)
+}
+
+// GetOnboarding returns the server-computed onboarding state. The client cannot
+// mark any step complete.
+func (h *DriverHandler) GetOnboarding(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+	repo, ok := h.profileRepo.(DriverOnboardingRepository)
+	if !ok {
+		h.writeError(w, http.StatusNotImplemented, errors.New("onboarding is not configured"))
+		return
+	}
+	state, err := repo.GetDriverOnboarding(r.Context(), driverID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, state)
+}
+
+type acceptDriverOfferRequest struct {
+	Method string `json:"method"`
+}
+
+func (h *DriverHandler) AcceptDriverOffer(w http.ResponseWriter, r *http.Request) {
+	driverID, ok := h.authorizeDriverScope(w, r)
+	if !ok {
+		return
+	}
+	var req acceptDriverOfferRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Method == "" {
+		h.writeError(w, http.StatusBadRequest, errors.New("explicit acceptance method is required"))
+		return
+	}
+	if req.Method != "button" && req.Method != "checkbox" {
+		h.writeError(w, http.StatusBadRequest, errors.New("unsupported acceptance method"))
+		return
+	}
+	repo, ok := h.profileRepo.(DriverOnboardingRepository)
+	if !ok {
+		h.writeError(w, http.StatusNotImplemented, errors.New("onboarding is not configured"))
+		return
+	}
+	if err := repo.AcceptCurrentDriverOffer(r.Context(), driverID, req.Method, h.clock.Now()); err != nil {
+		h.writeError(w, http.StatusConflict, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
 }
 
 // @Summary      Get tax profile
@@ -522,6 +576,8 @@ func (h *DriverHandler) writeDriverGateError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, driveruc.ErrDriverDocumentsNotApproved),
 		errors.Is(err, driveruc.ErrDriverTaxNotVerified),
+		errors.Is(err, driveruc.ErrDriverOfferNotAccepted),
+		errors.Is(err, driveruc.ErrDriverSettlementNotApproved),
 		errors.Is(err, driveruc.ErrDriverSubscriptionInactive),
 		errors.Is(err, driveruc.ErrOutstandingDebtBlocksWork):
 		h.writeError(w, http.StatusForbidden, err)
@@ -583,6 +639,9 @@ func taxProfileJSON(profile *userdomain.TaxProfile) map[string]any {
 		"inn":                   profile.INN,
 		"taxpayer_type":         profile.TaxpayerType,
 		"verification_status":   profile.VerificationStatus,
+		"verification_source":   profile.VerificationSource,
+		"verified_by":           profile.VerifiedBy,
+		"verification_reason":   profile.VerificationReason,
 		"npd_connection_status": status,
 		"created_at":            profile.CreatedAt.Format(time.RFC3339),
 		"updated_at":            profile.UpdatedAt.Format(time.RFC3339),

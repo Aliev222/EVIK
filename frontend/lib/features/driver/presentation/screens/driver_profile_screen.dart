@@ -14,6 +14,7 @@ import 'package:tow_truck_frontend/features/driver/presentation/providers/new_dr
 import 'package:tow_truck_frontend/shared/widgets/feature_announcement_sheet.dart';
 import 'package:tow_truck_frontend/shared/widgets/account_settings_tiles.dart';
 import 'driver_documents_screen.dart';
+import 'driver_onboarding_status_screen.dart';
 
 // Provider for driver profile data
 final driverProfileProvider = FutureProvider.autoDispose<Driver?>((ref) async {
@@ -313,6 +314,17 @@ class DriverProfileScreen extends ConsumerWidget {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const DriverDocumentsScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ProfileMenuItem(
+                icon: Icons.fact_check_outlined,
+                title: 'Статус подключения',
+                subtitle: 'Оферта, проверки и расчёты',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DriverOnboardingStatusScreen(),
                   ),
                 ),
               ),

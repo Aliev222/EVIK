@@ -45,7 +45,7 @@ func (r *DriverVerificationRepository) GetVerificationStatus(ctx context.Context
 
 	// Query the uploaded documents
 	documentsQuery := `
-		SELECT document_type, public_url, uploaded_at, content_type
+		SELECT document_type, storage_key, uploaded_at, content_type
 		FROM driver_documents
 		WHERE verification_id = $1
 		ORDER BY uploaded_at DESC

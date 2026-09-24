@@ -65,6 +65,10 @@ type TaxProfile struct {
 	INN                string
 	TaxpayerType       string
 	VerificationStatus string
+	VerificationSource string
+	VerifiedBy         string
+	VerifiedAt         *time.Time
+	VerificationReason string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 

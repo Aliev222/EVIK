@@ -137,7 +137,7 @@ class HttpDriverVerificationRepository implements DriverVerificationRepository {
           File(entry.value.file.path),
           documentType,
         );
-        documentUrls[documentType] = uploadedDoc['document']['public_url'];
+        documentUrls[documentType] = uploadedDoc['document']['key'];
         completed++;
 
         onProgress?.call(
@@ -157,7 +157,7 @@ class HttpDriverVerificationRepository implements DriverVerificationRepository {
         File(payload.selfie.file.path),
         'selfie',
       );
-      documentUrls['selfie'] = selfieDoc['document']['public_url'];
+      documentUrls['selfie'] = selfieDoc['document']['key'];
       completed++;
 
       await apiClient.post(

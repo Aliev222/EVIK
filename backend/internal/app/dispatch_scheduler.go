@@ -18,6 +18,7 @@ import (
 	servicearea "evik/backend/internal/domain/servicearea"
 	"evik/backend/internal/domain/settings"
 	wsinfra "evik/backend/internal/infrastructure/websocket"
+	driveruc "evik/backend/internal/usecase/driver"
 )
 
 type dispatchServiceAreaRepo interface {
@@ -82,6 +83,9 @@ type DispatchScheduler struct {
 	stepRadiusKM     float64
 	geoFreshness     time.Duration
 	maxRounds        int
+	workGate         interface {
+		EnsureCanWork(context.Context, string) error
+	}
 
 	// wakeGrace is how long the dispatcher waits for an online driver without a
 	// live WS connection to reconnect after a wake-up push before falling back to
@@ -131,6 +135,9 @@ func NewDispatchScheduler(
 	checkInterval time.Duration,
 	offerTimeout time.Duration,
 	geoFreshness time.Duration,
+	workGate ...interface {
+		EnsureCanWork(context.Context, string) error
+	},
 ) *DispatchScheduler {
 	if checkInterval <= 0 {
 		checkInterval = 2 * time.Second
@@ -140,6 +147,12 @@ func NewDispatchScheduler(
 	}
 	if geoFreshness <= 0 {
 		geoFreshness = 60 * time.Second
+	}
+	var gate interface {
+		EnsureCanWork(context.Context, string) error
+	}
+	if len(workGate) > 0 {
+		gate = workGate[0]
 	}
 	return &DispatchScheduler{
 		offerRepo:        offerRepo,
@@ -162,6 +175,7 @@ func NewDispatchScheduler(
 		stepRadiusKM:     5,
 		geoFreshness:     geoFreshness,
 		maxRounds:        3,
+		workGate:         gate,
 		wakeGrace:        8 * time.Second,
 		waking:           make(map[string]wakeEntry),
 	}
@@ -419,6 +433,14 @@ func (s *DispatchScheduler) searchRadii(ctx context.Context, ord *orderdomain.Or
 //   - (false, "", nil)      — driver busy/locked by another tx → caller tries next candidate
 //   - (false, "", err)      — unexpected error
 func (s *DispatchScheduler) tryReserveAndOffer(ctx context.Context, ord *orderdomain.Order, candidate matchingdomain.Candidate, round int, offerTimeout time.Duration) (bool, string, error) {
+	if s.workGate != nil {
+		if err := s.workGate.EnsureCanWork(ctx, candidate.DriverID); err != nil {
+			if err == driveruc.ErrDriverOfferNotAccepted || err == driveruc.ErrDriverSettlementNotApproved || err == driveruc.ErrDriverDocumentsNotApproved || err == driveruc.ErrDriverTaxNotVerified {
+				return false, "", nil
+			}
+			return false, "", err
+		}
+	}
 	now := s.clock.Now()
 	offer := &orderdomain.Offer{
 		ID:         s.idGen.NewID(),

@@ -75,6 +75,13 @@ func (ds *DocumentStorage) EnsureBucket(ctx context.Context) error {
 			return fmt.Errorf("failed to create bucket: %w", err)
 		}
 	}
+	policy, err := ds.client.GetBucketPolicy(ctx, ds.bucket)
+	if err != nil {
+		return fmt.Errorf("failed to inspect bucket policy: %w", err)
+	}
+	if strings.TrimSpace(policy) != "" {
+		return fmt.Errorf("document bucket must have a private/empty anonymous policy")
+	}
 	return nil
 }
 
