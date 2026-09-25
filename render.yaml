@@ -25,6 +25,8 @@ services:
         generateValue: true
       - key: APP_ENV
         value: production
+      - key: DRIVER_GATE_BYPASS
+        value: "true"
 
   # Redis Cache
   - type: redis
