@@ -24,7 +24,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: APP_ENV
-        value: production
+        value: staging
       - key: DRIVER_GATE_BYPASS
         value: "true"
 
