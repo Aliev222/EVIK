@@ -1,4 +1,5 @@
 -- Driver onboarding state and explicit offer acceptance.
+-- +goose Up
 CREATE TABLE IF NOT EXISTS driver_offers (
     id TEXT PRIMARY KEY,
     version TEXT NOT NULL UNIQUE,
@@ -41,3 +42,13 @@ ALTER TABLE driver_tax_profiles
     ADD COLUMN IF NOT EXISTS verified_by TEXT,
     ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS verification_reason TEXT;
+
+-- +goose Down
+DROP TABLE IF EXISTS driver_settlement_connections;
+DROP TABLE IF EXISTS driver_offer_acceptances;
+DROP TABLE IF EXISTS driver_offers;
+ALTER TABLE driver_tax_profiles
+    DROP COLUMN IF EXISTS verification_source,
+    DROP COLUMN IF EXISTS verified_by,
+    DROP COLUMN IF EXISTS verified_at,
+    DROP COLUMN IF EXISTS verification_reason;
